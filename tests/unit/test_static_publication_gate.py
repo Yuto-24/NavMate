@@ -19,7 +19,7 @@ def approved():
     env = {
         "GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted",
         "RUNNER_OS": "Linux", "RUNNER_ARCH": "X64", "STATIC_RUNNER_CLASS": "ubuntu-latest",
-        "GITHUB_REPOSITORY": "Yuto-24/AutoNavLog", "APPROVED_SHA": "a" * 40,
+        "GITHUB_REPOSITORY": "Yuto-24/NavMate", "APPROVED_SHA": "a" * 40,
         "STATIC_ORIGIN": gate.ORIGIN, "CLOUDFLARE_ACCOUNT_ID": "c" * 32,
         **{name: "public-" + name for name in gate.CONFIGURATION},
     }
@@ -36,6 +36,25 @@ def test_missing_all_optional_provider_credentials_or_reports_does_not_block_sta
     # Old reports and optional settings are not consumed as evidence either.
     env.update(STATIC_QUOTA_REPORT="expired", STATIC_GOOGLE_ACCESS_TOKEN="unavailable")
     assert gate.identity(env, event, canonical) == "a" * 40
+
+
+@pytest.mark.parametrize("event_repository, runner_repository", [
+    ("Yuto-24/AutoNavLog", "Yuto-24/AutoNavLog"),
+    ("other/NavMate", "other/NavMate"),
+    ("Yuto-24/other", "Yuto-24/other"),
+    ("Yuto-24/NavMate", "Yuto-24/AutoNavLog"),
+    ("Yuto-24/AutoNavLog", "Yuto-24/NavMate"),
+    (None, "Yuto-24/NavMate"),
+    ("Yuto-24/NavMate", None),
+])
+def test_wrong_or_mismatched_repository_stops_static(
+    approved, event_repository, runner_repository
+):
+    env, event, canonical = approved
+    event["repository"]["full_name"] = event_repository
+    env["GITHUB_REPOSITORY"] = runner_repository
+    with pytest.raises(ValueError, match="Expected public NavMate repository"):
+        gate.identity(env, event, canonical)
 
 
 @pytest.mark.parametrize("patch", [

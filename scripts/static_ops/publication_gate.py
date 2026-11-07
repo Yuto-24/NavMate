@@ -41,9 +41,9 @@ def identity(env: dict, event: dict, canonical: dict) -> str:
     """Use runner/event metadata and live approved configuration, never quota guesses."""
     repository = event.get("repository", {})
     if (repository.get("private") is not False
-            or repository.get("full_name") != "Yuto-24/AutoNavLog"
+            or repository.get("full_name") != "Yuto-24/NavMate"
             or env.get("GITHUB_REPOSITORY") != repository.get("full_name")):
-        raise ValueError("Expected public AutoNavLog repository")
+        raise ValueError("Expected public NavMate repository")
     if (env.get("GITHUB_ACTIONS") != "true"
             or env.get("RUNNER_ENVIRONMENT") != "github-hosted"
             or env.get("RUNNER_OS") != "Linux"
