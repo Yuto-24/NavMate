@@ -184,8 +184,13 @@ for (const width of [1100, 1440]) {
     await selectAirport(page, "RJFM");
     await zoomMapTo(page, (await mapZoom(page)) + 1);
     await page.getByLabel("保存済み", { exact: true }).selectOption(projectId);
-    page.once("dialog", dialog => dialog.dismiss());
+    const cancelledLoad = new Promise<void>(resolve => page.once("dialog", async dialog => {
+      await dialog.dismiss();
+      resolve();
+    }));
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
+    await cancelledLoad;
+    await expect(page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true })).toBeEnabled();
     await expect(strip(page).locator("li")).toHaveCount(1);
     page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
