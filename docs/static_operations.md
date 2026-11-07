@@ -499,6 +499,10 @@ Its timestamps are historical evidence, not current publication authorization.
 
 ## WSL からのアプリ更新: prepare / publish
 
+工程の重複・排他・部分失敗・診断情報の現状と改善案は
+[Issue #339 アプリ公開工程の棚卸し](app_publication_audit.md)を参照。
+調査結果だけでは、以下の公開gateや停止・復旧条件を変更しない。
+
 #265 / #266 の後続調査と実行条件は[読取整合性・配信検証の記録](evidence/issue-265-266/2026-10-16-target-serving.md)を参照。
 #267 単独 SHA では prepare を開始せず、後続修正の merge 承認・反映後に最終 tooling SHA を固定し直す。
 
