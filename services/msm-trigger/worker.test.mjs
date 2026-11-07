@@ -4,6 +4,7 @@ import worker, { tick, API, FRESHNESS, FRESHNESS_LIMIT, COOLDOWN } from './worke
 import { fixture, NOW, DISPATCH_RUN } from './fixtures.mjs';
 const run = (status = 'completed', time = NOW) => ({ id: 1, status, conclusion: 'success', created_at: new Date(time).toISOString(), display_title: 'msm-request/' + time });
 test('request IDs are separate from observed Runs; acceptance never proves publication', async () => {
+  assert.equal(API, 'https://api.github.com/repos/Yuto-24/NavMate/actions/workflows/static-production.yml');
   const s = fixture(); const result = await s.tick();
   assert.equal(result.status, 'DISPATCH_ACCEPTED'); assert.equal(result.publication, 'NOT_VERIFIED');
   assert.equal(result.request_id, String(NOW));
@@ -166,6 +167,8 @@ for (const [name, value] of [
   ['fractional ID', { ...DISPATCH_RUN, workflow_run_id: 1.5 }],
   ['unsafe ID', { ...DISPATCH_RUN, workflow_run_id: Number.MAX_SAFE_INTEGER + 1 }],
   ['string ID', { ...DISPATCH_RUN, workflow_run_id: '123' }],
+  ['old API repository', { ...DISPATCH_RUN, run_url: DISPATCH_RUN.run_url.replace('NavMate', 'AutoNavLog') }],
+  ['old HTML repository', { ...DISPATCH_RUN, html_url: DISPATCH_RUN.html_url.replace('NavMate', 'AutoNavLog') }],
   ['missing API URL', { ...DISPATCH_RUN, run_url: undefined }],
   ['missing HTML URL', { ...DISPATCH_RUN, html_url: undefined }],
   ['foreign API host', { ...DISPATCH_RUN, run_url: 'https://private-token.invalid/actions/runs/123' }],

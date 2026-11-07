@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        [文章の規範](https://github.com/Yuto-24/AutoNavLog/blob/main/docs/writing-style.md)に従い、解決したい問題・対象範囲・完了条件を中心に記載してください。
+        [文章の規範](https://github.com/Yuto-24/NavMate/blob/main/docs/writing-style.md)に従い、解決したい問題・対象範囲・完了条件を中心に記載してください。
         現在の状態を先に、詳細な経緯やログは補足に分けてください。
 
   - type: dropdown

@@ -1,10 +1,15 @@
 # NavMate branding integration (#199)
 
-This minimal candidate is based on main `58127b3` (1.22.9) and the existing
-branding commit `dfef4ba`, for the **v2.0.0 naming/icon release boundary**.
-PR #282 and PR #283 features are explicitly excluded; they remain separate,
-unmerged work. PR #200 remains historical reference, not the source of this patch.
-This candidate does not establish that production publication is accepted.
+The **v2.0.0 naming/icon change** was merged in
+[PR #285](https://github.com/Yuto-24/NavMate/pull/285) on 2026-10-24. It was based
+on main `58127b3` (1.22.9) and branding commit `dfef4ba`; #282 and #283 features
+were excluded from that minimal release boundary. PR #200 was superseded and
+closed without merging; it remains historical reference.
+
+The repository is now `Yuto-24/NavMate`, with the same repository ID `1314030412`.
+[Issue #199](https://github.com/Yuto-24/NavMate/issues/199) tracks the remaining
+reference alignment and records existing-data acceptance. Implementation, merge,
+publication and user acceptance remain separate evidence.
 
 The user-approved name `NavMate` replaces the human-facing product name in the
 Web header, browser title, startup/information/disclaimer text, static 404 page,
@@ -46,24 +51,45 @@ against the committed PNG/ICO assets; it does not discard changes.
   Project schemas, Last Calculation and all existing migration logic
 - Keep persisted reference-data provenance labels and historical release/evidence
   records; no branding-specific data migration is introduced
-- Keep existing GitHub repository URLs and operational identity checks until the
-  separately coordinated repository rename is performed and verified
+- Use `Yuto-24/NavMate` in active GitHub API targets, repository identity checks,
+  workflow conditions and operator commands. Do not accept old-name redirects
+  in publication or dispatch checks. Historical evidence URLs and reference-data
+  provenance retain their original spelling; they are not current API targets.
+- The existing `compose.local.yaml` Git clone URL is retained: on 2026-11-08 JST,
+  `git ls-remote` through both names resolved `main` to
+  `726cf95cf386b1f39c52d9babc57e68ecf29b705`. This Git compatibility path is distinct
+  from the redirect-rejecting Actions HTTP clients. It does not require a local
+  runtime replacement for this change.
 
-## Remaining release gates
+## Current verification and remaining acceptance
 
-- Complete #187 icon packaging and real-device acceptance using the adopted #240 source.
-  Test iPhone/iPad Safari and Android Chrome home-screen name/icon, login return
-  and existing storage; do not imply offline support or introduce a service worker.
-- Independently review the final integrated diff, run release validation and
-  required tests, and verify changed display text in the supported runtime
-- VERSION is 2.0.0; CHANGELOG contains only naming/icon changes above the
-  unchanged history from 1.22.9. #282/#283 features are not release gates for this
-  minimal branding release.
-- Re-sweep current Open Issues and coordinate the `Yuto-24/NavMate` repository
-  rename near release; validate CI, publication gates and links after that rename
+- [#187 home-screen/icon acceptance](https://github.com/Yuto-24/NavMate/issues/187#issuecomment-6630050367)
+  was closed as completed on 2026-11-04 following the user's acceptance. Its
+  earlier unchecked body is not the latest status. No offline support is implied.
+- [#199](https://github.com/Yuto-24/NavMate/issues/199) records completed product-name
+  updates in current Open Issues. [PR #377](https://github.com/Yuto-24/NavMate/pull/377)
+  corrected the static publication preflight; the remaining release/probe workflow,
+  app-release, external-trigger and dispatch-receipt checks use the new repository.
+  Public-repository checks, reviewed SHA, runner, origin/configuration checks,
+  redirect rejection and publication verification remain in place.
+- A read-only observation on 2026-11-08 JST returned HTTP 200 for the canonical
+  root, `/release.json` and `/manifest.webmanifest`. The title and manifest names
+  were NavMate; release metadata reported clean v2.2.0 at
+  `2d344ce45a8a1a0ab25c659247afd4aef853977c`. This is the observed serving version,
+  not evidence that the repository-alignment changes have been deployed or that
+  the full inventory/payload publication gate passed.
+- Existing branding and persistence tests cover unchanged identifiers and
+  synthetic Saved/Latest/Last Calculation records, including IndexedDB versions
+  1 and 2 and server-side storage/import. Separately, on 2026-11-08 JST the user
+  confirmed that both pre-rename Projects and Last Calculation open without
+  problems in the current NavMate. This is user-reported acceptance in their
+  storage context, not a new claim of automated real-device coverage.
 
-Repository rename, production deployment, merge and Firestore Rules deployment
-are not performed by this candidate. Legacy import remains enabled.
+This alignment does not change `VERSION`, `CHANGELOG.md`, v1.x branding, storage
+schemas/keys or runtime identifiers. It introduces no branding migration.
+The Worker must be deployed through a separately authorized operation before its
+updated GitHub targets are live. No production, Rules or scheduler changes are
+authorized by this implementation; Legacy import remains enabled.
 
 ## Separate production publication gate
 

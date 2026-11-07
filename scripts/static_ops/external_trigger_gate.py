@@ -17,7 +17,7 @@ except ImportError:
 
 PREFIXES = ("msm-fallback/", "msm-request/")
 
-API = "https://api.github.com/repos/Yuto-24/AutoNavLog/actions/workflows/static-production.yml/runs"
+API = "https://api.github.com/repos/Yuto-24/NavMate/actions/workflows/static-production.yml/runs"
 
 
 class Reason(Enum):

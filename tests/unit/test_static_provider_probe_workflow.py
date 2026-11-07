@@ -44,6 +44,8 @@ def test_workflow_is_manual_cloudflare_only_and_cannot_accept_quota():
     triggers = WORKFLOW.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
     assert "  workflow_dispatch:" in triggers
     assert all(event not in triggers for event in ("schedule:", "push:", "pull_request"))
+    assert ("if: github.repository == 'Yuto-24/NavMate' && "
+            "github.event_name == 'workflow_dispatch'") in WORKFLOW
     assert "contents: read" in WORKFLOW and "write" not in WORKFLOW
     assert "ref: ${{ github.sha }}" in WORKFLOW
     assert "uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1" in WORKFLOW

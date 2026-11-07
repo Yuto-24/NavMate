@@ -1,6 +1,6 @@
 // Metadata-only fallback. Completeness, decoding and publication belong to Actions.
 export const ORIGIN = "https://navmate.yuto24.com";
-export const API = "https://api.github.com/repos/Yuto-24/AutoNavLog/actions/workflows/static-production.yml";
+export const API = "https://api.github.com/repos/Yuto-24/NavMate/actions/workflows/static-production.yml";
 export const FRESHNESS = `${ORIGIN}/weather/msm/freshness.json`;
 export const FRESHNESS_LIMIT = 2048;
 export const COOLDOWN = 90 * 60_000;
@@ -85,7 +85,7 @@ function dispatchRun(bytes: Uint8Array): DispatchRun {
   requireThat(value !== null && typeof value === "object" && !Array.isArray(value) &&
     typeof value.workflow_run_id === "number" && Number.isSafeInteger(value.workflow_run_id) &&
     value.workflow_run_id > 0, "INVALID_DISPATCH_RESPONSE");
-  const path = `/Yuto-24/AutoNavLog/actions/runs/${value.workflow_run_id}`;
+  const path = `/Yuto-24/NavMate/actions/runs/${value.workflow_run_id}`;
   requireThat(value.run_url === `https://api.github.com/repos${path}` &&
     value.html_url === `https://github.com${path}`, "INVALID_DISPATCH_RESPONSE");
   return { workflow_run_id: value.workflow_run_id, run_url: value.run_url, html_url: value.html_url };
