@@ -58,7 +58,7 @@ test("Static Local TAF success, quota/timeout/outage and recovery preserve navig
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-12");
   await page.getByLabel("ETD JST", { exact: true }).fill("12:00");
   await page.getByLabel("気象モード").selectOption("FORECAST");
-  for (const [name, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
+  for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     const input = page.getByLabel(`${name}出発Legの計画高度`, { exact: true });
     await input.fill(altitude); await input.blur();
   }

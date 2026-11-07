@@ -84,6 +84,8 @@ class ImportedPoint:
     altitude_m: float | None = None
     container_path: tuple[str, ...] = ()
     document_order: int = 0
+    name_is_explicit: bool = True
+    container_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,7 @@ class ImportedLine:
     original_coordinate_count: int = 0
     container_path: tuple[str, ...] = ()
     document_order: int = 0
+    container_id: int | None = None
 
     def __post_init__(self) -> None:
         if not self.display_coordinates:
@@ -534,7 +537,9 @@ def _connected_lines(
                     junction_point.latitude_deg,
                     junction_point.longitude_deg,
                 )
-                junction_name = junction_point.name.strip()
+                junction_name = (
+                    junction_point.name.strip() if junction_point.name_is_explicit else ""
+                )
                 if junction_name:
                     waypoint_names[-1] = junction_name
                     waypoint_sources[-1] = "point"
@@ -554,14 +559,14 @@ def _connected_lines(
         if waypoint_names[0] is None:
             start_point = _matching_endpoint_point(container_points, coordinates[0])
             if start_point is not None:
-                start_name = start_point.name.strip()
+                start_name = start_point.name.strip() if start_point.name_is_explicit else ""
                 if start_name:
                     waypoint_names[0] = start_name
                     waypoint_sources[0] = "point"
         if waypoint_names[-1] is None:
             end_point = _matching_endpoint_point(container_points, coordinates[-1])
             if end_point is not None:
-                end_name = end_point.name.strip()
+                end_name = end_point.name.strip() if end_point.name_is_explicit else ""
                 if end_name:
                     waypoint_names[-1] = end_name
                     waypoint_sources[-1] = "point"
@@ -623,6 +628,7 @@ def _parse_kml(
     coordinate_count = 0
     document_order = 0
     parents = {child: parent for parent in root.iter() for child in parent}
+    container_ids = {element: index for index, element in enumerate(root.iter())}
     point_containers: list[Element | None] = []
     line_containers: list[Element | None] = []
     for placemark in (item for item in root.iter() if _local_name(item.tag) == "Placemark"):
@@ -696,6 +702,10 @@ def _parse_kml(
                         altitude,
                         container_path,
                         geometry_order,
+                        name_is_explicit=bool(
+                            name_element is not None and (name_element.text or "").strip()
+                        ),
+                        container_id=container_ids.get(container, -1),
                     )
                 )
                 point_containers.append(container)
@@ -712,6 +722,7 @@ def _parse_kml(
                         display,
                         container_path=container_path,
                         document_order=geometry_order,
+                        container_id=container_ids.get(container, -1),
                     )
                 )
                 line_containers.append(container)
@@ -894,6 +905,7 @@ def select_imported_line(
         original_coordinate_count=line.original_coordinate_count,
         container_path=line.container_path,
         document_order=line.document_order,
+        container_id=line.container_id,
     )
 
 

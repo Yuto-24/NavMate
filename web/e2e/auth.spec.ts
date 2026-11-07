@@ -69,7 +69,7 @@ async function planRoute(page: Page) {
 }
 async function saveRoute(page: Page, name: string) {
   await planRoute(page);
-  for (const [node, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
+  for (const [node, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     await page.getByLabel(`${node}出発Legの計画高度`, { exact: true }).fill(altitude);
   }
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();

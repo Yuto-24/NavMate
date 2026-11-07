@@ -4,6 +4,7 @@ export interface MapRoutePoint {
   id: string;
   original_node_id?: string;
   name: string;
+  name_source?: "GENERATED" | "IMPORTED";
   latitude_deg: number;
   longitude_deg: number;
   airport_id: string | null;
@@ -15,7 +16,9 @@ export function validMapDraft(value: unknown): value is MapRoutePoint[] {
   return value.every(point => {
     if (!point || typeof point !== "object" || typeof point.id !== "string" || ids.has(point.id) ||
         (point.original_node_id !== undefined && typeof point.original_node_id !== "string") ||
-        typeof point.name !== "string" || !point.name.trim() || (point.name.length > 100 && !point.original_node_id) ||
+        (point.name_source !== undefined && point.name_source !== "GENERATED" && point.name_source !== "IMPORTED") ||
+        typeof point.name !== "string" || !point.name.trim() ||
+        (point.name.length > 100 && !point.original_node_id && point.name_source !== "IMPORTED") ||
         !Number.isFinite(point.latitude_deg) || Math.abs(point.latitude_deg) > 90 ||
         !Number.isFinite(point.longitude_deg) || Math.abs(point.longitude_deg) > 180 ||
         !(point.airport_id === null || typeof point.airport_id === "string" && point.airport_id.length > 0)) return false;

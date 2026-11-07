@@ -5,6 +5,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from math import cos, radians
 from secrets import compare_digest, token_urlsafe
 from threading import RLock
 from typing import TYPE_CHECKING, Any
@@ -509,7 +510,7 @@ class AutoNavLogWebApplication:
                     else:
                         entries.append((
                             point.name, point.latitude_deg, point.longitude_deg,
-                            "MAP", RouteNodeNameSource.GENERATED,
+                            "MAP", RouteNodeNameSource(point.name_source),
                         ))
                 retained_ids = original_ids
                 # Every click is an occurrence, including consecutive visits to one reference.
@@ -517,8 +518,11 @@ class AutoNavLogWebApplication:
                     raise WebApplicationError(
                         "ROUTE_INCOMPLETE", "異なる2地点以上で経路を作成してください。"
                     )
-                # MAP labels are generated names, not explicit KML Point Placemarks.
-                explicit_point_names: dict[int, str] = {}
+                # Imported Draft names are already bound to physical occurrences.
+                explicit_point_names = {
+                    index: point.name for index, point in enumerate(request.map_points)
+                    if point.airport_id is None and point.name_source == "IMPORTED"
+                }
             else:
                 if result is None:
                     raise WebApplicationError("KML_REQUIRED", "先にKML/KMZを読み込んでください。")
@@ -2411,10 +2415,23 @@ class AutoNavLogWebApplication:
         longitude_deg: float,
         *,
         container_path: tuple[str, ...] | None = None,
+        container_id: int | None = None,
     ) -> str | None:
         nearest: tuple[float, str] | None = None
+        # A generous box around the 0.05 NM match radius avoids expensive inverse
+        # geodesics for distant Points on every candidate presentation. Use the
+        # poleward edge's longitude scale and wrapped deltas, including at poles.
+        longitude_scale = cos(radians(min(90.0, abs(latitude_deg) + 0.01)))
         for point in result.points:
+            if not point.name_is_explicit:
+                continue
+            if container_id is not None and point.container_id != container_id:
+                continue
             if container_path is not None and point.container_path != container_path:
+                continue
+            longitude_delta = abs((point.longitude_deg - longitude_deg + 180) % 360 - 180)
+            if (abs(point.latitude_deg - latitude_deg) > 0.01
+                    or longitude_delta * longitude_scale > 0.01):
                 continue
             distance = geodesic_leg(
                 latitude_deg,
@@ -3077,11 +3094,64 @@ class AutoNavLogWebApplication:
                     ),
                 }
             )
+            candidate["routeNames"] = self._candidate_name_slots(result, candidate)
         return {
             "warnings": list(result.warnings),
             "sourceFiles": list(result.source_files),
             "candidates": candidates,
         }
+
+    def _candidate_name_slots(
+        self, result: KmlImportResult, candidate: dict[str, Any],
+    ) -> list[str | None] | None:
+        """Bind imported labels to unsimplified occurrences before MAP adoption."""
+        coordinates = candidate["routeCoordinates"]
+        if coordinates is None or candidate["kind"] == "polygon":
+            return None
+        point_names: dict[int, str] = {}
+        if candidate["kind"] == "connected_lines":
+            shape = connected_line_route_shape(result.connected_lines[candidate["index"]])
+            names = list(shape.waypoint_names)
+            point_names = {
+                index: name for index, (name, source) in enumerate(
+                    zip(names, shape.waypoint_sources, strict=True)
+                ) if name and source == "point"
+            }
+        elif candidate["kind"] == "line":
+            line = result.lines[candidate["index"]]
+            names = list(waypoint_name_slots_from_line(line))
+            point_names = {
+                index: name for index, (lat, lon) in enumerate(coordinates)
+                if line.container_id is not None and (name := self._nearest_point_name(
+                    result, lat, lon, container_id=line.container_id,
+                )) is not None
+            }
+        else:
+            names = [None] * len(coordinates)
+            point_names = {
+                index: point.name.strip() for index, point in enumerate(result.points)
+                if point.name_is_explicit and point.name.strip()
+            }
+        entries: list[RouteEntry] = [
+            (
+                name or point_names.get(index) or f"WP{index + 1}", lat, lon,
+                "KML/KMZ Point" if index in point_names and (
+                    not name or candidate["kind"] == "connected_lines"
+                ) else
+                "KML/KMZ LineString name" if name else "KML/KMZ LineString",
+                RouteNodeNameSource.IMPORTED if name or index in point_names
+                else RouteNodeNameSource.GENERATED,
+            )
+            for index, ((lat, lon), name) in enumerate(zip(coordinates, names, strict=True))
+        ]
+        # Reuse the legacy physical-slot alignment without changing route geometry.
+        entries = self._reserve_rjfm_northbound_name_slots(
+            entries, candidate["departureAirportId"] or "", explicit_point_names=point_names,
+        )
+        entries = self._preserve_rjfm_inbound_point_slots(
+            entries, candidate["destinationAirportId"] or "", point_names,
+        )
+        return [entry[0] if entry[4] == RouteNodeNameSource.IMPORTED else None for entry in entries]
 
     def _workflow_step(self, session: WebSession) -> int:
         if session.project is None:

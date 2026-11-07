@@ -1,4 +1,4 @@
-import { enterImportWorkflow, confirmImportedDraft, importedMapNames } from "./helpers/importWorkflow";
+import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -33,7 +33,7 @@ async function setup(page: Page) {
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-16");
   await page.getByLabel("ETD JST", { exact: true }).fill("12:00");
   await page.getByLabel("気象モード").selectOption("FORECAST");
-  for (const [name, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
+  for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     const field = page.getByLabel(`${name}出発Legの計画高度`, { exact: true });
     await field.fill(altitude!); await field.blur();
   }
@@ -92,7 +92,7 @@ test("portable real MSM: cold, warm after reload, Python reference and saved NAV
   const downloads: string[] = [];
   context.on("request", r => { if (r.url().includes("/weather/msm/")) downloads.push(r.url()); });
   await setup(page); await calculate(page);
-  compare(calculationCoreGolden(await calculationState(page)), importedMapNames(calculationCoreGolden(reference())));
+  compare(calculationCoreGolden(await calculationState(page)), calculationCoreGolden(reference()));
   expect((await calculationState(page)).outcome.selected_forecast_run_id).toBe("20260915210000");
   expect(downloads.filter(url => url.endsWith(".npz"))).toHaveLength(1);
   const before = (await record(page)).lastCalculation;
@@ -283,7 +283,7 @@ test("portable GSM fallback: complete Local NAV LOG matches Legacy, persists mod
     [resolve("../scripts/local_reference.py"), "--feed", policyFixture("msm-outside-hgt"),
       "--gsm-feed", policyFixture("gsm")], { encoding: "utf8" },
   ));
-  compare(calculationCoreGolden(fallback), importedMapNames(calculationCoreGolden(native)));
+  compare(calculationCoreGolden(fallback), calculationCoreGolden(native));
   const last = (await record(page)).lastCalculation;
   expect(last.project.selected_forecast_model).toBe("GSM");
   expect(last.outcome.forecast_provenance).toEqual(fallback.outcome.forecast_provenance);
