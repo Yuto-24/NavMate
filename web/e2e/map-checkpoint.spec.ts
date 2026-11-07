@@ -175,7 +175,7 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
 
 test("green theme keeps readable controls, keyboard selection and aviation colors", async ({ page }, info) => {
   await importLocalRoute(page);
-  for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
+  for (const [name, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
     await page.getByLabel(`${name}出発Legの計画高度`, { exact: true }).fill(altitude!);
   }
   const contrast = (first: string, second: string) => {
