@@ -5,6 +5,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from math import cos, radians
 from secrets import compare_digest, token_urlsafe
 from threading import RLock
 from typing import TYPE_CHECKING, Any
@@ -2417,12 +2418,20 @@ class AutoNavLogWebApplication:
         container_id: int | None = None,
     ) -> str | None:
         nearest: tuple[float, str] | None = None
+        # A generous box around the 0.05 NM match radius avoids expensive inverse
+        # geodesics for distant Points on every candidate presentation. Use the
+        # poleward edge's longitude scale and wrapped deltas, including at poles.
+        longitude_scale = cos(radians(min(90.0, abs(latitude_deg) + 0.01)))
         for point in result.points:
             if not point.name_is_explicit:
                 continue
             if container_id is not None and point.container_id != container_id:
                 continue
             if container_path is not None and point.container_path != container_path:
+                continue
+            longitude_delta = abs((point.longitude_deg - longitude_deg + 180) % 360 - 180)
+            if (abs(point.latitude_deg - latitude_deg) > 0.01
+                    or longitude_delta * longitude_scale > 0.01):
                 continue
             distance = geodesic_leg(
                 latitude_deg,

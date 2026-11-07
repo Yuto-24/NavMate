@@ -106,3 +106,35 @@ def test_connected_names_follow_deduplicated_geometry(junction):
     assert candidate["kind"] == "connected_lines"
     assert candidate["routeNames"] == [None, junction, None]
     assert candidate["routeCoordinates"] == [[31, 131], [32, 131], [33, 131]]
+
+
+@pytest.mark.parametrize(("coordinate", "nearby"), [
+    ((32, 131), (32.0005, 131)),
+    ((0, 179.9998), (0, -179.9998)),
+    ((89.9998, 0), (89.9998, 180)),
+    ((-89.9998, 0), (-89.9998, 180)),
+])
+def test_point_name_prefilter_preserves_close_matches_across_dateline_and_poles(
+    coordinate, nearby,
+):
+    result = KmlImportResult(points=(ImportedPoint("NEAR", *nearby),))
+    assert AutoNavLogWebApplication._nearest_point_name(result, *coordinate) == "NEAR"
+
+
+def test_point_name_prefilter_avoids_distant_geodesics_without_changing_match_radius(monkeypatch):
+    import autonavlog.web.facade as facade_module
+
+    original = facade_module.geodesic_leg
+    calls = []
+
+    def measured(*args):
+        calls.append(args)
+        return original(*args)
+
+    monkeypatch.setattr(facade_module, "geodesic_leg", measured)
+    result = KmlImportResult(points=(
+        *(ImportedPoint(str(index), 32, 140 + index / 1000) for index in range(200)),
+        ImportedPoint("OUTSIDE", 32.002, 131),
+    ))
+    assert AutoNavLogWebApplication._nearest_point_name(result, 32, 131) is None
+    assert len(calls) == 1
