@@ -123,7 +123,8 @@ export function StatusPanel({
             const powerBoundaries = boundaryProvenance.filter((item) => item.axis === "POWER_PERCENT");
             return (
               <article
-                className={`issue-item ${issue.severity === "BLOCKER" ? "issue-blocker" : "issue-warning"}`}
+                className={`issue-item ${issue.code === "FORECAST_STALE_RUN" ? "issue-advisory"
+                  : issue.severity === "BLOCKER" ? "issue-blocker" : "issue-warning"}`}
                 key={issue.ackKey}
               >
                 {issue.severity === "BLOCKER" ? (
@@ -132,7 +133,7 @@ export function StatusPanel({
                   <AlertTriangle aria-hidden="true" size={18} />
                 )}
                 <div>
-                  <strong>{issue.code}</strong>
+                  <strong>{issue.code === "FORECAST_STALE_RUN" ? "Advisory" : issue.code}</strong>
                   <p>{issue.message}</p>
                   {(boundaryProvenance.length > 0 || issue.calculationCondition || issue.selectedCondition) && (
                     <div className="boundary-provenance" aria-label="巡航性能の境界詳細">
@@ -180,7 +181,7 @@ export function StatusPanel({
                       ))}
                     </div>
                   )}
-                  <small>次の操作: {issue.action}</small>
+                  {issue.code !== "FORECAST_STALE_RUN" && <small>次の操作: {issue.action}</small>}
                   {issue.acknowledgementRequired && (
                     <label className="checkbox-row issue-acknowledgement">
                       <input

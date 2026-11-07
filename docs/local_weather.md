@@ -45,8 +45,9 @@ catalogはsource listing本文、Runとpayload hash/size/file、生成/失効日
 運用では3時間ごとを目安に生成し、payloadを先に配信してcatalogを最後に置換する。
 catalog lifetimeは6時間。失敗した生成は既存catalogを更新しない。
 producerと端末の時計ずれにより生成時刻が未来になる場合は5分まで許容する。
-5分を超える未来の生成時刻は拒否し、`expires_at <= 端末の現在時刻`は猶予なしで失効とする。
-この許容はcatalogの6時間のlifetimeやBrowser cacheのTTLを延長しない。
+5分を超える未来の生成時刻は拒否する。6時間の失効期限は公開・更新監視に維持する。
+MSMのLocal計算は期限切れだけでは禁止せず、catalogとNPZを通常どおり検証して利用する。
+生成・失効日時を書き換えず、実データのcoverageとsource/Run identityを維持する。
 7日以内の旧Run assetとそのsource listingを保持し、再利用前にlibraryでhash/formatを検証する。
 新listingを取得したURLは新しい内容を優先する。参照されなくなったpayloadも7日間の猶予後に除去する。
 static hostはcatalogをrevalidateし、hash付きpayloadをimmutableとして配信できる。
@@ -54,10 +55,12 @@ feedのcatalogとpayloadはcookie・HTTP認証などのcredential不要で取得
 Browser transportは`credentials: "omit"`を使用するため、ログイン必須pathや
 認証画面へのredirectは利用できない。#121でこの公開配信契約を維持する。
 認証が必要になる場合は#121側でtransport契約を明示的に見直す。
-`prepare_local.py`はfeed省略時に古い生成済みfeedを除去する。feedなしでは通常のLocal FORECASTは成功せず、設定済みの予備計算経路を試す。
+`prepare_local.py`はfeed省略時に古い生成済みfeedを除去する。サーバー配信も正常な端末キャッシュも利用できない場合は、設定済みの予備計算経路を検討する。
 
-配信範囲/時間の不足はmodelの範囲外とは異なる。最新compatible Runが未生成なら
-`WEATHER_PREPARED_UNAVAILABLE`で通常経路を止め、計算専用APIを試す。端末側で別Runや古いcatalogへ切り替えない。
+配信範囲/時間の不足はmodelの範囲外とは異なる。初回選択または入力不変の明示再計算では、
+配信・端末catalogの候補から利用可能な最も新しい正常なMSM Runを選ぶ。新しい候補の
+欠損・不正は同じモデルの旧候補を試す根拠になるが、GSMへ切り替えるcoverage根拠にはならない。
+入力変更時の固定Runは取得失敗だけで置き換えない。操作条件は[再計算仕様](forecast_refresh.md)を参照。
 旧Runのasset保持は全過去時間帯の再計算保証ではない。再計算に必要な配信時間帯が
 ない場合も`WEATHER_PREPARED_UNAVAILABLE`から計算専用APIを試す。両経路が失敗しても保存済みNAV LOGは閲覧できる。
 consumerはlibraryにpreparedの実収録範囲を確認させてからsource identityを照合する。
@@ -66,13 +69,13 @@ consumerはlibraryにpreparedの実収録範囲を確認させてからsource id
 
 ## Cacheと失敗
 
-Browserはportable payloadだけをモデル別の`autonavlog.weather.msm.v1` /
+Browserはcatalogとportable payloadをモデル別の`autonavlog.weather.msm.v1` /
 `autonavlog.weather.gsm.v1` Cache Storageへ保存する。
 raw/normalized cacheはproducer側libraryにのみ存在する。
 
 | 項目 | 契約 |
 | --- | --- |
-| catalog | TTL 5分かつcatalog失効まで。schema検証後に保存 |
+| catalog | 各計算でサーバーを確認。検証済みの現行・直前の2 snapshotを最大7日保持し、取得不能時も候補にする |
 | payload | SHA-256名、TTL 7日、library integrity検証後に保存 |
 | 容量 | モデルごとのcache合計128 MiB、payload 32 MiB、catalog 4 MiB。stream中も上限確認 |
 | invalidation | hash変更/TTL/不正cache。古いentryからevict |
@@ -95,20 +98,24 @@ Last Calculationを置換しない。`updateAndRecalculate`の入力commitと失
 | download中断/取得HTTP失敗 | `WEATHER_TRANSPORT_FAILED` |
 | サイズ超過/読取不可 | `WEATHER_DOWNLOAD_FAILED` |
 | Run不在/未配信 | `WEATHER_RUN_UNAVAILABLE` / `WEATHER_PREPARED_UNAVAILABLE` |
-| catalog schema/期限 | `WEATHER_CATALOG_INVALID` / `WEATHER_CATALOG_EXPIRED` |
+| catalog schema/未来時刻 | `WEATHER_CATALOG_INVALID` / `WEATHER_CATALOG_EXPIRED`。MSMの失効だけでは停止しない |
 | payload hash/format/decode | `WEATHER_PAYLOAD_INTEGRITY_FAILED` |
 | 不正cacheの再取得失敗 | `WEATHER_CACHE_CORRUPT` |
 | その他端末内処理 | `WEATHER_PROCESSING_FAILED` |
 
 native GRIB decode/prepared生成はproducerの責務で、失敗時は非zero終了と
 library exceptionの`error_type`/messageを出力する。Browserに不完全なcatalogを公開しない。
-取得/生成失敗をcoverageに変換しない。公開済みcatalogが期限切れなら通常経路を止めて計算専用APIを試す。producerの非zero終了、freshness/admission gate、監視の異常判定は変更しない。
+取得/生成失敗をcoverageに変換しない。正常な既存MSMデータによるLocal計算を先に試す。
+producerの非zero終了、freshness/admission gate、`static-monitor.yml`の異常判定とCI Fail通知は
+変更しない。管理者通知は既存の監視経路を使い、独立した通知サービスを追加しない。
 
 ## 配信障害時の計算専用API
 
-通常のstatic feedとLocal計算を毎回先に試す。期限切れ、気象取得失敗、必要な配信データ不足に限り、未ログインでも予備サーバーで気象取得と計算を行う。期限切れpublic feedやlast-good cacheを先に使わない。入力不正、catalog schema/未来時刻異常、hash/identity/format不一致、一般のプログラム例外は自動切替しない。
+通常のstatic feedと正常な端末キャッシュでLocal計算を毎回先に試す。MSMの期限切れだけでは
+予備サーバーへ切り替えない。必要なRun/coverageを正常に取得できない場合に、既存の対象エラーに
+限って未ログインでも予備サーバーで気象取得と計算を行う。入力不正、catalog schema/未来時刻異常、hash/identity/format不一致、一般のプログラム例外は自動切替しない。
 
-Workerが計算前に共通エンジンの入力検証を行う。初期要求に加え、反復後の最終時刻・地点・高度・変数をpublic weather providerで検証する。不足を外挿や手入力値で隠さない。固定Runと2クリック更新の意図を転送し、同じRunを再取得できない結果は採用しない。
+Workerが計算前に共通エンジンの入力検証を行う。初期要求に加え、反復後の最終時刻・地点・高度・変数をpublic weather providerで検証する。不足を外挿や手入力値で隠さない。固定Runと成功計算からの入力比較で決まる更新意図を転送し、同じRunを再取得できない結果は採用しない。
 
 APIには計算用Projectとschema/capability、Python engine・参照/性能dataのhash、rounding・更新意図だけを送る。氏名、機体識別、owner、durableToken、repositoryRecovery、保存済みProject一覧は送らない。旧バージョンの結果はhash不一致で拒否する。現在の入力世代とアカウントが維持され、結果checksum・Project/Run identity・readinessを検証できた場合だけLocalへ採用する。予備利用の理由コード・選択Run・契約identityをLast Calculationへ保存し、reload/syncでも出典が残る。次回の通常計算成功で予備利用の警告は消える。
 
@@ -169,8 +176,8 @@ WindowsやPlaywright WebKitの結果をこのgateの代替にしない。
 GSMは常時prewarmしない。LegacyはMSMのcoverage不足が確定した計算、または保存済み
 GSM Runの再計算でのみ上流GSM clientをprepareする。既存MSM prewarmerはMSM専用のまま。
 Local WorkerもPythonの要求に応じて必要なcatalog / 正確なRun assetだけを取得する。
-候補評価に必要な複数Runを順番に取得でき、取得中断時には計算結果・Last Calculation・
-2クリック更新意思を確定しない。同一actionを再実行し、全体が完了してから既存の
+候補評価に必要な複数Runを順番に取得でき、取得中断時には計算結果・Last Calculationを
+更新しない。同一actionを再実行し、全体が完了してから既存の
 persistenceへ反映する。取得の再実行は128回、モデル切替を伴う全体再計算は4回で制限する。
 
 静的配信のGSM payloadは運用者が必要な範囲・時間帯を明示して生成する。

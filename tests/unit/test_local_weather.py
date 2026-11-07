@@ -113,7 +113,6 @@ def test_portable_provider_keeps_run_selection_and_upstream_values(project, requ
         ("missing_listing", "WEATHER_DISCOVERY_FAILED"),
         ("empty_listing", "WEATHER_RUN_UNAVAILABLE"),
         ("missing_asset", "WEATHER_PREPARED_UNAVAILABLE"),
-        ("expired", "WEATHER_CATALOG_EXPIRED"),
         ("invalid", "WEATHER_CATALOG_INVALID"),
         ("outside_model", "WEATHER_OUT_OF_COVERAGE"),
     ],
@@ -125,9 +124,6 @@ def test_failure_kinds_do_not_become_model_coverage(project, requirement, catalo
         catalog["listings"] = dict.fromkeys(catalog["listings"], "")
     elif kind == "missing_asset":
         catalog["assets"] = []
-    elif kind == "expired":
-        catalog["generated_at"] = "2026-01-01T00:00:00Z"
-        catalog["expires_at"] = "2026-01-01T01:00:00Z"
     elif kind == "invalid":
         catalog["schema_version"] = 2
     else:
@@ -140,9 +136,9 @@ def test_failure_kinds_do_not_become_model_coverage(project, requirement, catalo
 @pytest.mark.parametrize(
     "generated_offset,expires_offset,accepted",
     [(180, 21780, True), (300, 21900, True), (301, 21901, False),
-     (-21600, 0, False), (-21601, -1, False), (-21599, 1, True)],
+     (-21600, 0, True), (-21601, -1, True), (-21599, 1, True)],
 )
-def test_catalog_clock_skew_preserves_expiry(
+def test_catalog_clock_skew_rejects_future_but_expiry_does_not_block(
     project, requirement, catalog, monkeypatch, generated_offset, expires_offset, accepted
 ):
     from autonavlog.weather import local_msm

@@ -117,3 +117,52 @@ test("valid cached payload outside prepared coverage stays cached and is not rea
   expect(accepted).toBe(true);
   expect(fetches).toBe(0);
 });
+
+test("catalog expiry does not discard offline candidates or renew cached timestamps", async () => {
+  const cache = new MemoryCache();
+  const url = new URL("catalog.json", base);
+  const text = JSON.stringify({ generated_at: "2026-09-16T00:00:00Z", expires_at: "2026-09-16T06:00:00Z" });
+  const storedAt = Date.now() - 24 * 60 * 60_000;
+  await cache.put(url, new Response(text, { headers: {
+    "Content-Length": String(text.length), "X-AutoNavLog-Cached-At": String(storedAt),
+  } }));
+  install(cache, async () => { throw new Error("offline"); });
+  const candidates: [string, boolean][] = [];
+  await new LocalWeatherTransport(base).catalog((value, current) => { candidates.push([value, current]); });
+  expect(candidates).toEqual([[text, false]]);
+  expect((await cache.match(url))?.headers.get("X-AutoNavLog-Cached-At")).toBe(String(storedAt));
+});
+
+test("each action checks the server and retains a validated previous catalog", async () => {
+  const cache = new MemoryCache();
+  const url = new URL("catalog.json", base);
+  await cache.put(url, cachedResponse(new TextEncoder().encode('{"run":"old"}')));
+  let fetches = 0;
+  install(cache, async () => {
+    fetches++;
+    return new Response('{"run":"new"}');
+  });
+  const candidates: [string, boolean][] = [];
+  const transport = new LocalWeatherTransport(base);
+  await transport.catalog((value, current) => { candidates.push([value, current]); });
+  expect(candidates).toEqual([['{"run":"new"}', true], ['{"run":"old"}', false]]);
+  expect(await (await cache.match(new URL("catalog.previous.json", base)))?.text()).toBe('{"run":"old"}');
+  candidates.length = 0;
+  await transport.catalog((value, current) => { candidates.push([value, current]); });
+  expect(fetches).toBe(2);
+  expect(candidates).toEqual([['{"run":"new"}', true], ['{"run":"old"}', false]]);
+});
+
+test("invalid server catalog preserves a healthy cached candidate", async () => {
+  const cache = new MemoryCache();
+  const url = new URL("catalog.json", base);
+  await cache.put(url, cachedResponse(new TextEncoder().encode('{"valid":true}')));
+  install(cache, async () => new Response('{"valid":false}'));
+  const accepted: boolean[] = [];
+  await new LocalWeatherTransport(base).catalog((text, current) => {
+    if (!JSON.parse(text).valid) throw new WeatherError("WEATHER_CATALOG_INVALID", "invalid fixture");
+    accepted.push(current);
+  });
+  expect(accepted).toEqual([false]);
+  expect(await (await cache.match(url))?.text()).toBe('{"valid":true}');
+});

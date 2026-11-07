@@ -914,6 +914,7 @@ def test_unprepared_weather_preflight_keeps_last_good_stale():
 def _pin_old_forecast(local):
     calculate(local, forecast=True)
     local.session.project.selected_forecast_run_id = "20260912000000"
+    local.session.last_calculation = None
     return json.loads(local.dispatch("calculate"))
 
 
@@ -928,30 +929,28 @@ def _assert_forecast_snapshot(state, run):
     return last
 
 
-def test_forecast_refresh_second_click_updates_snapshot_and_restores_without_intent(local):
+def test_unchanged_success_refreshes_once_including_after_restore(local):
     first = _pin_old_forecast(local)
     _assert_forecast_snapshot(first, "20260912000000")
     assert "FORECAST_UPDATE_AVAILABLE" in {issue["code"] for issue in first["outcome"]["issues"]}
-    assert local.session.forecast_update_fingerprint is not None
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
 
     refreshed = json.loads(local.dispatch("calculate"))
     _assert_forecast_snapshot(refreshed, "20260912030000")
     assert "FORECAST_UPDATE_AVAILABLE" not in {
         issue["code"] for issue in refreshed["outcome"]["issues"]
     }
-    assert local.session.forecast_update_fingerprint is None
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
 
-    # Recovery does not calculate or persist transient refresh intent, even when
-    # reopening a first-click snapshot containing the older warning.
+    # Recovery never calculates. The next explicit unchanged action may refresh.
     restored = json.loads(local.dispatch("bootstrap", first["workingRecovery"]))
     _assert_forecast_snapshot(restored, "20260912000000")
-    assert local.session.forecast_update_fingerprint is None
-    _assert_forecast_snapshot(json.loads(local.dispatch("calculate")), "20260912000000")
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
     _assert_forecast_snapshot(json.loads(local.dispatch("calculate")), "20260912030000")
 
 
 @pytest.mark.parametrize("edit_back", [False, True])
-def test_forecast_input_change_invalidates_refresh_even_after_edit_back(local, edit_back):
+def test_forecast_change_compares_with_last_success_including_edit_back(local, edit_back):
     _pin_old_forecast(local)
     original = local.session.project.sections[0].planned_altitude_ft_msl
     section = local.session.project.sections[0]
@@ -962,17 +961,19 @@ def test_forecast_input_change_invalidates_refresh_even_after_edit_back(local, e
             "weather_mode": "FORECAST",
             "ftd_weather": local.session.project.ftd_weather.model_dump(mode="json"),
             "total_usable_fuel_gal": 90,
-            "default_variation_deg_east": 8,
+            "default_variation_deg_east": local.session.project.default_variation_deg_east,
             "sections": [{
                 "section_id": str(section.id),
                 "phase": section.phase.value,
                 "planned_altitude_ft_msl": altitude,
             }],
         })
-    assert local.session.forecast_update_fingerprint is None
+    assert local.app.forecast_refresh_requested(local.session, local.session.project) is edit_back
     state = json.loads(local.dispatch("calculate"))
-    assert state["outcome"]["selected_forecast_run_id"] == "20260912000000"
-    assert local.session.forecast_update_fingerprint is not None
+    assert state["outcome"]["selected_forecast_run_id"] == (
+        "20260912030000" if edit_back else "20260912000000"
+    )
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
     state = json.loads(local.dispatch("calculate"))
     assert state["outcome"]["selected_forecast_run_id"] == "20260912030000"
 
@@ -999,19 +1000,14 @@ def test_forecast_refresh_failure_retains_last_good_and_never_reports_success(
         failed = json.loads(local.dispatch("calculate"))
     assert any(issue["severity"] == "BLOCKER" for issue in failed["outcome"]["issues"])
     assert failed["workingRecovery"]["last_calculation"] == last
-    assert local.session.forecast_update_fingerprint is None
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
 
 
-def test_ftd_does_not_consume_forecast_refresh_intent(local):
-    from autonavlog.application.project_fingerprints import forecast_selection_fingerprint
-
+def test_ftd_never_requests_forecast_refresh(local):
     baseline = calculate(local)
-    local.session.forecast_update_fingerprint = forecast_selection_fingerprint(
-        local.session.project
-    )
     recalculated = json.loads(local.dispatch("calculate"))
     assert recalculated["outcome"]["summary"] == baseline["outcome"]["summary"]
-    assert local.session.forecast_update_fingerprint is None
+    assert not local.app.forecast_refresh_requested(local.session, local.session.project)
 
 
 @pytest.mark.parametrize("save_between_clicks", [False, True])
@@ -1028,10 +1024,10 @@ def test_portable_forecast_refresh_acquires_new_run_before_shared_calculation(sa
     local = LocalApplication(ROOT / "data")
     try:
         local.dispatch("bootstrap", initial["workingRecovery"])
-        for expected in ("20260915180000", "20260915210000"):
+        for expected in ("20260915210000", "20260915210000"):
             result = _portable_calculation(local, feed, catalog)
             _assert_forecast_snapshot(result, expected)
-            if save_between_clicks and expected == "20260915180000":
+            if save_between_clicks:
                 # JSON.stringify represents integral JS Numbers without a decimal.
                 def js_numbers(value):
                     if isinstance(value, dict):
@@ -1046,7 +1042,7 @@ def test_portable_forecast_refresh_acquires_new_run_before_shared_calculation(sa
                 recovery["project"]["name"] = "Forecast refresh"
                 recovery["project"]["revision"] += 1
                 local.dispatch("adoptSavedProject", {"working": recovery, "rounding_mode": False})
-                assert local.session.forecast_update_fingerprint is not None
+                assert local.app.forecast_refresh_requested(local.session, local.session.project)
         assert "FORECAST_UPDATE_AVAILABLE" not in {
             issue["code"] for issue in result["outcome"]["issues"]
         }
@@ -1088,7 +1084,9 @@ def test_explicit_save_adoption_preserves_only_unchanged_forecast_intent(
         recovery["project"]["sections"][0]["planned_altitude_ft_msl"] = 6000
     local.dispatch("adoptSavedProject", {"working": recovery, "rounding_mode": rounding_mode})
     assert local.session.rounding_mode is rounding_mode
-    assert (local.session.forecast_update_fingerprint is not None) is (not changed)
+    assert local.app.forecast_refresh_requested(
+        local.session, local.session.project
+    ) is (not changed)
     result = json.loads(local.dispatch("calculate"))
     assert result["outcome"]["selected_forecast_run_id"] == (
         "20260912000000" if changed else "20260912030000"
@@ -1101,23 +1099,20 @@ def test_explicit_save_adoption_preserves_only_unchanged_forecast_intent(
     {"visual_reporting_point_node_id": object()},
     {"visual_reporting_point_node_id": float("nan")},
 ])
-@pytest.mark.parametrize("armed", [False, True])
-def test_invalid_planning_clears_refresh_intent_and_preserves_state_error(
-    local, invalid_plan, armed,
+def test_invalid_planning_cannot_request_refresh_and_preserves_state_error(
+    local, invalid_plan,
 ):
     _pin_old_forecast(local)
-    assert local.session.forecast_update_fingerprint is not None
-    if not armed:
-        local.session.forecast_update_fingerprint = None
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
     local.session.project.metadata["ui_state"]["arrival_plan"] = invalid_plan
     with pytest.raises(ValueError, match="PROJECT_STATE_INVALID"):
         local.app.present(local.session)
-    assert local.session.forecast_update_fingerprint is None
+    assert not local.app.forecast_refresh_requested(local.session, local.session.project)
     assert local.session.project.metadata["ui_state"]["arrival_plan"] is invalid_plan
 
 
 @pytest.mark.parametrize("first_mode", [False, True])
-def test_forecast_rounding_change_requires_new_first_click(local, first_mode):
+def test_forecast_rounding_change_keeps_run_then_unchanged_action_refreshes(local, first_mode):
     _pin_old_forecast(local)
     if first_mode:
         local.dispatch("calculate", {"rounding_mode": True})
@@ -1142,7 +1137,7 @@ def test_portable_rounding_change_preflight_and_calculation_keep_the_same_pin():
     try:
         local.dispatch("bootstrap", initial["workingRecovery"])
         for mode, expected in [
-            (False, "20260915180000"), (True, "20260915180000"), (True, "20260915210000"),
+            (True, "20260915180000"), (True, "20260915210000"),
         ]:
             options = {"rounding_mode": mode}
             state = _portable_calculation(local, feed, catalog, options)

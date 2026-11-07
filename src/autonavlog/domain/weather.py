@@ -24,6 +24,10 @@ def coverage_exclusion_reasons(value: Any) -> bool:
     )
 
 
+class ForecastDataError(RuntimeError):
+    """Unavailable or invalid data, never proof of model coverage exclusion."""
+
+
 class ForecastCoverageError(Exception):
     """Affirmative model/Run exclusion; never an acquisition failure."""
 

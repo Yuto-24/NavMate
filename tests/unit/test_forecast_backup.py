@@ -423,10 +423,11 @@ def test_later_rounding_or_input_operation_invalidates_response(local, backup_re
 
 
 def test_no_refresh_response_cannot_change_fixed_run(local):
-    before = local.session.last_calculation.model_dump_json()
     latest = local.session.last_calculation
+    local.session.last_calculation = None
     local.session.project.selected_forecast_run_id = "20260915180000"
     prepared = local.prepare_forecast_backup({"reason": "WEATHER_PREPARED_UNAVAILABLE"})
+    assert not prepared.refresh_forecast
     backup_request = BackupRequest(
         **prepared.model_dump(),
         request_id=uuid4(),
@@ -441,7 +442,7 @@ def test_no_refresh_response_cannot_change_fixed_run(local):
         )
     assert error.value.code == "FORECAST_BACKUP_INVALID"
     assert local.session.project.selected_forecast_run_id == "20260915180000"
-    assert local.session.last_calculation.model_dump_json() == before
+    assert local.session.last_calculation is None
 
 
 def test_expired_queued_job_never_begins_compute(tmp_path, backup_request):

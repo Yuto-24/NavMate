@@ -5,7 +5,6 @@ export class WeatherError extends Error {
 
 export interface PreparedAsset { file: string; sha256: string; bytes: number; run: string }
 const CACHE = "autonavlog.weather.msm.v1";
-const CATALOG_TTL = 5 * 60_000;
 const PAYLOAD_TTL = 7 * 24 * 60 * 60_000;
 const MAX_PAYLOAD = 32 * 1024 * 1024;
 const MAX_CACHE = 128 * 1024 * 1024;
@@ -38,7 +37,7 @@ export class LocalWeatherTransport {
     try { await (await this.cache())?.delete(url); } catch { /* disposable */ }
   }
 
-  private async store(url: URL, bytes: Uint8Array) {
+  private async store(url: URL, bytes: Uint8Array, cachedAt = Date.now()) {
     try {
       const cache = await this.cache();
       if (!cache) return;
@@ -58,7 +57,7 @@ export class LocalWeatherTransport {
         total -= entry.size;
       }
       await cache.put(url, new Response(bytes.slice().buffer, { headers: {
-        "Content-Length": String(bytes.byteLength), "X-AutoNavLog-Cached-At": String(Date.now()),
+        "Content-Length": String(bytes.byteLength), "X-AutoNavLog-Cached-At": String(cachedAt),
       } }));
     } catch { /* Quota/denial affects warm reuse, never Project data or a valid result. */ }
   }
@@ -110,31 +109,60 @@ export class LocalWeatherTransport {
     return this.read(response, limit);
   }
 
-  async catalog<T>(accept: (text: string) => T): Promise<T> {
+  async catalog<T>(accept: (text: string, current: boolean) => T): Promise<T> {
     const url = new URL("catalog.json", this.base);
-    const cached = await this.cached(url, CATALOG_TTL);
-    if (cached) {
-      let text: string | undefined;
+    const previousUrl = new URL("catalog.previous.json", this.base);
+    // Keep two validated catalog snapshots within the same bounded disposable cache.
+    // Each action checks the server; cached catalogs are acquisition candidates only.
+    const snapshots: { url: URL; bytes: Uint8Array; text: string; cachedAt: number }[] = [];
+    for (const location of [url, previousUrl]) {
+      const response = await this.cached(location, PAYLOAD_TTL);
+      if (!response) continue;
       try {
-        text = new TextDecoder("utf-8", { fatal: true }).decode(await this.read(cached, 4 * 1024 * 1024));
-        const expiry = Date.parse(JSON.parse(text).expires_at);
-        if (!(expiry > Date.now())) text = undefined;
-      } catch { text = undefined; }
-      if (text !== undefined) {
-        try { return accept(text); }
-        catch (error) {
-          if (!(error instanceof WeatherError) || error.code !== "WEATHER_CATALOG_INVALID") throw error;
-        }
-      }
-      await this.remove(url);
+        const bytes = await this.read(response, 4 * 1024 * 1024);
+        const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        JSON.parse(text);
+        snapshots.push({ url: location, bytes, text,
+          cachedAt: Number(response.headers.get("X-AutoNavLog-Cached-At")) });
+      } catch { await this.remove(location); }
     }
-    const bytes = await this.download(url, 4 * 1024 * 1024, true);
-    let text: string;
-    try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); JSON.parse(text); }
-    catch { throw new WeatherError("WEATHER_CATALOG_INVALID", "予報配信情報を読み取れません。"); }
-    const result = accept(text); // Python validates the index before it enters the cache.
-    await this.store(url, bytes);
-    return result;
+    let result: T | undefined;
+    let accepted = false;
+    let serverText: string | undefined;
+    let serverBytes: Uint8Array | undefined;
+    let retained: (typeof snapshots)[number] | undefined;
+    let failure: unknown;
+    try {
+      const bytes = await this.download(url, 4 * 1024 * 1024, true);
+      let text: string;
+      try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); JSON.parse(text); }
+      catch { throw new WeatherError("WEATHER_CATALOG_INVALID", "予報配信情報を読み取れません。"); }
+      result = accept(text, true); // Python validates before any cache replacement.
+      accepted = true;
+      serverText = text;
+      serverBytes = bytes;
+    } catch (error) {
+      if (!(error instanceof WeatherError)) throw error;
+      failure = error;
+    }
+    for (const snapshot of snapshots) {
+      if (snapshot.text === serverText) continue;
+      try {
+        const candidate = accept(snapshot.text, false);
+        if (!accepted) { result = candidate; accepted = true; }
+        if (snapshot.url.href === url.href) retained = snapshot;
+      } catch (error) {
+        if (!(error instanceof WeatherError)) throw error;
+        failure ??= error;
+        await this.remove(snapshot.url);
+      }
+    }
+    if (!accepted) throw failure;
+    if (serverBytes) {
+      if (retained) await this.store(previousUrl, retained.bytes, retained.cachedAt);
+      await this.store(url, serverBytes);
+    }
+    return result as T;
   }
 
   async prepared(asset: PreparedAsset, accept: (bytes: Uint8Array) => void): Promise<void> {

@@ -80,6 +80,7 @@ def test_corrupt_or_missing_payload_keeps_last_good_and_never_requests_gsm(local
     assert local.session.last_calculation.model_dump(mode="json") == before
     catalog = json.loads(catalog_text())
     catalog["assets"] = []
+    local.begin_weather()
     assert local.weather_catalog("MSM", json.dumps(catalog)) == "{}"
     state = json.loads(local.dispatch_response("calculate"))
     assert "weather_request" not in state
@@ -88,9 +89,10 @@ def test_corrupt_or_missing_payload_keeps_last_good_and_never_requests_gsm(local
     assert local.local_weather.clients["GSM"].catalog is None
 
 
-def test_portable_replay_does_not_consume_two_click_refresh_intent(local):
+def test_portable_replay_retains_last_success_until_refresh_completes(local):
     local.session.project.selected_forecast_run_id = "20260915180000"
     local.session.project.selected_forecast_model = "MSM"
+    local.session.project.descent_rate_fpm = 1000
     local.begin_weather()
     requests = []
     first = resume(local, requests)
@@ -99,15 +101,14 @@ def test_portable_replay_does_not_consume_two_click_refresh_intent(local):
     assert [r["asset"]["run"] for r in requests if r["asset"]] == [
         "20260915180000", "20260915210000",
     ]
-    intent = local.session.forecast_update_fingerprint
     last = local.session.last_calculation
     local.begin_weather()
     assert "weather_request" in json.loads(local.dispatch_response("calculate"))
-    assert local.session.forecast_update_fingerprint == intent
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
     assert local.session.last_calculation is last
     second = resume(local, [])
     assert second["outcome"]["selected_forecast_run_id"] == "20260915210000"
-    assert local.session.forecast_update_fingerprint is None
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
 
 
 @pytest.mark.parametrize("pinned", [False, True])
@@ -152,7 +153,7 @@ def test_actual_newest_msm_hgt_exclusion_still_prefers_older_msm(local):
     assert all(r["model"] == "MSM" for r in requests)
 
 
-def test_actual_missing_source_values_block_without_older_run_or_gsm(local):
+def test_all_actual_source_value_failures_block_without_gsm(local):
     before = local.session.last_calculation.model_dump(mode="json")
     local.session.project.selected_forecast_model = None
     local.session.project.selected_forecast_run_id = None
@@ -162,13 +163,14 @@ def test_actual_missing_source_values_block_without_older_run_or_gsm(local):
         "MSM": ROOT / "tests/fixtures/forecast-policy/msm-source-unavailable",
     })
     assert any(i["code"] == "FORECAST_PREPARE_FAILED" for i in state["outcome"]["issues"])
-    assert [r["kind"] for r in requests] == ["catalog", "prepared"]
+    assert [r["kind"] for r in requests] == ["catalog", "prepared", "prepared"]
     assert local.session.last_calculation.model_dump(mode="json") == before
 
 
-def test_portable_gsm_pin_only_returns_to_msm_on_second_click(local):
+def test_portable_gsm_changed_inputs_pin_then_unchanged_action_returns_to_msm(local):
     local.session.project.selected_forecast_model = "GSM"
     local.session.project.selected_forecast_run_id = "20260915060000"
+    local.session.project.descent_rate_fpm = 1000
     feeds = {"MSM": FEED, "GSM": ROOT / "tests/fixtures/forecast-policy/gsm"}
     local.begin_weather()
     first = resume(local, [], feeds)
@@ -213,7 +215,6 @@ def test_backup_uses_shared_model_selection_and_adopts_model_and_run(
 ):
     from uuid import uuid4
 
-    from autonavlog.application.project_fingerprints import forecast_selection_fingerprint
     from autonavlog.forecast_backup import BackupRequest, input_identity
     from autonavlog.weather.local_forecast import LocalForecastWeather
     from autonavlog.web.forecast_backup import calculator
@@ -222,10 +223,8 @@ def test_backup_uses_shared_model_selection_and_adopts_model_and_run(
     local.session.project.selected_forecast_run_id = (
         "20260915210000" if fixed_model == "MSM" else "20260915060000"
     )
-    if refresh:
-        local.session.forecast_update_fingerprint = forecast_selection_fingerprint(
-            local.session.project
-        )
+    if not refresh:
+        local.session.project.descent_rate_fpm = 1000
     prepared = local.prepare_forecast_backup({"reason": "WEATHER_CATALOG_EXPIRED"})
     request = BackupRequest(
         **prepared.model_dump(), request_id=uuid4(), issued_at=datetime.now(UTC)
@@ -293,6 +292,7 @@ def test_absent_source_listing_stops_selection_with_backup_eligible_error(
     local.session.project.selected_forecast_run_id = (
         "20260915210000" if model == "MSM" else "20260915060000"
     )
+    local.session.project.descent_rate_fpm = 1000
     before = local.session.last_calculation.model_dump(mode="json")
     value = json.loads(catalog_text(feed))
     value["listings"] = {} if missing_listing else {url: "" for url in value["listings"]}

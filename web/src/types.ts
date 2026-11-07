@@ -471,6 +471,7 @@ export interface NavLogSummary {
 }
 
 export interface CalculationOutcome {
+  issues: { code: string; message: string; metadata: Record<string, unknown> }[];
   selected_forecast_model: "MSM" | "GSM" | null;
   forecast_provenance: Record<string, unknown>;
   selected_forecast_run_id: string | null;

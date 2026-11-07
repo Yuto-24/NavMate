@@ -13,16 +13,22 @@ from autonavlog.weather.local_msm import LocalWeatherError
 class CompleteForecastProvider:
     def __init__(self, provider: Any) -> None:
         self.provider = provider
-        self.failure_code: str | None = None
+        self.failure: LocalWeatherError | None = None
+
+    @property
+    def failure_code(self) -> str | None:
+        return None if self.failure is None else self.failure.code
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.provider, name)
 
     def _call(self, operation: str, *args: Any) -> Any:
         try:
-            return getattr(self.provider, operation)(*args)
+            result = getattr(self.provider, operation)(*args)
+            self.failure = None
+            return result
         except LocalWeatherError as error:
-            self.failure_code = error.code
+            self.failure = error
             raise
 
     def candidate_runs(self, requirement: ForecastRequirement) -> Any:
@@ -42,14 +48,18 @@ class CompleteForecastProvider:
         if status.selected_run_covers_requirement:
             self.prepare_run(run, requirement)
         else:
-            self.failure_code = "FORECAST_RUN_OUT_OF_COVERAGE"
+            self.failure = LocalWeatherError(
+                "FORECAST_RUN_OUT_OF_COVERAGE", "保存済みForecast Runが必要時間帯を覆いません。",
+            )
         return status
 
     def query_batch(self, run: str, requests: Any) -> Any:
         results = self._call("query_batch", run, requests)
         if any(item.availability != Availability.AVAILABLE for item in results):
-            self.failure_code = "WEATHER_PREPARED_UNAVAILABLE"
-            raise LocalWeatherError(self.failure_code, "選択したMSM Runの配信データがありません。")
+            self.failure = LocalWeatherError(
+                "WEATHER_PREPARED_UNAVAILABLE", "選択したMSM Runの配信データがありません。",
+            )
+            raise self.failure
         return results
 
 

@@ -82,7 +82,7 @@ async function clearWeather(page: Page) {
   await page.evaluate(async () => { for (const key of await caches.keys())
     if (key.startsWith("autonavlog.weather.")) await caches.delete(key); });
 }
-for (const failure of ["expired", "offline", "missing"] as const) {
+for (const failure of ["offline", "missing"] as const) {
   test(`guest ${failure} delivery uses actual backup calculator and keeps Local save/reload`, async ({ page }) => {
     const puts: string[] = [];
     page.on("request", request => { if (request.method() === "PUT" && request.url().includes("/forecast-backup/")) puts.push(request.url()); });
@@ -108,10 +108,27 @@ for (const failure of ["expired", "offline", "missing"] as const) {
   });
 }
 
+test("expired and cached MSM stay Local even when the backup API is configured", async ({ page }) => {
+  const puts: string[] = [];
+  page.on("request", request => {
+    if (request.method() === "PUT" && request.url().includes("/forecast-backup/")) puts.push(request.url());
+  });
+  delivery = "expired";
+  await setup(page); await calculate(page);
+  expect(puts).toEqual([]);
+  expect((await state(page)).outcome.issues.map((item: any) => item.code)).not.toContain("FORECAST_BACKUP_USED");
+  delivery = "offline";
+  await page.reload();
+  await expect(page.locator(".nav-log-table")).toBeVisible();
+  await calculate(page);
+  expect(puts).toEqual([]);
+  expect((await record(page)).lastCalculation.outcome.selected_forecast_run_id).toBe("20260915210000");
+});
+
 test("normal then both paths fail preserves draft and Last Calculation", async ({ page, context }) => {
   await setup(page); await calculate(page);
   const before = (await record(page)).lastCalculation;
-  delivery = "expired"; await clearWeather(page);
+  delivery = "missing"; await clearWeather(page);
   await context.route("**/api/forecast-backup/jobs/**", route => route.fulfill({ status: 422,
     contentType: "application/json", body: JSON.stringify({ error: { code: "FORECAST_BACKUP_FAILED" } }) }));
   await page.getByLabel("ETD JST", { exact: true }).fill("12:01");

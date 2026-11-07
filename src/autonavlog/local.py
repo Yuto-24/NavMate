@@ -289,11 +289,6 @@ class LocalApplication:
         self.session.destination_wind = last.destination_wind
         self.session.rounding_mode = request.rounding_mode
         self.session.readiness = None
-        self.session.forecast_update_fingerprint = (
-            forecast_selection_fingerprint(last.project, rounding_mode=request.rounding_mode)
-            if result.refresh_available
-            else None
-        )
         return self.app.present(self.session)
 
     def new_work(self) -> str:
@@ -323,13 +318,19 @@ class LocalApplication:
         if self.local_weather is not None:
             self.local_weather.begin()
 
-    def weather_catalog(self, model: ForecastModel, catalog_json: str) -> str:
+    def weather_catalog(
+        self, model: ForecastModel, catalog_json: str, *, current: bool = True,
+    ) -> str:
         assert self.local_weather is not None
         try:
-            self.local_weather.catalog(model, catalog_json)
+            self.local_weather.catalog(model, catalog_json, current=current)
             return "{}"
         except LocalWeatherError as error:
             return json.dumps({"error": {"code": error.code, "message": str(error)}})
+
+    def weather_failed(self, model: ForecastModel, sha256: str, code: str, message: str) -> None:
+        assert self.local_weather is not None
+        self.local_weather.clients[model].failures[sha256] = LocalWeatherError(code, message)
 
     def accept_weather(self, model: ForecastModel, payload: bytes, sha256: str) -> str:
         assert self.local_weather is not None
@@ -420,9 +421,6 @@ class LocalApplication:
             refresh_mode = _validate_request(
                 CalculationRequest, {"rounding_mode": payload.get("rounding_mode")}
             ).rounding_mode
-            pending_refresh = (
-                self.session.forecast_update_fingerprint if path == "adoptSavedProject" else None
-            )
             state = (
                 self.app.restore_working(
                     self.session,
@@ -433,17 +431,6 @@ class LocalApplication:
                 if recovery_payload
                 else self.app.present(self.session)
             )
-            # Explicit Save adopts name/revision changes in the same working
-            # session. Reopen/reload use bootstrap and never inherit intent.
-            if (
-                pending_refresh is not None
-                and self.session.project is not None
-                and pending_refresh
-                == forecast_selection_fingerprint(
-                    self.session.project, rounding_mode=self.session.rounding_mode
-                )
-            ):
-                self.session.forecast_update_fingerprint = pending_refresh
         elif path == "importRoute":
             request = _validate_request(ImportRouteRequest, payload)
             if request.kml_text is not None:
@@ -493,7 +480,6 @@ class LocalApplication:
                 "destination_wind",
                 "readiness",
                 "rounding_mode",
-                "forecast_update_fingerprint",
             )
             before = {field: getattr(self.session, field) for field in fields}
             provider = self.session.weather_provider
@@ -503,22 +489,29 @@ class LocalApplication:
             )
             for candidate in candidates:
                 if isinstance(candidate, CompleteForecastProvider):
-                    candidate.failure_code = None
+                    candidate.failure = None
             try:
                 state = self.app.calculate(
                     self.session, rounding_mode=calculation_request.rounding_mode
                 )
-                reason = next((
-                    code for candidate in candidates
-                    if (code := getattr(candidate, "failure_code", None)) in WEATHER_FAILURES
+                # Selection can reject several candidates. Preserve the failure
+                # it actually returned, not the last discarded candidate's error.
+                for issue in self.session.outcome.blockers if self.session.outcome else ():
+                    if code := issue.metadata.get("weather_failure_code"):
+                        raise LocalWeatherError(code, issue.message)
+                failure = next((
+                    candidate_failure for candidate in candidates
+                    if (candidate_failure := getattr(candidate, "failure", None)) is not None
                 ), None)
-                if reason in WEATHER_FAILURES:
-                    raise LocalWeatherError(reason, MESSAGES["backup_progress"])
+                if failure is not None:
+                    raise failure
             except Exception as error:
                 for field, value in before.items():
                     setattr(self.session, field, value)
-                if isinstance(error, LocalWeatherError) and error.code in WEATHER_FAILURES:
-                    raise WebApplicationError(error.code, MESSAGES["backup_progress"]) from error
+                if isinstance(error, LocalWeatherError):
+                    message = (MESSAGES["backup_progress"] if error.code in WEATHER_FAILURES
+                               else str(error))
+                    raise WebApplicationError(error.code, message) from error
                 raise
         elif path == "replaceCheckPoints":
             state = self.app.replace_check_points(
