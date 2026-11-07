@@ -215,7 +215,7 @@ block a safe build-only run or unrelated static MSM renewal. The workflow record
 The strict schema-v2 monitor and its provider-period/freshness semantics remain intact.
 The collector's diagnostic `--publication` option is no longer a live upload gate.
 
-The static gate requires the public AutoNavLog repository, standard `ubuntu-latest`
+The static gate requires the public `Yuto-24/NavMate` repository, standard `ubuntu-latest`
 GitHub-hosted runner metadata, exact canonical origin, full approved SHA and unchanged
 six public connection settings. The producer and all validators come from the workflow
 checkout. Every payload is decoded with the pinned real-MSM library, matched by Run/hash,
