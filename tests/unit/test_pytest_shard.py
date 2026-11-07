@@ -87,7 +87,7 @@ def test_workflow_preserves_aggregate_gates_and_all_browser_suites():
     ):
         assert workflow.count(command) == 1
     package = (ROOT / "web/package.json").read_text()
-    assert "saved Run stays fixed on first click and refreshes snapshot on second click" in package
+    assert "saved Run refreshes once when unchanged and stays fixed after input changes" in package
     assert "suite: [local, acceptance, focused-ux, clipboard]" in workflow
     assert '"web/playwright.${{ matrix.suite }}.config.ts" --workers=2' in workflow
     assert "python scripts/check_pytest_shards.py coverage-shards 2" in workflow
