@@ -437,3 +437,62 @@ for (const operation of ["updateProject", "updateAndRecalculate"] as const) {
     expect((await records(page))[0].draft).toEqual(saved.checkpoint);
   });
 }
+
+test("#293 automatic name migration preserves checkpoint, calculation and session input", async ({ page }) => {
+  await start(page);
+  await confirm(page, "FTD");
+  await calculate(page);
+  const field = page.getByLabel("プロジェクト", { exact: true });
+  const automaticName = "FTD_RJFM-RJFS_米ノ津-玉名-大牟田";
+  await expect(field).toHaveValue(automaticName);
+  await save(page, automaticName);
+  const [original] = await records(page);
+  const old = structuredClone(original);
+  for (const project of [old.draft, old.checkpoint, old.lastCalculation.project]) {
+    project.name = `${project.flight_date}_RJFM-RJFS`;
+    project.metadata.project_name_auto = true;
+    project.metadata.project_name_generated = project.name;
+    delete project.metadata.project_name_format;
+    delete project.metadata.project_name_base;
+  }
+  await put(page, [old]);
+  await page.evaluate(old => {
+    const key = "autonavlog.working-session.v1";
+    const session = JSON.parse(sessionStorage.getItem(key)!);
+    session.working.project = old.draft;
+    session.working.last_calculation = old.lastCalculation;
+    session.projectName = old.draft.name;
+    sessionStorage.setItem(key, JSON.stringify(session));
+  }, old);
+  await page.reload();
+  await expect(field).toHaveValue(automaticName);
+  await expect(page.getByLabel("保存済み", { exact: true }).locator(`option[value="${old.id}"]`)).toHaveText(automaticName);
+  expect(await records(page)).toEqual([old]); // lazy read does not rewrite durable data
+  await load(page, old.id);
+  await expect(field).toHaveValue(automaticName);
+  await expect(page.locator(".nav-log-table")).toBeVisible();
+  // Opening already-current work can be a no-op; an ordinary save commits
+  // the migrated representation and performs its usual revision increment.
+  await save(page, automaticName);
+  const [migrated] = await records(page);
+  expect(migrated.id).toBe(old.id);
+  expect(migrated.draft.revision).toBe(old.draft.revision + 1);
+  expect(migrated.checkpoint.name).toBe(automaticName);
+  expect(migrated.lastCalculation.outcome).toEqual(old.lastCalculation.outcome);
+  expect(migrated.lastCalculation.calculation_fingerprint).toBe(old.lastCalculation.calculation_fingerprint);
+  // Another tab can save the offered name after this tab last presented it.
+  const competing = structuredClone(migrated);
+  competing.id = crypto.randomUUID();
+  competing.token = crypto.randomUUID();
+  competing.draft.id = competing.id;
+  competing.checkpoint.id = competing.id;
+  competing.draft.metadata.project_name_auto = false;
+  competing.checkpoint.metadata.project_name_auto = false;
+  competing.lastCalculation = null;
+  await put(page, [competing]);
+  await save(page, automaticName);
+  await expect(field).toHaveValue(`${automaticName}_2`);
+  const saved = (await records(page)).find(record => record.id === migrated.id);
+  expect(saved.checkpoint.name).toBe(`${automaticName}_2`);
+  expect(saved.checkpoint.metadata.project_name_auto).toBe(true);
+});

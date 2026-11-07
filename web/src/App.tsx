@@ -290,6 +290,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       setCheckPointDraft(emptyCheckPointDraft());
       setNodeNameDraft({ id: null, name: "" });
     }
+    const previousProjectName = canonicalProjectRef.current?.name;
     canonicalProjectRef.current = next.project;
     projectIdRef.current = nextProjectId;
     destinationPatternBasisRef.current = nextPatternBasis;
@@ -300,6 +301,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           ? nextProjectId
           : "",
       );
+    } else if (next.project && next.project.name !== previousProjectName) {
+      const nextName = next.project.name;
+      setProjectName(current => current === previousProjectName ? nextName : current);
     }
     setState((current) => {
       if (
@@ -452,7 +456,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         setCheckPointDraft(restored.checkPointDraft);
         setNodeNameDraft(restored.nodeNameDraft);
         setPastedKml(restored.pastedKml);
-        setProjectName(restored.projectName);
+        setProjectName(next.project && restored.projectName === restored.working?.project?.name
+          ? next.project.name : restored.projectName);
         setSelectedProjectId(restored.selectedProjectId);
         setPendingKmz(restored.pendingKmz);
         setSelectedKmzDocument(restored.selectedKmzDocument);
@@ -1104,6 +1109,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           const next = await application.updateProject(request.payload);
           saved = true;
           if (request.projectId === projectIdRef.current && next.project) {
+            const previousName = canonicalProjectRef.current?.name;
+            const nextName = next.project.name;
+            setProjectName(current => current === previousName ? nextName : current);
             canonicalProjectRef.current = next.project;
             const queued = pendingDraftAutosave();
             if (queued?.projectId === request.projectId && queued.useCanonicalFallback) {
@@ -1489,12 +1497,16 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
 
   const handleSave = async (name: string) => {
     if (!state?.project) return;
+    const followsAutomaticName = state.project.metadata.project_name_auto === true
+      && state.project.metadata.project_name_generated === state.project.name
+      && name === state.project.name;
     invalidateDestinationPatternRequests();
     const saved = await run(
       async () => {
         const draftSaved = await flushDraftAutosave(true);
         if (!draftSaved) throw new Error(DRAFT_AUTOSAVE_FAILURE);
-        return application.saveProject(name);
+        return application.saveProject(followsAutomaticName
+          ? canonicalProjectRef.current?.name ?? name : name);
       },
       "プロジェクトを保存しました。",
     );

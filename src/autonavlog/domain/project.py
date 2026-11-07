@@ -21,6 +21,7 @@ from .enums import (
     RouteNodeRole,
     VisualReferenceRole,
 )
+from .project_naming import migrate_automatic_name
 from .weather import ForecastModel, legacy_forecast_model
 
 JST = ZoneInfo("Asia/Tokyo")
@@ -214,6 +215,11 @@ class Project(DomainModel):
         if "selected_forecast_model" not in self.model_fields_set:
             object.__setattr__(self, "selected_forecast_model",
                                legacy_forecast_model(self.selected_forecast_run_id))
+        return self
+
+    @model_validator(mode="after")
+    def migrate_automatic_project_name(self) -> Project:
+        migrate_automatic_name(self)
         return self
 
     @field_validator("planned_departure_time_jst")
