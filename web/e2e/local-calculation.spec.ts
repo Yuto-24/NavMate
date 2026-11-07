@@ -1,4 +1,4 @@
-import { enterImportWorkflow, confirmImportedDraft, importedMapNames } from "./helpers/importWorkflow";
+import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -75,7 +75,7 @@ for (const width of [390, 1100, 1440]) {
     await page.getByLabel("5,000 ft風向 ° FROM").fill("270");
     await page.getByLabel("5,000 ft風速 kt").fill("30");
     await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
-    for (const [name, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
+    for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
       const input = page.getByLabel(`${name}出発Legの計画高度`, { exact: true });
       await input.fill(altitude!);
       await input.blur();
@@ -92,12 +92,12 @@ for (const width of [390, 1100, 1440]) {
     await expect(page.locator(".nav-log-table thead th").first()).toHaveCSS("border-bottom-width", "2px");
     await expect(page.locator(".nav-log-table tbody td").first()).toHaveCSS("border-right-width", "1px");
     const state = await page.evaluate(() => (window as any).localStates.at(-1));
-    compare(localGolden(state), importedMapNames(reference));
+    compare(localGolden(state), reference);
     const native = JSON.parse(execFileSync(
       process.env.AUTONAVLOG_REFERENCE_PYTHON ?? resolve("../.venv/bin/python"),
       [resolve("../scripts/local_reference.py")], { encoding: "utf8" },
     ));
-    compare(calculationCoreGolden(state), importedMapNames(calculationCoreGolden(native)));
+    compare(calculationCoreGolden(state), calculationCoreGolden(native));
     expect(state.readiness.calculationIsCurrent).toBe(true);
     const vorSelect = page.getByLabel("VOR基準局", { exact: true });
     await expect(vorSelect.locator("option:checked")).toHaveText("自動 MZE");
@@ -322,7 +322,7 @@ test("strong FTD wind preserves Python Warning and Blocker results", async ({ pa
   await page.getByLabel("5,000 ft風向 ° FROM").fill("360");
   await page.getByLabel("5,000 ft風速 kt").fill("200");
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
-  for (const [name, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
+  for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     const input = page.getByLabel(`${name}出発Legの計画高度`, { exact: true });
     await input.fill(altitude!);
     await input.blur();
@@ -330,7 +330,7 @@ test("strong FTD wind preserves Python Warning and Blocker results", async ({ pa
   await page.getByRole("button", { name: "NAV LOGを作る", exact: true }).click();
   await page.waitForFunction(() => (window as any).localStates.at(-1)?.outcome !== null);
   const state = await page.evaluate(() => (window as any).localStates.at(-1));
-  compare(calculationCoreGolden(state), importedMapNames(expected));
+  compare(calculationCoreGolden(state), expected);
   await expect(page.locator(".issue-blocker").first()).toBeVisible();
   expect(apiRequests).toEqual([]);
 });
@@ -363,14 +363,14 @@ test("actual MSM FORECAST reaches NAV LOG with Python provenance and no fallback
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-12");
   await page.getByLabel("ETD JST", { exact: true }).fill("12:00");
   await page.getByLabel("気象モード").selectOption("FORECAST");
-  for (const [name, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
+  for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     const input = page.getByLabel(`${name}出発Legの計画高度`, { exact: true });
     await input.fill(altitude!); await input.blur();
   }
   await page.getByRole("button", { name: "NAV LOGを作る", exact: true }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
   const state = await page.evaluate(() => (window as any).localStates.at(-1));
-  compare(calculationCoreGolden(state), importedMapNames(calculationCoreGolden(expected)));
+  compare(calculationCoreGolden(state), calculationCoreGolden(expected));
   expect(state.runtime.weatherLabel).toBe(expected.runtime.weatherLabel);
   expect(state.outcome.selected_forecast_run_id).toBe("20260912030000");
   expect(state.readiness.calculationIsCurrent).toBe(true);

@@ -156,3 +156,46 @@ test("#176 empty Clipboard cannot offer a previously imported KML for replacemen
   await expect(dialog.getByRole("button", { name: "貼付KMLを読み込む", exact: true })).toBeDisabled();
   expect((await snapshot(page)).mapRouteDraft).toEqual(before);
 });
+
+test("#176 #361 selected names survive Draft edits, reload, confirmation and saved Project reopening", async ({ page }) => {
+  await start(page);
+  await upload(page, kml(
+    `<Folder><name>other</name>${route("START→OTHER→END")}</Folder>`,
+    `<Folder><name>selected</name>${route("START→REMOVE→KEEP→END",
+      "131.4486,31.8772,0 131.2,32,0 131,32.1,0 130.7194,31.8034,0")}</Folder>`,
+  ));
+  const choice = page.getByRole("dialog", { name: "経路選択", exact: true });
+  await choice.getByRole("combobox").selectOption("line:1");
+  await page.reload();
+  await expect(choice.getByRole("combobox")).toHaveValue("line:1");
+  await choice.getByRole("button", { name: "KMLを取り込む", exact: true }).click();
+  await expect(strip(page)).toContainText("KEEP");
+  await strip(page).getByRole("button", { name: "2番目のREMOVEを削除", exact: true }).click();
+  await expect(strip(page).locator("li")).toHaveCount(3);
+  const draft = (await snapshot(page)).mapRouteDraft;
+  expect(draft.map((point: any) => point.name)).toEqual(["RJFM", "KEEP", "RJFK"]);
+  await page.reload();
+  await expect(strip(page)).toContainText("KEEP");
+  expect((await snapshot(page)).mapRouteDraft).toEqual(draft);
+  await page.getByRole("button", { name: "経路を確定", exact: true }).click();
+  await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
+  const names = async () => (await snapshot(page)).working.project.route_nodes.map((node: any) => node.name);
+  expect(await names()).toEqual(["RJFM", "KEEP", "RJFK"]);
+  const editor = page.locator(".route-name-edit").first();
+  await editor.click();
+  await page.locator(".route-name-editor input").fill("MY POINT");
+  await page.locator(".route-name-save").click();
+  await expect.poll(names).toEqual(["RJFM", "MY POINT", "RJFK"]);
+  await page.getByLabel("プロジェクト", { exact: true }).fill("Imported names");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
+  const project = (await snapshot(page)).working.project;
+  await page.reload();
+  await expect(page.getByLabel("保存済み", { exact: true })).toBeVisible();
+  await page.getByLabel("保存済み", { exact: true }).selectOption(project.id);
+  await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
+  await expect.poll(names).toEqual(["RJFM", "MY POINT", "RJFK"]);
+  const reopened = (await snapshot(page)).working.project;
+  expect(reopened.route_nodes).toEqual(project.route_nodes);
+  expect(reopened.sections).toEqual(project.sections);
+});

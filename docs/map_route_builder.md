@@ -87,6 +87,15 @@ rotation, deduplication or synthetic VREP is performed here. Only the first and 
 coordinates are snapped to the canonical airports identified by the parser's existing
 5 NM endpoint matching. Rounded display distances do not drive another match policy.
 
+`routeNames` carries nullable name slots aligned to `routeCoordinates`, never the
+simplified preview. Point names and unambiguous LineString names use the existing
+parser and RJFM physical-slot alignment. Missing names alone receive sequential WP
+labels; airport endpoints keep their ICAO identity. Imported Draft points carry
+`name_source: IMPORTED` through confirmation, including names longer than the manual
+MAP input limit. Old candidates without name slots retain automatic naming. Draft
+reload and Project persistence preserve names; later user renames retain the existing
+USER provenance rules (#361).
+
 The result distinguishes `ready`, `unmatched-endpoints` and invalid coordinate/count
 input. An unmatched endpoint is kept in the preview but cannot be confirmed. In
 particular, a missing departure airport does not satisfy the existing `validMapDraft`

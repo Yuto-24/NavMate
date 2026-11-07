@@ -41,12 +41,15 @@ export function importCandidateToMapDraft(
   if (!departure) missingEndpoints.push("departure");
   if (!destination) missingEndpoints.push("destination");
   let waypoint = 0;
+  const names = candidate.routeNames?.length === coordinates.length ? candidate.routeNames : null;
   const points = coordinates.map(([latitude, longitude], occurrence): MapRoutePoint => {
     const airport = occurrence === 0 ? departure : occurrence === coordinates.length - 1 ? destination : undefined;
+    const importedName = typeof names?.[occurrence] === "string" ? names[occurrence]?.trim() : null;
     return {
       // Occurrences, not coordinates or airport identities, distinguish repeated visits.
       id: `import:${candidate.kind}:${candidate.index}:${occurrence}`,
-      name: airport ? airport.icao : `WP${++waypoint}`,
+      name: airport ? airport.icao : importedName || `WP${++waypoint}`,
+      ...(!airport && importedName ? { name_source: "IMPORTED" as const } : {}),
       latitude_deg: airport?.latitudeDeg ?? latitude,
       longitude_deg: airport?.longitudeDeg ?? longitude,
       airport_id: airport?.id ?? null,

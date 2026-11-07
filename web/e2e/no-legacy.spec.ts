@@ -115,7 +115,7 @@ async function create(page: Page, name: string) {
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
   await page.getByLabel("気象モード").selectOption("FTD");
-  for (const [node, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
+  for (const [node, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     const input = page.getByLabel(`${node}出発Legの計画高度`, { exact: true });
     await input.click(); await input.fill(altitude!);
   }

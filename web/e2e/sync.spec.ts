@@ -76,7 +76,7 @@ async function create(page: Page, name: string) {
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
   await page.getByLabel("気象モード").selectOption("FTD");
   await expect(page.getByLabel("RJFM出発Legの計画高度", { exact: true })).toBeVisible();
-  for (const [node, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
+  for (const [node, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     const input = page.getByLabel(`${node}出発Legの計画高度`, { exact: true });
     // Unlike fill(), click scrolls into view and waits for a stable target.
     await input.click();

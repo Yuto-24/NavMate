@@ -50,6 +50,7 @@ class MapRoutePoint(WebRequestModel):
     reference_snapshot: ReferencePointSnapshot | None = None
     original_node_id: UUID | None = None
     name: str = Field(min_length=1)
+    name_source: Literal["GENERATED", "IMPORTED"] = "GENERATED"
     latitude_deg: float = Field(ge=-90, le=90, allow_inf_nan=False)
     longitude_deg: float = Field(ge=-180, le=180, allow_inf_nan=False)
     airport_id: str | None = Field(default=None, min_length=1, max_length=100)
@@ -65,7 +66,8 @@ class MapRoutePoint(WebRequestModel):
             or self.longitude_deg != snapshot.longitude_deg
         ):
             raise ValueError("Reference selection must match its snapshot and cannot be an airport")
-        if self.original_node_id is None and len(self.name) > 100:
+        if (self.original_node_id is None and self.name_source != "IMPORTED"
+                and len(self.name) > 100):
             raise ValueError("new MAP point names must not exceed 100 characters")
         return self
 
