@@ -90,4 +90,4 @@ Legacy のサーバ保存・復元手順を Static Web のデータ保護策と�
 
 ## ライセンスと問い合わせ
 
-`pyproject.toml` では `LicenseRef-Proprietary` を指定しています。利用・再配布条件はリポジトリ所有者に確認してください。不具合や変更要望は [GitHub Issues](https://github.com/Yuto-24/AutoNavLog/issues) へ登録してください。
+`pyproject.toml` では `LicenseRef-Proprietary` を指定しています。利用・再配布条件はリポジトリ所有者に確認してください。不具合や変更要望は [GitHub Issues](https://github.com/Yuto-24/NavMate/issues) へ登録してください。

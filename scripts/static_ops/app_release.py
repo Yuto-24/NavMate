@@ -35,7 +35,7 @@ from scripts.static_ops.operations import (  # noqa: E402
 from scripts.static_ops.refresh_feed import PUBLICATION_GENERATION_HOURS  # noqa: E402
 from scripts.static_ops.validate_feed import validate_feed  # noqa: E402
 
-REPO = "Yuto-24/AutoNavLog"
+REPO = "Yuto-24/NavMate"
 WORKFLOW = "static-production.yml"
 APP_WORKFLOW = "static-app-release.yml"
 VARIABLES = (

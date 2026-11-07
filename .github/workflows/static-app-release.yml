@@ -30,7 +30,7 @@ concurrency:
 jobs:
   publish:
     if: >-
-      github.repository == 'Yuto-24/AutoNavLog' &&
+      github.repository == 'Yuto-24/NavMate' &&
       vars.STATIC_APP_RELEASE_ENABLED == 'true' &&
       (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') &&
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')

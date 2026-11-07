@@ -211,7 +211,7 @@ def test_main_requires_live_lock_after_reading_active_history(monkeypatch, tmp_p
     assert set(calls[0]) == {"created"}
     assert calls[1:] == [{"status": status} for status in
                          ("queued", "in_progress", "waiting", "pending", "requested")]
-    assert lock_reads == [(6, "https://api.github.com/repos/Yuto-24/AutoNavLog/actions/"
+    assert lock_reads == [(6, "https://api.github.com/repos/Yuto-24/NavMate/actions/"
                           "concurrency_groups/static-production")]
 
 

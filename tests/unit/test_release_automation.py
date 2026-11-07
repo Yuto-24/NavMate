@@ -13,7 +13,7 @@ from tests.unit.test_static_app_release import NEW, OLD, SimulatedOperator
 
 RELEASE = {"id": 123, "tag_name": "v1.23.0", "draft": False, "prerelease": False,
            "published_at": "2026-10-28T00:00:00Z"}
-REPO = {"full_name": app.REPO, "private": False}
+REPO = {"full_name": "Yuto-24/NavMate", "private": False}
 
 
 class Source(app.Operator):
@@ -203,6 +203,7 @@ def test_automation_workflow_contract():
     assert "vars.STATIC_APP_RELEASE_ENABLED == 'true'" in workflow
     assert "environment: static-production" in workflow and "static-publication" not in workflow
     assert "ref: main" in workflow and "persist-credentials: false" in workflow
+    assert "github.repository == 'Yuto-24/NavMate' &&" in workflow
     assert workflow.count("create_credentials_file: false") == 2
     assert workflow.count("https://www.googleapis.com/auth/firebase.readonly") == 2
     for name in ("static-app-release", "static-production"):
@@ -259,12 +260,15 @@ def test_phase_separation_retains_plan_drift_gate(tmp_path):
 
 
 @pytest.mark.parametrize("url,accepted", [
-    ("https://github.com/Yuto-24/AutoNavLog", True),  # actions/checkout HTTPS origin
-    ("https://github.com/Yuto-24/AutoNavLog.git", True),
-    ("git@github.com:Yuto-24/AutoNavLog.git", True),
-    ("https://github.com/other/AutoNavLog", False),
-    ("https://github.com/Yuto-24/AutoNavLog.evil", False),
-    ("https://github.com.evil/Yuto-24/AutoNavLog", False),
+    ("https://github.com/Yuto-24/NavMate", True),  # actions/checkout HTTPS origin
+    ("https://github.com/Yuto-24/NavMate.git", True),
+    ("git@github.com:Yuto-24/NavMate.git", True),
+    ("https://github.com/other/NavMate", False),
+    ("https://github.com/Yuto-24/AutoNavLog", False),
+    ("https://github.com/Yuto-24/AutoNavLog.git", False),
+    ("git@github.com:Yuto-24/AutoNavLog.git", False),
+    ("https://github.com/Yuto-24/NavMate.evil", False),
+    ("https://github.com.evil/Yuto-24/NavMate", False),
 ])
 def test_checkout_origin_forms_reach_source_gate_without_remote_reconfiguration(
     tmp_path, url, accepted
@@ -278,4 +282,43 @@ def test_checkout_origin_forms_reach_source_gate_without_remote_reconfiguration(
     op.source_branch = source_gate
     with pytest.raises(LookupError if accepted else app.Blocked,
                        match="source gate" if accepted else "repository remote"):
+        op.snapshot(NEW, OLD)
+
+
+@pytest.mark.parametrize("repository", [
+    {"full_name": "Yuto-24/AutoNavLog", "private": False},
+    {"full_name": "other/NavMate", "private": False},
+    {"full_name": "Yuto-24/NavMate", "private": True},
+    {"full_name": "Yuto-24/NavMate"},
+    {},
+])
+def test_release_event_requires_current_public_repository(repository):
+    op = Source()
+    with pytest.raises(app.Blocked, match="repository"):
+        auto.select_release(op, {"repository": repository, "action": "published",
+                                 "release": RELEASE}, "release")
+    assert op.calls == []
+
+
+@pytest.mark.parametrize("repository,accepted", [
+    ({"full_name": "Yuto-24/NavMate", "private": False}, True),
+    ({"full_name": "Yuto-24/AutoNavLog", "private": False}, False),
+    ({"full_name": "other/NavMate", "private": False}, False),
+    ({"full_name": "Yuto-24/NavMate", "private": True}, False),
+    ({"full_name": "Yuto-24/NavMate"}, False),
+    ({}, False),
+])
+def test_snapshot_requires_current_public_repository_before_publication(
+    tmp_path, repository, accepted
+):
+    op = app.Operator(tmp_path)
+    op.git = lambda *args: (
+        "https://github.com/Yuto-24/NavMate" if args[0] == "remote"
+        else NEW if args[0] == "rev-parse" else ""
+    )
+    op.source_branch = lambda sha: "main"
+    op.variables = lambda: {}  # The next gate requires the existing production configuration.
+    op.gh = lambda endpoint: repository
+    with pytest.raises(KeyError if accepted else app.Blocked,
+                       match="STATIC_ORIGIN" if accepted else "Expected public repository"):
         op.snapshot(NEW, OLD)

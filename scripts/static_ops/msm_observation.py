@@ -6,7 +6,7 @@ import math
 import re
 from datetime import UTC, datetime
 
-REPOSITORY = "Yuto-24/AutoNavLog"
+REPOSITORY = "Yuto-24/NavMate"
 CPU_LIMIT_US = 10_000
 
 

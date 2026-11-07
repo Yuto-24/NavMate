@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   probe:
-    if: github.repository == 'Yuto-24/AutoNavLog' && github.event_name == 'workflow_dispatch'
+    if: github.repository == 'Yuto-24/NavMate' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
