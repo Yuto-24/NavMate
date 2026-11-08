@@ -1,11 +1,27 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .enums import Availability, WeatherRequestKind
+
+ForecastModel = Literal["MSM"]
+
+class ForecastDataError(RuntimeError):
+    """Unavailable or invalid data, never proof of model coverage exclusion."""
+
+
+class ForecastCoverageError(Exception):
+    """Affirmative model/Run exclusion; never an acquisition failure."""
+
+    def __init__(self, reason_codes: Sequence[str]):
+        self.reason_codes = tuple(reason_codes)
+        if not self.reason_codes or any(not reason.strip() for reason in self.reason_codes):
+            raise ValueError("coverage exclusion requires reason codes")
+        super().__init__(", ".join(self.reason_codes))
 
 
 class WeatherModel(BaseModel):
@@ -17,6 +33,8 @@ class ForecastRequirement(WeatherModel):
     require_aloft_wind: bool = True
     require_aloft_temperature: bool = True
     require_surface_temperature: bool = False
+    coverage_requests: tuple[WeatherRequest, ...] = ()
+    route_points: tuple[tuple[float, float], ...] = ()
 
     @field_validator("valid_times_utc")
     @classmethod

@@ -30,6 +30,7 @@ def release_line(ref: str, version: str) -> tuple[str, str]:
     lines = {
         "refs/heads/main": (2, "NavMate", "true"),
         "refs/heads/release/1.x": (1, "AutoNavLog", "false"),
+        "refs/heads/release/2.x": (2, "NavMate", "true"),
     }
     if ref not in lines:
         raise ValueError(f"unsupported release ref: {ref}")
@@ -83,6 +84,19 @@ def check_release_collisions(repository: str, tag: str) -> None:
         page += 1
 
 
+def latest_setting(repository: str, version: str, eligible: str) -> str:
+    """Keep GitHub Latest monotonic when main and maintenance publish out of order."""
+    if eligible == "false":
+        return "false"
+    current = api(f"repos/{repository}/releases/latest")
+    if current is None:
+        return "true"
+    tag = current["tag_name"]
+    if not isinstance(tag, str) or not tag.startswith("v"):
+        raise ValueError("current Latest does not have a version tag")
+    return "true" if version_tuple(version) > version_tuple(tag[1:]) else "false"
+
+
 def publish(root: Path, ref: str, sha: str, repository: str) -> None:
     version = validate_sources(root)
     product, latest = release_line(ref, version)
@@ -108,6 +122,7 @@ def publish(root: Path, ref: str, sha: str, repository: str) -> None:
             raise ValueError(f"{tag} is not an existing published stable release")
         print(f"{tag} already published at verified commit {commit}; unchanged.")
         return
+    latest = latest_setting(repository, version, latest)
     with tempfile.TemporaryDirectory() as directory:
         notes_file = Path(directory) / "release-notes.md"
         notes_file.write_text(notes, encoding="utf-8")

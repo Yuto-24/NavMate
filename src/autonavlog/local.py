@@ -16,6 +16,7 @@ from uuid import UUID
 from pydantic import BaseModel, ValidationError
 
 from autonavlog.application.project_service import ProjectService
+from autonavlog.domain.weather import ForecastModel
 from autonavlog.importers.kml import (
     KmlDocumentSelectionRequired,
     KmlImportError,
@@ -30,9 +31,10 @@ from autonavlog.storage.reference_data import ReferenceDataCatalogRepository
 from autonavlog.storage.rjfm_inbound_reference import RjfmInboundGuidanceReference
 from autonavlog.storage.rjfm_reference import RjfmReferencePack
 from autonavlog.weather.destination_taf import DecodedTafProvider
-from autonavlog.weather.local_msm import LocalMsmWeather, LocalWeatherError
-from autonavlog.weather.msm_adapter import MsmWeatherProvider
+from autonavlog.weather.local_forecast import LocalForecastWeather, LocalWeatherRequest
+from autonavlog.weather.local_msm import LocalWeatherError
 from autonavlog.weather.msm_fixture import FIXTURE_WEATHER_LABEL, fixture_weather_provider
+from autonavlog.weather.provider import WeatherProvider
 from autonavlog.web.facade import AutoNavLogWebApplication, WebApplicationError
 from autonavlog.web.models import (
     AcknowledgeRequest,
@@ -78,10 +80,10 @@ class LocalApplication:
     def __init__(self, data_root: Path, *, forecast_fixture: Path | None = None) -> None:
         self._data_root = data_root
         self._forecast_fixture = forecast_fixture
-        self.local_weather = None if forecast_fixture else LocalMsmWeather()
+        self.local_weather = None if forecast_fixture else LocalForecastWeather()
         local_weather = self.local_weather
 
-        def weather_factory() -> MsmWeatherProvider:
+        def weather_factory() -> WeatherProvider:
             if forecast_fixture:
                 return fixture_weather_provider(forecast_fixture)
             assert local_weather is not None
@@ -115,6 +117,37 @@ class LocalApplication:
             "local-poc", restore_persisted=False, persist_working=False
         )
 
+    def validate_calculation_input(self, payload: dict[str, Any]) -> None:
+        request = _validate_request(CalculationRequest, payload)
+        if self.session.project is None:
+            raise WebApplicationError("PROJECT_REQUIRED", "先に経路を確定してください。")
+        project = self.session.project.model_copy(deep=True)
+        self.app._normalize_rjfm_departure(project)
+        plan = self.app.project_service.ui_state(project).arrival_plan
+        if (
+            plan is None
+            or plan.selected_pattern_altitude_ft_msl is None
+            or plan.selected_pattern_altitude_source is None
+        ):
+            raise WebApplicationError(
+                "PATTERN_ALTITUDE_REQUIRED",
+                "目的空港の参照データ上の場周経路高度と、今回採用する高度を確認してください。",
+                status_code=409,
+            )
+        outcome = self.session.calculation_service.calculate(
+            project,
+            self.session.weather_provider,
+            validate_only=True,
+            rounding_mode=self.session.rounding_mode
+            if request.rounding_mode is None
+            else request.rounding_mode,
+        )
+        if outcome.blockers:
+            raise WebApplicationError(
+                "VALIDATION_FAILED", " / ".join(item.message for item in outcome.blockers[:3])
+            )
+
+
     def new_work(self) -> str:
         """Replace all mutable work while keeping the interpreter and installed packages."""
         replacement = LocalApplication(self._data_root, forecast_fixture=self._forecast_fixture)
@@ -137,26 +170,35 @@ class LocalApplication:
             and self.session.project.weather_mode == "FORECAST"
         )
 
-    def weather_plan(self, catalog_json: str) -> str:
-        """Adapter preflight, called by the Worker before synchronous calculation."""
-        assert self.local_weather is not None and self.session.project is not None
-        try:
-            requirement = (
-                self.session.calculation_service.forecast_service.build_initial_requirement(
-                    self.session.project
-                )
-            )
-            return self.local_weather.plan(self.session.project, requirement, catalog_json)
-        except LocalWeatherError as error:
-            return json.dumps({"error": {"code": error.code, "message": str(error)}})
+    def begin_weather(self) -> None:
+        if self.local_weather is not None:
+            self.local_weather.begin()
 
-    def accept_weather(self, payload: bytes, sha256: str) -> str:
+
+    def weather_catalog(
+        self, model: ForecastModel, catalog_json: str, *, current: bool = True,
+    ) -> str:
         assert self.local_weather is not None
         try:
-            self.local_weather.accept(payload, sha256)
+            self.local_weather.catalog(model, catalog_json, current=current)
             return "{}"
         except LocalWeatherError as error:
             return json.dumps({"error": {"code": error.code, "message": str(error)}})
+
+
+    def weather_failed(self, model: ForecastModel, sha256: str, code: str, message: str) -> None:
+        assert self.local_weather is not None
+        self.local_weather.clients[model].failures[sha256] = LocalWeatherError(code, message)
+
+
+    def accept_weather(self, model: ForecastModel, payload: bytes, sha256: str) -> str:
+        assert self.local_weather is not None
+        try:
+            self.local_weather.accept(model, payload, sha256)
+            return "{}"
+        except LocalWeatherError as error:
+            return json.dumps({"error": {"code": error.code, "message": str(error)}})
+
 
     def destination_taf_airport(self, operation: str, payload: dict[str, Any]) -> str | None:
         """Prepare acquisition outside the calculation core and invalidate previous records."""
@@ -208,6 +250,9 @@ class LocalApplication:
             return migrate_record(record.model_dump(mode="json")).model_dump_json()
         if path == "validateRecord":
             return migrate_record(payload).model_dump_json()
+        if path == "validateCalculation":
+            self.validate_calculation_input(payload)
+            return "{}"
         if path == "state":
             state = self.app.present(self.session)
         elif path in {"bootstrap", "refreshSavedWork"}:
@@ -266,9 +311,30 @@ class LocalApplication:
             if self.session.project is None:
                 raise WebApplicationError("PROJECT_REQUIRED", "先に経路を確定してください。")
             calculation_request = _validate_request(CalculationRequest, payload)
-            state = self.app.calculate(
-                self.session, rounding_mode=calculation_request.rounding_mode
+            fields = (
+                "project",
+                "outcome",
+                "last_calculation",
+                "destination_wind",
+                "readiness",
+                "rounding_mode",
             )
+            before = {field: getattr(self.session, field) for field in fields}
+            try:
+                state = self.app.calculate(
+                    self.session, rounding_mode=calculation_request.rounding_mode
+                )
+                # Selection can reject several candidates. Preserve the failure
+                # it actually returned, not the last discarded candidate's error.
+                for issue in self.session.outcome.blockers if self.session.outcome else ():
+                    if code := issue.metadata.get("weather_failure_code"):
+                        raise LocalWeatherError(code, issue.message)
+            except Exception as error:
+                for field, value in before.items():
+                    setattr(self.session, field, value)
+                if isinstance(error, LocalWeatherError):
+                    raise WebApplicationError(error.code, str(error)) from error
+                raise
         elif path == "replaceCheckPoints":
             state = self.app.replace_check_points(
                 self.session, _validate_request(ReplaceCheckPointsRequest, payload)
@@ -318,6 +384,8 @@ class LocalApplication:
         details: dict[str, Any] = {}
         try:
             return self.dispatch(operation, body)
+        except LocalWeatherRequest as request:
+            return json.dumps({"weather_request": request.request})
         except _RequestValidationError as error:
             code, message = "VALIDATION_FAILED", str(error)
             details["issues"] = error.issues

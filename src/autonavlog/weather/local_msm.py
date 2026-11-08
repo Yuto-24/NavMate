@@ -7,7 +7,7 @@ Only the upstream library selects Runs and interprets their meteorological cover
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from jma_gpv_weather import (
@@ -20,19 +20,18 @@ from jma_gpv_weather import (
 from jma_gpv_weather.errors import (
     CacheIntegrityError,
     MissingVariableError,
+    MsmError,
     NoCompatibleRunError,
     SelectedRunCoverageError,
 )
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from autonavlog.domain.project import Project
-from autonavlog.domain.weather import ForecastRequirement
+from autonavlog.domain.weather import ForecastDataError, ForecastRequirement
 from autonavlog.weather.msm_adapter import MsmWeatherProvider
 
-CATALOG_CLOCK_SKEW = timedelta(minutes=5)
 
-
-class LocalWeatherError(RuntimeError):
+class LocalWeatherError(ForecastDataError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
@@ -94,6 +93,8 @@ class LocalMsmClient(MsmClient):  # type: ignore[misc]
     def discover_runs(self, requirements: ForecastRequirements, **kwargs: Any) -> Any:
         if self.catalog is None:
             raise LocalWeatherError("WEATHER_DISCOVERY_FAILED", "MSM配信情報がありません。")
+        if any(url not in self.catalog.listings for url in self.listing_urls(requirements)):
+            raise LocalWeatherError("WEATHER_DISCOVERY_FAILED", "MSM配信情報がありません。")
         try:
             return super().discover_runs(requirements, listings=self.catalog.listings)
         except NoCompatibleRunError as error:
@@ -101,9 +102,13 @@ class LocalMsmClient(MsmClient):  # type: ignore[misc]
             raise LocalWeatherError(
                 "WEATHER_RUN_UNAVAILABLE", "必要なMSM Runがsourceにありません。"
             ) from error
+        except MsmError as error:
+            raise LocalWeatherError(
+                "WEATHER_CATALOG_INVALID", "MSM Run一覧を確認できません。"
+            ) from error
         except Exception as error:
             raise LocalWeatherError(
-                "WEATHER_DISCOVERY_FAILED", "MSM Run一覧を確認できません。"
+                "WEATHER_PROCESSING_FAILED", "MSM Run一覧を確認できません。"
             ) from error
 
     def resolve_run(
@@ -164,6 +169,8 @@ class LocalMsmWeather:
         project: Project,
         requirement: ForecastRequirement,
         catalog_json: str,
+        *,
+        refresh_forecast: bool = False,
     ) -> str:
         # Never retain arrays from an earlier calculation as an acquisition fallback.
         self.client.data = None
@@ -176,18 +183,11 @@ class LocalMsmWeather:
             raise LocalWeatherError(
                 "WEATHER_CATALOG_INVALID", "MSM配信情報が破損しています。"
             ) from error
-        now = datetime.now(UTC)
-        # Producer and device clocks differ. Tolerate a slightly future generation
-        # timestamp, but never extend the catalog's absolute expiry.
-        if catalog.expires_at <= now or catalog.generated_at > now + CATALOG_CLOCK_SKEW:
-            raise LocalWeatherError(
-                "WEATHER_CATALOG_EXPIRED", "MSM配信情報の有効期限を確認してください。"
-            )
         self.client.catalog = catalog
         native = self.provider._requirement(requirement)
         selected = (
             self.provider._run_id(project.selected_forecast_run_id)
-            if project.selected_forecast_run_id
+            if project.selected_forecast_run_id and not refresh_forecast
             else None
         )
         coverage = self.client.check_coverage(

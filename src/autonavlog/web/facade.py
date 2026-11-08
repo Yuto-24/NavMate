@@ -15,6 +15,7 @@ from autonavlog.application.arrival import calculate_arrival_altitude, standard_
 from autonavlog.application.calculation_service import CalculationService
 from autonavlog.application.checkpoints import project_check_points
 from autonavlog.application.navlog_display import reproject_route_node_labels
+from autonavlog.application.project_fingerprints import forecast_selection_fingerprint
 from autonavlog.application.project_service import ProjectService
 from autonavlog.application.readiness import ReadinessEvaluation
 from autonavlog.application.readiness_service import MaterializedReadiness, ReadinessService
@@ -91,6 +92,7 @@ from autonavlog.weather.destination_taf import (
     DestinationWindProvider,
     unavailable_destination_wind,
 )
+from autonavlog.weather.forecast_provider import ForecastWeatherProvider
 from autonavlog.weather.ftd_provider import FtdWeatherProvider
 from autonavlog.weather.provider import WeatherProvider
 
@@ -138,6 +140,13 @@ _RJFM_INBOUND_NUMERIC_FIELDS = (
 
 
 ISSUE_ACTIONS: dict[str, str] = {
+    "FORECAST_UPDATE_AVAILABLE": (
+        "更新可能な予報があります。現在の入力条件で再計算して反映してください。"
+    ),
+    "FORECAST_UPDATE_REQUIRED": (
+        "入力条件が変更されたため、固定中の予報と一致しません。日時や高度などの設定内容を確認してください。"
+    ),
+    "FORECAST_UNAVAILABLE": "飛行日時・経路・高度を確認してください。前回結果は保持されます。",
     "AIRPORT_DATA_UNAVAILABLE": "参照データとFROM/TOを確認してください。",
     "PATTERN_ALTITUDE_REQUIRED": (
         "目的空港の参照データ上の場周経路高度と、今回採用する高度を確認してください。"
@@ -828,12 +837,7 @@ class AutoNavLogWebApplication:
             request.flight_date,
             request.departure_time_jst,
         )
-        forecast_selection_invalidated = (
-            working.flight_date != request.flight_date
-            or working.planned_departure_time_jst != requested_departure_time
-            or working.weather_mode != request.weather_mode
-            or working.ftd_weather != request.ftd_weather
-        )
+        forecast_selection_invalidated = working.weather_mode != request.weather_mode
         working.flight_date = request.flight_date
         working.planned_departure_time_jst = requested_departure_time
         if request.pilot_name is not None:
@@ -900,9 +904,14 @@ class AutoNavLogWebApplication:
         progress: Callable[[int, str], None] | None = None,
         *,
         rounding_mode: bool | None = None,
+        refresh_forecast: bool | None = None,
     ) -> tuple[CalculationOutcome, DestinationWindForecast | None]:
         selected_rounding_mode = session.rounding_mode if rounding_mode is None else rounding_mode
         self._normalize_rjfm_departure(project)
+        if refresh_forecast is None:
+            refresh_forecast = self.forecast_refresh_requested(
+                session, project, rounding_mode=selected_rounding_mode
+            )
         state = self.project_service.ui_state(project)
         plan = state.arrival_plan
         if (
@@ -935,14 +944,23 @@ class AutoNavLogWebApplication:
             ).model_copy(update={"source_label": "FTD固定気象"})
             return self._with_rjfm_guidance(session, project, outcome), ftd_destination_wind
 
+        if isinstance(session.weather_provider, ForecastWeatherProvider):
+            session.weather_provider.begin_calculation()
+        # Consume intent only after a completed application calculation. Local
+        # transport may suspend and resume this action to acquire a missing Run.
         destination_wind: DestinationWindForecast | None = None
         outcome = session.calculation_service.calculate(
             project,
             session.weather_provider,
             progress=progress,
             rounding_mode=selected_rounding_mode,
+            refresh_forecast=refresh_forecast,
         )
         for _ in range(3):
+            if not outcome.sections or any(
+                issue.code.startswith(("FORECAST_", "WEATHER_")) for issue in outcome.blockers
+            ):
+                break
             forecast = self._destination_wind(project, outcome)
             current_signature = self._destination_wind_signature(destination_wind)
             forecast_signature = self._destination_wind_signature(forecast)
@@ -955,7 +973,16 @@ class AutoNavLogWebApplication:
                 forecast,
                 progress=progress,
                 rounding_mode=selected_rounding_mode,
+                refresh_forecast=refresh_forecast,
             )
+        last = session.last_calculation
+        if (last is not None and project.weather_mode == "FORECAST"
+                and outcome.selected_forecast_run_id == last.outcome.selected_forecast_run_id
+                and not session.calculation_service.last_forecast_metadata.get(
+                    "latest_complete_msm_run_id")):
+            # Retain a previously verified comparison, including its original time.
+            outcome.issues.extend(issue.model_copy(deep=True) for issue in last.outcome.issues
+                                  if issue.code == "FORECAST_STALE_RUN")
         if not self.development_weather:
             return self._with_rjfm_guidance(session, project, outcome), destination_wind
         decorated = outcome.model_copy(
@@ -1011,6 +1038,28 @@ class AutoNavLogWebApplication:
             }),
             reconfirmed=True,
         )
+
+    @staticmethod
+    def forecast_refresh_requested(
+        session: WebSession, project: Project, *, rounding_mode: bool | None = None,
+    ) -> bool:
+        """Only an unchanged last successful Forecast calculation requests refresh."""
+        last = session.last_calculation
+        if (last is None or project.weather_mode != "FORECAST"
+                or last.project.weather_mode != "FORECAST" or last.project.id != project.id):
+            return False
+        last_rounding = any(
+            section.wind_direction_deg_from.automatic_metadata.get("rounding_mode") is True
+            for section in last.outcome.sections
+        )
+        try:
+            return forecast_selection_fingerprint(
+                project,
+                rounding_mode=session.rounding_mode if rounding_mode is None else rounding_mode,
+            ) == forecast_selection_fingerprint(last.project, rounding_mode=last_rounding)
+        except (TypeError, ValueError):
+            return False
+
 
     def _normalize_rjfm_departure(self, project: Project) -> None:
         normalize_rjfm_departure_plan(project, self.rjfm_reference_pack)

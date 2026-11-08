@@ -43,9 +43,10 @@ catalogはsource listing本文、Runとpayload hash/size/file、生成/失効日
 
 運用では3時間ごとを目安に生成し、payloadを先に配信してcatalogを最後に置換する。
 catalog lifetimeは6時間。失敗した生成は既存catalogを更新しない。
-producerと端末の時計ずれにより生成時刻が未来になる場合は5分まで許容する。
-5分を超える未来の生成時刻は拒否し、`expires_at <= 端末の現在時刻`は猶予なしで失効とする。
-この許容はcatalogの6時間のlifetimeやBrowser cacheのTTLを延長しない。
+Local計算ではcatalogの失効や端末の時計ずれだけを理由に停止しない。
+利用前のschema、hash、size、Run/source identityと実際の要求値の検証は維持する。
+期限切れやcacheのみの取得では「現在の最新Run」を確認したとは扱わない。
+producerの配信監視・公開gateにおける6時間のlifetimeは変更しない。
 7日以内の旧Run assetとそのsource listingを保持し、再利用前にlibraryでhash/formatを検証する。
 新listingを取得したURLは新しい内容を優先する。参照されなくなったpayloadも7日間の猶予後に除去する。
 static hostはcatalogをrevalidateし、hash付きpayloadをimmutableとして配信できる。
@@ -55,8 +56,9 @@ Browser transportは`credentials: "omit"`を使用するため、ログイン必
 認証が必要になる場合は#121側でtransport契約を明示的に見直す。
 `prepare_local.py`はfeed省略時に古い生成済みfeedを除去する。feedなしでFORECASTが成功することはない。
 
-配信範囲/時間の不足はmodelの範囲外とは異なる。最新compatible Runが未生成なら
-`WEATHER_PREPARED_UNAVAILABLE`として停止し、別Runへ切り替えない。
+配信範囲/時間の不足はmodelの範囲外とは異なる。初回選択または明示的な更新では、
+最新Runが未配信・破損・要求値不足なら、要求全体を満たす次のMSM候補を確認する。
+入力変更時の固定Runは取得失敗だけで別Runへ切り替えない。
 旧Runのasset保持は全過去時間帯の再計算保証ではない。再計算に必要な配信時間帯が
 ない場合も`WEATHER_PREPARED_UNAVAILABLE`で明示失敗し、保存済みNAV LOGは閲覧できる。
 consumerはlibraryにpreparedの実収録範囲を確認させてからsource identityを照合する。
@@ -70,7 +72,7 @@ raw/normalized cacheはproducer側libraryにのみ存在する。
 
 | 項目 | 契約 |
 | --- | --- |
-| catalog | TTL 5分かつcatalog失効まで。schema検証後に保存 |
+| catalog | 各計算でサーバーを確認。検証済みsnapshotを最大2つ、cache取得後7日まで保持。失効だけでは破棄せず、cacheの時刻を更新しない |
 | payload | SHA-256名、TTL 7日、library integrity検証後に保存 |
 | 容量 | cache合計128 MiB、payload 32 MiB、catalog 4 MiB。stream中も上限確認 |
 | invalidation | hash変更/TTL/不正cache。古いentryからevict |
@@ -85,21 +87,22 @@ Last Calculationを置換しない。`updateAndRecalculate`の入力commitと失
 
 | 失敗 | 表現 |
 | --- | --- |
-| libraryのmodel/time/area coverage | `WEATHER_OUT_OF_COVERAGE` |
+| 全MSM候補がlibraryのmodel/time/area coverageから除外 | outcome blockerの`FORECAST_UNAVAILABLE` |
 | post-prepare altitude/point coverage | 既存Availabilityとlibrary reason codes |
 | listing HTTP/discovery | `WEATHER_DISCOVERY_FAILED` |
 | fetch/timeout/CORS | `WEATHER_COMMUNICATION_FAILED` |
 | source file 404/503 | `WEATHER_SOURCE_UNAVAILABLE` |
-| download中断/サイズ/その他HTTP | `WEATHER_DOWNLOAD_FAILED` |
+| download中断/その他HTTP | `WEATHER_TRANSPORT_FAILED` |
+| サイズ超過 | `WEATHER_DOWNLOAD_FAILED` |
 | Run不在/未配信 | `WEATHER_RUN_UNAVAILABLE` / `WEATHER_PREPARED_UNAVAILABLE` |
-| catalog schema/期限 | `WEATHER_CATALOG_INVALID` / `WEATHER_CATALOG_EXPIRED` |
+| catalog schema | `WEATHER_CATALOG_INVALID`。期限切れだけではLocal計算を停止しない |
 | payload hash/format/decode | `WEATHER_PAYLOAD_INTEGRITY_FAILED` |
 | 不正cacheの再取得失敗 | `WEATHER_CACHE_CORRUPT` |
 | その他端末内処理 | `WEATHER_PROCESSING_FAILED` |
 
 native GRIB decode/prepared生成はproducerの責務で、失敗時は非zero終了と
 library exceptionの`error_type`/messageを出力する。Browserに不完全なcatalogを公開しない。
-取得/生成失敗をcoverageに変換しない。公開済みcatalogが期限切れになれば計算は停止する。
+取得/生成失敗をcoverageに変換しない。検証可能なLocalデータがなければ失敗し、保存済み結果を保持する。
 
 ## 実データacceptance（2026-09-16）
 
@@ -146,8 +149,11 @@ Weather失敗時のProject/Last Calculation保持と、OOM/予期しないreload
 今後再確認する場合もOS/browser、Run、日時、cold/warm、失敗時のProject/Last Calculation保持を記録する。
 WindowsやPlaywright WebKitの結果をこのgateの代替にしない。
 
-#161にはGSM、model priority/coverage fallback、model+Run永続化、2クリック更新を残す。
-#144ではMSM単独の取得/transport/public library/WeatherProvider境界だけを実装する。
+## 2.x保守版の範囲
+
+PR #385「MSM失効後のLocal継続と成功計算基準のRun更新」をv2.2.0へ移植する。
+GSM・server backup・Project schema更新は含めず、MSMと既存のschema 4を維持する。
+Run更新・保存済み結果との比較・Advisoryは[Forecast再計算](forecast_refresh.md)を参照。
 
 ## CALMとRJFM固定RCAの計算境界
 

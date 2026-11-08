@@ -939,7 +939,15 @@ export function NavLogTable({
           </table>
         </div>
       </div>
-      <FuelPlanTable outcome={outcome} />
+      <div className="fuel-plan-with-advisory">
+        <FuelPlanTable outcome={outcome} />
+        {outcome.issues.filter(issue => issue.code === "FORECAST_STALE_RUN").map(issue => (
+          <aside className="forecast-advisory" key={issue.code} aria-label="Advisory">
+            <strong>Advisory</strong>
+            <p>{issue.message}</p>
+          </aside>
+        ))}
+      </div>
       {rjfmGuidance && <RjfmGuidancePanel guidance={rjfmGuidance} />}
     </section>
   );

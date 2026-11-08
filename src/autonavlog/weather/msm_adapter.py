@@ -10,6 +10,9 @@ from typing import Any
 
 from autonavlog.domain.enums import Availability, WeatherRequestKind
 from autonavlog.domain.weather import (
+    ForecastCoverageError,
+    ForecastDataError,
+    ForecastModel,
     ForecastRequirement,
     ForecastRun,
     PreparedForecastRun,
@@ -43,6 +46,7 @@ class MsmWeatherProvider:
     """Adapter for jma-gpv-weather v0.5.0; no GRIB or cache internals leak upstream."""
 
     package_version = "0.5.0"
+    model: ForecastModel = "MSM"
 
     def __init__(
         self,
@@ -60,6 +64,82 @@ class MsmWeatherProvider:
         self._msm = jma_gpv_weather
         self.client = client or jma_gpv_weather.MsmClient(cache_dir=cache_dir)
         self._prepared: dict[str, Any] = {}
+        self._checked_requirements: dict[str, ForecastRequirement] = {}
+
+    def begin_calculation(self) -> None:
+        """Share one complete discovery snapshot within this user action only."""
+        self._prepared.clear()
+        self._checked_requirements.clear()
+
+    def _check_spec(self, requirement: ForecastRequirement, run: str | None = None) -> None:
+        coverage = self.client.check_coverage(
+            self._requirement(requirement),
+            run=None if run is None else self._run_id(run),
+            points=tuple(
+                self._msm.CoveragePoint(
+                    request.latitude_deg,
+                    request.longitude_deg,
+                    None if request.altitude_ft_msl is None
+                    else request.altitude_ft_msl * FT_TO_M,
+                )
+                for request in requirement.coverage_requests
+            ) + tuple(self._msm.CoveragePoint(latitude, longitude)
+                      for latitude, longitude in requirement.route_points),
+        )
+        if coverage.outside_spec:
+            raise ForecastCoverageError(coverage.reason_codes)
+        # REQUIRES_HGT deliberately continues to the public prepared query API.
+
+    def _discover_candidates(self, requirement: ForecastRequirement) -> Any:
+        return self.client.discover_runs(self._requirement(requirement))
+
+    def candidate_runs(self, requirement: ForecastRequirement) -> Sequence[str]:
+        self._check_spec(requirement)
+        return tuple(str(self._msm.RunId(run.run_utc))
+                     for run in self._discover_candidates(requirement))
+
+    def check_run(self, run: str, requirement: ForecastRequirement) -> None:
+        self._checked_requirements.pop(run, None)
+        self._check_spec(requirement, run)
+        selections = self._discover_candidates(requirement)
+        prepared = self._prepare_candidate(run, requirement, selections)
+        self._prepared[run] = prepared
+        altitude_exclusions: list[str] = []
+        queries: list[WeatherRequest] = []
+        for request in requirement.coverage_requests:
+            if request.kind == WeatherRequestKind.ALOFT:
+                result = prepared.check_altitude_coverage(self._to_query(request))
+                if result.reason_code == "ALTITUDE_OUTSIDE_HGT_RANGE":
+                    altitude_exclusions.append(result.reason_code)
+                    continue
+                if result.availability != self._msm.Availability.AVAILABLE:
+                    raise ForecastDataError(result.reason_code or "WEATHER_PROCESSING_FAILED")
+            queries.append(request)
+        # Check the remaining variables too: an HGT exclusion must not hide a
+        # missing source value or a processing failure elsewhere in the request.
+        for result in self.query_batch(run, queries):
+            if result.availability != Availability.AVAILABLE:
+                raise ForecastDataError(result.reason_code or "WEATHER_PROCESSING_FAILED")
+        if altitude_exclusions:
+            raise ForecastCoverageError(tuple(dict.fromkeys(altitude_exclusions)))
+        self._checked_requirements[run] = requirement
+
+    def latest_run_confirmed(self, run: str) -> bool:
+        """Local cache alone cannot establish the current latest Run."""
+        return run in getattr(self.client, "current_runs", ())
+
+    def _prepare_candidate(
+        self, run: str, requirement: ForecastRequirement, selections: Any,
+    ) -> Any:
+        from jma_gpv_weather.errors import MsmError
+
+        try:
+            return self.client.prepare_run(
+                self._run_id(run), self._requirement(requirement),
+                available_runs=selections, terrain_provider=None,
+            )
+        except MsmError as error:
+            raise ForecastDataError(str(error)) from error
 
     def _requirement(self, requirement: ForecastRequirement) -> Any:
         variables = set()
@@ -70,7 +150,10 @@ class MsmWeatherProvider:
         if requirement.require_surface_temperature:
             variables.add(self._msm.WeatherVariable.SURFACE_TEMPERATURE)
         return self._msm.ForecastRequirements(
-            valid_times=requirement.valid_times_utc,
+            valid_times=tuple(sorted({
+                *requirement.valid_times_utc,
+                *(request.valid_time_utc for request in requirement.coverage_requests),
+            })),
             variables=frozenset(variables),
         )
 
@@ -109,17 +192,18 @@ class MsmWeatherProvider:
         forecast_run_id: str,
         requirement: ForecastRequirement,
     ) -> PreparedForecastRun:
-        prepared = self.client.prepare_run(
-            self._run_id(forecast_run_id),
-            self._requirement(requirement),
-            terrain_provider=None,
-        )
-        self._prepared[forecast_run_id] = prepared
+        if self._checked_requirements.get(forecast_run_id) != requirement:
+            self._prepared[forecast_run_id] = self.client.prepare_run(
+                self._run_id(forecast_run_id),
+                self._requirement(requirement),
+                terrain_provider=None,
+            )
         return PreparedForecastRun(
             forecast_run_id=forecast_run_id,
             requirement=requirement,
             metadata={
                 "provider": "jma-gpv-weather",
+                "model": self.model,
                 "package_version": self.package_version,
                 "surface_temperature_required": requirement.require_surface_temperature,
             },

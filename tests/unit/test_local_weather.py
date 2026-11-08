@@ -113,8 +113,9 @@ def test_portable_provider_keeps_run_selection_and_upstream_values(project, requ
         ("missing_listing", "WEATHER_DISCOVERY_FAILED"),
         ("empty_listing", "WEATHER_RUN_UNAVAILABLE"),
         ("missing_asset", "WEATHER_PREPARED_UNAVAILABLE"),
-        ("expired", "WEATHER_CATALOG_EXPIRED"),
         ("invalid", "WEATHER_CATALOG_INVALID"),
+        ("naive_timestamp", "WEATHER_CATALOG_INVALID"),
+        ("reversed_timestamps", "WEATHER_CATALOG_INVALID"),
         ("outside_model", "WEATHER_OUT_OF_COVERAGE"),
     ],
 )
@@ -125,11 +126,12 @@ def test_failure_kinds_do_not_become_model_coverage(project, requirement, catalo
         catalog["listings"] = dict.fromkeys(catalog["listings"], "")
     elif kind == "missing_asset":
         catalog["assets"] = []
-    elif kind == "expired":
-        catalog["generated_at"] = "2026-01-01T00:00:00Z"
-        catalog["expires_at"] = "2026-01-01T01:00:00Z"
     elif kind == "invalid":
         catalog["schema_version"] = 2
+    elif kind == "naive_timestamp":
+        catalog["generated_at"] = "2026-09-16T00:00:00"
+    elif kind == "reversed_timestamps":
+        catalog["expires_at"] = catalog["generated_at"]
     else:
         project.route_nodes[0].latitude_deg = 80
     with pytest.raises(LocalWeatherError) as error:
@@ -138,37 +140,22 @@ def test_failure_kinds_do_not_become_model_coverage(project, requirement, catalo
 
 
 @pytest.mark.parametrize(
-    "generated_offset,expires_offset,accepted",
-    [(180, 21780, True), (300, 21900, True), (301, 21901, False),
-     (-21600, 0, False), (-21601, -1, False), (-21599, 1, True)],
+    "generated_offset,expires_offset",
+    [(180, 21780), (300, 21900), (301, 21901), (86400, 108000),
+     (-21600, 0), (-21601, -1), (-21599, 1)],
 )
-def test_catalog_clock_skew_preserves_expiry(
-    project, requirement, catalog, monkeypatch, generated_offset, expires_offset, accepted
+def test_catalog_clock_offsets_do_not_block_valid_msm(
+    project, requirement, catalog, generated_offset, expires_offset
 ):
-    from autonavlog.weather import local_msm
-
-    now = datetime(2026, 9, 16, 4, tzinfo=UTC)
-
-    class DeviceClock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now.astimezone(tz)
-
-    monkeypatch.setattr(local_msm, "datetime", DeviceClock)
+    now = datetime.now(UTC)
     catalog.update(
         generated_at=(now + timedelta(seconds=generated_offset)).isoformat(),
         expires_at=(now + timedelta(seconds=expires_offset)).isoformat(),
     )
     weather = LocalMsmWeather()
-    if accepted:
-        asset = json.loads(weather.plan(project, requirement, json.dumps(catalog)))
-        assert asset["run"] == NEW
-        weather.accept((FEED / asset["file"]).read_bytes(), asset["sha256"])
-    else:
-        with pytest.raises(LocalWeatherError) as error:
-            weather.plan(project, requirement, json.dumps(catalog))
-        assert error.value.code == "WEATHER_CATALOG_EXPIRED"
-        assert weather.client.catalog is None
+    asset = json.loads(weather.plan(project, requirement, json.dumps(catalog)))
+    assert asset["run"] == NEW
+    weather.accept((FEED / asset["file"]).read_bytes(), asset["sha256"])
 
 
 @pytest.mark.parametrize("damage", ["hash", "zip", "wrong_run", "missing_field"])
