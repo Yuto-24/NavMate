@@ -164,6 +164,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const [pendingKmz, setPendingKmz] = useState<PendingKmz | null>(null);
   const [selectedKmzDocument, setSelectedKmzDocument] = useState("");
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
+  const [bootstrapErrorCode, setBootstrapErrorCode] = useState<string | null>(null);
   const navLogRef = useRef<HTMLDivElement | null>(null);
   const [preserveRouteViewport, setPreserveRouteViewport] = useState(false);
   const planningPanelRef = useRef<HTMLElement>(null);
@@ -466,7 +467,12 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       setSessionReady(true);
     };
     void bootstrap().catch((reason: unknown) => {
-      if (active) setError(reason instanceof Error ? reason.message : "起動に失敗しました。");
+      if (!active) return;
+      setError(localMode || !(reason instanceof ApplicationError)
+        ? "処理を実行できませんでした。画面を再読み込みしてください。"
+        : reason.message);
+      setBootstrapErrorCode(reason instanceof ApplicationError && /^[A-Z][A-Z0-9_]{0,63}$/.test(reason.code)
+        ? reason.code : "APPLICATION_UNAVAILABLE");
     });
     return () => { active = false; mounted.current = false; lifecycle.current += 1; };
   }, [application, bootstrapAttempt]);
@@ -1648,12 +1654,17 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         <strong>NavMateを起動しています</strong>
         {error && (
           <>
-            <p role="alert">{error}</p>
+            <p role="alert">{error}<br /><code>{bootstrapErrorCode}</code></p>
             <button
               className="secondary-button"
               type="button"
               onClick={() => {
+                if (localMode) {
+                  window.location.reload();
+                  return;
+                }
                 setError(null);
+                setBootstrapErrorCode(null);
                 setBootstrapAttempt((attempt) => attempt + 1);
               }}
             >
