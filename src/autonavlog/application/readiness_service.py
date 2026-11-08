@@ -238,14 +238,7 @@ class ReadinessService:
                 )
             )
         project_issues.extend(project_check_points(project).issues)
-        if not project.route_nodes or not project.sections:
-            project_issues.append(
-                Issue(
-                    code="ROUTE_INCOMPLETE",
-                    severity=IssueSeverity.BLOCKER,
-                    message="RouteとSectionを確定してください。",
-                )
-            )
+        project_issues.extend(self.calculation_service.route_validation_issues(project, state))
         return reference, project_issues
 
     def evaluate(

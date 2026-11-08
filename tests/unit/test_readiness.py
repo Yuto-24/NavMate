@@ -2,14 +2,37 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import pytest
+
 from autonavlog.application.readiness import (
     IssueProducer,
+    collect_effective_issues,
     create_effective_issue,
     dedupe_effective_issues,
     derive_project_status,
 )
-from autonavlog.domain.calculation import Issue
+from autonavlog.domain.calculation import CalculationOutcome, FuelPlan, Issue
 from autonavlog.domain.enums import IssueSeverity, ProjectStatus
+from autonavlog.domain.planning import PersistedUiState
+
+
+@pytest.mark.parametrize("current", ["a" * 64, "b" * 64, None])
+def test_only_current_outcome_diagnostics_participate_in_readiness(project, current):
+    issue = Issue(code="WIND_TRIANGLE_FAILED", severity=IssueSeverity.BLOCKER, message="old")
+    outcome = CalculationOutcome(
+        project_id=project.id, selected_forecast_run_id=None,
+        fuel_plan=FuelPlan(total_usable_gal=90), issues=[issue],
+        status=ProjectStatus.MANUAL_INPUT_REQUIRED, policy_version="fixture",
+    )
+    state = PersistedUiState(calculated_against_fingerprint="a" * 64)
+    issues = collect_effective_issues(
+        project, outcome, ui_state=state,
+        current_calculation_input_fingerprint=current,
+    )
+    assert {item.ctx.code for item in issues} == {
+        "WIND_TRIANGLE_FAILED" if current == "a" * 64 else "RECALCULATION_REQUIRED"
+    }
+    assert outcome.issues == [issue]
 
 
 def _effective(

@@ -891,6 +891,27 @@ class CalculationService:
             performance_table_version=self.performance.manifest.source_revision,
         )
 
+    def route_validation_issues(
+        self, project: Project, state: PersistedUiState,
+    ) -> list[Issue]:
+        """Validate the current route without running weather or replacing a result."""
+        issues: list[Issue] = []
+        geometries = self._build_geometry(project, issues)
+        plan = state.rjfm_inbound_plan
+        allow_repeated_descent = bool(
+            plan is not None
+            and self.expected_rjfm_reference_revision is not None
+            and self.expected_rjfm_reference_content_fingerprint is not None
+            and plan.reference_revision == self.expected_rjfm_reference_revision
+            and plan.reference_content_fingerprint
+            == self.expected_rjfm_reference_content_fingerprint
+            and rjfm_inbound_plan_matches_project(project, plan)
+        )
+        issues.extend(self._flight_phase_sequence_issues(
+            geometries, allow_repeated_descent=allow_repeated_descent,
+        ))
+        return issues
+
     def _build_geometry(self, project: Project, issues: list[Issue]) -> list[_Geometry]:
         if len(project.route_nodes) < 2 or not project.sections:
             issues.append(self._blocker("ROUTE_INCOMPLETE", "経路とSectionを確定してください。"))
