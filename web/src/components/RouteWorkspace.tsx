@@ -1,5 +1,6 @@
 import { MapDraftLayers, RouteStrip, type MapRouteBuilderProps } from "./MapRouteBuilder";
 import { MapViewport } from "./MapViewport";
+import { MapBackground } from "./MapBackground";
 import type { KeyValueStorage } from "../platform";
 import type { Dispatch, SetStateAction } from "react";
 import type { CheckPointDraft, NodeNameDraft } from "../applicationSession";
@@ -11,7 +12,6 @@ import {
   MapContainer,
   Polygon,
   Polyline,
-  TileLayer,
   Tooltip,
   useMap,
   useMapEvents,
@@ -239,6 +239,11 @@ export function RouteWorkspace({
   onReplaceCheckPoints,
 }: RouteWorkspaceProps) {
   const [mapHeight, setMapHeight] = useState(425);
+  // Device preference: deliberately outside Project, account scope and calculation data.
+  const [mapBackground, setMapBackground] = useState(() => {
+    try { return viewportStorage.getItem("autonavlog.map-background.v1") === "imagery" ? "imagery" : "map"; }
+    catch { return "map"; }
+  });
   const [pickingCheckPoint, setPickingCheckPoint] = useState(false);
   const [phaseEditing, setPhaseEditing] = useState(false);
   const editingNodeId = nodeDraft.id;
@@ -565,9 +570,21 @@ export function RouteWorkspace({
         {onEditRoute && <button className="secondary-button" disabled={busy} onClick={onEditRoute}>経路を編集</button>}
         {project && <span className="route-count">{nodes.length}点 / {sections.length} Leg</span>}
       </div>
+      {localMode && <label className="map-background-picker">
+        背景地図
+        <select value={mapBackground} onChange={(event) => {
+          const value = event.target.value;
+          setMapBackground(value);
+          try { viewportStorage.setItem("autonavlog.map-background.v1", value); }
+          catch { /* A blocked preference store must not prevent switching the map. */ }
+        }}>
+          <option value="map">標準地図</option>
+          <option value="imagery">衛星・空中写真</option>
+        </select>
+      </label>}
       <div
         id="route-map-frame"
-        className={`map-frame${pickingCheckPoint ? " is-picking-checkpoint" : ""}`}
+        className={`map-frame${pickingCheckPoint ? " is-picking-checkpoint" : ""}${localMode && mapBackground === "imagery" ? " is-imagery" : ""}`}
         style={mapFrameStyle}
         onClickCapture={(event) => {
           const link = event.target instanceof Element
@@ -583,15 +600,13 @@ export function RouteWorkspace({
           zoomAnimation={!localMode}
           center={[31.8772, 131.4486]}
           zoom={9}
+          minZoom={0}
+          maxZoom={localMode ? 19 : 18}
           scrollWheelZoom
           className="route-map"
           aria-label="飛行経路地図"
         >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            referrerPolicy="strict-origin-when-cross-origin"
-          />
+          <MapBackground imagery={localMode && mapBackground === "imagery"} />
           <MapAttributionLayout />
           {rjfmMapReference && pcaCoordinates.length >= 3 && (
             <>

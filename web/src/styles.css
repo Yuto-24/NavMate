@@ -628,6 +628,9 @@ input:disabled, select:disabled { color: #657789; background: #edf1f4; }
 .ftd-weather-fields label > span { color: #58451f; font-size: 10px; font-weight: 700; }
 
 .workspace-heading { margin-bottom: 12px; }
+.map-background-picker { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+.map-background-picker select { width: auto; }
+.map-frame.is-imagery .leaflet-overlay-pane path { filter: drop-shadow(0 0 1px white) drop-shadow(0 0 1px white); }
 .workspace-heading p, .nav-log-heading p { margin: 4px 0 0; color: var(--slate-500); font-size: 11px; }
 
 .map-frame {
