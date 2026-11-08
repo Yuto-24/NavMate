@@ -49,6 +49,61 @@ def test_expired_catalog_and_cache_only_data_calculate_without_claiming_latest(l
     assert catalog == original
 
 
+@pytest.mark.parametrize("current", [False, True])
+def test_missing_daily_listing_uses_verified_run_without_claiming_latest(local, current):
+    catalog = json.loads(catalog_text())
+    catalog["listings"].pop(next(url for url in catalog["listings"] if url.endswith("/09/16")))
+    if not current:
+        catalog.update(generated_at="2026-09-15T00:00:00Z", expires_at="2026-09-15T06:00:00Z")
+    original = json.dumps(catalog, sort_keys=True)
+    state, requested = calculate(local, [(catalog, current)])
+    assert state["readiness"]["calculationIsCurrent"]
+    assert requested == ["20260915210000"]
+    assert state["workingRecovery"]["last_calculation"]["forecast_metadata"][
+        "latest_complete_msm_run_id"] is None
+    assert json.dumps(catalog, sort_keys=True) == original
+
+
+@pytest.mark.parametrize("failure", ["values", "altitude", "time", "integrity", "identity",
+                                   "pinned", "all_listings"])
+def test_missing_daily_listing_does_not_accept_unusable_data_or_replace_last_good(local, failure):
+    catalog = json.loads(catalog_text())
+    catalog["listings"].pop(next(url for url in catalog["listings"] if url.endswith("/09/16")))
+    before = local.session.last_calculation.model_dump(mode="json")
+    failures, payloads = {}, {}
+    if failure == "values":
+        feed = ROOT / "tests/fixtures/forecast-policy/msm-source-unavailable"
+        catalog["assets"] = json.loads(catalog_text(feed))["assets"]
+        payloads = {a["sha256"]: (feed / a["file"]).read_bytes() for a in catalog["assets"]}
+    elif failure == "time":
+        local.session.project.planned_departure_time_jst += timedelta(hours=11)
+    elif failure == "altitude":
+        from jma_gpv_weather import MsmPreparedData
+
+        for asset in catalog["assets"]:
+            data = MsmPreparedData.from_bytes((FEED / asset["file"]).read_bytes())
+            pressure = {key: value for key, value in data.pressure.items() if key[1] >= 950}
+            payload = MsmPreparedData(
+                data.selection, data.surface, pressure, data.source_hashes,
+            ).to_bytes()
+            digest = hashlib.sha256(payload).hexdigest()
+            asset.update(file=f"{digest}.npz", sha256=digest, bytes=len(payload))
+            payloads[digest] = payload
+    elif failure == "integrity":
+        payloads = {a["sha256"]: b"corrupt" for a in catalog["assets"]}
+    elif failure == "identity":
+        catalog["listings"] = {url: body.replace("Lsurf_FH00-15", "Lsurf_FH00-16")
+                               for url, body in catalog["listings"].items()}
+    elif failure == "pinned":
+        local.session.project.descent_rate_fpm = 1000
+        catalog["assets"] = catalog["assets"][1:]
+    else:
+        catalog["listings"] = {}
+    state, _ = calculate(local, [(catalog, False)], failures, payloads)
+    assert "error" in state or state["outcome"]["status"] != "READY_FOR_COPY"
+    assert local.session.last_calculation.model_dump(mode="json") == before
+
+
 @pytest.mark.parametrize("failure", ["missing_asset", "WEATHER_SOURCE_UNAVAILABLE",
                                    "WEATHER_PAYLOAD_INTEGRITY_FAILED", "corrupt_bytes",
                                    "SOURCE_VALUE_UNAVAILABLE"])

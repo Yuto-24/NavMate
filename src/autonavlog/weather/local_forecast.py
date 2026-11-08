@@ -17,6 +17,7 @@ from jma_gpv_weather.errors import (
     NoCompatibleRunError,
     SelectedRunCoverageError,
 )
+from jma_gpv_weather.msm.spec import parse_listing, select_compatible_runs
 
 from autonavlog.domain.weather import ForecastDataError, ForecastModel, ForecastRequirement
 from autonavlog.weather.forecast_provider import ForecastWeatherProvider
@@ -86,7 +87,25 @@ class _PortableClient:
     def _discover_catalog(self, requirements: Any, catalog: WeatherCatalog, **kwargs: Any) -> Any:
         urls = super().listing_urls(requirements)  # type: ignore[misc]
         if any(url not in catalog.listings for url in urls):
-            raise LocalWeatherError("WEATHER_DISCOVERY_FAILED", "予報配信情報を読み取れません。")
+            # An absent day is unknown, not an empty directory. Use only captured
+            # listings and the pinned library's selection rules; prepare_run still
+            # verifies payload identity and the complete calculation requirements.
+            available = [url for url in urls if url in catalog.listings]
+            if not available:
+                raise LocalWeatherError(
+                    "WEATHER_DISCOVERY_FAILED", "予報配信情報を読み取れません。",
+                )
+            try:
+                files = [file for url in available
+                         for file in parse_listing(catalog.listings[url], url)]
+                runs = select_compatible_runs(files, requirements)
+            except ValueError as error:
+                raise LocalWeatherError("WEATHER_DISCOVERY_FAILED", str(error)) from error
+            if not runs:
+                raise LocalWeatherError(
+                    "WEATHER_RUN_UNAVAILABLE", "予報配信情報を読み取れません。",
+                )
+            return runs
         try:
             return super().discover_runs(  # type: ignore[misc]
                 requirements, listings=catalog.listings, **kwargs,
@@ -120,7 +139,10 @@ class _PortableClient:
                     run, requirements, prepared_data=self.payloads[asset.sha256], **options,
                 )
                 self.prepared_assets[str(run)] = asset.sha256
-                if catalog is self.current_catalog:
+                if catalog is self.current_catalog and all(
+                    url in catalog.listings
+                    for url in super().listing_urls(requirements)  # type: ignore[misc]
+                ):
                     self.current_runs.add(str(run))
                 return prepared
             except CacheIntegrityError as error:
