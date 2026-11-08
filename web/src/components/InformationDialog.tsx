@@ -51,8 +51,10 @@ export function InformationDialog({ open, releases, knownIssues, onClose, onOpen
         <button className="icon-button" type="button" onClick={onClose} aria-label="お知らせを閉じる" data-modal-autofocus><X aria-hidden="true" size={20} /></button>
       </div>
       {devSharedMode && <section aria-labelledby="shared-storage-heading">
-        <h3 id="shared-storage-heading">共有サーバー保存</h3>
-        <p>プロジェクトと計算結果はサーバーに保存され、同じURLから他の端末でも利用できます。データの同期や更新には通信環境が必要です。</p>
+        <h3 id="shared-storage-heading">端末内に保存</h3>
+        <p>Googleログインなしで、共通Projectを複数の端末間で同期できます。同期済みのProjectや最新の計算結果は、どの端末からでもアクセス・編集が可能です。</p>
+        <p>Projectの変更はまず端末のブラウザに保存されますが、これは同期の完了を意味しません。未同期の編集は、その端末でのみ利用可能です。</p>
+        <p>プロジェクトと最後の計算結果は、このブラウザに保存されます。ブラウザのデータ削除、容量不足による自動削除、プライベートブラウズの終了で失われる場合があります。</p>
       </section>}
       {import.meta.env.VITE_CALCULATION_MODE === "local" && !devSharedMode && <section aria-labelledby="local-storage-heading">
         <h3 id="local-storage-heading">この端末の保存について</h3>

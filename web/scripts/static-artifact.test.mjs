@@ -1,9 +1,9 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, truncateSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, truncateSync, readFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { inventory, checkArtifact, limits, sha256, sourceDirty } from "./static-artifact.mjs";
 const msmFile = `weather/msm/${sha256("msm")}.npz`;
 const gsmFile = `weather/gsm/${sha256("gsm")}.npz`;
@@ -140,3 +140,74 @@ for (const model of ["msm", "gsm"]) {
     });
   }
 }
+
+
+test("local artifacts exclude accounts and cannot pass production validation", t => {
+  const { root, put } = fixture(t);
+  const release = JSON.parse(readFileSync(join(root, "release.json")));
+  put("release.json", { ...release, localRuntime: true, configuration: {} });
+  assert.throws(() => checkArtifact(root), /cannot pass a production check/);
+  assert.equal(checkArtifact(root, { localRuntime: true }).version, "1.0.0");
+  for (const key of ["VITE_FIREBASE_PROJECT_ID", "VITE_LEGACY_MIGRATION_URL"]) {
+    put("release.json", { ...release, localRuntime: true, configuration: { [key]: "production" } });
+    assert.throws(() => checkArtifact(root, { localRuntime: true }), /exclude production account configuration/);
+  }
+});
+
+test("local build clears shell and dotenv account settings before invoking Vite", t => {
+  const { root, put } = fixture(t);
+  const accountKeys = ["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN",
+    "VITE_FIREBASE_PROJECT_ID", "VITE_FIREBASE_APP_ID", "VITE_LEGACY_MIGRATION_URL"];
+  put(".env.production", accountKeys.map(key => `${key}=dotenv-production`).join("\n"));
+  // Stop before costly build work, observing the real child environment sent to npm.
+  put("npm", `#!${process.execPath}
+import { writeFileSync } from "node:fs";
+writeFileSync("observed.json", JSON.stringify(Object.fromEntries(${JSON.stringify(accountKeys)}.map(key => [key, process.env[key]]))));
+process.exit(9);
+`);
+  put("package.json", { type: "module" });
+  chmodSync(join(root, "npm"), 0o700);
+  const env = { ...process.env, PATH: root + ":" + process.env.PATH,
+    AUTONAVLOG_TEST_FIXTURES: "0", AUTONAVLOG_MSM_FEED: root,
+    VITE_TAF_PROXY_URL: "https://weather.example/taf" };
+  for (const key of accountKeys) env[key] = "shell-production";
+  const build = resolve("scripts/build-static.mjs");
+  const local = spawnSync(process.execPath, [build, "--local-runtime"], { cwd: root, env });
+  assert.notEqual(local.status, 0);
+  assert.deepEqual(JSON.parse(readFileSync(join(root, "observed.json"))),
+    Object.fromEntries(accountKeys.map(key => [key, ""])));
+  const sharedEnv = { ...env, VITE_DEV_SHARED_PROJECTS: "1", VITE_DEV_FIREBASE_PROJECT_ID: "navmate-prod" };
+  const wrongProject = spawnSync(process.execPath, [build, "--local-runtime"], { cwd: root, env: sharedEnv, encoding: "utf8" });
+  assert.match(wrongProject.stderr, /requires a local build and the NavMate-dev/);
+  sharedEnv.VITE_DEV_FIREBASE_PROJECT_ID = "navmate-6b281";
+  const missingDevKeys = spawnSync(process.execPath, [build, "--local-runtime"], { cwd: root, env: sharedEnv, encoding: "utf8" });
+  assert.match(missingDevKeys.stderr, /VITE_DEV_FIREBASE_API_KEY is required/);
+  for (const key of accountKeys.filter(key => key !== "VITE_LEGACY_MIGRATION_URL")) {
+    sharedEnv[key.replace("VITE_FIREBASE_", "VITE_DEV_FIREBASE_")] = key === "VITE_FIREBASE_PROJECT_ID" ? "navmate-6b281" : "dev-config";
+  }
+  const shared = spawnSync(process.execPath, [build, "--local-runtime"], { cwd: root, env: sharedEnv });
+  assert.notEqual(shared.status, 0);
+  assert.deepEqual(JSON.parse(readFileSync(join(root, "observed.json"))),
+    Object.fromEntries(accountKeys.map(key => [key, ""])));
+  const forbiddenProduction = spawnSync(process.execPath, [build], { cwd: root, env: sharedEnv, encoding: "utf8" });
+  assert.match(forbiddenProduction.stderr, /requires a local build/);
+  for (const key of accountKeys) env[key] = "";
+  const production = spawnSync(process.execPath, [build], { cwd: root, env, encoding: "utf8" });
+  assert.notEqual(production.status, 0);
+  assert.match(production.stderr, /VITE_FIREBASE_API_KEY is required for production/);
+});
+
+
+test("only the development Firebase project is accepted for shared local artifacts", t => {
+  const { root, put } = fixture(t);
+  const release = JSON.parse(readFileSync(join(root, "release.json")));
+  for (const projectId of ["navmate-prod", "other", undefined]) {
+    put("release.json", { ...release, localRuntime: true, configuration: {
+      VITE_DEV_SHARED_PROJECTS: "1", VITE_DEV_FIREBASE_PROJECT_ID: projectId } });
+    assert.throws(() => checkArtifact(root, { localRuntime: true }), /exclude production account/);
+  }
+  put("release.json", { ...release, localRuntime: true, configuration: {
+    VITE_DEV_SHARED_PROJECTS: "1", VITE_DEV_FIREBASE_PROJECT_ID: "navmate-6b281" } });
+  assert.equal(checkArtifact(root, { localRuntime: true }).version, "1.0.0");
+  assert.throws(() => checkArtifact(root), /cannot pass a production check/);
+});

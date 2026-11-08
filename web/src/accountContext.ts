@@ -10,8 +10,8 @@ import type { PlatformCapabilities } from "./platform";
 // One immutable context per authentication lifetime. Never retarget an existing
 // Worker or queued save to another account's Repository.
 export function createAccountContext(platform: PlatformCapabilities, auth?: AuthProvider, allowRecovery = true,
-  createSync?: (context: LocalAccountContext) => Promise<AccountSyncRepository>) {
-  const account_id = auth?.getState().account?.account_id ?? null;
+  createSync?: (context: LocalAccountContext) => Promise<AccountSyncRepository>, workspaceId?: string) {
+  const account_id = workspaceId ?? auth?.getState().account?.account_id ?? null;
   let active = true;
   const assertActive = () => { if (!active) throw accountBoundaryClosed(); };
   const closeListeners = new Set<() => void>();

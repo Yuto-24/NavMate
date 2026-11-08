@@ -80,9 +80,9 @@ export function Header({
           <span className="information-icon-wrap"><Info aria-hidden="true" size={18} />{informationUnread && <span className="information-unread-dot" />}</span>
           <span className="information-label">お知らせ</span>
         </button>
-        <div className="storage-state" aria-label={devSharedMode ? "サーバー保存（dev環境共有）" : localMode ? "保存先はこの端末のブラウザです" : "保存先はサーバーです"}>
+        <div className="storage-state" aria-label={localMode ? "保存先はこの端末のブラウザです" : "保存先はサーバーです"}>
           <CheckCircle2 aria-hidden="true" size={17} />
-          <span>{localMode && !devSharedMode ? "端末内に保存" : "サーバー保存"}</span>
+          <span>{localMode ? "端末内に保存" : "サーバー保存"}</span>
         </div>
         <div className="saved-project-control">
           <label htmlFor="saved-project">保存済み</label>

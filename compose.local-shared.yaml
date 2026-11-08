@@ -1,15 +1,6 @@
-# Opt-in only: every visitor to this development origin shares these Projects.
+# Use the existing NavMate-dev Firebase project; this never configures production.
 services:
-  web:
+  updater:
+    env_file: [.env.local-static, .env.dev-shared]
     environment:
       LOCAL_SHARED_PROJECTS: "1"
-      LOCAL_PROJECTS_DB: /projects/projects.sqlite3
-      LOCAL_SHARED_ORIGINS: >-
-        http://localhost:${AUTONAVLOG_HOST_PORT:-8123}
-        http://127.0.0.1:${AUTONAVLOG_HOST_PORT:-8123}
-        https://dev-navlog.yuto24.com
-    volumes:
-      - local-projects:/projects
-
-volumes:
-  local-projects:

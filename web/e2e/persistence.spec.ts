@@ -1,12 +1,13 @@
+import { test, artifactSessionKey, artifactDatabase, blockDevCloud } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
-import { expect, test, chromium, type Page, type BrowserContext } from "@playwright/test";
+import { expect, chromium, type Page, type BrowserContext } from "@playwright/test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const database = "autonavlog.projects";
-const sessionKey = "autonavlog.working-session.v1";
+const database = artifactDatabase;
+const sessionKey = artifactSessionKey;
 const working = (page: Page) => page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working, sessionKey);
 async function records(page: Page): Promise<any[]> {
   return page.evaluate(name => new Promise<any[]>((resolve, reject) => {
@@ -90,6 +91,7 @@ test("browser process restart loads named checkpoint and retains Last Calculatio
   let context = await chromium.launchPersistentContext(profile, { baseURL });
   const requests: string[] = [];
   const observe = async () => {
+    await blockDevCloud(context);
     await blockApi(context);
     context.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/")) requests.push(request.url()); });
   };
@@ -456,14 +458,13 @@ test("#293 automatic name migration preserves checkpoint, calculation and sessio
     delete project.metadata.project_name_base;
   }
   await put(page, [old]);
-  await page.evaluate(old => {
-    const key = "autonavlog.working-session.v1";
+  await page.evaluate(({ old, key }) => {
     const session = JSON.parse(sessionStorage.getItem(key)!);
     session.working.project = old.draft;
     session.working.last_calculation = old.lastCalculation;
     session.projectName = old.draft.name;
     sessionStorage.setItem(key, JSON.stringify(session));
-  }, old);
+  }, { old, key: sessionKey });
   await page.reload();
   await expect(field).toHaveValue(automaticName);
   await expect(page.getByLabel("保存済み", { exact: true }).locator(`option[value="${old.id}"]`)).toHaveText(automaticName);

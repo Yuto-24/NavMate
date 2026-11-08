@@ -68,7 +68,11 @@ class ControlledUpdater(Updater):
         if kind == "weather" and self.weather_noop:
             return None
         (self.s.state / "sources" / sha).mkdir(exist_ok=True)
-        return artifact(job / "artifact", sha)
+        result = artifact(job / "artifact", sha)
+        metadata = load(result / "release.json")
+        metadata["configuration"] = self.configuration()
+        (result / "release.json").write_text(json.dumps(metadata))
+        return result
 
 
 @pytest.fixture
@@ -272,3 +276,41 @@ def test_second_updater_cannot_start_a_concurrent_job(runtime):
         with pytest.raises(BlockingIOError):
             runtime.serve()
     assert runtime.calls == []
+
+
+def test_local_build_excludes_inherited_account_configuration(runtime, monkeypatch):
+    for key in ("VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN",
+                "VITE_FIREBASE_PROJECT_ID", "VITE_FIREBASE_APP_ID",
+                "VITE_LEGACY_MIGRATION_URL", "FIREBASE_ADMIN_TOKEN"):
+        monkeypatch.setenv(key, "must-not-reach-local-build")
+    monkeypatch.setenv("VITE_TAF_PROXY_URL", "https://weather.example/taf")
+    assert runtime.configuration() == {"VITE_TAF_PROXY_URL": "https://weather.example/taf"}
+
+
+def test_shared_build_requires_the_development_firebase_project(runtime, monkeypatch):
+    monkeypatch.setenv("LOCAL_SHARED_PROJECTS", "1")
+    monkeypatch.setenv("VITE_DEV_FIREBASE_PROJECT_ID", "navmate-prod")
+    with pytest.raises(ValueError, match="NavMate-dev"):
+        runtime.configuration()
+    for key in ("VITE_DEV_FIREBASE_API_KEY", "VITE_DEV_FIREBASE_AUTH_DOMAIN",
+                "VITE_DEV_FIREBASE_APP_ID"):
+        monkeypatch.setenv(key, "dev-web-config")
+    monkeypatch.setenv("VITE_DEV_FIREBASE_PROJECT_ID", "navmate-6b281")
+    monkeypatch.setenv("VITE_LEGACY_MIGRATION_URL", "https://production.example")
+    config = runtime.configuration()
+    assert config["VITE_DEV_SHARED_PROJECTS"] == "1"
+    assert config["VITE_DEV_FIREBASE_PROJECT_ID"] == "navmate-6b281"
+    assert "VITE_LEGACY_MIGRATION_URL" not in config
+
+
+def test_same_sha_configuration_switch_rebuilds_the_local_application(runtime, monkeypatch):
+    now = time.time()
+    runtime.tick(now)
+    sha = runtime.desired()[0]
+    runtime.weather_noop = True
+    monkeypatch.setenv("VITE_TAF_PROXY_URL", "https://weather.example/taf")
+    runtime.tick(now)
+    assert runtime.calls == [("main", sha), ("weather", sha), ("main", sha)]
+    assert load(runtime.s.active() / "release.json")["configuration"] == runtime.configuration()
+    runtime.tick(now)
+    assert len(runtime.calls) == 3

@@ -1,5 +1,6 @@
+import { test } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -248,7 +249,7 @@ for (const width of [390, 1100, 1440]) {
     const previousTable = await page.locator(".nav-log-table").innerText();
     await page.evaluate(() => { (window as any).failLocalCalculation = true; });
     await mode.click();
-    await expect(page.getByRole("alert")).toContainText("入力内容を確認してください。");
+    await expect(page.getByRole("alert").filter({ hasText: "入力内容を確認してください。" })).toBeVisible();
     expect(await page.locator(".nav-log-table").innerText()).toBe(previousTable);
     await expect(mode).not.toBeChecked();
     await expect(normal).toBeChecked();
@@ -259,7 +260,7 @@ for (const width of [390, 1100, 1440]) {
     await worker.evaluate(() => { setTimeout(() => { throw new Error("Test Local Worker failure"); }, 0); });
     await page.waitForFunction(() => (window as any).localWorkerFailed);
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-    await expect(page.getByRole("alert")).toContainText("自動保存できませんでした");
+    await expect(page.getByRole("alert").filter({ hasText: "自動保存できませんでした" })).toBeVisible();
     expect(await page.locator(".nav-log-table").innerText()).toBe(previousTable);
     expect(apiRequests).toEqual([]);
     await page.screenshot({ path: `/tmp/issue117-local-error-${width}.png`, fullPage: true });

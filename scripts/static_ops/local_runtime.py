@@ -1,8 +1,7 @@
 """Local static delivery: serialized main/feed builds and an atomic publication pointer.
 
 This is a container entrypoint, not a deployment CLI. Only generated volumes are
-writable; the optional dev Project store is separate from published artifacts.
-No host checkout, Docker socket or provider token is used.
+writable; no Project store, host checkout, Docker socket or provider token is used.
 """
 
 from __future__ import annotations
@@ -27,15 +26,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import urlopen
 
-if __package__:
-    from .dev_projects import API, DevProjectsHandler, SharedProjects
-else:
-    from dev_projects import API, DevProjectsHandler, SharedProjects
-
-PUBLIC_KEYS = (
-    "VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID",
-    "VITE_FIREBASE_APP_ID", "VITE_TAF_PROXY_URL", "VITE_LEGACY_MIGRATION_URL",
-)
+PUBLIC_KEYS = ("VITE_TAF_PROXY_URL",)
+DEV_FIREBASE_KEYS = ("VITE_DEV_FIREBASE_API_KEY", "VITE_DEV_FIREBASE_AUTH_DOMAIN",
+                     "VITE_DEV_FIREBASE_PROJECT_ID", "VITE_DEV_FIREBASE_APP_ID")
 SHA = re.compile(r"[a-f0-9]{40}")
 RELEASE = re.compile(r"r-[a-f0-9]{32}")
 
@@ -106,20 +99,17 @@ class QuietHandler(SimpleHTTPRequestHandler):
         pass
 
 
-class StaticHandler(DevProjectsHandler, QuietHandler):
-    def __init__(self, *args, settings: Settings, projects: SharedProjects | None = None, **kwargs):
+class StaticHandler(QuietHandler):
+    def __init__(self, *args, settings: Settings, **kwargs):
         """Snapshot one root per connection so a switch cannot mix bytes within a response."""
         self.settings = settings
-        self.projects = projects
         self.root = settings.active()
         super().__init__(*args, directory=str(self.root or settings.published / "absent"),
                          **kwargs)
 
     def do_GET(self):
         """Distinguish first-start preparation from a missing file in a published artifact."""
-        if self.path.split("?", 1)[0] == API:
-            self.project_request()
-        elif self.root is None:
+        if self.root is None:
             self.send_error(503)
         else:
             super().do_GET()
@@ -247,8 +237,14 @@ class Updater:
         self.run(["git", "checkout", "--detach", sha], destination)
 
     def configuration(self) -> dict:
-        """Pass only public Web identifiers, excluding inherited provider or Git tokens."""
-        return {key: os.environ[key] for key in PUBLIC_KEYS if os.environ.get(key)}
+        """Keep development storage separate from production accounts and Legacy migration."""
+        config = {key: os.environ[key] for key in PUBLIC_KEYS if os.environ.get(key)}
+        if os.getenv("LOCAL_SHARED_PROJECTS") == "1":
+            if os.getenv("VITE_DEV_FIREBASE_PROJECT_ID") != "navmate-6b281":
+                raise ValueError("Shared development requires the NavMate-dev Firebase project")
+            config.update({key: os.environ[key] for key in DEV_FIREBASE_KEYS})
+            config["VITE_DEV_SHARED_PROJECTS"] = "1"
+        return config
 
     def build(self, kind: str, sha: str, source: Path, job: Path) -> Path | None:
         """Reuse repository tools; always build app+feed together from one fixed SHA."""
@@ -314,7 +310,7 @@ class Updater:
                      [python, "scripts/export_schemas.py", "--check"],
                      [python, "-m", "pytest", "tests/unit/test_version.py"],
                      ["npm", "--prefix", "web", "run", "typecheck"],
-                     ["npm", "--prefix", "web", "run", "build:static"],
+                     ["npm", "--prefix", "web", "run", "build:static", "--", "--local-runtime"],
                      ["npm", "--prefix", "web", "run", "test:static-artifact"]):
             self.run(args, app)
         dist = app / "web/dist-static"
@@ -326,7 +322,7 @@ class Updater:
         # Browser checks can cross a forecast-hour boundary. Revalidate at publication time.
         self.run(validator, self.s.tooling)
         self.run(["npm", "--prefix", str(self.s.tooling / "web"), "run", "check:static",
-                  "--", str(dist)], self.s.tooling)
+                  "--", str(dist), "--local-runtime"], self.s.tooling)
         release = load(dist / "release.json")
         if (release["commit"] != sha or release["dirty"] is not False
                 or release["configuration"] != self.configuration()):
@@ -429,8 +425,11 @@ class Updater:
             return
         self.save_status(desired_sha=desired, source_error=None)
         active = self.s.active()
-        if active and load(active / "release.json")["commit"] == desired:
-            return
+        if active:
+            release = load(active / "release.json")
+            if (release["commit"] == desired
+                    and release.get("configuration", {}) == self.configuration()):
+                return
         if (self.status.get("failed_main_sha") == desired
                 and now < self.status.get("retry_main_at", 0)):
             return
@@ -496,14 +495,8 @@ def main() -> None:
     if args.mode.startswith("health-"):
         raise SystemExit(0 if healthy(settings, args.mode) else 1)
     if args.mode == "web":
-        projects = None
-        if os.getenv("LOCAL_SHARED_PROJECTS") == "1":
-            origins = set(os.getenv("LOCAL_SHARED_ORIGINS", "").split())
-            if not origins:
-                raise ValueError("LOCAL_SHARED_ORIGINS is required for shared dev storage")
-            projects = SharedProjects(Path(os.environ["LOCAL_PROJECTS_DB"]), origins)
         ThreadingHTTPServer(("0.0.0.0", settings.port), functools.partial(
-            StaticHandler, settings=settings, projects=projects)).serve_forever()
+            StaticHandler, settings=settings)).serve_forever()
     else:
         Updater(settings).serve()
 

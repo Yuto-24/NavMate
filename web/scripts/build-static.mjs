@@ -5,12 +5,24 @@ import { loadEnv } from "vite";
 import { inventory, checkArtifact, sourceDirty } from "./static-artifact.mjs";
 
 const args = process.argv.slice(2);
-if (args.some(arg => arg !== "--allow-dirty")) throw new Error("Unknown build:static option");
+if (args.some(arg => !["--allow-dirty", "--local-runtime"].includes(arg))) throw new Error("Unknown build:static option");
 const allowDirty = args.includes("--allow-dirty");
+const localRuntime = args.includes("--local-runtime");
 const env = { ...loadEnv("production", ".", ""), ...process.env, VITE_CALCULATION_MODE: "local" };
+// Empty values override Vite's .env files as well as inherited shell configuration.
+const accountKeys = ["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID",
+  "VITE_FIREBASE_APP_ID", "VITE_LEGACY_MIGRATION_URL"];
+const devShared = env.VITE_DEV_SHARED_PROJECTS === "1";
+if (devShared && (!localRuntime || env.VITE_DEV_FIREBASE_PROJECT_ID !== "navmate-6b281")) {
+  throw new Error("Shared development requires a local build and the NavMate-dev Firebase project");
+}
+if (localRuntime) for (const name of accountKeys) env[name] = "";
+const firebaseKeys = accountKeys.filter(key => key !== "VITE_LEGACY_MIGRATION_URL");
+const devKeys = firebaseKeys.map(key => key.replace("VITE_FIREBASE_", "VITE_DEV_FIREBASE_"));
+if (!devShared) for (const name of devKeys) env[name] = "";
 if (env.AUTONAVLOG_TEST_FIXTURES === "1") throw new Error("Production cannot contain test fixtures");
 if (!env.AUTONAVLOG_MSM_FEED) throw new Error("AUTONAVLOG_MSM_FEED is required for production");
-for (const name of ["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID", "VITE_FIREBASE_APP_ID", "VITE_TAF_PROXY_URL"]) {
+for (const name of [...(devShared ? devKeys : localRuntime ? [] : firebaseKeys), "VITE_TAF_PROXY_URL"]) {
   if (!env[name]?.trim()) throw new Error(name + " is required for production");
 }
 for (const name of ["VITE_TAF_PROXY_URL", "VITE_LEGACY_MIGRATION_URL", "VITE_FORECAST_BACKUP_URL"]) {
@@ -29,14 +41,15 @@ copyFileSync("static/_headers", "dist-static/_headers");
 copyFileSync("static/404.html", "dist-static/404.html");
 const manifest = JSON.parse(readFileSync("dist-static/local/manifest.json"));
 const release = {
+  ...(localRuntime ? { localRuntime: true } : {}),
   version: manifest.version, pyodideVersion: manifest.pyodideVersion,
   commit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
   dirty: sourceDirty(resolve("..")),
   // Public Web configuration, never tokens or server credentials.
   configuration: Object.fromEntries(["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN",
-    "VITE_FIREBASE_PROJECT_ID", "VITE_FIREBASE_APP_ID", "VITE_TAF_PROXY_URL", "VITE_LEGACY_MIGRATION_URL", "VITE_FORECAST_BACKUP_URL"]
+    "VITE_FIREBASE_PROJECT_ID", "VITE_FIREBASE_APP_ID", "VITE_TAF_PROXY_URL", "VITE_LEGACY_MIGRATION_URL", "VITE_FORECAST_BACKUP_URL", "VITE_DEV_SHARED_PROJECTS", ...devKeys]
     .filter(name => env[name]).map(name => [name, env[name]])),
   files: inventory(resolve("dist-static")),
 };
 writeFileSync("dist-static/release.json", JSON.stringify(release, null, 2) + "\n");
-console.log(JSON.stringify(checkArtifact(resolve("dist-static"), { allowDirty }), null, 2));
+console.log(JSON.stringify(checkArtifact(resolve("dist-static"), { allowDirty, localRuntime }), null, 2));
