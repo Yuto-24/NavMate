@@ -53,6 +53,7 @@ def scenario(tmp_path, monkeypatch):
     state = SimpleNamespace(
         tag=None,
         release=None,
+        latest=None,
         calls=[],
         ancestor=True,
         tagged_version=version,
@@ -61,6 +62,8 @@ def scenario(tmp_path, monkeypatch):
     )
 
     def api(path):
+        if path.endswith("/releases/latest"):
+            return state.latest
         if "/releases?" in path:
             return []
         if "/git/ref/tags/" in path:
@@ -227,3 +230,41 @@ def test_collision_scan_checks_all_pages_and_ignores_other_tags(monkeypatch):
     monkeypatch.setattr(publisher, "api", api)
     publisher.check_release_collisions("owner/repo", "v2.1.0")
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize("ref", ["refs/heads/main", "refs/heads/release/2.x"])
+@pytest.mark.parametrize("latest,expected", [
+    (None, "true"), ("v1.99.0", "true"), ("v2.0.9", "true"),
+    ("v2.1.0", "false"), ("v2.3.0", "false"), ("v2.10.0", "false"),
+])
+def test_latest_never_moves_back_across_v2_branches(scenario, ref, latest, expected):
+    scenario.latest = None if latest is None else {"tag_name": latest}
+    publisher.publish(scenario.root, ref, "head", "owner/repo")
+    assert f"--latest={expected}" in scenario.calls[-1]
+
+
+def test_latest_compares_numeric_versions(monkeypatch):
+    monkeypatch.setattr(publisher, "api", lambda _: {"tag_name": "v2.9.0"})
+    assert publisher.latest_setting("owner/repo", "2.10.0", "true") == "true"
+
+
+@pytest.mark.parametrize("tag", ["unversioned", "v2.1.0-rc.1", None])
+def test_unrecognized_latest_stops_before_publication(scenario, tag):
+    scenario.latest = {"tag_name": tag}
+    with pytest.raises(ValueError):
+        scenario.publish()
+    assert not any(call[0] == "gh" for call in scenario.calls)
+
+
+def test_latest_lookup_failure_does_not_publish(scenario, monkeypatch):
+    original = publisher.api
+
+    def unavailable(path):
+        if path.endswith("/releases/latest"):
+            raise RuntimeError("GitHub unavailable")
+        return original(path)
+
+    monkeypatch.setattr(publisher, "api", unavailable)
+    with pytest.raises(RuntimeError, match="GitHub unavailable"):
+        scenario.publish()
+    assert not any(call[0] == "gh" for call in scenario.calls)

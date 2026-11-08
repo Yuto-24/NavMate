@@ -12,8 +12,12 @@ ship before unrelated main changes. Backport only the requested fix and necessar
 dependencies; preserve production data contracts unless their migration is separately
 reviewed. Do not create a maintenance line from an unreleased main snapshot.
 
-Both v2 branches share version numbers and immutable tags. Before a release-preparation
-PR, choose an unused version newer than canonical production. The publisher and app
+Both v2 branches share version numbers and immutable tags. A newly published v2
+Release is marked GitHub Latest only when it is newer than the current Latest
+version; an older maintenance publication cannot move Latest backward. A failed
+Latest lookup or an unrecognized current version stops publication.
+
+Before a release-preparation PR, choose an unused version newer than canonical production. The publisher and app
 bridge retain their existing serialization, collision and monotonic version checks.
 Prepare the release on its actual source branch; merging a feature/fix with unchanged
 VERSION does not publish the app. Install the release publisher and CI branch support
