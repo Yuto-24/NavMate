@@ -4,6 +4,7 @@ import { collection, doc, getDocFromServer, getDocsFromServer, getFirestore, lim
 import { googleAccount } from "./firebaseAuthProvider";
 import { SESSION_KEY } from "./applicationSession";
 import { LOCAL_DATABASE, LOCAL_DATABASE_VERSION } from "./localProjectRepository";
+import { devSharedMode, localAccountScope } from "./executionMode";
 
 type AccountRecord = { schema: 1; accountId: string; state: "ACTIVE" | "DELETING" | "DELETED" };
 const subjectOf = (user: User) => {
@@ -12,7 +13,7 @@ const subjectOf = (user: User) => {
   return identities[0].uid;
 };
 const recordRef = (user: User) => doc(getFirestore(getApp()), "googleAccounts", subjectOf(user));
-const localKey = (user: User) => `autonavlog.account.current.${subjectOf(user)}`;
+const localKey = (user: User) => `autonavlog.account.current.${devSharedMode ? "dev_navmate-6b281." : ""}${subjectOf(user)}`;
 const retired = (value: string) => `retired:${value}`;
 const cachedId = (value: string | null) => value?.startsWith("retired:") ? value.slice(8) : value;
 const onlineRequired = () => new Error("アカウント削除にはオンライン接続と再認証が必要です。");
@@ -111,8 +112,9 @@ export async function currentAccount(user: User, register = false, closeOldConte
 }
 
 export async function removeLocalAccount(accountId: string): Promise<void> {
+  const scope = localAccountScope(accountId);
   await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(`autonavlog.projects.${accountId}`);
+    const request = indexedDB.deleteDatabase(`${LOCAL_DATABASE}.${scope}`);
     const blocked = () => new Error("端末内のデータを削除できませんでした。別のタブを閉じて、削除を再試行してください。");
     // Some browsers leave a blocked delete pending without delivering onblocked.
     // Keep the server in DELETING and make the operation retryable.
@@ -121,15 +123,18 @@ export async function removeLocalAccount(accountId: string): Promise<void> {
     request.onerror = () => { clearTimeout(timeout); reject(request.error); };
     request.onblocked = () => { clearTimeout(timeout); reject(blocked()); };
   });
-  sessionStorage.removeItem(`${SESSION_KEY}.${accountId}`);
+  sessionStorage.removeItem(`${SESSION_KEY}.${scope}`);
   // MAP preferences added on main are scoped to the account too.
-  const viewportPrefix = `autonavlog.map-viewport.v1.${accountId}.`;
+  const viewportPrefix = `autonavlog.map-viewport.v1.${scope}.`;
   if (typeof localStorage !== "undefined") {
     for (let index = localStorage.length - 1; index >= 0; index--) {
       const key = localStorage.key(index);
       if (key?.startsWith(viewportPrefix)) localStorage.removeItem(key);
     }
   }
+  // Dev personal accounts never import anonymous originals. Older production
+  // copies and the shared workspace must survive a development-account deletion.
+  if (devSharedMode) return;
   // #185 keeps claimed anonymous originals for interrupted import recovery.
   // Once their owner is deleted, they must not remain as hidden local copies.
   await new Promise<void>((resolve, reject) => {

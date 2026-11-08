@@ -8,10 +8,13 @@ Cloudflare Access owner linking and first-use activation are described in
 
 ## Configure Google Sign-In
 
-1. Create a Firebase project on the free Spark plan and register a Web app. No Firestore,
-   Cloud Functions, billing upgrade, allowlist, or invitations are required for this feature.
+1. Create a Firebase project on the free Spark plan and register a Web app. The current
+   account lifecycle requires Firestore and the [account deletion rules](account_deletion.md),
+   including its account-generation records. Cloud Functions and a billing upgrade are not required.
 2. In Authentication → Sign-in method, enable Google and set the support email. Enable
-   only Google; password authentication and provider linking are not implemented.
+   only Google for ordinary account mode; password authentication and provider linking are not implemented.
+   The optional [shared development mode](local_static_docker.md#開発用firestoreでprojectを共有する任意)
+   additionally uses anonymous authentication in a separate Firebase app for its common workspace.
 3. Add each UI host to Authentication → Settings → Authorized domains. Add `localhost`
    explicitly for local testing when it is absent. Serve the deployed UI over HTTPS.
 4. Put the Web app's **public** config in ignored `web/.env.local`, or provide the same
@@ -57,7 +60,12 @@ After Account deletion, a server-held [generation record](account_deletion.md)
 assigns a new internal account ID on explicit re-registration. The original
 deterministic ID is never restored by the current client.
 
-Anonymous data continues to use `autonavlog.projects`. Each account uses
+Shared development mode uses its own development Firebase configuration for Google login.
+Its personal IndexedDB, session, viewport and identity-cache keys are scoped to `dev_navmate-6b281`;
+shared Projects are not imported into a Google account. Account deletion preserves shared and older
+production-backed browser data. See [Local Docker](local_static_docker.md) for setup and switching.
+
+Anonymous data continues to use `autonavlog.projects`. Each ordinary account uses
 `autonavlog.projects.<account_id>` with the unchanged #124 records and transactions. The
 namespace expresses ownership without changing the Python Project schema. All list/read/
 write/open/delete and Latest cleanup operate inside that namespace. A Project ID/token

@@ -54,6 +54,11 @@ NAV LOGは直前の正常結果として維持し、`RECALCULATION_REQUIRED`か�
 表示します。markerが欠落・破損・owner不一致ならProjectを自動選択せず、blank sessionとowner内の
 Project一覧を返します。
 
+staleなLast Calculationのissuesは結果内に保持しますが、現在の準備状況には合成しません。
+現在の参照データ・入力・経路・Phaseを検証し、過去のBLOCKERだけで再計算を止めないようにします。
+再計算がBLOCKERを返した場合も、保存済みlast-goodは保持します。場周高度の未反映入力を
+復元した場合は、手動再計算時の厳密な保存・検証で反映します。
+
 各保存pathはUUIDまたはopaque owner keyから決定し、root逸脱とsymlinkを拒否します。書込は一時fileの
 検証後にreplaceし、read-backも検証します。壊れたautosaveは有効なcheckpointへfallbackし、壊れた
 last calculationは固定名へ隔離してgeneric warningとserver logを残します。Project削除は明示操作だけで、

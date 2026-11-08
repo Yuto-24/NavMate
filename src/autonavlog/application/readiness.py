@@ -205,7 +205,13 @@ def collect_effective_issues(
 
     effective: list[EffectiveIssue] = []
     calculated_against = None if ui_state is None else ui_state.calculated_against_fingerprint
-    if outcome is not None:
+    # Historical diagnostics belong to Last Calculation, not the edited draft.
+    # The stale-result gate below still prevents copying/exporting that result.
+    if (
+        outcome is not None
+        and current_calculation_input_fingerprint is not None
+        and calculated_against == current_calculation_input_fingerprint
+    ):
         effective.extend(
             outcome_effective_issues(
                 outcome,
