@@ -448,7 +448,8 @@ for (const failure of ["none", "logout", "purge", "successor-deleting"] as const
       await page.evaluate(() => { (window as any).blockedAccountDb.close(); });
       await stalePage.getByRole("button", { name: "アカウント", exact: true }).click();
       await stalePage.getByRole("button", { name: "削除を再試行", exact: true }).click();
-      await expect(stalePage.getByRole("alert").filter({ hasText: "NavMateアカウントを削除しました。" })).toBeVisible();
+      await expect(stalePage.getByRole("dialog", { name: "アカウント", exact: true }).getByRole("alert"))
+        .toHaveText("NavMateアカウントを削除しました。");
       expect(await stalePage.evaluate(() => (window as any).authTest.currentUser())).toBeNull();
     } else {
       await expect.poll(() => stalePage.evaluate(() => (window as any).authTest.state().account?.account_id)).toBe(newId);
