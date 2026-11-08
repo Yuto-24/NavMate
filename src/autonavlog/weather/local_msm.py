@@ -7,7 +7,7 @@ Only the upstream library selects Runs and interprets their meteorological cover
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from jma_gpv_weather import (
@@ -29,8 +29,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from autonavlog.domain.project import Project
 from autonavlog.domain.weather import ForecastDataError, ForecastRequirement
 from autonavlog.weather.msm_adapter import MsmWeatherProvider
-
-CATALOG_CLOCK_SKEW = timedelta(minutes=5)
 
 
 class LocalWeatherError(ForecastDataError):
@@ -185,13 +183,6 @@ class LocalMsmWeather:
             raise LocalWeatherError(
                 "WEATHER_CATALOG_INVALID", "MSM配信情報が破損しています。"
             ) from error
-        now = datetime.now(UTC)
-        # Producer and device clocks differ. Tolerate a slightly future generation
-        # timestamp. Expiry remains a publication/monitoring concern.
-        if catalog.generated_at > now + CATALOG_CLOCK_SKEW:
-            raise LocalWeatherError(
-                "WEATHER_CATALOG_INVALID", "MSM配信情報が破損しています。"
-            )
         self.client.catalog = catalog
         native = self.provider._requirement(requirement)
         selected = (

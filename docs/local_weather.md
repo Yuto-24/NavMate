@@ -44,8 +44,8 @@ catalogはsource listing本文、Runとpayload hash/size/file、生成/失効日
 
 運用では3時間ごとを目安に生成し、payloadを先に配信してcatalogを最後に置換する。
 catalog lifetimeは6時間。失敗した生成は既存catalogを更新しない。
-producerと端末の時計ずれにより生成時刻が未来になる場合は5分まで許容する。
-5分を超える未来の生成時刻は拒否する。6時間の失効期限は公開・更新監視に維持する。
+producerと端末の時計ずれによる未来の生成時刻だけでは、Local計算を禁止したり予備APIへ切り替えたりしない。
+生成・失効日時の形式、timezone、失効が生成より後であることは検証する。6時間の失効期限は公開・更新監視に維持する。
 MSMのLocal計算は期限切れだけでは禁止せず、catalogとNPZを通常どおり検証して利用する。
 生成・失効日時を書き換えず、実データのcoverageとsource/Run identityを維持する。
 7日以内の旧Run assetとそのsource listingを保持し、再利用前にlibraryでhash/formatを検証する。
@@ -98,7 +98,8 @@ Last Calculationを置換しない。`updateAndRecalculate`の入力commitと失
 | download中断/取得HTTP失敗 | `WEATHER_TRANSPORT_FAILED` |
 | サイズ超過/読取不可 | `WEATHER_DOWNLOAD_FAILED` |
 | Run不在/未配信 | `WEATHER_RUN_UNAVAILABLE` / `WEATHER_PREPARED_UNAVAILABLE` |
-| catalog schema/未来時刻 | `WEATHER_CATALOG_INVALID` / `WEATHER_CATALOG_EXPIRED`。MSMの失効だけでは停止しない |
+| catalog schema/日時の形式・前後関係 | `WEATHER_CATALOG_INVALID`。端末時計より未来の生成時刻だけでは停止しない |
+| GSM catalog失効 | `WEATHER_CATALOG_EXPIRED`。MSMの失効だけでは停止しない |
 | payload hash/format/decode | `WEATHER_PAYLOAD_INTEGRITY_FAILED` |
 | 不正cacheの再取得失敗 | `WEATHER_CACHE_CORRUPT` |
 | その他端末内処理 | `WEATHER_PROCESSING_FAILED` |
@@ -113,7 +114,7 @@ producerの非zero終了、freshness/admission gate、`static-monitor.yml`の異
 
 通常のstatic feedと正常な端末キャッシュでLocal計算を毎回先に試す。MSMの期限切れだけでは
 予備サーバーへ切り替えない。必要なRun/coverageを正常に取得できない場合に、既存の対象エラーに
-限って未ログインでも予備サーバーで気象取得と計算を行う。入力不正、catalog schema/未来時刻異常、hash/identity/format不一致、一般のプログラム例外は自動切替しない。
+限って未ログインでも予備サーバーで気象取得と計算を行う。入力不正、catalog schema/日時の形式・前後関係の異常、hash/identity/format不一致、一般のプログラム例外は自動切替しない。
 
 Workerが計算前に共通エンジンの入力検証を行う。初期要求に加え、反復後の最終時刻・地点・高度・変数をpublic weather providerで検証する。不足を外挿や手入力値で隠さない。固定Runと成功計算からの入力比較で決まる更新意図を転送し、同じRunを再取得できない結果は採用しない。
 

@@ -24,7 +24,6 @@ from autonavlog.domain.weather import ForecastDataError, ForecastModel, Forecast
 from autonavlog.weather.forecast_provider import ForecastWeatherProvider
 from autonavlog.weather.gsm_adapter import GsmWeatherProvider
 from autonavlog.weather.local_msm import (
-    CATALOG_CLOCK_SKEW,
     LocalWeatherError,
     PreparedAsset,
     WeatherCatalog,
@@ -188,8 +187,7 @@ class LocalForecastWeather:
                 "WEATHER_CATALOG_INVALID", f"{model}配信情報が破損しています。",
             ) from error
         now = datetime.now(UTC)
-        if (catalog.generated_at > now + CATALOG_CLOCK_SKEW
-                or (model == "GSM" and catalog.expires_at <= now)):
+        if model == "GSM" and catalog.expires_at <= now:
             raise LocalWeatherError(
                 "WEATHER_CATALOG_EXPIRED", f"{model}配信情報の有効期限を確認してください。",
             )
