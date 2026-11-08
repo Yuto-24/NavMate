@@ -53,6 +53,60 @@ async function calculated(page: Page) {
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
 }
+test("#351 stale recovery permits recalculation with historical blockers and an unapplied pattern altitude", async ({ page }) => {
+  await calculated(page);
+  const before = await snapshot(page);
+  await page.evaluate(k => {
+    const saved = JSON.parse(sessionStorage.getItem(k)!);
+    saved.working.outcome.issues = ["FLIGHT_PHASE_SEQUENCE_INVALID", "RJFM_INBOUND_DIRECT_DISTANCE_SHORTFALL"]
+      .map(code => ({ code, severity: "BLOCKER", message: "historical", acknowledgement_required: false, metadata: {} }));
+    saved.working.project.total_usable_fuel_gal = 75;
+    saved.form.totalUsableFuelGal = "75";
+    saved.form.destinationPatternAltitudeFtMsl = "1100";
+    saved.calculationInputsAreLocallyCurrent = false;
+    sessionStorage.setItem(k, JSON.stringify(saved));
+  }, key);
+  await page.reload();
+  const pattern = page.getByLabel("今回採用する場周経路高度", { exact: true });
+  const recalculate = page.getByRole("button", { name: "NAV LOGを再計算", exact: true });
+  await expect(pattern).toHaveValue("1100");
+  await expect(page.getByText("RECALCULATION_REQUIRED", { exact: true })).toBeVisible();
+  await expect(page.locator(".status-rail").getByText("FLIGHT_PHASE_SEQUENCE_INVALID", { exact: true })).toHaveCount(0);
+  await expect(recalculate).toBeEnabled();
+  expect((await snapshot(page)).working.last_calculation).toEqual(before.working.last_calculation);
+
+  // Invalid current input remains disabled with an existing, field-specific reason.
+  await pattern.fill("123");
+  await expect(pattern).toHaveAttribute("aria-invalid", "true");
+  await expect(recalculate).toBeDisabled();
+  await expect(page.getByText("100～25,000 ftの範囲で100 ft単位の整数を入力してください。")).toBeVisible();
+  await page.reload();
+  await expect(pattern).toHaveValue("123");
+  await expect(recalculate).toBeDisabled();
+  expect((await snapshot(page)).working.last_calculation).toEqual(before.working.last_calculation);
+
+  // Reload suppresses automatic calculation; a valid restored edit can be applied manually.
+  await page.evaluate(k => {
+    const saved = JSON.parse(sessionStorage.getItem(k)!);
+    saved.form.destinationPatternAltitudeFtMsl = "1100";
+    sessionStorage.setItem(k, JSON.stringify(saved));
+  }, key);
+  await page.reload();
+  await expect(pattern).toHaveValue("1100");
+  await expect(recalculate).toBeEnabled();
+  await recalculate.click();
+  await expect(page.getByText("RECALCULATION_REQUIRED", { exact: true })).toHaveCount(0);
+  await expect(recalculate).toBeEnabled();
+  const after = await snapshot(page);
+  expect(after.working.project.metadata.ui_state.arrival_plan.selected_pattern_altitude_ft_msl).toBe(1100);
+  expect(after.working.project.total_usable_fuel_gal).toBe(75);
+  expect(after.working.last_calculation).not.toEqual(before.working.last_calculation);
+  await page.reload();
+  await expect(pattern).toHaveValue("1100");
+  await expect(recalculate).toBeEnabled();
+  expect((await snapshot(page)).working.last_calculation).toEqual(after.working.last_calculation);
+});
+
 test("reload preserves raw invalid planning values, import and route selection", async ({ page }) => {
   await imported(page);
   const importedDraft = (await snapshot(page)).mapRouteDraft;
