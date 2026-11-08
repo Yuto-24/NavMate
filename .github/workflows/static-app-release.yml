@@ -9,7 +9,7 @@ on:
   workflow_run:
     workflows: [publish-github-release]
     types: [completed]
-    branches: [main, release/1.x]
+    branches: [main, release/1.x, release/2.x]
   workflow_dispatch:
     inputs:
       release_id:
