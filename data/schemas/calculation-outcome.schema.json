@@ -759,6 +759,20 @@
         "tc": {
           "$ref": "#/$defs/NavLogDisplayCell"
         },
+        "thirty_degree_cut_seconds": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Display-only fly-over CUT time; populated only on Physical Leg summaries.",
+          "title": "Thirty Degree Cut Seconds"
+        },
         "to_latitude_deg": {
           "anyOf": [
             {

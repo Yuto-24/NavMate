@@ -497,3 +497,36 @@ test("#293 automatic name migration preserves checkpoint, calculation and sessio
   expect(saved.checkpoint.name).toBe(`${automaticName}_2`);
   expect(saved.checkpoint.metadata.project_name_auto).toBe(true);
 });
+
+
+test("#280 saved CUT seconds and legacy Last Calculation reopen without recalculation", async ({ page }) => {
+  await start(page); await confirm(page, "FTD");
+  await page.getByLabel("地上風向 ° FROM").fill("360");
+  await page.getByLabel("地上風速 kt").fill("15");
+  await page.getByLabel("5,000 ft風向 ° FROM").fill("270");
+  await page.getByLabel("5,000 ft風速 kt").fill("30");
+  await calculate(page);
+  await save(page, "CUT compatibility");
+  const saved = (await records(page))[0];
+  const values = saved.lastCalculation.outcome.display_rows
+    .filter((row: any) => row.row_type === "PHYSICAL_LEG_SUMMARY")
+    .map((row: any) => row.thirty_degree_cut_seconds === null ? "—" : String(row.thirty_degree_cut_seconds));
+  expect(values.some((value: string) => /^\d+$/.test(value))).toBe(true);
+  await page.reload();
+  await expect(page.getByLabel("保存済み", { exact: true })).toBeVisible();
+  await page.workers()[0]!.evaluate(() => {
+    self.addEventListener("message", event => {
+      if (event.data?.argumentList?.[0]?.value === "calculate") throw Error("Unexpected calculation on load");
+    });
+  });
+  await load(page, saved.id);
+  await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell")).toHaveText(values);
+  expect((await working(page)).last_calculation.outcome).toEqual(saved.lastCalculation.outcome);
+  const legacy = structuredClone(saved);
+  for (const row of legacy.lastCalculation.outcome.display_rows) delete row.thirty_degree_cut_seconds;
+  await put(page, [legacy]);
+  await load(page, saved.id);
+  await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell")).toHaveText(values.map(() => "—"));
+  // Other planning data survives the older schema exactly.
+  expect((await working(page)).last_calculation.outcome.sections).toEqual(saved.lastCalculation.outcome.sections);
+});

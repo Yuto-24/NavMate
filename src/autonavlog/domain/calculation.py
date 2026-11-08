@@ -201,6 +201,10 @@ class NavLogDisplayRow(CalculationModel):
     ato: NavLogDisplayCell
     ate: NavLogDisplayCell
     fuel: NavLogDisplayCell
+    thirty_degree_cut_seconds: int | None = Field(
+        default=None, ge=1,
+        description="Display-only fly-over CUT time; populated only on Physical Leg summaries.",
+    )
 
 
 class RjfmInboundGuidancePoint(CalculationModel):

@@ -11,9 +11,10 @@ from autonavlog.application.navlog_display import (
     build_navlog_display_rows,
     build_navlog_summary,
 )
-from autonavlog.domain.calculation import SectionResult
+from autonavlog.domain.calculation import NavLogDisplayRow, SectionResult
 from autonavlog.domain.enums import AdoptedSource, DisplayCellState, FlightPhase, ValueState
 from autonavlog.domain.values import AdoptedValue
+from autonavlog.nav.wind_triangle import solve_wind_triangle
 
 
 def _automatic(value: float) -> AdoptedValue[float]:
@@ -266,3 +267,90 @@ def test_navlog_summary_keeps_distance_when_an_early_ete_is_unavailable() -> Non
     assert summary.distance.text == "3.0"
     assert summary.time.text == "未取得"
     assert summary.time.reason_code == "SUMMARY_TIME_UNAVAILABLE"
+
+
+@pytest.mark.parametrize("wind,missing", [(0, False), (20, False), (20, True)])
+def test_cut_is_entry_parent_only_uses_adopted_values_and_preserves_zones(airports, wind, missing):
+    from autonavlog.application.thirty_degree_cut import solve_thirty_degree_cut
+
+    nodes = [uuid4() for _ in range(3)]
+    section_ids = [uuid4(), uuid4()]
+    zones = []
+    for index, (course, variation) in enumerate([(0.0, -6.0), (90.0, -7.0)]):
+        heading = solve_wind_triangle(course, 120, 270, wind).true_heading_deg
+        for offset in range(2):
+            zone = _summary_zone().model_copy(update={
+                "section_id": section_ids[index], "sequence": index * 2 + offset,
+                "phase": FlightPhase.CRUISE,
+                "from_node_id": nodes[index] if offset == 0 else None,
+                "to_node_id": nodes[index + 1] if offset == 1 else None,
+                "true_course_deg": _automatic(course),
+                "variation_deg_east": _automatic(variation),
+                "magnetic_course_deg": _automatic((course + variation) % 360),
+                "magnetic_heading_deg": _automatic((heading + variation) % 360),
+                "tas_kt": _automatic(120),
+                "wind_speed_kt": _automatic(wind),
+                # CALM needs no direction, non-calm must have one.
+                "wind_direction_deg_from": _automatic_value(None if wind == 0 or missing else 270),
+                "zone_distance_nm": _automatic(5),
+            })
+            zones.append(zone)
+    legs = [NavLogPhysicalLeg(
+        section_ids=(section_ids[index],), phase=FlightPhase.CRUISE,
+        start_name=str(index), end_name=str(index + 1),
+        start_node_id=nodes[index], end_node_id=nodes[index + 1], adopted_distance_nm=10,
+    ) for index in range(2)]
+    original = [zone.model_dump() for zone in zones]
+    rows = build_navlog_display_rows(
+        legs, zones, airports.get("RJFM"), airports.get("RJFO"), None, None, None,
+        total_usable_fuel_gal=90, run_up_included=False,
+    )
+    parents = [row for row in rows if row.row_type == "PHYSICAL_LEG_SUMMARY"]
+    assert parents[0].thirty_degree_cut_seconds is None
+    assert all(row.thirty_degree_cut_seconds is None for row in rows
+               if row.row_type != "PHYSICAL_LEG_SUMMARY")
+    if missing:
+        assert parents[1].thirty_degree_cut_seconds is None
+    else:
+        expected = solve_thirty_degree_cut(
+            inbound_course_deg=0,
+            inbound_heading_deg=solve_wind_triangle(0, 120, 270, wind).true_heading_deg,
+            course_deg=90, heading_deg=90, tas_kt=120,
+            wind_direction_deg_from=270, wind_speed_kt=wind, distance_nm=10,
+        )
+        assert expected is not None
+        assert parents[1].thirty_degree_cut_seconds == round(expected.seconds)
+    assert [zone.model_dump() for zone in zones] == original
+    # Both saved JSON with the field and pre-feature JSON without it are accepted.
+    parent = parents[1]
+    assert NavLogDisplayRow.model_validate_json(parent.model_dump_json()) == parent
+    legacy = parent.model_dump()
+    del legacy["thirty_degree_cut_seconds"]
+    assert NavLogDisplayRow.model_validate(legacy).thirty_degree_cut_seconds is None
+
+
+def test_merged_parent_cut_cannot_use_distance_after_an_internal_course_change():
+    from autonavlog.application.navlog_display import _thirty_degree_cut
+
+    node = uuid4()
+    ids = [uuid4() for _ in range(3)]
+    source = _summary_zone()
+    before = source.model_copy(update={
+        "section_id": ids[0], "true_course_deg": _automatic(0),
+        "magnetic_heading_deg": _automatic(0), "variation_deg_east": _automatic(0),
+    })
+    after = source.model_copy(update={
+        "section_id": ids[1], "magnetic_course_deg": _automatic(90),
+        "magnetic_heading_deg": _automatic(90), "variation_deg_east": _automatic(0),
+        "tas_kt": _automatic(120), "wind_speed_kt": _automatic(0),
+        "zone_distance_nm": _automatic(0.1),
+    })
+    later = after.model_copy(update={"section_id": ids[2], "zone_distance_nm": _automatic(20)})
+    legs = [
+        NavLogPhysicalLeg((ids[0],), FlightPhase.CRUISE, "A", "B", end_node_id=node),
+        NavLogPhysicalLeg(tuple(ids[1:]), FlightPhase.CRUISE, "B", "D", start_node_id=node,
+                          show_child_courses=True, adopted_distance_nm=20.1),
+    ]
+    assert _thirty_degree_cut(1, legs, [before, after, later]) is None
+    after.zone_distance_nm = _automatic(5)
+    assert _thirty_degree_cut(1, legs, [before, after, later]) == 57

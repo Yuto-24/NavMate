@@ -253,6 +253,7 @@ export interface NavLogDisplayRow {
   ato: NavLogDisplayCell;
   ate: NavLogDisplayCell;
   fuel: NavLogDisplayCell;
+  thirty_degree_cut_seconds?: number | null;
 }
 
 export interface DerivedPoint {
