@@ -22,7 +22,7 @@ def forecast_selection_fingerprint(project: Project, *, rounding_mode: bool = Fa
     """Bind explicit Forecast refresh intent to weather-relevant inputs.
 
     Selection itself, save/revision bookkeeping and warning acknowledgements are
-    excluded so recording the first calculation cannot consume the second click.
+    excluded so saving a successful calculation does not count as an input edit.
     Manual inputs are included because they can change iterative flight timing.
     """
     state = project.metadata.get("ui_state", {})

@@ -100,7 +100,7 @@ test("portable real MSM: cold, warm after reload, Python reference and saved NAV
   await expect(page.locator(".nav-log-table")).toBeVisible();
   await calculate(page);
   expect(downloads.filter(url => url.endsWith(".npz"))).toHaveLength(1);
-  expect(downloads.filter(url => url.endsWith("catalog.json"))).toHaveLength(1);
+  expect(downloads.filter(url => url.endsWith("catalog.json"))).toHaveLength(2);
   await page.evaluate(async () => { for (const key of await caches.keys())
     if (key.startsWith("autonavlog.weather.")) await caches.delete(key); });
   await page.reload();
@@ -112,11 +112,7 @@ test("portable real MSM: cold, warm after reload, Python reference and saved NAV
   expect((await record(page)).lastCalculation.outcome.selected_forecast_model).toBe("MSM");
 });
 
-for (const switchRounding of [false, true]) {
-test(`saved Run stays fixed on first click and refreshes snapshot on second click${switchRounding ? " after rounding change" : ""}`, async ({ page }) => {
-  const native = reference(true);
-  const recovery = native.workingRecovery;
-  for (const project of [recovery.project, recovery.last_calculation.project]) delete project.metadata.web_owner_id;
+async function openSaved(page: Page, recovery: any) {
   await page.goto("/");
   await enterImportWorkflow(page);
   await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
@@ -138,10 +134,14 @@ test(`saved Run stays fixed on first click and refreshes snapshot on second clic
   await page.getByLabel("保存済み", { exact: true }).selectOption(recovery.project.id);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
-  await calculate(page);
-  expect((await state(page)).outcome.selected_forecast_run_id).toBe("20260915180000");
-  expect((await state(page)).outcome.issues.map((i: any) => i.code)).toContain("FORECAST_UPDATE_AVAILABLE");
-  compare(calculationCoreGolden(await calculationState(page)), calculationCoreGolden(native));
+}
+
+for (const switchRounding of [false, true]) {
+test(`saved Run refreshes once when unchanged and stays fixed after input changes${switchRounding ? " after rounding change" : ""}`, async ({ page }) => {
+  const native = reference(true);
+  const recovery = native.workingRecovery;
+  for (const project of [recovery.project, recovery.last_calculation.project]) delete project.metadata.web_owner_id;
+  await openSaved(page, recovery);
   if (switchRounding) {
     const mode = page.getByRole("radio", { name: "四捨五入", exact: true });
     await mode.click();
@@ -195,7 +195,7 @@ test("Project quota retry releases the actual Weather cache and keeps Last Calcu
   expect((await record(page)).lastCalculation).toEqual(before.lastCalculation);
 });
 
-for (const failure of ["listing", "communication", "missing", "integrity", "decode", "expired"] as const) {
+for (const failure of ["listing", "communication", "missing", "integrity", "decode"] as const) {
   test(`failure ${failure} is explicit and never selects Legacy`, async ({ page, context }) => {
     if (failure === "listing") await context.route("**/weather/msm/catalog.json", route => route.fulfill({ status: 503, body: "" }));
     if (failure === "communication") await context.route("**/weather/msm/catalog.json", route => route.abort());
@@ -212,15 +212,12 @@ for (const failure of ["listing", "communication", "missing", "integrity", "deco
         }),
       }));
     }
-    if (failure === "expired") await context.route("**/weather/msm/catalog.json", route => route.fulfill({
-      body: JSON.stringify({ ...frozen, generated_at: "2026-01-01T00:00:00Z", expires_at: "2026-01-01T01:00:00Z" }),
-    }));
     await setup(page);
     const before = await record(page);
     await page.getByRole("button", { name: "NAV LOGを作る", exact: true }).click();
     const code = { listing: "WEATHER_DISCOVERY_FAILED", communication: "WEATHER_COMMUNICATION_FAILED",
       missing: "WEATHER_SOURCE_UNAVAILABLE", integrity: "WEATHER_PAYLOAD_INTEGRITY_FAILED",
-      decode: "WEATHER_PAYLOAD_INTEGRITY_FAILED", expired: "WEATHER_CATALOG_EXPIRED" }[failure];
+      decode: "WEATHER_PAYLOAD_INTEGRITY_FAILED" }[failure];
     await expect.poll(async () => (await state(page))?.error?.code).toBe(code);
     const after = await record(page);
     expect(after.draft.id).toBe(before.draft.id);
@@ -244,7 +241,86 @@ async function policyFeed(context: import("@playwright/test").BrowserContext, mo
 }
 const policyFixture = (name: string) => resolve("../tests/fixtures/forecast-policy", name);
 
-test("portable GSM fallback: complete Local NAV LOG matches Legacy, persists model and needs two clicks to return to MSM", async ({ page, context }) => {
+test("expired MSM continues locally with cached data and a missing new Run", async ({ page, context }) => {
+  await context.route("**/weather/msm/catalog.json", route => route.fulfill({
+    contentType: "application/json", body: JSON.stringify({ ...frozen,
+      generated_at: "2026-09-16T00:00:00Z", expires_at: "2026-09-16T06:00:00Z",
+      assets: frozen.assets.slice(1),
+    }),
+  }));
+  await setup(page);
+  await calculate(page);
+  expect((await calculationState(page)).outcome.selected_forecast_run_id).toBe("20260915180000");
+  expect((await calculationState(page)).outcome.forecast_provenance.latest_complete_msm_run_id).toBeNull();
+  await context.route("**/weather/msm/catalog.json", route => route.abort());
+  await context.route("**/weather/msm/*.npz", route => route.abort());
+  await page.reload();
+  await expect(page.locator(".nav-log-table")).toBeVisible();
+  await calculate(page);
+  expect((await calculationState(page)).outcome.selected_forecast_run_id).toBe("20260915180000");
+  await context.route("**/weather/msm/catalog.json", route => route.fulfill({
+    contentType: "application/json", body: JSON.stringify({ ...frozen,
+      generated_at: new Date(Date.now() - 1000).toISOString(),
+      expires_at: new Date(Date.now() + 3600000).toISOString(), assets: frozen.assets.slice(0, 1),
+    }),
+  }));
+  await context.route("**/weather/msm/*.npz", route => route.fulfill({ status: 404, body: "" }));
+  await calculate(page);
+  const result = await calculationState(page);
+  expect(result.outcome.selected_forecast_run_id).toBe("20260915180000");
+  expect(result.outcome.issues.map((issue: any) => issue.code)).not.toContain("FORECAST_BACKUP_USED");
+  expect(result.outcome.issues.map((issue: any) => issue.code)).not.toContain("FORECAST_STALE_RUN");
+  expect((await record(page)).lastCalculation.forecast_metadata.forecast_run_id).toBe("20260915180000");
+});
+
+test("saved MSM Advisory stays beside fuel and preserves workflow at 1100 and 1440px", async ({ page }) => {
+  const recovery = reference(true).workingRecovery;
+  // Rendering fixture only; Python tests establish the comparison and persistence contract.
+  const issue = {
+    code: "FORECAST_STALE_RUN", severity: "WARNING", acknowledgement_required: false,
+    message: "使用Run 20260915180000 は、計算時の最新Run 20260916030000 より9時間以上前のデータです。計算は継続されます。",
+    metadata: { selected_run_id: "20260915180000", latest_complete_msm_run_id: "20260916030000",
+      checked_at: "2026-09-16T06:00:00Z", run_steps_behind: 3 },
+  };
+  recovery.outcome.issues.push(issue);
+  recovery.last_calculation.outcome.issues.push(issue);
+  for (const project of [recovery.project, recovery.last_calculation.project]) delete project.metadata.web_owner_id;
+  await openSaved(page, recovery);
+  for (const width of [1100, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const advisory = page.locator(".forecast-advisory");
+    await expect(advisory).toContainText(issue.message);
+    await expect(page.locator(".issue-advisory")).toContainText(issue.message);
+    const positions = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const element = document.querySelector(selector)!;
+        const rect = element.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom,
+          color: getComputedStyle(element).color };
+      };
+      return { fuel: box(".fuel-plan-table"), advisory: box(".forecast-advisory"),
+        warning: box(".issue-advisory"), normal: getComputedStyle(document.body).color,
+        input: box(".input-rail"), route: box(".route-workspace"), readiness: box(".status-rail"),
+        navlog: box(".nav-log-section") };
+    });
+    expect(positions.advisory.x).toBeGreaterThanOrEqual(positions.fuel.right);
+    expect(positions.advisory.color).toBe(positions.normal);
+    expect(positions.warning.color).toBe(positions.normal);
+    if (width <= 1240) {
+      expect(positions.route.y).toBeGreaterThanOrEqual(positions.input.bottom);
+      expect(positions.readiness.y).toBeGreaterThanOrEqual(positions.route.bottom);
+    } else {
+      expect(positions.route.x).toBeGreaterThanOrEqual(positions.input.right);
+      expect(positions.readiness.x).toBeGreaterThanOrEqual(positions.route.right);
+    }
+    expect(positions.navlog.y).toBeGreaterThanOrEqual(positions.readiness.bottom);
+  }
+  await page.reload();
+  await expect(page.locator(".forecast-advisory")).toContainText(issue.message);
+  expect((await record(page)).lastCalculation.outcome.issues).toContainEqual(expect.objectContaining(issue));
+});
+
+test("portable GSM fallback: complete Local NAV LOG matches Legacy, persists model and refreshes to MSM once", async ({ page, context }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   const downloads: string[] = [];
@@ -293,9 +369,6 @@ test("portable GSM fallback: complete Local NAV LOG matches Legacy, persists mod
   await policyFeed(context, "msm", fixture);
   await page.evaluate(() => caches.delete("autonavlog.weather.msm.v1"));
   await calculate(page);
-  expect((await calculationState(page)).outcome.selected_forecast_model).toBe("GSM");
-  expect((await calculationState(page)).outcome.issues.map((issue: any) => issue.code)).toContain("FORECAST_UPDATE_AVAILABLE");
-  await calculate(page);
   expect((await calculationState(page)).outcome.selected_forecast_model).toBe("MSM");
   await expect(page.getByLabel("使用Forecast")).toHaveText("Forecast: MSM / Run: 20260915210000");
   expect(errors).toEqual([]);
@@ -310,7 +383,7 @@ test("portable selection uses older MSM after affirmative newest HGT exclusion w
   await expect(page.getByRole("note", { name: "Forecast切替理由" })).toHaveCount(0);
 });
 
-test("portable source-value failure preserves saved NAV LOG and does not try older Run or GSM", async ({ page, context }) => {
+test("portable source-value failure checks both MSM Runs and preserves saved NAV LOG without GSM", async ({ page, context }) => {
   await setup(page); await calculate(page);
   const previous = (await record(page)).lastCalculation;
   await policyFeed(context, "msm", policyFixture("msm-source-unavailable"));
@@ -321,7 +394,7 @@ test("portable source-value failure preserves saved NAV LOG and does not try old
   await page.getByRole("button", { name: "NAV LOGを再計算", exact: true }).click();
   await expect.poll(async () => (await state(page))?.outcome?.issues.map((i: any) => i.code))
     .toContain("FORECAST_PREPARE_FAILED");
-  expect(payloads).toHaveLength(1);
+  expect(payloads).toHaveLength(2);
   expect((await record(page)).lastCalculation).toEqual(previous);
   await expect(page.locator(".nav-log-table")).toBeVisible();
 });

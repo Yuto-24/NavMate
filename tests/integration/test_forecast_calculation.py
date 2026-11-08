@@ -120,27 +120,22 @@ def _local_forecast_session():
     return local, msm, gsm
 
 
-def test_facade_two_click_refresh_and_input_change_discards_intent():
+def test_facade_input_change_pins_success_then_unchanged_action_refreshes():
     import json
 
     local, msm, gsm = _local_forecast_session()
     try:
         local.session.project.selected_forecast_run_id = OLD
+        local.session.last_calculation = None
         first = json.loads(local.dispatch("calculate"))
         assert first["outcome"]["selected_forecast_run_id"] == OLD
-        assert local.session.forecast_update_fingerprint is not None
-        # Every application presentation observes mutations, even away and back.
-        before = local.session.project.descent_rate_fpm
-        local.session.project.descent_rate_fpm = 1000 if before == 500 else 500
-        local.app.present(local.session)
-        local.session.project.descent_rate_fpm = before
-        local.app.present(local.session)
-        assert local.session.forecast_update_fingerprint is None
-        again = json.loads(local.dispatch("calculate"))
-        assert again["outcome"]["selected_forecast_run_id"] == OLD
+        local.session.project.descent_rate_fpm = 1000
+        assert not local.app.forecast_refresh_requested(local.session, local.session.project)
+        changed = json.loads(local.dispatch("calculate"))
+        assert changed["outcome"]["selected_forecast_run_id"] == OLD
+        assert local.app.forecast_refresh_requested(local.session, local.session.project)
         second = json.loads(local.dispatch("calculate"))
         assert second["outcome"]["selected_forecast_run_id"] == NEW
-        assert local.session.forecast_update_fingerprint is None
         assert not gsm.checked
     finally:
         local.close()
@@ -154,6 +149,7 @@ def test_facade_update_wait_and_processing_preserve_last_good():
         assert local.session.last_calculation is not None
         last = local.session.last_calculation.model_dump(mode="json")
         local.session.project.selected_forecast_run_id = OLD
+        local.session.project.descent_rate_fpm = 1000
         msm.exclude = lambda run, req: run == OLD
         result = json.loads(local.dispatch("calculate"))
         assert "FORECAST_UPDATE_REQUIRED" in [i["code"] for i in result["outcome"]["issues"]]
@@ -161,7 +157,6 @@ def test_facade_update_wait_and_processing_preserve_last_good():
         msm.fail = "decode failure"
         json.loads(local.dispatch("calculate"))
         assert local.session.last_calculation.model_dump(mode="json") == last
-        assert local.session.forecast_update_fingerprint is None
         assert not gsm.checked
     finally:
         local.close()
@@ -191,7 +186,6 @@ def test_facade_both_models_excluded_preserves_last_good():
         state = json.loads(local.dispatch("calculate"))
         assert "FORECAST_UNAVAILABLE" in [i["code"] for i in state["outcome"]["issues"]]
         assert local.session.last_calculation.model_dump(mode="json") == last
-        assert local.session.forecast_update_fingerprint is None
     finally:
         local.close()
 

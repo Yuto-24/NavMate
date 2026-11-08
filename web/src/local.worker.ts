@@ -81,13 +81,17 @@ async function acquireWeather(
   pyodide.globals.set("weather_model", request.model);
   try {
     if (request.kind === "catalog") {
-      await transport.catalog(catalog => {
+      await transport.catalog((catalog, current) => {
         pyodide.globals.set("weather_catalog", catalog);
+        pyodide.globals.set("weather_current", current);
         try {
           return weatherResult(pyodide.runPython(
-            "local_application.weather_catalog(weather_model, weather_catalog)",
+            "local_application.weather_catalog(weather_model, weather_catalog, current=weather_current)",
           ) as string);
-        } finally { pyodide.globals.delete("weather_catalog"); }
+        } finally {
+          pyodide.globals.delete("weather_catalog");
+          pyodide.globals.delete("weather_current");
+        }
       });
     } else if (request.kind === "prepared" && request.asset) {
       const asset = request.asset;
@@ -144,7 +148,7 @@ local_application.dispatch_response("updateProject", json.loads(local_body_json)
       }
       try {
         // Replay the same action after each explicitly requested asset. No partial
-        // calculation is published, persisted, or counted as the second click.
+        // calculation is published, persisted, or counted as another user action.
         for (let attempts = 0; attempts < 128; attempts += 1) {
           const response = pyodide.runPython(`
 import json
@@ -152,7 +156,21 @@ local_application.dispatch_response(local_dispatch_path, json.loads(local_body_j
 `) as string;
           const request = (JSON.parse(response) as { weather_request?: WeatherRequest }).weather_request;
           if (!request) return response;
-          await acquireWeather(pyodide, request);
+          try {
+            await acquireWeather(pyodide, request);
+          } catch (error) {
+            if (request.model !== "MSM" || request.kind !== "prepared" || !request.asset
+              || !(error instanceof WeatherError)) throw error;
+            // Replay with explicit failure evidence so Python can try another
+            // healthy MSM candidate only when the selection policy permits it.
+            pyodide.globals.set("weather_failure", JSON.stringify({
+              model: request.model, sha256: request.asset.sha256,
+              code: error.code, message: error.message,
+            }));
+            try {
+              pyodide.runPython("local_application.weather_failed(**json.loads(weather_failure))");
+            } finally { pyodide.globals.delete("weather_failure"); }
+          }
         }
         throw new WeatherError("WEATHER_PROCESSING_FAILED", "予報取得が収束しませんでした。");
       } catch (error) {

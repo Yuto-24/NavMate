@@ -595,15 +595,11 @@ def test_changed_departure_datetime_preserves_pin_until_two_click_refresh(
     assert "FORECAST_UPDATE_REQUIRED" in [issue["code"] for issue in first["outcome"]["issues"]]
     assert not first["outcome"]["sections"]
 
+    # Repeating a failed calculation cannot replace the successful-input baseline.
     calculated = application.calculate(session)
-    assert calculated["outcome"]["selected_forecast_run_id"] == provider.fresh_run_id
-    assert calculated["project"]["selected_forecast_run_id"] == provider.fresh_run_id
-    prepared_requirement = provider.prepared[provider.fresh_run_id]
-    assert provider.inspect_run_status(
-        provider.fresh_run_id,
-        prepared_requirement,
-    ).selected_run_covers_requirement
-    assert not any(item["severity"] == "BLOCKER" for item in calculated["outcome"]["issues"])
+    assert calculated["project"]["selected_forecast_run_id"] == historical_run_id
+    assert "FORECAST_UPDATE_REQUIRED" in [i["code"] for i in calculated["outcome"]["issues"]]
+    assert not calculated["outcome"]["sections"]
 
 
 def test_saved_forecast_pin_is_retained_when_departure_datetime_is_unchanged(

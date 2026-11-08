@@ -153,9 +153,11 @@ ISSUE_ACTIONS: dict[str, str] = {
     "VISUAL_REPORTING_POINT_REQUIRED": "目的空港直前のVREPを選択してください。",
     "VISUAL_REPORTING_POINT_ROUTE_INVALID": "VREPの位置と到着順序を確認してください。",
     "ARRIVAL_ALTITUDE_OVERRIDE_REASON_REQUIRED": "変則Entryの高度と理由を入力してください。",
-    "FORECAST_UPDATE_AVAILABLE": "同じ入力でもう一度NAV LOGを再計算するとForecastを更新します。",
+    "FORECAST_UPDATE_AVAILABLE": (
+        "更新可能な予報があります。現在の入力条件で再計算して反映してください。"
+    ),
     "FORECAST_UPDATE_REQUIRED": (
-        "同じ入力でもう一度NAV LOGを再計算してください。前回結果は保持されます。"
+        "入力条件が変更されたため、固定中の予報と一致しません。日時や高度などの設定内容を確認してください。"
     ),
     "FORECAST_UNAVAILABLE": "飛行日時・経路・高度を確認してください。前回結果は保持されます。",
     "FORECAST_PREPARE_FAILED": "通信とForecast Runを確認して再計算してください。",
@@ -203,7 +205,6 @@ class WebSession:
     persist_working: bool = True
     last_calculation: WorkingCalculation | None = None
     rounding_mode: bool = False
-    forecast_update_fingerprint: str | None = None
 
 
 class AutoNavLogWebApplication:
@@ -314,7 +315,6 @@ class AutoNavLogWebApplication:
             if recovery.last_calculation is not None:
                 self._assert_project_owner(recovery.last_calculation.project, session.owner_id)
             session.last_calculation = recovery.last_calculation
-            session.forecast_update_fingerprint = None
             session.project = (
                 None if recovery.project is None else recovery.project.model_copy(deep=True)
             )
@@ -961,6 +961,7 @@ class AutoNavLogWebApplication:
         progress: Callable[[int, str], None] | None = None,
         *,
         rounding_mode: bool | None = None,
+        refresh_forecast: bool | None = None,
     ) -> dict[str, Any]:
         with self.owner_operation(session.owner_id), session.lock:
             if session.project is None:
@@ -976,6 +977,7 @@ class AutoNavLogWebApplication:
                 calculation_project,
                 progress=report,
                 rounding_mode=selected_rounding_mode,
+                refresh_forecast=refresh_forecast,
             )
             if selected_rounding_mode != session.rounding_mode and outcome.blockers:
                 # A failed mode transition must retain the last-good mode/result,
@@ -1131,15 +1133,14 @@ class AutoNavLogWebApplication:
         progress: Callable[[int, str], None] | None = None,
         *,
         rounding_mode: bool | None = None,
+        refresh_forecast: bool | None = None,
     ) -> tuple[CalculationOutcome, DestinationWindForecast | None]:
         selected_rounding_mode = session.rounding_mode if rounding_mode is None else rounding_mode
         self._normalize_rjfm_departure(project)
-        fingerprint = forecast_selection_fingerprint(
-            project, rounding_mode=selected_rounding_mode
-        )
-        refresh_forecast = self.forecast_refresh_requested(
-            session, project, rounding_mode=selected_rounding_mode
-        )
+        if refresh_forecast is None:
+            refresh_forecast = self.forecast_refresh_requested(
+                session, project, rounding_mode=selected_rounding_mode
+            )
         state = self.project_service.ui_state(project)
         plan = state.arrival_plan
         if (
@@ -1153,7 +1154,6 @@ class AutoNavLogWebApplication:
                 status_code=409,
             )
         if project.weather_mode == "FTD":
-            session.forecast_update_fingerprint = None
             if project.ftd_weather is None:
                 raise WebApplicationError(
                     "FTD_WEATHER_REQUIRED",
@@ -1204,12 +1204,13 @@ class AutoNavLogWebApplication:
                 rounding_mode=selected_rounding_mode,
                 refresh_forecast=refresh_forecast,
             )
-        session.forecast_update_fingerprint = (
-            fingerprint if any(
-                issue.code in {"FORECAST_UPDATE_AVAILABLE", "FORECAST_UPDATE_REQUIRED"}
-                for issue in outcome.issues
-            ) else None
-        )
+        last = session.last_calculation
+        if (last is not None and outcome.selected_forecast_model == "MSM"
+                and outcome.selected_forecast_run_id == last.outcome.selected_forecast_run_id
+                and not outcome.forecast_provenance.get("latest_complete_msm_run_id")):
+            # Retain a previously verified comparison, including its original time.
+            outcome.issues.extend(issue.model_copy(deep=True) for issue in last.outcome.issues
+                                  if issue.code == "FORECAST_STALE_RUN")
         if not self.development_weather:
             return self._with_rjfm_guidance(session, project, outcome), destination_wind
         decorated = outcome.model_copy(
@@ -1270,21 +1271,22 @@ class AutoNavLogWebApplication:
     def forecast_refresh_requested(
         session: WebSession, project: Project, *, rounding_mode: bool | None = None,
     ) -> bool:
-        """Refresh intent belongs to this working session and unchanged inputs."""
+        """Only an unchanged last successful Forecast calculation requests refresh."""
+        last = session.last_calculation
+        if (last is None or project.weather_mode != "FORECAST"
+                or last.project.weather_mode != "FORECAST" or last.project.id != project.id):
+            return False
+        last_rounding = any(
+            section.wind_direction_deg_from.automatic_metadata.get("rounding_mode") is True
+            for section in last.outcome.sections
+        )
         try:
-            fingerprint = forecast_selection_fingerprint(
+            return forecast_selection_fingerprint(
                 project,
                 rounding_mode=session.rounding_mode if rounding_mode is None else rounding_mode,
-            )
+            ) == forecast_selection_fingerprint(last.project, rounding_mode=last_rounding)
         except (TypeError, ValueError):
-            # Invalid planning cannot retain refresh intent. Let the established
-            # readiness/state validation report its domain error to the caller.
-            session.forecast_update_fingerprint = None
             return False
-        if project.weather_mode != "FORECAST" or session.forecast_update_fingerprint != fingerprint:
-            session.forecast_update_fingerprint = None
-            return False
-        return True
 
     def _normalize_rjfm_departure(self, project: Project) -> None:
         normalize_rjfm_departure_plan(project, self.rjfm_reference_pack)
@@ -1477,7 +1479,6 @@ class AutoNavLogWebApplication:
     def load(self, session: WebSession, project_id: UUID) -> dict[str, Any]:
         with self.owner_operation(session.owner_id), session.lock:
             self._restore_project(session, project_id, explicit=True)
-            session.forecast_update_fingerprint = None
             return self.present(session)
 
     def delete(self, session: WebSession, project_id: UUID) -> dict[str, Any]:
@@ -1725,11 +1726,6 @@ class AutoNavLogWebApplication:
             return self._present_unlocked(session)
 
     def _present_unlocked(self, session: WebSession) -> dict[str, Any]:
-        # Observe edits away and back, rather than reviving an earlier second click.
-        if session.project is None:
-            session.forecast_update_fingerprint = None
-        else:
-            self.forecast_refresh_requested(session, session.project)
         evaluation = None if session.project is None else self._evaluate(session)
         issues: list[dict[str, Any]] = []
         displayed_issue_keys: set[tuple[str, UUID | None, int | None]] = set()

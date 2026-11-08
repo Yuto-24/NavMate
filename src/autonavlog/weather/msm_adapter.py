@@ -11,6 +11,7 @@ from typing import Any
 from autonavlog.domain.enums import Availability, WeatherRequestKind
 from autonavlog.domain.weather import (
     ForecastCoverageError,
+    ForecastDataError,
     ForecastModel,
     ForecastRequirement,
     ForecastRun,
@@ -127,16 +128,21 @@ class MsmWeatherProvider:
                     altitude_exclusions.append(result.reason_code)
                     continue
                 if result.availability != self._msm.Availability.AVAILABLE:
-                    raise RuntimeError(result.reason_code or "WEATHER_PROCESSING_FAILED")
+                    raise ForecastDataError(result.reason_code or "WEATHER_PROCESSING_FAILED")
             queries.append(request)
         # Check the remaining variables too: an HGT exclusion must not hide a
         # missing source value or a processing failure elsewhere in the request.
         for result in self.query_batch(run, queries):
             if result.availability != Availability.AVAILABLE:
-                raise RuntimeError(result.reason_code or "WEATHER_PROCESSING_FAILED")
+                raise ForecastDataError(result.reason_code or "WEATHER_PROCESSING_FAILED")
         if altitude_exclusions:
             raise ForecastCoverageError(tuple(dict.fromkeys(altitude_exclusions)))
         self._checked_requirements[run] = requirement
+
+    def latest_run_confirmed(self, run: str) -> bool:
+        """Local cache alone cannot establish the current latest Run."""
+        confirmed = getattr(self.client, "current_runs", None)
+        return self._desktop_discovery if confirmed is None else run in confirmed
 
     def _expand_native_bounds(self, requirement: ForecastRequirement) -> None:
         # Request geometry is application input. Cropping and interpolation halos
@@ -161,11 +167,16 @@ class MsmWeatherProvider:
     def _prepare_candidate(
         self, run: str, requirement: ForecastRequirement, selections: Any,
     ) -> Any:
+        from jma_gpv_weather.errors import MsmError
+
         self._expand_native_bounds(requirement)
-        return self.client.prepare_run(
-            self._run_id(run), self._requirement(requirement),
-            available_runs=selections, terrain_provider=None,
-        )
+        try:
+            return self.client.prepare_run(
+                self._run_id(run), self._requirement(requirement),
+                available_runs=selections, terrain_provider=None,
+            )
+        except MsmError as error:
+            raise ForecastDataError(str(error)) from error
 
     def _requirement(self, requirement: ForecastRequirement) -> Any:
         variables = set()

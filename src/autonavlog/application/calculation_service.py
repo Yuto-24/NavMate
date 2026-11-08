@@ -808,6 +808,30 @@ class CalculationService:
                     )
                 )
 
+        # Only the final, complete requirement may establish an age comparison.
+        latest_msm = self.last_forecast_metadata.get("latest_complete_msm_run_id")
+        if latest_msm and selected_run_id and covers and (
+            isinstance(provider, ForecastWeatherProvider) and provider.selected_model == "MSM"
+        ):
+            age_hours = (
+                datetime.strptime(latest_msm, "%Y%m%d%H%M%S")
+                - datetime.strptime(selected_run_id, "%Y%m%d%H%M%S")
+            ).total_seconds() / 3600
+            if age_hours >= 9:
+                issues.append(Issue(
+                    code="FORECAST_STALE_RUN", severity=IssueSeverity.WARNING,
+                    message=(
+                        f"使用Run {selected_run_id} は、計算時の最新Run {latest_msm} "
+                        "より9時間以上前のデータです。計算は継続されます。"
+                    ),
+                    metadata={
+                        "selected_run_id": selected_run_id,
+                        "latest_complete_msm_run_id": latest_msm,
+                        "checked_at": datetime.now(UTC).isoformat(),
+                        "run_steps_behind": int(age_hours // 3),
+                    },
+                ))
+
         fuel_plan = build_fuel_plan(
             working.total_usable_fuel_gal,
             final.phases,
@@ -966,7 +990,7 @@ class CalculationService:
                 if selection.update_required:
                     issues.append(self._blocker(
                         "FORECAST_UPDATE_REQUIRED",
-                        "固定Forecastでは計算できません。同じ入力でもう一度再計算すると更新します。",
+                        "入力条件が変更されたため、固定中の予報と一致しません。日時や高度などの設定内容を確認してください。",
                     ))
                     return None
                 provider.selected_model = selection.model
@@ -979,11 +1003,12 @@ class CalculationService:
                     "fallback": selection.fallback_from is not None,
                     "fallback_from": selection.fallback_from,
                     "coverage_reason_codes": list(selection.coverage_reason_codes),
+                    "latest_complete_msm_run_id": selection.latest_msm_run_id,
                 }
                 if selection.update_available:
                     issues.append(Issue(
                         code="FORECAST_UPDATE_AVAILABLE", severity=IssueSeverity.WARNING,
-                        message="更新可能なForecastがあります。同じ入力でもう一度再計算すると更新します。",
+                        message="更新可能な予報があります。現在の入力条件で再計算して反映してください。",
                     ))
             elif project.selected_forecast_run_id is None or refresh_forecast:
                 run = provider.resolve_run(requirement)
@@ -1035,7 +1060,10 @@ class CalculationService:
             issues.append(self._blocker("FORECAST_UNAVAILABLE", str(error)))
             return None
         except Exception as error:
-            issues.append(self._blocker("FORECAST_PREPARE_FAILED", str(error)))
+            blocker = self._blocker("FORECAST_PREPARE_FAILED", str(error))
+            if code := getattr(error, "code", None):
+                blocker.metadata["weather_failure_code"] = code
+            issues.append(blocker)
             return None
 
     @staticmethod

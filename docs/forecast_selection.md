@@ -7,8 +7,10 @@ with missing source files or an unavailable static payload is an acquisition
 failure, not evidence that a model is out of coverage.
 
 `application/forecast_selection.py` evaluates candidates in adapter-provided
-newest-first order. It advances only on an affirmative coverage exception with
-nonempty reason codes. All other exceptions stop selection. `REQUIRES_HGT` must
+newest-first order. MSM selection can also skip explicitly unavailable/invalid data to find another
+healthy MSM candidate. If no healthy candidate remains, a data failure stops
+selection rather than becoming evidence for GSM. Model changes require affirmative
+coverage exceptions with nonempty reason codes. Other exceptions stop selection. `REQUIRES_HGT` must
 proceed to prepare; only `ALTITUDE_OUTSIDE_HGT_RANGE` from the public post-prepare
 API permits an altitude fallback. `SOURCE_VALUE_UNAVAILABLE` is a processing
 failure. Adapters must check the complete request before accepting a candidate.
@@ -21,14 +23,15 @@ points is a processing/delivery failure, not a model exclusion.
 A fixed MSM Run remains selected until explicit refresh if another MSM Run can
 satisfy the request. If no MSM candidate satisfies it, selection immediately
 tries GSM. A fixed GSM Run never moves back to MSM without explicit refresh.
-An update-discovery/processing failure blocks the current attempt, retaining
-the last successful calculation; it does not silently assume no update exists.
+An unavailable latest comparison does not block an otherwise validated fixed Run;
+latest status remains unknown. Failure to obtain the required fixed Run retains
+the last successful calculation and never silently replaces that Run.
 
 The dedicated `forecast_selection_fingerprint` includes flight timing, airports,
 route, altitude/phase/manual inputs, TGL, descent rate and relevant planning
-state. It excludes the selected Forecast and save/revision bookkeeping. Refresh
-intent must only be consumed against the same fingerprint, and must be discarded
-after intervening input changes. It is distinct from the calculation fingerprint,
+state. It excludes the selected Forecast and save/revision bookkeeping. Each explicit recalculation compares this fingerprint with the last successful
+calculation. Unchanged inputs permit refresh in one action; changed inputs keep
+the Run. See [the corrected refresh contract](forecast_refresh.md). It is distinct from the calculation fingerprint,
 which also identifies the model and Run actually used. Its historical MSM and
 FTD encoding remains byte-identical; GSM and an explicitly unknown forecast model
 extend that encoding. Existing snapshot hashes are not rewritten or promoted.
@@ -52,7 +55,7 @@ missing/ambiguous delivery across the Static and Local build paths.
 
 ## Upstream boundary
 
-Legacy and Local share selection, two-click refresh, final-requirement restart,
+Legacy and Local share selection, success-based refresh, final-requirement restart,
 persistence and provenance semantics. GSM portable preparation uses the public
 API delivered in [jma-gpv-weather PR #19](https://github.com/Yuto-24/jma-gpv-weather/pull/19)
 for [upstream Issue #18](https://github.com/Yuto-24/jma-gpv-weather/issues/18),
@@ -83,7 +86,7 @@ Sources: [AutoNavLog #161](https://github.com/Yuto-24/AutoNavLog/issues/161),
 | --- | --- |
 | Newest actually covered MSM; older MSM before GSM; both outside; fail closed on acquisition/processing | `test_forecast_selection.py`, `test_forecast_candidates.py` |
 | Public post-prepare HGT vs unavailable source values; no weather implementation in core | Adapter contract tests and upstream portable runtime tests |
-| Fixed model/Run, two-click update, input changes invalidate intent | `test_forecast_calculation.py`, `test_project_fingerprints.py`, Local replay integration |
+| Fixed model/Run, one-action update from unchanged successful inputs | `test_forecast_calculation.py`, `test_project_fingerprints.py`, Local replay integration |
 | Final requirements restart the entire calculation or wait for explicit Run update | `test_forecast_calculation.py` |
 | Model/Run migration and persistence; last-good survives failure/wait | `test_local_persistence.py`, `test_storage_import.py`, Local/Legacy integration |
 | Real portable MSM regression and synthetic GSM canonical parity | `test_local_forecast.py`, `local-weather.spec.ts` |
@@ -105,8 +108,9 @@ Payload corruption and source-value processing failures retain their blocking
 classification. `test_local_forecast.py` covers both models' discovery failures
 and backup selection/adoption.
 
-Refresh intent uses the shared typed-planning and rounding fingerprint from #277.
-A completed Save preserves it; changed planning or rounding inputs invalidate it.
+Refresh uses the shared typed-planning and rounding fingerprint from #277/#356.
+Save does not change the successful comparison baseline; changed planning or
+rounding inputs keep the previous Run.
 The backup input identity also includes the fixed model and Run. Backup adoption
 accepts an unrequested model change only for the explicit MSM-to-GSM coverage
 fallback recorded in the result. NAV LOG source labels follow the retained result,
@@ -114,8 +118,9 @@ including the FTD Run identifier, rather than the editable draft weather mode.
 
 The source catalog may advertise more Runs than the static publisher has built.
 Do not filter discovery to published assets: an unevaluated older Run can still
-satisfy the requirement. Missing delivery stops selection; publishing enough
-candidate data is an operator responsibility, documented in Local Weather.
+satisfy the requirement. Missing delivery permits another healthy MSM candidate, but prevents concluding
+that every MSM candidate is outside coverage. Sufficient publication for that
+model-exclusion decision remains an operator responsibility (Local Weather).
 
 
 ## Delivery and validation evidence (2026-09-26 JST)

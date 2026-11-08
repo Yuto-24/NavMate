@@ -1,58 +1,69 @@
-# MSM Forecast refresh (#277)
+# Forecast recalculation (#356 / corrected #277)
 
-The existing calculate action keeps a saved, compatible MSM Run on its first
-click and reports the existing `FORECAST_UPDATE_AVAILABLE` warning. A second
-calculation with unchanged forecast inputs explicitly resolves the newest
-compatible Run. This is shared by the Legacy facade and Local/Pyodide, without
-a new button, model field, schema version, or GSM selection policy.
+An explicit calculation compares Forecast inputs with the **last successful
+calculation**, using `forecast_selection_fingerprint`. Changed inputs keep that
+Run. Unchanged inputs select the newest usable normal Run in that single action;
+if no newer normal Run exists, the same usable Run remains selected.
 
-## Intent and persistence
+For example: success with Run A → altitude edit → calculate with A → calculate
+again without edits → select the newest normal Run. A warning is not required to
+arm this behavior. Failed calculations do not replace the comparison baseline or
+Last Calculation. Editing away and back compares the resulting inputs with that
+same baseline, rather than maintaining a click counter.
 
-`forecast_selection_fingerprint` binds refresh intent to the working Project,
-flight timing, airports, route, section altitude/phase/manual inputs, TGL,
-descent rate, aircraft settings, relevant planning/reference state (including
-adopted departure VOR provenance), and the session-only rounding mode. It
-excludes the selected Run, save/revision bookkeeping, and acknowledgements.
-Planning metadata is revalidated through its typed domain model before hashing,
-so JavaScript JSON roundtrips (`1000.0` to `1000`) cannot invalidate an unchanged
-Save. The portable-MSM regression exercises this browser number normalization.
-The calculation fingerprint remains separate and includes the actual Run.
+## Identity and persistence
 
-Intent lives only in the working application session. Every presented input
-mutation invalidates mismatched intent, including an edit away and back.
-Calculation also checks its normalized inputs before consuming intent.
-FTD, opening/restoring a Project, and recovery never inherit pending intent.
-A restored first-click warning therefore requires a new first calculation
-before a second click can refresh. Explicit Save keeps pending intent only for
-the same working Project and unchanged forecast fingerprint; its internal
-`adoptSavedProject` operation is distinct from reopen/reload bootstrap.
+The existing fingerprint covers Project identity, timing, airports, route,
+section altitude/phase/manual inputs, TGL, descent rate, aircraft settings,
+planning/reference state (including adopted departure VOR), and rounding mode.
+It excludes selected Forecast, save/revision bookkeeping and acknowledgements.
+Typed planning normalization preserves equality across browser JSON number
+roundtrips. The calculation fingerprint remains separate and identifies the Run
+actually used; historical snapshot hashes are not rewritten.
 
-The calculation service defaults to pinned selection; only an explicit
-`refresh_forecast=True` uses the provider's existing compatible Run resolver.
-It does not implement model specifications, discovery, or coverage itself.
-Local acquisition uses the same intent before downloading the portable payload,
-so the second click acquires the new Run rather than preparing the old payload
-and then trying to calculate with another Run. A rounding-mode change discards
-the previous refresh intent in both acquisition and calculation: it keeps the
-pin on that calculation, and only the next calculation in the same mode can
-refresh. Saving preserves both the active rounding mode and matching intent.
+Opening, restoring, saving and displaying a Project never acquire another Run.
+The next explicit calculation compares with the restored successful snapshot.
+If there is no successful Forecast baseline, a saved pin remains pinned. FTD
+never requests Forecast refresh. A rounding change counts as an input change;
+restored rounded results retain the existing rounding recovery rules.
 
-Successful calculation uses the existing readiness and persistence boundaries
-to synchronize Project, CalculationOutcome, Last Calculation and forecast
-metadata. Coverage, acquisition and processing failures remain fail-closed:
-they do not replace the last successful snapshot. No failure selects FTD or a
-server-calculation fallback. Existing DATE/ETD pin invalidation is unchanged.
+Local acquisition replays the same user action after each requested catalog or
+payload. Replay does not change the baseline or become a new user click. The
+existing compute-only backup receives the same explicit refresh decision and
+fixed model/Run identity. Adoption preserves Project, outcome, provenance and
+Last Calculation together.
+
+The calculation service defaults to pinned selection. Explicit refresh uses the
+shared MSM→GSM policy. Missing or invalid MSM candidates may be skipped while
+seeking a usable MSM Run; they never establish model exclusion. A missing fixed
+Run is not replaced because acquisition failed. Actual model coverage exclusion
+retains the existing MSM→GSM policy. A fixed Run outside changed inputs cannot be
+updated simply by repeating that failed calculation.
+
+## Old-Run Advisory
+
+A current server catalog plus complete, library-validated data establishes the
+latest usable MSM Run for the request. Cache-only or expired-catalog acquisition
+does not establish current latest status. A pinned MSM Run at least three
+3-hour intervals (9 hours) older receives `FORECAST_STALE_RUN`; newer Runs receive
+no additional Advisory. The comparison records the selected Run, verified latest
+Run, interval count and check time in the saved issue metadata. If latest status
+becomes unknown, an existing verified Advisory for the same Run can remain with
+its original evidence. Unknown status alone adds nothing.
+
+The same Advisory appears in the Warning area in normal text color and next to
+the NAV LOG fuel table. It does not block calculation or require acknowledgement.
 
 ## Regression coverage
 
-- `test_project_fingerprints.py`: relevant input changes and excluded bookkeeping
-- `test_local_calculation.py`: first/second click, matching snapshot provenance,
-  restored first-click warning, input edits and edit-back, failure continuity,
-  FTD, and production portable-MSM acquisition before calculation
-- Existing CalculationService tests retain default pinned-run semantics
-- `local-weather.spec.ts`: real portable MSM in the browser, first-click pin,
-  second-click refresh, IndexedDB Last Calculation and reload
+- `test_project_fingerprints.py`: relevant inputs and excluded bookkeeping
+- `test_local_calculation.py`: success baseline, edits/edit-back, Save, restore,
+  failure continuity, rounding and FTD
+- `test_local_forecast.py` / `test_msm_continuity.py`: portable replay, expired and
+  cached catalogs, healthy older candidates, fixed-Run failures, model policy,
+  Advisory boundaries and persisted evidence
+- `local-weather-unit.spec.ts` / `local-weather.spec.ts`: bounded cache transport,
+  real portable MSM, browser recalculation, saved NAV LOG and workflow layout
 
-The GSM/model-persistence work in #161 / PR #217 remains separate. Its shared
-two-click design informed this MSM-only implementation; future integration
-should reuse this state transition instead of layering another click counter.
+Catalog monitoring and publication gates remain separate; see
+[Local Weather](local_weather.md) and [Static operations](static_operations.md).

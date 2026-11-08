@@ -1426,7 +1426,11 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .display-state-symbol { font-size: 15px !important; font-weight: 800; }
 
-.fuel-plan-section { margin-top: 14px; }
+.fuel-plan-with-advisory { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+.fuel-plan-section { margin-top: 14px; flex: 0 1 420px; min-width: 0; }
+.forecast-advisory { margin-top: 14px; flex: 1 1 240px; color: inherit; }
+.forecast-advisory p { margin: 6px 0 0; overflow-wrap: anywhere; }
+.issue-advisory, .issue-advisory strong { color: inherit; }
 .fuel-plan-heading { margin: 0 0 7px; }
 .fuel-plan-table { width: min(100%, 420px); table-layout: fixed; border-left: 2px solid #7990a5; font-size: 11px; line-height: 1.15; }
 .fuel-plan-table col:nth-child(1) { width: 10%; }

@@ -21,7 +21,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from autonavlog.application.project_fingerprints import forecast_selection_fingerprint
 from autonavlog.forecast_backup import (
     BackupRequest,
     BackupResult,
@@ -271,13 +270,11 @@ def calculator(
             local.session.rounding_mode = request.rounding_mode
             local.session.weather_provider = complete_forecast(weather_factory())
             local.app.destination_wind_provider = destination_wind_provider
-            local.session.forecast_update_fingerprint = (
-                forecast_selection_fingerprint(project, rounding_mode=request.rounding_mode)
-                if request.refresh_forecast
-                else None
-            )
             local.validate_calculation_input({"rounding_mode": request.rounding_mode})
-            local.dispatch("calculate", {"rounding_mode": request.rounding_mode})
+            local.app.calculate(
+                local.session, rounding_mode=request.rounding_mode,
+                refresh_forecast=request.refresh_forecast,
+            )
             last = local.session.last_calculation
             if last is None or last.outcome.blockers:
                 raise failure("FORECAST_BACKUP_FAILED", "backup_unavailable")
@@ -286,7 +283,9 @@ def calculator(
                 request_id=request.request_id,
                 input_identity=request.input_identity,
                 rounding_mode=request.rounding_mode,
-                refresh_available=local.session.forecast_update_fingerprint is not None,
+                refresh_available=any(
+                    issue.code == "FORECAST_UPDATE_AVAILABLE" for issue in last.outcome.issues
+                ),
                 calculation=last,
                 calculation_sha256=hashlib.sha256(
                     canonical_json(last.model_dump(mode="json")).encode()
