@@ -107,6 +107,30 @@ for (const width of [390, 1100, 1440]) {
       [resolve("../scripts/local_reference.py")], { encoding: "utf8" },
     ));
     compare(calculationCoreGolden(state), calculationCoreGolden(native));
+    // #280: the actual Pyodide result supplies the rightmost parent-only value.
+    await expect(page.locator(".nav-log-table thead th").last()).toHaveText("30° CUTsec");
+    const cutValues = state.outcome.display_rows
+      .filter((row: any) => row.row_type === "PHYSICAL_LEG_SUMMARY")
+      .map((row: any) => row.thirty_degree_cut_seconds === null ? "—" : String(row.thirty_degree_cut_seconds));
+    expect(cutValues.some((value: string) => /^\d+$/.test(value))).toBe(true);
+    await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell")).toHaveText(cutValues);
+    for (const cell of await page.locator("tr:not(.nav-leg-heading-row) .nav-log-cut-cell").allTextContents()) {
+      expect(cell).toBe("");
+    }
+    await expect(page.locator(".nav-log-cut-cell input")).toHaveCount(0);
+    // FROM/TO become sticky only after the preceding VOR column has scrolled away.
+    await scrollFrame.evaluate(element => { element.scrollLeft = 120; });
+    const stickyBefore = await page.locator(".nav-leg-heading-row").first()
+      .locator(".route-name-cell").evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().x));
+    await scrollFrame.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+    const stickyAfter = await page.locator(".nav-leg-heading-row").first()
+      .locator(".route-name-cell").evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().x));
+    expect(stickyBefore).toHaveLength(2);
+    for (let index = 0; index < 2; index++) {
+      expect(Math.abs(stickyBefore[index] - stickyAfter[index])).toBeLessThanOrEqual(1);
+    }
+    await expect(page.locator(".nav-log-table thead th").last()).toBeInViewport();
+    await scrollFrame.evaluate(element => { element.scrollLeft = 0; });
     expect(state.readiness.calculationIsCurrent).toBe(true);
     const vorSelect = page.getByLabel("VOR基準局", { exact: true });
     await expect(vorSelect.locator("option:checked")).toHaveText("自動 MZE");
