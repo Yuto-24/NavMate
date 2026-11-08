@@ -5,9 +5,9 @@ Web/portable assets and the weather-feed producer. Docker test/runtime installs
 `jma_gpv_weather-0.5.0+legacycache.1-py3-none-any.whl` instead, a maintenance build
 from the existing 0.5.0 source plus opt-in desktop cache recovery.
 
-Source commit: `f705258` in `Yuto-24/jma-gpv-weather`.
+Source commit: `4ed0588` in `Yuto-24/jma-gpv-weather`.
 Base: `585bca6a912a5f61b9d15271761374f2a7224389`.
-SHA-256: `c92ea53bfcd8f9bae2361ee8b90b604b0ee29ca9fb83f93b9671c4f115103f42`.
+SHA-256: `9b99d5e45b732a70f8dd1d649f8125b0176fda69ad2bf2033b5c80e834ed8626`.
 Build: `uv build --wheel`; Python dependency requirements are unchanged.
 The distribution local version identifies the patch; `__version__` retains the
 base API contract 0.5.0. Legacy records both the API version and package build.
