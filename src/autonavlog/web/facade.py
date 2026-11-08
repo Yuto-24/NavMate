@@ -36,6 +36,7 @@ from autonavlog.application.rjfm_departure_service import (
 )
 from autonavlog.application.rjfm_inbound_plan import (
     RJFM_INPUT_MODE_OMARU_TO_UMK_FIXED,
+    RJFM_INPUT_MODE_UMK_TO_ARITA_FIXED,
     RjfmInboundReferences,
     apply_rjfm_inbound_exception,
     rjfm_inbound_section_input_modes,
@@ -2202,10 +2203,11 @@ class AutoNavLogWebApplication:
                     "variationDegEast": variation_for_departure_latitude(
                         start.latitude_deg
                     ).degrees_east,
-                    "candidateAltitudesFtMsl": list(
-                        vfr_cruising_altitude_candidates(
+                    "candidateAltitudesFtMsl": (
+                        [] if input_mode == RJFM_INPUT_MODE_UMK_TO_ARITA_FIXED
+                        else list(vfr_cruising_altitude_candidates(
                             vfr_cruising_altitude_magnetic_course
-                        )
+                        ))
                     ),
                     "appliesToCruise": section.phase == FlightPhase.CRUISE,
                     "appliesToCruisingAltitudeInput": (
@@ -2219,7 +2221,10 @@ class AutoNavLogWebApplication:
                     "inputMode": input_mode,
                     "fixedAltitudeFtMsl": (
                         RJFM_INBOUND_TARGET_ALTITUDE_FT_MSL
-                        if input_mode == RJFM_INPUT_MODE_OMARU_TO_UMK_FIXED
+                        if input_mode in {
+                            RJFM_INPUT_MODE_OMARU_TO_UMK_FIXED,
+                            RJFM_INPUT_MODE_UMK_TO_ARITA_FIXED,
+                        }
                         else TARGET_ALTITUDE_FT_MSL if fixed_by_rjfm else None
                     ),
                 }

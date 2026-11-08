@@ -574,3 +574,36 @@ def test_appending_destination_reassigns_arrival_tail_without_losing_planning(lo
     calculated = json.loads(local.dispatch("calculate"))
     assert not any(issue["code"] == "FLIGHT_PHASE_SEQUENCE_INVALID"
                    for issue in calculated["outcome"]["issues"])
+
+
+def test_issue350_return_reconfirmation_and_edit_keep_dedicated_descent(local, monkeypatch):
+    monkeypatch.setattr("autonavlog.web.facade.build_rjfm_inbound_guidance", lambda *a, **k: None)
+    local.dispatch("confirmRoute", {
+        **payload([
+            point("FROM", airport="RJFO"), point("ENROUTE", 32.7, 131.6),
+            point("OMARU", 32.16255070087476, 131.47036916946163),
+            point("TO", airport="RJFM"),
+        ]),
+        "total_usable_fuel_gal": 90,
+        "all_leg_altitude_ft_msl": 4500,
+    })
+    calculated = json.loads(local.dispatch("calculate"))
+    assert calculated["readiness"]["calculationIsCurrent"]
+    project = calculated["project"]
+    unchanged = json.loads(local.dispatch("confirmRoute", edit_payload(project)))
+    assert unchanged["project"] == project
+    assert unchanged["readiness"]["calculationIsCurrent"]
+    edit = edit_payload(project)
+    edit["map_points"][1]["latitude_deg"] += 0.01
+    changed = json.loads(local.dispatch("confirmRoute", edit))
+    assert not changed["readiness"]["calculationIsCurrent"]
+    assert [s["phase"] for s in changed["project"]["sections"]] == [
+        "CLIMB", "CRUISE", "CRUISE", "DESCENT", "VISUAL_ARRIVAL",
+    ]
+    assert changed["project"]["sections"][-3:] == project["sections"][-3:]
+    assert changed["outcome"]["sections"] == calculated["outcome"]["sections"]
+    recalculated = json.loads(local.dispatch("calculate"))
+    assert recalculated["readiness"]["calculationIsCurrent"]
+    assert "FLIGHT_PHASE_SEQUENCE_INVALID" not in {
+        i["code"] for i in recalculated["outcome"]["issues"]
+    }
