@@ -83,6 +83,14 @@ for (const width of [390, 1100, 1440]) {
     }
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
     await expect(page.locator(".nav-log-table")).toBeVisible();
+    if (width === 1100) {
+      const displayed = await page.locator(".nav-log-table").innerText();
+      const calculations = await page.evaluate(() => (window as any).localCalculationCount);
+      await page.getByLabel("背景地図").selectOption("imagery");
+      expect(await page.locator(".nav-log-table").innerText()).toBe(displayed);
+      expect(await page.evaluate(() => (window as any).localCalculationCount)).toBe(calculations);
+      await page.getByLabel("背景地図").selectOption("map");
+    }
     const scrollFrame = page.locator(".nav-log-scroll");
     for (const edge of ["top", "right", "bottom", "left"]) {
       await expect(scrollFrame).toHaveCSS(`border-${edge}-width`, "0px");
