@@ -2,7 +2,7 @@ import { LegacyAccountControl } from "./LegacyAccountControl";
 import { AccountControl } from "./AccountControl";
 import type { AuthProvider } from "../auth";
 import type { PlatformCapabilities } from "../platform";
-import { localMode } from "../executionMode";
+import { localMode, devSharedMode } from "../executionMode";
 import { CheckCircle2, Info, FolderOpen, Plus, Save, Trash2 } from "lucide-react";
 import type { SavedProject } from "../types";
 
@@ -70,7 +70,7 @@ export function Header({
         {revision !== null && <span className="header-revision">rev.{revision}</span>}
       </div>
       <div className="header-actions">
-        {localMode ? <AccountControl auth={auth} busy={busy} onBeforeChange={onBeforeAccountChange} networkAvailability={networkAvailability} /> : <LegacyAccountControl busy={busy} />}
+        {!devSharedMode && (localMode ? <AccountControl auth={auth} busy={busy} onBeforeChange={onBeforeAccountChange} networkAvailability={networkAvailability} /> : <LegacyAccountControl busy={busy} />)}
         <button
           className={`header-button information-button${knownIssuesUnread ? " information-warning" : ""}`}
           type="button"
@@ -80,9 +80,9 @@ export function Header({
           <span className="information-icon-wrap"><Info aria-hidden="true" size={18} />{informationUnread && <span className="information-unread-dot" />}</span>
           <span className="information-label">お知らせ</span>
         </button>
-        <div className="storage-state" aria-label={localMode ? "保存先はこの端末のブラウザです" : "保存先はサーバーです"}>
+        <div className="storage-state" aria-label={devSharedMode ? "サーバー保存（dev環境共有）" : localMode ? "保存先はこの端末のブラウザです" : "保存先はサーバーです"}>
           <CheckCircle2 aria-hidden="true" size={17} />
-          <span>{localMode ? "端末内に保存" : "サーバー保存"}</span>
+          <span>{localMode && !devSharedMode ? "端末内に保存" : "サーバー保存"}</span>
         </div>
         <div className="saved-project-control">
           <label htmlFor="saved-project">保存済み</label>

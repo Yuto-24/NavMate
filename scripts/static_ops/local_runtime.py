@@ -1,7 +1,8 @@
 """Local static delivery: serialized main/feed builds and an atomic publication pointer.
 
 This is a container entrypoint, not a deployment CLI. Only generated volumes are
-writable; no Project store, host checkout, Docker socket or provider token is used.
+writable; the optional dev Project store is separate from published artifacts.
+No host checkout, Docker socket or provider token is used.
 """
 
 from __future__ import annotations
@@ -25,6 +26,11 @@ from datetime import UTC, datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import urlopen
+
+if __package__:
+    from .dev_projects import API, DevProjectsHandler, SharedProjects
+else:
+    from dev_projects import API, DevProjectsHandler, SharedProjects
 
 PUBLIC_KEYS = (
     "VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID",
@@ -100,17 +106,20 @@ class QuietHandler(SimpleHTTPRequestHandler):
         pass
 
 
-class StaticHandler(QuietHandler):
-    def __init__(self, *args, settings: Settings, **kwargs):
+class StaticHandler(DevProjectsHandler, QuietHandler):
+    def __init__(self, *args, settings: Settings, projects: SharedProjects | None = None, **kwargs):
         """Snapshot one root per connection so a switch cannot mix bytes within a response."""
         self.settings = settings
+        self.projects = projects
         self.root = settings.active()
         super().__init__(*args, directory=str(self.root or settings.published / "absent"),
                          **kwargs)
 
     def do_GET(self):
         """Distinguish first-start preparation from a missing file in a published artifact."""
-        if self.root is None:
+        if self.path.split("?", 1)[0] == API:
+            self.project_request()
+        elif self.root is None:
             self.send_error(503)
         else:
             super().do_GET()
@@ -487,8 +496,14 @@ def main() -> None:
     if args.mode.startswith("health-"):
         raise SystemExit(0 if healthy(settings, args.mode) else 1)
     if args.mode == "web":
+        projects = None
+        if os.getenv("LOCAL_SHARED_PROJECTS") == "1":
+            origins = set(os.getenv("LOCAL_SHARED_ORIGINS", "").split())
+            if not origins:
+                raise ValueError("LOCAL_SHARED_ORIGINS is required for shared dev storage")
+            projects = SharedProjects(Path(os.environ["LOCAL_PROJECTS_DB"]), origins)
         ThreadingHTTPServer(("0.0.0.0", settings.port), functools.partial(
-            StaticHandler, settings=settings)).serve_forever()
+            StaticHandler, settings=settings, projects=projects)).serve_forever()
     else:
         Updater(settings).serve()
 

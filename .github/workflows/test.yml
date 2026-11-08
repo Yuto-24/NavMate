@@ -295,6 +295,9 @@ jobs:
           npm --prefix web exec -- playwright test --config web/playwright.browser-acceptance.config.ts --workers=2
           AUTONAVLOG_TEST_FIXTURES=1 VITE_TAF_PROXY_URL=https://taf.example/taf npm --prefix web run build:local
           npm --prefix web run test:taf
+      - name: Verify shared development Projects with independent browsers
+        if: matrix.suite == 'local'
+        run: npm --prefix web run test:dev-shared
       - name: Verify guest forecast backup with the matching isolated calculator
         if: matrix.suite == 'local'
         run: |

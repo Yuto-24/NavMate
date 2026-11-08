@@ -1,3 +1,4 @@
+import { devSharedMode } from "../executionMode";
 import { X } from "lucide-react";
 import { useEffect } from "react";
 import type { KnownIssue, ReleaseBlock, ReleaseNote } from "../releaseNotes";
@@ -49,7 +50,11 @@ export function InformationDialog({ open, releases, knownIssues, onClose, onOpen
         <div><h2 id="information-dialog-title">お知らせ</h2><p>NavMateのお知らせ</p></div>
         <button className="icon-button" type="button" onClick={onClose} aria-label="お知らせを閉じる" data-modal-autofocus><X aria-hidden="true" size={20} /></button>
       </div>
-      {import.meta.env.VITE_CALCULATION_MODE === "local" && <section aria-labelledby="local-storage-heading">
+      {devSharedMode && <section aria-labelledby="shared-storage-heading">
+        <h3 id="shared-storage-heading">共有サーバー保存</h3>
+        <p>プロジェクトと計算結果はサーバーに保存され、同じURLから他の端末でも利用できます。データの同期や更新には通信環境が必要です。</p>
+      </section>}
+      {import.meta.env.VITE_CALCULATION_MODE === "local" && !devSharedMode && <section aria-labelledby="local-storage-heading">
         <h3 id="local-storage-heading">この端末の保存について</h3>
         <p>プロジェクトと最後の計算結果は、このブラウザに保存されます。ブラウザのデータ削除、容量不足による自動削除、プライベートブラウズの終了で失われる場合があります。</p>
         <p>Googleアカウントへの同期完了後は、同期済みの内容を別端末でも開けます。未同期の変更はこの端末のみに残ります。NAV LOGのJSON出力はプロジェクトのバックアップではありません。</p>

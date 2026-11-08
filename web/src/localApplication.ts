@@ -65,10 +65,10 @@ export class LocalApplication implements AutoNavLogApplication {
       }
     }
 
-    const listing = await this.repository.list().catch(() => null);
-    if (!listing) {
+    const listing = await this.repository.list().catch((failure: unknown) => ({ failure }));
+    if ("failure" in listing) {
       state.savedProjects = [];
-      state.storageWarning = "端末の保存データにアクセスできません。ブラウザの保存設定を確認してください。";
+      state.storageWarning = listing.failure instanceof ApplicationError ? listing.failure.message : "端末の保存データにアクセスできません。ブラウザの保存設定を確認してください。";
       return state;
     }
     this.listedTokens = new Map(Object.entries(listing.tokens ?? {}));
