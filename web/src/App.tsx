@@ -1,4 +1,4 @@
-import { localMode } from "./executionMode";
+import { localMode, localAccountScope } from "./executionMode";
 import type { ReferencePointSnapshot } from "./referencePoints";
 import { importCandidateToMapDraft } from "./importRouteDraft";
 import { canConfirmMapDraft, nextWaypointName, routeDraftFromProject, type MapRoutePoint } from "./mapRouteDraft";
@@ -1881,7 +1881,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           mapBuilder={mapBuilder}
           viewportStorage={platform.persistence.values}
           preserveRouteViewport={preserveRouteViewport}
-          viewportScope={application.auth?.getState().account?.account_id ?? "anonymous"}
+          viewportScope={application.auth?.getState().account
+            ? localAccountScope(application.auth.getState().account!.account_id) : "anonymous"}
           onOpenExternalUrl={(url) => {
             try { platform.openExternalUrl(url); }
             catch (reason) {

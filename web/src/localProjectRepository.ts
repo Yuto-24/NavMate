@@ -1,7 +1,6 @@
 import { evictWeatherCache } from "./browserStorage";
 import { ApplicationError } from "./application";
 import type { Project, SavedProject, WorkingRecovery } from "./types";
-import { localAccountScope } from "./executionMode";
 
 export interface LocalProjectRecord {
   schemaVersion: 2;
@@ -23,7 +22,12 @@ export interface LocalProjectRepository {
   open(record: LocalProjectRecord, expectedToken?: string): Promise<void>;
   delete(id: string, expectedToken: string | null): Promise<void>;
 }
-export interface LocalAccountContext { account_id: string | null; assertActive(): void; onClose(listener: () => void): () => void }
+export interface LocalAccountContext {
+  account_id: string | null;
+  storage_id?: string | null;
+  assertActive(): void;
+  onClose(listener: () => void): () => void;
+}
 export type LocalProjectRepositoryFactory = (
   validate: (record: unknown) => Promise<LocalProjectRecord>, context?: LocalAccountContext,
   cleanCalculation?: (record: LocalProjectRecord, copyId?: string) => Promise<LocalProjectRecord>,
@@ -56,7 +60,8 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
 
   private database(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-      const request = this.factory().open(this.context?.account_id ? `${LOCAL_DATABASE}.${localAccountScope(this.context.account_id)}` : LOCAL_DATABASE, LOCAL_DATABASE_VERSION);
+      const scope = this.context?.storage_id ?? this.context?.account_id;
+      const request = this.factory().open(scope ? `${LOCAL_DATABASE}.${scope}` : LOCAL_DATABASE, LOCAL_DATABASE_VERSION);
       let blocked = false;
       request.onupgradeneeded = () => {
         if (!request.result.objectStoreNames.contains("projects")) {

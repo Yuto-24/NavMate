@@ -1,5 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { resolve } from "node:path";
+import { initializeApp, deleteApp } from "firebase/app";
+import { connectFirestoreEmulator, doc, getFirestore, setDoc, terminate } from "firebase/firestore";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 
 async function create(page: Page, name: string, calculate = false) {
@@ -214,4 +216,33 @@ test("Google accounts switch away from shared Projects, sync privately, and dele
   await expect.poll(async () => (await localRows(page, nextDatabase)).find(row => row.checkpoint)?.sync.dirty).toBe(false);
   await logout(page);
   await load(page, shared.id);
+});
+
+test("a personal account ID matching the shared namespace cannot open or purge shared browser data", async ({ page }) => {
+  await start(page);
+  await create(page, "shared-private-boundary");
+  const shared = (await localRows(page)).find(row => row.checkpoint);
+  const alias = "dev_shared_navmate-6b281";
+  const app = initializeApp({ projectId: "navmate-6b281" }, crypto.randomUUID());
+  const db = getFirestore(app);
+  connectFirestoreEmulator(db, "127.0.0.1", 8089, { mockUserToken: {
+    sub: "alias-owner", firebase: { sign_in_provider: "google.com", identities: { "google.com": ["dev-google-alias"] } },
+  } });
+  try {
+    // Existing account records permit arbitrary strings; they are not trusted
+    // to select a shared or old production browser namespace.
+    await setDoc(doc(db, "googleAccounts", "dev-google-alias"), { schema: 1, state: "ACTIVE", accountId: alias });
+  } finally { await terminate(db); await deleteApp(app); }
+  await googleLogin(page, "dev-google-alias");
+  await expect(page.locator(`#saved-project option[value="${shared.id}"]`)).toHaveCount(0);
+  const personalDatabase = `autonavlog.projects.dev_navmate-6b281.${alias}`;
+  await expect.poll(() => page.evaluate(async name => (await indexedDB.databases()).some(db => db.name === name), personalDatabase)).toBe(true);
+  expect((await localRows(page, personalDatabase)).some(row => row.id === shared.id)).toBe(false);
+  await logout(page);
+  await page.evaluate(async id => {
+    const { removeLocalAccount } = await import("/src/accountLifecycle.ts");
+    await removeLocalAccount(id);
+  }, alias);
+  await load(page, shared.id);
+  expect((await localRows(page)).some(row => row.id === shared.id)).toBe(true);
 });

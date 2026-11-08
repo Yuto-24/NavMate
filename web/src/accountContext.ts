@@ -14,14 +14,15 @@ export function createAccountContext(platform: PlatformCapabilities, auth?: Auth
   createSync?: (context: LocalAccountContext) => Promise<AccountSyncRepository>, workspaceId?: string,
   importAnonymous = true) {
   const account_id = workspaceId ?? auth?.getState().account?.account_id ?? null;
+  const storage_id = workspaceId ?? (account_id !== null ? localAccountScope(account_id) : null);
   let active = true;
   const assertActive = () => { if (!active) throw accountBoundaryClosed(); };
   const closeListeners = new Set<() => void>();
-  const context = { account_id, assertActive, onClose(listener: () => void) {
+  const context = { account_id, storage_id, assertActive, onClose(listener: () => void) {
     assertActive(); closeListeners.add(listener); return () => { closeListeners.delete(listener); };
   } };
   const storage = platform.session.storage;
-  const key = account_id ? `${SESSION_KEY}.${localAccountScope(account_id)}` : SESSION_KEY;
+  const key = storage_id ? `${SESSION_KEY}.${storage_id}` : SESSION_KEY;
   const scopedPlatform: PlatformCapabilities = { ...platform, session: {
     isReload: () => allowRecovery && platform.session.isReload(),
     storage: {
@@ -39,7 +40,7 @@ export function createAccountContext(platform: PlatformCapabilities, auth?: Auth
     const repository = new AccountProjectRepository(validate, context, deviceId, cleanCalculation!);
     sync = new AccountSyncController(repository, context, () => createSync(context), async () => {
       if (!importAnonymous) return [];
-      const anonymous = platform.persistence.createProjectRepository(validate, { ...context, account_id: null });
+      const anonymous = platform.persistence.createProjectRepository(validate, { ...context, account_id: null, storage_id: null });
       return await anonymous.claimAnonymous?.(account_id) ?? [];
     });
     return repository;
@@ -74,9 +75,9 @@ export function observeAccountContexts(platform: PlatformCapabilities, auth: Aut
     context?.dispose(); context = undefined;
     const show = () => {
       if (signal.aborted) return;
-      const workspace = accountId ? undefined : signedOutWorkspace;
+      const workspace = accountId !== null ? undefined : signedOutWorkspace;
       context = createAccountContext(platform, auth, initial, workspace?.createSync ?? createSync,
-        workspace?.id, !signedOutWorkspace || !accountId);
+        workspace?.id, !signedOutWorkspace || accountId === null);
       initial = false;
       present(context);
     };
