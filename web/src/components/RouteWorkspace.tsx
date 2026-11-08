@@ -148,6 +148,13 @@ function fixedAltitudeLabels(
       phase: "巡航（固定）",
     };
   }
+  if (inputMode === "RJFM_INBOUND_UMK_TO_ARITA_FIXED") {
+    return {
+      primary: `${altitude} - 1,500 ft 固定`,
+      detail: "UMK→ARITA専用降下経路の指定高度",
+      phase: "降下（固定）",
+    };
+  }
   return {
     primary: `UMK ${altitude} ft HIT`,
     detail: `RJFM→OMARU親Leg内・OMARUまで${altitude} ft固定`,

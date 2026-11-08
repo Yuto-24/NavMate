@@ -24,6 +24,7 @@ from autonavlog.domain.project import NavSection, Project, RouteNode
 
 TARGET_ALTITUDE_FT_MSL = 4500.0
 RJFM_INPUT_MODE_OMARU_TO_UMK_FIXED = "RJFM_INBOUND_OMARU_TO_UMK_FIXED"
+RJFM_INPUT_MODE_UMK_TO_ARITA_FIXED = "RJFM_INBOUND_UMK_TO_ARITA_FIXED"
 _ORIGINAL_SECTIONS_METADATA_KEY = "rjfm_inbound_exception_original_sections"
 _ARITA_SOURCE = "RJFM_INBOUND_ARITA:"
 _ARITA_ORIGINAL = "rjfm_inbound_arita_original"
@@ -48,7 +49,7 @@ def apply_rjfm_inbound_exception(
     """Complete the OMARU→UMK→VREP route and apply the return policy.
 
     Match coordinates, preserving an explicit downstream UMK and final VREP.
-    Direct returns without a separate VREP await their own descent policy.
+    Direct returns complete ARITA before assigning the dedicated descent.
     """
 
     _restore_original_sections(project)
@@ -83,6 +84,19 @@ def apply_rjfm_inbound_exception(
     for controlled in controlled_sections:
         controlled.phase = FlightPhase.CRUISE
         controlled.planned_altitude_ft_msl = TARGET_ALTITUDE_FT_MSL
+    if vrep_index == umk_index + 1 and is_arita_node(nodes[vrep_index]):
+        descent = sections[umk_index]
+        _capture_original_sections(project, [descent])
+        descent.phase = FlightPhase.DESCENT
+        descent.planned_altitude_ft_msl = TARGET_ALTITUDE_FT_MSL
+        # Positional assignment before completion can leave DESCENT before
+        # OMARU. It cannot precede the fixed cruise/descent tail. Preserve
+        # valid user CLIMB/CRUISE choices and all other section inputs.
+        for section in sections[:omaru_index]:
+            if section.phase == FlightPhase.DESCENT:
+                section.phase = (
+                    FlightPhase.CLIMB if section.sequence == 0 else FlightPhase.CRUISE
+                )
     _normalize_reference_name(nodes[omaru_index], "OMARU")
     _normalize_reference_name(nodes[umk_index], "UMK")
     plan = RjfmInboundPlan(
@@ -472,10 +486,21 @@ def rjfm_inbound_section_input_modes(
 ) -> dict[str, str]:
     if not rjfm_inbound_plan_matches_project(project, plan):
         return {}
-    return {
+    modes = {
         str(section_id): RJFM_INPUT_MODE_OMARU_TO_UMK_FIXED
         for section_id in (plan.controlled_section_ids or (plan.controlled_section_id,))
     }
+    vrep = next(node for node in project.route_nodes if node.id == plan.vrep_node_id)
+    if is_arita_node(vrep):
+        for section in project.sections:
+            if (
+                section.from_node_id == plan.umk_node_id
+                and section.to_node_id == plan.vrep_node_id
+                and section.phase == FlightPhase.DESCENT
+                and section.planned_altitude_ft_msl == TARGET_ALTITUDE_FT_MSL
+            ):
+                modes[str(section.id)] = RJFM_INPUT_MODE_UMK_TO_ARITA_FIXED
+    return modes
 
 
 def _sections_link_nodes(

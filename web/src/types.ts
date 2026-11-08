@@ -510,7 +510,8 @@ export type AltitudeInputMode =
   | "RJFM_DEPARTURE_TO_UMK_FIXED"
   | "RJFM_UMK_TO_OMARU_FIXED"
   | "RJFM_PARENT_CONTAINS_UMK_FIXED"
-  | "RJFM_INBOUND_OMARU_TO_UMK_FIXED";
+  | "RJFM_INBOUND_OMARU_TO_UMK_FIXED"
+  | "RJFM_INBOUND_UMK_TO_ARITA_FIXED";
 
 export interface SectionAltitudeGuidance {
   sectionId: string;

@@ -523,8 +523,42 @@ def test_explicit_arita_replacement_does_not_restore_old_direct_geometry():
     assert umk.role == RouteNodeRole.ROUTE_POINT
     assert umk.manual_true_course_deg is None and umk.manual_distance_nm is None
     replacement = next(s for s in p.sections if s.id == replacement_id)
-    assert replacement.phase == FlightPhase.DESCENT and replacement.planned_altitude_ft_msl == 1700
+    assert replacement.phase == FlightPhase.DESCENT and replacement.planned_altitude_ft_msl == 4500
+    assert p.metadata["rjfm_inbound_exception_original_sections"][str(replacement.id)][
+        "planned_altitude_ft_msl"
+    ] == 1700
 
     preserved = load_persisted_ui_state(p.metadata["ui_state"]).arrival_plan
     assert preserved == arrival.model_copy(update={"visual_reporting_point_node_id": manual.id})
     assert manual.role == RouteNodeRole.VISUAL_REPORTING_POINT
+
+
+@pytest.mark.parametrize("phase", [FlightPhase.CLIMB, FlightPhase.CRUISE, FlightPhase.DESCENT])
+def test_arita_descent_is_fixed_without_overwriting_valid_upstream_inputs(phase):
+    from autonavlog.application.arrival import ARITA_COORDINATE
+    from autonavlog.application.rjfm_inbound_plan import RJFM_INPUT_MODE_UMK_TO_ARITA_FIXED
+
+    project = _project()
+    project.route_nodes[-2].latitude_deg, project.route_nodes[-2].longitude_deg = ARITA_COORDINATE
+    upstream, _, descent, _ = project.sections
+    upstream.phase = phase
+    upstream.planned_altitude_ft_msl = 6500
+    upstream.manual_tas_kt = 132
+    descent.phase = FlightPhase.CRUISE
+    descent.planned_altitude_ft_msl = 7500
+    descent.manual_tas_kt_by_phase = {FlightPhase.DESCENT: 140}
+    plan = apply_rjfm_inbound_exception(project, _references(), adopted_vrep_altitude_ft_msl=1500)
+    assert plan is not None
+    assert upstream.phase == (FlightPhase.CLIMB if phase == FlightPhase.DESCENT else phase)
+    assert upstream.planned_altitude_ft_msl == 6500 and upstream.manual_tas_kt == 132
+    assert descent.phase == FlightPhase.DESCENT and descent.planned_altitude_ft_msl == 4500
+    assert descent.manual_tas_kt_by_phase == {FlightPhase.DESCENT: 140}
+    assert rjfm_inbound_section_input_modes(project, plan)[str(descent.id)] == (
+        RJFM_INPUT_MODE_UMK_TO_ARITA_FIXED
+    )
+    before = project.model_dump(mode="json")
+    apply_rjfm_inbound_exception(project, _references(), adopted_vrep_altitude_ft_msl=1500)
+    assert project.model_dump(mode="json") == before
+    project.destination_airport_id = "RJFF"
+    assert apply_rjfm_inbound_exception(project, _references()) is None
+    assert descent.phase == FlightPhase.CRUISE and descent.planned_altitude_ft_msl == 7500

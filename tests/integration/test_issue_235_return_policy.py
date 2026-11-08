@@ -36,6 +36,7 @@ def test_return_completion_geometry_descent_and_restore(
     )
     points = [
         ("RJFO", 33.47949406702627, 131.7371201529664),
+        ("ENROUTE", 32.7, 131.6),
         ("小丸", 32.16255070087476, 131.47036916946163),
         *([("手動UMK", *umk)] if explicit_umk else []),
         *([("有田", *arita)] if via_arita else []),
@@ -63,8 +64,11 @@ def test_return_completion_geometry_descent_and_restore(
             ]
         confirmed = json.loads(local.dispatch("confirmRoute", request))
         p = confirmed["project"]
-        assert len(p["route_nodes"]) == 5
-        nodes = p["route_nodes"]
+        assert len(p["route_nodes"]) == 6
+        assert [s["phase"] for s in p["sections"]] == [
+            "CLIMB", "CRUISE", "CRUISE", "DESCENT", "VISUAL_ARRIVAL",
+        ]
+        nodes = p["route_nodes"][1:]
         assert (nodes[2]["latitude_deg"], nodes[2]["longitude_deg"]) == umk
         assert (nodes[3]["latitude_deg"], nodes[3]["longitude_deg"]) == arita
         assert nodes[3]["role"] == "VISUAL_REPORTING_POINT"
@@ -74,6 +78,12 @@ def test_return_completion_geometry_descent_and_restore(
                 assert nodes[2]["name"] == "手動UMK"
             if via_arita:
                 assert nodes[3]["name"] == "有田"
+        descent_input = confirmed["altitudeGuidance"]["sections"][-2]
+        assert descent_input["inputMode"] == "RJFM_INBOUND_UMK_TO_ARITA_FIXED"
+        assert descent_input["fixedAltitudeFtMsl"] == 4500
+        assert not descent_input["appliesToCruisingAltitudeInput"]
+        assert not descent_input["requiresReview"]
+        assert descent_input["candidateAltitudesFtMsl"] == []
         update = {
             key: INPUT[key]
             for key in (
@@ -99,6 +109,9 @@ def test_return_completion_geometry_descent_and_restore(
         local.dispatch("updateProject", update)
         calculated = json.loads(local.dispatch("calculate"))
         assert calculated["readiness"]["calculationIsCurrent"]
+        assert "FLIGHT_PHASE_SEQUENCE_INVALID" not in {
+            issue["code"] for issue in calculated["outcome"]["issues"]
+        }
         outcome = CalculationOutcome.model_validate_json(json.dumps(calculated["outcome"]))
         if via_arita and explicit_umk:
             assert (
@@ -134,7 +147,7 @@ def test_return_completion_geometry_descent_and_restore(
             r
             for r in outcome.display_rows
             if r.row_type == "CALCULATION_ZONE"
-            and str(r.section_id) in {s["id"] for s in p["sections"][1:]}
+            and str(r.section_id) in {s["id"] for s in p["sections"][2:]}
         ]
         assert len(children) == 3
         for child, start, end in zip(children, nodes[1:-1], nodes[2:], strict=True):
@@ -165,12 +178,13 @@ def test_return_completion_geometry_descent_and_restore(
         local.dispatch("updateProject", {**update, "total_usable_fuel_gal": 89})
         recalculated = json.loads(local.dispatch("calculate"))
         assert recalculated["readiness"]["calculationIsCurrent"]
-        assert len(recalculated["project"]["route_nodes"]) == 5
+        assert len(recalculated["project"]["route_nodes"]) == 6
     finally:
         local.close()
 
 
-def test_explicit_arita_legacy_seven_minute_result_becomes_stale(monkeypatch):
+@pytest.mark.parametrize("version, seconds", [("V1", 420), ("V2", 360)])
+def test_explicit_arita_legacy_result_becomes_stale(monkeypatch, version, seconds):
     from unittest.mock import patch
 
     from autonavlog.domain.planning import RjfmInboundPlan
@@ -178,15 +192,21 @@ def test_explicit_arita_legacy_seven_minute_result_becomes_stale(monkeypatch):
     monkeypatch.setattr("autonavlog.web.facade.build_rjfm_inbound_guidance", lambda *a, **k: None)
     local = LocalApplication(ROOT / "data")
     try:
-        # Reproduce the previously valid explicit-UMK/ARITA V1 calculation.
-        old = "RJFM_INBOUND_OMARU_UMK_VREP_V1"
+        # Keep old V1/V2 results readable but stale under the new input contract.
+        old = (
+            "RJFM_INBOUND_OMARU_UMK_VREP_V1" if version == "V1"
+            else "RJFM_INBOUND_OMARU_UMK_ARITA_V2"
+        )
         with (
             patch("autonavlog.application.project_fingerprints.RJFM_INBOUND_RULE_VERSION", old),
             patch(
                 "autonavlog.application.rjfm_inbound_plan.RjfmInboundPlan",
                 side_effect=lambda **kw: RjfmInboundPlan(rule_version=old, **kw),
             ),
-            patch("autonavlog.application.calculation_service.is_arita_node", return_value=False),
+            patch(
+                "autonavlog.application.calculation_service.is_arita_node",
+                return_value=version == "V2",
+            ),
         ):
             INBOUND_KML = (
                 (ROOT / "tests/fixtures/issue_125_inbound.kml")
@@ -221,7 +241,7 @@ def test_explicit_arita_legacy_seven_minute_result_becomes_stale(monkeypatch):
                 for z in saved["outcome"]["sections"]
                 if z["performance_metadata"].get("type") == "rjfm_inbound_operational_descent"
             ]
-            assert old_descent[0]["performance_metadata"]["planned_duration_seconds"] == 420
+            assert old_descent[0]["performance_metadata"]["planned_duration_seconds"] == seconds
         restored = json.loads(local.dispatch("bootstrap", saved["workingRecovery"]))
         assert not restored["readiness"]["calculationIsCurrent"]
         assert restored["outcome"]["sections"] == saved["outcome"]["sections"]

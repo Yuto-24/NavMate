@@ -94,6 +94,18 @@ allowance. Reference distance/GS is not its operational ETE. Other final VREP
 profiles retain their prior behavior. Kunitomi/west-extension geometry belongs
 only to the diagnostic solver; it adds no physical LOG distance or fuel/time.
 
-Inbound policy identity V2 invalidates saved V1 calculation freshness even when
-all route nodes already existed. V1 plans remain readable; saved results remain
-available as stale until recalculation. Outbound POH policy is unchanged.
+For the direct UMK→ARITA section, phase and descent-start altitude are fixed to
+DESCENT and 4,500 ft. The Route table displays 4,500–1,500 ft without a cruise
+altitude input or VFR candidates. The original section inputs remain recorded
+for restoration when the policy no longer applies. General DESCENT sections
+retain their existing altitude input and candidates.
+
+After completion, a DESCENT left before OMARU by positional tail assignment is
+normalized to CLIMB for the first section or CRUISE otherwise. Existing upstream
+CLIMB/CRUISE choices and other manual inputs are retained; a descent before the
+fixed cruise tail would violate the existing phase-order contract.
+
+Inbound policy identity V3 invalidates saved V1/V2 calculation freshness even
+when all route nodes already existed. Those plans remain readable; Last
+Calculation remains available as stale until recalculation. V3 changes the input
+and phase contract, not the V2 descent time/fuel or outbound POH policy.

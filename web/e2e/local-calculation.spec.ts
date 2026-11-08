@@ -439,3 +439,66 @@ test("Pyodide core: saved Run, UMK, OMARU, inbound, overrides and Check Point", 
   expect(actual[3].outcome.rjfm_inbound_guidance).not.toBeNull();
   expect(actual[4].outcome.check_point_projections).toHaveLength(1);
 });
+
+for (const width of [1100, 1440]) {
+  test(`#350 dedicated ARITA descent needs no altitude input, ${width}px`, async ({ page }) => {
+    const explicit = width === 1440;
+    const coordinates = [
+      "131.7371201529664,33.47949406702627,0",
+      "131.6,32.7,0",
+      "131.47036916946163,32.16255070087476,0",
+      ...(explicit ? ["131.42429852046251,31.985137767624444,0", "131.3535165268158,31.94977931375621,0"] : []),
+      "131.4486111111,31.8772222222,0",
+    ].join(" ");
+    const apiRequests: string[] = [];
+    page.context().on("request", request => {
+      if (new URL(request.url()).pathname.startsWith("/api/")) apiRequests.push(request.url());
+    });
+    await page.context().route("**/api/**", route => route.abort());
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/");
+    await enterImportWorkflow(page);
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "return.kml", mimeType: "application/vnd.google-earth.kml+xml",
+      buffer: Buffer.from(`<kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><LineString><coordinates>${coordinates}</coordinates></LineString></Placemark></kml>`),
+    });
+    await confirmImportedDraft(page);
+    const fixed = page.getByLabel("UMK出発Legの固定高度", { exact: true });
+    await expect(fixed).toContainText("4,500 - 1,500 ft 固定");
+    const descentRow = fixed.locator("xpath=ancestor::tr");
+    await expect(descentRow).toContainText("降下（固定）");
+    await expect(descentRow.locator("input, select")).toHaveCount(0);
+    await page.getByLabel("気象モード").selectOption("FTD");
+    for (const input of await page.locator(".route-leg-row:not(.vrep-row) .table-number-input").all()) {
+      await input.fill("4500");
+      await input.blur();
+    }
+    if (explicit) await page.getByRole("radio", { name: "1000 fpm", exact: true }).check();
+    const calculate = page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ });
+    await calculate.click();
+    await expect(page.locator(".nav-log-table")).toBeVisible();
+    const state = await page.evaluate(() => (window as any).localStates.at(-1));
+    expect(state.readiness.calculationIsCurrent).toBe(true);
+    expect(state.project.sections.map((s: any) => s.phase)).toEqual([
+      "CLIMB", "CRUISE", "CRUISE", "DESCENT", "VISUAL_ARRIVAL",
+    ]);
+    expect(state.outcome.issues.map((i: any) => i.code)).not.toContain("FLIGHT_PHASE_SEQUENCE_INVALID");
+    const descent = state.outcome.sections.find((s: any) => s.performance_metadata.type === "rjfm_inbound_operational_descent");
+    expect(descent.performance_metadata.planned_duration_seconds).toBe(explicit ? 180 : 360);
+    expect(descent.section_fuel_gal.automatic_value).toBeCloseTo(explicit ? 0.6 : 1.2);
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
+    await page.reload();
+    await expect(fixed).toContainText("4,500 - 1,500 ft 固定");
+    await expect(descentRow.locator("input, select")).toHaveCount(0);
+    await page.getByLabel("保存済み", { exact: true }).selectOption(state.project.id);
+    await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
+    await expect(fixed).toBeVisible();
+    await calculate.click();
+    await expect(page.locator(".nav-log-table")).toBeVisible();
+    const restored = await page.evaluate(() => (window as any).localStates.at(-1));
+    expect(restored.readiness.calculationIsCurrent).toBe(true);
+    expect(restored.project.sections).toEqual(state.project.sections);
+    expect(apiRequests).toEqual([]);
+  });
+}

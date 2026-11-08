@@ -164,6 +164,15 @@ async def test_real_inbound_route_calculation_and_project_roundtrip(
         )
         assert fixed["inputMode"] == "RJFM_INBOUND_OMARU_TO_UMK_FIXED"
         assert fixed["fixedAltitudeFtMsl"] == 4500
+        assert [s["phase"] for s in project["sections"]] == [
+            "CLIMB", "CRUISE", "DESCENT", "VISUAL_ARRIVAL",
+        ]
+        descent_input = confirmed_state["altitudeGuidance"]["sections"][-2]
+        assert descent_input["inputMode"] == "RJFM_INBOUND_UMK_TO_ARITA_FIXED"
+        assert descent_input["fixedAltitudeFtMsl"] == 4500
+        assert descent_input["candidateAltitudesFtMsl"] == []
+        assert not descent_input["appliesToCruisingAltitudeInput"]
+        assert not descent_input["requiresReview"]
         assert project["weather_mode"] == "FTD"
         assert project["ftd_weather"] == {
             "surface_wind": {"direction_deg_from": 360, "speed_kt": 15},
