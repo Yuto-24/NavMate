@@ -65,6 +65,9 @@ export async function currentAccount(user: User, register = false, closeOldConte
         throw new Error("ACCOUNT_DELETION_PENDING", { cause: error });
       }
       assertCurrent();
+      // Explicit login may select a deleting successor for cleanup retry, while
+      // its retired marker must still forbid reopening Local work offline.
+      if (register) localStorage.setItem(key, retired(value.accountId));
       return { accountId: value.accountId, deleting: true };
     }
     if (value.state === "DELETED") {

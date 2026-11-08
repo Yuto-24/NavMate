@@ -444,7 +444,12 @@ for (const failure of ["none", "logout", "purge", "successor-deleting"] as const
     await stalePage.evaluate(subject => (window as any).authTest.register(subject), subject);
     if (failure === "successor-deleting") {
       await expect.poll(() => stalePage.evaluate(() => (window as any).authTest.state().deletionPending)).toBe(true);
+      expect(await stalePage.evaluate(subject => localStorage.getItem(`autonavlog.account.current.${subject}`), subject)).toBe(`retired:${newId}`);
       await page.evaluate(() => { (window as any).blockedAccountDb.close(); });
+      await stalePage.getByRole("button", { name: "アカウント", exact: true }).click();
+      await stalePage.getByRole("button", { name: "削除を再試行", exact: true }).click();
+      await expect(stalePage.getByRole("alert").filter({ hasText: "NavMateアカウントを削除しました。" })).toBeVisible();
+      expect(await stalePage.evaluate(() => (window as any).authTest.currentUser())).toBeNull();
     } else {
       await expect.poll(() => stalePage.evaluate(() => (window as any).authTest.state().account?.account_id)).toBe(newId);
     }
