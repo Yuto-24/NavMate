@@ -915,6 +915,9 @@ class AutoNavLogWebApplication:
             return self._with_rjfm_guidance(session, project, outcome), ftd_destination_wind
 
         destination_wind: DestinationWindForecast | None = None
+        begin_calculation = getattr(session.weather_provider, "begin_calculation", None)
+        if begin_calculation is not None:
+            begin_calculation()
         outcome = session.calculation_service.calculate(
             project,
             session.weather_provider,
@@ -933,6 +936,22 @@ class AutoNavLogWebApplication:
                 forecast,
                 progress=progress,
             )
+        acquisition = getattr(session.weather_provider, "acquisition_metadata", {})
+        if acquisition.get("acquisition") == "cached" and not outcome.blockers:
+            session.calculation_service.last_forecast_metadata.update(acquisition)
+            outcome = outcome.model_copy(update={"issues": [
+                *outcome.issues,
+                Issue(
+                    code="FORECAST_CACHED_DATA",
+                    severity=IssueSeverity.WARNING,
+                    message=(
+                        "RISH配信一覧の更新を確認できなかったため、サーバーに保存済みの"
+                        "MSMデータを使用して計算しました。最新の配信データが反映されて"
+                        "いない可能性があります。"
+                    ),
+                    metadata={**acquisition, "forecast_run_id": outcome.selected_forecast_run_id},
+                ),
+            ]})
         if not self.development_weather:
             return self._with_rjfm_guidance(session, project, outcome), destination_wind
         decorated = outcome.model_copy(

@@ -81,7 +81,7 @@ def test_msm_provider_receives_cache_configuration(
         def __init__(self, *, cache_dir: Path) -> None:
             captured["cache_dir"] = cache_dir
 
-    monkeypatch.setattr(runtime, "MsmWeatherProvider", RecordingMsm)
+    monkeypatch.setattr(runtime, "LegacyMsmWeatherProvider", RecordingMsm)
     config = WebRuntimeConfig(
         data_root=tmp_path / "data",
         storage_root=tmp_path / "storage",
@@ -180,7 +180,7 @@ def test_msm_prewarm_switch_preserves_on_demand_provider(
         def prepare_run(self, run_id: str, requirement: ForecastRequirement) -> None:
             prepared.append(requirement)
 
-    monkeypatch.setattr(runtime, "MsmWeatherProvider", RecordingMsm)
+    monkeypatch.setattr(runtime, "LegacyMsmWeatherProvider", RecordingMsm)
     app = runtime.build_web_application(WebRuntimeConfig(
         data_root=Path(__file__).resolve().parents[2] / "data",
         storage_root=tmp_path,
@@ -189,7 +189,7 @@ def test_msm_prewarm_switch_preserves_on_demand_provider(
     ))
     assert prepared == []
     assert isinstance(app.weather_factory(), RecordingMsm)
-    assert app.weather_factory() is app.weather_factory()
+    assert app.weather_factory() is not app.weather_factory()
     if enabled:
         assert app.weather_prewarmer is not None
         app.weather_prewarmer.run_once()
@@ -198,7 +198,7 @@ def test_msm_prewarm_switch_preserves_on_demand_provider(
         assert max(times) - min(times) == timedelta(hours=48)
     else:
         assert app.weather_prewarmer is None
-        # The same provider is still available to calculation requests.
+        # A session-local provider remains available to calculation requests.
         from datetime import UTC, datetime
         requirement = ForecastRequirement(valid_times_utc=(datetime.now(UTC),))
         provider = app.weather_factory()

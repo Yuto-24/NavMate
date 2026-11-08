@@ -49,7 +49,7 @@ COPY .github/workflows/test.yml ./.github/workflows/test.yml
 COPY .github/workflows/static-production.yml ./.github/workflows/static-production.yml
 
 RUN chmod 755 scripts/run_ci_checks.sh \
-    && python -m pip install vendor/jma_gpv_weather-0.5.0-py3-none-any.whl ".[test]" \
+    && python -m pip install vendor/jma_gpv_weather-0.5.0+legacycache.1-py3-none-any.whl ".[test]" \
     && rm -rf build dist src/autonavlog.egg-info
 
 CMD ["/opt/autonavlog/scripts/run_ci_checks.sh"]
@@ -65,7 +65,7 @@ CMD ["--help"]
 FROM python-base AS runtime
 
 RUN chmod -R a=rX /opt/autonavlog \
-    && python -m pip install vendor/jma_gpv_weather-0.5.0-py3-none-any.whl . \
+    && python -m pip install vendor/jma_gpv_weather-0.5.0+legacycache.1-py3-none-any.whl . \
     && rm -rf build dist src/autonavlog.egg-info
 
 USER autonavlog

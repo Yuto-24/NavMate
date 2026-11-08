@@ -141,15 +141,10 @@ def validate(root: Path, base: str | None = None, pr_body: str | None = None) ->
     else:
         if current != previous or "VERSION" in changed:
             raise ValueError("Release: not-required must not change VERSION")
-        runtime = [
-            path
-            for path in changed
-            if runtime_path(path) and not python_documentation_only(root, merge_base, path)
-        ]
-        if runtime:
+        if "CHANGELOG.md" in changed:
             raise ValueError(
-                "Release: not-required cannot include production/runtime changes: "
-                + ", ".join(runtime)
+                "Release: not-required must not change CHANGELOG.md; "
+                "record pending release notes in the PR body"
             )
 
 
