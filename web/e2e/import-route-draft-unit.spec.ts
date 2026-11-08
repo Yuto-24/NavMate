@@ -103,3 +103,27 @@ test("uses original route geometry and refuses simplified previews or oversized 
     { ...candidate, vertexCount: 501, coordinates: preview, routeCoordinates: preview },
   ]) expect(importCandidateToMapDraft(input, airports)).toEqual({ status: "invalid", reason: "point-count" });
 });
+
+test("imported names follow occurrences, preserve airport identity and name only missing slots automatically", () => {
+  const named = { ...candidate, coordinates: [candidate.coordinates[0]!, candidate.coordinates[3]!],
+    routeCoordinates: candidate.coordinates, routeNames: ["fake airport", " 地点名 ", null, "fake arrival"] };
+  const result = importCandidateToMapDraft(named, airports);
+  expect(result.status).toBe("ready");
+  if (result.status === "invalid") return;
+  expect(result.points.map(point => point.name)).toEqual(["RJFM", "地点名", "WP1", "RJFK"]);
+  expect(result.points[1]?.name_source).toBe("IMPORTED");
+  expect(result.points[0]?.name_source).toBeUndefined();
+  expect(validMapDraft(JSON.parse(JSON.stringify(result.points)))).toBe(true);
+  const unnamed = importCandidateToMapDraft({ ...named, routeNames: ["misaligned"] }, airports);
+  expect(unnamed.status !== "invalid" && unnamed.points.map(point => point.name))
+    .toEqual(["RJFM", "WP1", "WP2", "RJFK"]);
+});
+
+test("long imported names survive session validation without weakening manual point limits", () => {
+  const name = "名".repeat(101);
+  const result = importCandidateToMapDraft({ ...candidate, routeNames: [null, name, "", null] }, airports);
+  if (result.status === "invalid") throw new Error("unexpected invalid input");
+  expect(result.points[1]?.name).toBe(name);
+  expect(validMapDraft(result.points)).toBe(true);
+  expect(validMapDraft(result.points.map(point => ({ ...point, name_source: undefined })))).toBe(false);
+});

@@ -192,7 +192,7 @@ test("download and Clipboard export the displayed result, survive denial, and re
   await page.getByLabel("5,000 ft風向 ° FROM").fill("270");
   await page.getByLabel("5,000 ft風速 kt").fill("30");
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
-  for (const [name, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
+  for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     await page.getByLabel(name + "出発Legの計画高度", { exact: true }).fill(altitude);
   }
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
@@ -326,7 +326,7 @@ test("source links open without an opener and cannot unlock a pending save", asy
   const link = page.getByRole("link", { name: "国土交通省", exact: true });
   const href = (await link.getAttribute("href"))!;
   await context.route(href, route => route.fulfill({ contentType: "text/html", body: "<title>Reference</title>" }));
-  for (const [name, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
+  for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     await page.getByLabel(name + "出発Legの計画高度", { exact: true }).fill(altitude);
   }
   const save = page.getByRole("button", { name: "保存", exact: true });

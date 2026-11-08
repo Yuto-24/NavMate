@@ -499,6 +499,10 @@ Its timestamps are historical evidence, not current publication authorization.
 
 ## WSL からのアプリ更新: prepare / publish
 
+工程の重複・排他・部分失敗・診断情報の現状と改善案は
+[Issue #339 アプリ公開工程の棚卸し](app_publication_audit.md)を参照。
+調査結果だけでは、以下の公開gateや停止・復旧条件を変更しない。
+
 #265 / #266 の後続調査と実行条件は[読取整合性・配信検証の記録](evidence/issue-265-266/2026-10-16-target-serving.md)を参照。
 #267 単独 SHA では prepare を開始せず、後続修正の merge 承認・反映後に最終 tooling SHA を固定し直す。
 
@@ -1225,7 +1229,7 @@ repository variables; a mismatch must stop collection rather than select another
 | --- | --- | --- | --- |
 | Cloudflare account `cae366c3bb569163773b80f4bdff2d8e`, Pages `navmate` | GET `/client/v4/accounts/cae366c3bb569163773b80f4bdff2d8e/pages/projects` on `api.cloudflare.com` | Account-scoped **Cloudflare Pages Read** | API access and native project-list shape; not complete pagination, Free status or monthly builds |
 | Firebase/Google project `navmate-prod` | GET `/v1/projects/navmate-prod/billingInfo` on `cloudbilling.googleapis.com` | Project `resourcemanager.projects.get`; existing OAuth scope `cloud-billing.readonly` or an already authorized compatible scope | Explicit current project billing flag; not Spark identity by itself |
-| GitHub repository `Yuto-24/AutoNavLog` | GET `/repos/Yuto-24/AutoNavLog/actions/cache/usage` on `api.github.com` | Target repository **Actions: read** | Native current cache bytes, not accrued billing |
+| GitHub repository `Yuto-24/NavMate` | GET `/repos/Yuto-24/NavMate/actions/cache/usage` on `api.github.com` | Target repository **Actions: read** | Native current cache bytes, not accrued billing |
 | GitHub personal owner `Yuto-24` (a distinct subsequent read) | GET `/users/Yuto-24/settings/billing/usage?year=2026&month=10` on `api.github.com` | Personal-user **Plan: read**, subject to endpoint eligibility | Native current-month product/SKU/unit/gross/discount/net rows kept privately in memory; not included-allowance attribution or billing prevention |
 
 Run only the corresponding fixed probe after an **existing approved** credential is
@@ -1237,7 +1241,7 @@ CLOUDFLARE_ACCOUNT_ID=cae366c3bb569163773b80f4bdff2d8e \
   python scripts/static_ops/probe_providers.py --check cloudflare_pages_projects
 VITE_FIREBASE_PROJECT_ID=navmate-prod \
   python scripts/static_ops/probe_providers.py --check firebase_billing
-GITHUB_REPOSITORY_OWNER=Yuto-24 GITHUB_REPOSITORY=Yuto-24/AutoNavLog \
+GITHUB_REPOSITORY_OWNER=Yuto-24 GITHUB_REPOSITORY=Yuto-24/NavMate \
   python scripts/static_ops/probe_providers.py --check github_cache_usage
 GITHUB_REPOSITORY_OWNER=Yuto-24 \
   python scripts/static_ops/probe_providers.py --check github_billing_usage

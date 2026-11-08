@@ -19,6 +19,7 @@ from autonavlog.application.project_fingerprints import forecast_selection_finge
 from autonavlog.application.project_service import ProjectService
 from autonavlog.domain.calculation import Issue
 from autonavlog.domain.enums import IssueSeverity
+from autonavlog.domain.project_naming import refresh_automatic_name
 from autonavlog.domain.weather import ForecastModel, coverage_exclusion_reasons
 from autonavlog.forecast_backup import (
     WEATHER_FAILURES,
@@ -415,6 +416,10 @@ class LocalApplication:
         if path == "validateRecord":
             return migrate_record(payload).model_dump_json()
         if path == "state":
+            state = self.app.present(self.session)
+        elif path == "resolveProjectName":
+            if self.session.project is not None:
+                refresh_automatic_name(self.session.project, payload["existing_names"])
             state = self.app.present(self.session)
         elif path in {"bootstrap", "refreshSavedWork", "adoptSavedProject"}:
             recovery_payload = payload if path == "bootstrap" else payload["working"]

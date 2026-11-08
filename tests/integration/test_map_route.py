@@ -46,8 +46,13 @@ def test_map_route_planning_calculation_and_hydration(local, import_candidate):
         assert candidate["departureAirportId"] == "RJFM"
         assert candidate["destinationAirportId"] == "RJFS"
         # Exercise the parser DTO -> map confirmation geometry used by #176.
-        points = [point(f"WP{index}", latitude, longitude)
-                  for index, (latitude, longitude) in enumerate(candidate["coordinates"])]
+        points = [
+            {**point(name or f"WP{index}", latitude, longitude),
+             "name_source": "IMPORTED" if name else "GENERATED"}
+            for index, ((latitude, longitude), name) in enumerate(zip(
+                candidate["routeCoordinates"], candidate["routeNames"], strict=True,
+            ))
+        ]
         points[0]["airport_id"] = candidate["departureAirportId"]
         points[-1]["airport_id"] = candidate["destinationAirportId"]
     state = json.loads(local.dispatch("confirmRoute", payload(points)))
@@ -60,6 +65,11 @@ def test_map_route_planning_calculation_and_hydration(local, import_candidate):
         "DESTINATION",
     ]
     assert project["route_nodes"][0]["name"] == "RJFM"
+    if import_candidate:
+        assert [node["name"] for node in project["route_nodes"]] == [
+            "RJFM", "米ノ津", "玉名", "大牟田", "RJFS",
+        ]
+        assert all(node["name_source"] == "IMPORTED" for node in project["route_nodes"][1:-1])
     assert project["metadata"]["web_import_filename"] is None
     if not import_candidate:
         assert state["workingRecovery"]["import_result"] is None

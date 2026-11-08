@@ -37,6 +37,8 @@ export interface RouteCandidate {
   coordinates: [number, number][];
   /** Unsimplified route geometry; absent on older sessions, null above the MAP limit. */
   routeCoordinates?: [number, number][] | null;
+  /** Imported names aligned to routeCoordinates, never to the simplified preview. */
+  routeNames?: (string | null)[] | null;
   containerPath?: string[];
   segmentNames?: string[];
   segmentCount?: number;

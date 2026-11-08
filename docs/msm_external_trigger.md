@@ -181,7 +181,7 @@ Secret登録時はobserve・Cron停止を必須にし、次のSecret登録前に
 
 ```sh
 # 既存のGitHub認証を使用する。credentialの新規作成を兼ねない。
-gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/AutoNavLog --body true
+gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/NavMate --body true
 # 配置するがCronは空。observe-cron稼働中でも、ここで一度Cronを止める。
 npm --prefix services/msm-trigger run ops -- enable-dispatch
 # 別段階で15分Cronを配置。
@@ -191,7 +191,7 @@ npm --prefix services/msm-trigger run ops -- enable-cron
 停止（既存のGitHub scheduleはそのまま）:
 
 ```sh
-gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/AutoNavLog --body false
+gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/NavMate --body false
 npm --prefix services/msm-trigger run ops -- stop
 ```
 
@@ -211,7 +211,7 @@ Actionsのcanonical検証と実公開後の検証を証拠とする。KVは厳�
 
 | 対象 | 最小権限と制約 |
 | --- | --- |
-| Workerの `GITHUB_TOKEN` | fine-grained PATをYuto-24/AutoNavLogだけに限定、Actions:writeと必須Metadata:read。期限あり。workflow単体への権限限定ではない。他workflow起動・Actions操作も可能な権限であることを承認する |
+| Workerの `GITHUB_TOKEN` | fine-grained PATをYuto-24/NavMateだけに限定、Actions:writeと必須Metadata:read。期限あり。workflow単体への権限限定ではない。他workflow起動・Actions操作も可能な権限であることを承認する |
 | Cloudflare管理CLI | 既存account限定のWorkers Scripts:Edit、Workers KV Storage:Edit（inventory/作成）と必要なAccount Settings:Read。アカウント条件によりAPI適合を確認。Worker runtimeには渡さない |
 | 既存Pages token | GitHubの既存公開environmentのみ。Workerへ渡さず、新規発行しない |
 | `HEARTBEAT_URL` | 任意、Healthchecks ping URLそのものをSecret。閲覧URLやtokenをlogへ出さない。別サービス登録の承認が必要 |

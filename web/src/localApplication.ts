@@ -78,6 +78,18 @@ export class LocalApplication implements AutoNavLogApplication {
     return state;
   }
   private async persist(state: WebState, name?: string): Promise<WebState> {
+    const project = state.workingRecovery?.project;
+    const savingAutomaticName = name !== undefined && (name.trim().slice(0, 60) || "route") === project?.name;
+    if (project?.metadata.project_name_auto === true
+      && project.metadata.project_name_generated === project.name
+      && (name === undefined || savingAutomaticName)) {
+      const { projects } = await this.repository.list();
+      const names = projects.filter(item => item.id !== project.id && item.kind === "SAVED").map(item => item.name);
+      if (names.includes(project.name)) {
+        state = await this.request<WebState>("resolveProjectName", { existing_names: names });
+        if (savingAutomaticName) name = state.workingRecovery!.project!.name;
+      }
+    }
     const working = state.workingRecovery;
     if (!working?.project) {
       if (name !== undefined) throw new ApplicationError("保存するプロジェクトがありません。", "PROJECT_REQUIRED");
@@ -93,7 +105,7 @@ export class LocalApplication implements AutoNavLogApplication {
       draft.updated_at = updatedAt;
       draft.name = name.trim().slice(0, 60) || "route";
       draft.revision += 1;
-      draft.metadata.project_name_auto = false;
+      if (draft.name !== working.project.name) draft.metadata.project_name_auto = false;
     }
     const record: LocalProjectRecord = {
       schemaVersion: 2, id: draft.id, token: crypto.randomUUID(),

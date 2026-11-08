@@ -23,7 +23,3 @@ export async function confirmImportedDraft(page: Page) {
   await page.getByRole("button", { name: "経路を確定", exact: true }).click();
   await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
 }
-
-// Imported Draft names are generated; retain every other Golden output field.
-export const importedMapNames = (value: unknown) => JSON.parse(JSON.stringify(value)
-  .replaceAll("米ノ津", "WP1").replaceAll("玉名", "WP2").replaceAll("大牟田", "WP3"));

@@ -37,7 +37,7 @@ target but is excluded from the #122 physical acceptance gate because no physica
 test device is available. Android Chrome tablet is also excluded from the #122
 physical acceptance gate. Record device/OS/browser versions when available. Use the same known KML and FTD inputs as the browser
 test; this avoids a fresh MSM dependency. Download
-[`issue_43_golden.kml`](https://github.com/Yuto-24/AutoNavLog/raw/refs/heads/main/tests/fixtures/issue_43_golden.kml)
+[`issue_43_golden.kml`](https://github.com/Yuto-24/NavMate/raw/refs/heads/main/tests/fixtures/issue_43_golden.kml)
 to each device. Use DATE `2026-09-11`, FTD, ground wind `360/15`, 5,000 ft wind
 `270/30`, and RJFM / 米ノ津 / 玉名 departure altitudes `6500/7500/6500` ft.
 The core sequence is: import KML,

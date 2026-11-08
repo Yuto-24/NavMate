@@ -14,8 +14,8 @@ RECEIPT = {
     "status": "DISPATCH_ACCEPTED",
     "request_id": REQUEST,
     "workflow_run_id": RUN_ID,
-    "run_url": f"https://api.github.com/repos/Yuto-24/AutoNavLog/actions/runs/{RUN_ID}",
-    "html_url": f"https://github.com/Yuto-24/AutoNavLog/actions/runs/{RUN_ID}",
+    "run_url": f"https://api.github.com/repos/Yuto-24/NavMate/actions/runs/{RUN_ID}",
+    "html_url": f"https://github.com/Yuto-24/NavMate/actions/runs/{RUN_ID}",
     "publication": "NOT_VERIFIED",
 }
 TICK = {
@@ -90,6 +90,8 @@ def test_another_run_or_rerun_is_never_accepted(field, value):
         ("request_id", "private"),
         ("html_url", "https://private.invalid"),
         ("publication", "VERIFIED"),
+        ("run_url", f"https://api.github.com/repos/Yuto-24/AutoNavLog/actions/runs/{RUN_ID}"),
+        ("html_url", f"https://github.com/Yuto-24/AutoNavLog/actions/runs/{RUN_ID}"),
     ],
 )
 def test_invalid_receipts_fail_without_echoing_the_response(field, value):
