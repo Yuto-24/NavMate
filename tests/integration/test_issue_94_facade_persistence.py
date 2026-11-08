@@ -546,7 +546,7 @@ def test_forecast_identity_metadata_and_warning_outcome_are_persisted(
         (date(2026, 8, 10), "10:00"),
     ],
 )
-def test_saved_forecast_pin_is_invalidated_for_changed_departure_datetime(
+def test_saved_forecast_pin_survives_changed_departure_datetime(
     tmp_path: Path,
     flight_date: date,
     departure_time_jst: str,
@@ -573,17 +573,16 @@ def test_saved_forecast_pin_is_invalidated_for_changed_departure_datetime(
         }
     )
     updated = application.update_project(session, request)
-    assert updated["project"]["selected_forecast_run_id"] is None
+    assert updated["project"]["selected_forecast_run_id"] == historical_run_id
 
-    calculated = application.calculate(session)
-    assert calculated["outcome"]["selected_forecast_run_id"] == provider.fresh_run_id
-    assert calculated["project"]["selected_forecast_run_id"] == provider.fresh_run_id
-    prepared_requirement = provider.prepared[provider.fresh_run_id]
-    assert provider.inspect_run_status(
-        provider.fresh_run_id,
-        prepared_requirement,
-    ).selected_run_covers_requirement
-    assert not any(item["severity"] == "BLOCKER" for item in calculated["outcome"]["issues"])
+    # Changed inputs preserve the fixed Run; a failed calculation is not a refresh baseline.
+    for _ in range(2):
+        calculated = application.calculate(session)
+        assert calculated["project"]["selected_forecast_run_id"] == historical_run_id
+        assert "FORECAST_RUN_OUT_OF_COVERAGE" in [
+            issue["code"] for issue in calculated["outcome"]["issues"]
+        ]
+        assert not calculated["outcome"]["sections"]
 
 
 def test_saved_forecast_pin_is_retained_when_departure_datetime_is_unchanged(

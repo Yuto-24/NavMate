@@ -30,6 +30,7 @@ def release_line(ref: str, version: str) -> tuple[str, str]:
     lines = {
         "refs/heads/main": (2, "NavMate", "true"),
         "refs/heads/release/1.x": (1, "AutoNavLog", "false"),
+        "refs/heads/release/2.x": (2, "NavMate", "true"),
     }
     if ref not in lines:
         raise ValueError(f"unsupported release ref: {ref}")

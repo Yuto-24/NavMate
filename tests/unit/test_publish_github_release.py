@@ -18,6 +18,7 @@ import publish_github_release as publisher  # noqa: E402
     [
         ("refs/heads/main", "2.1.0", ("NavMate", "true")),
         ("refs/heads/release/1.x", "1.23.0", ("AutoNavLog", "false")),
+        ("refs/heads/release/2.x", "2.2.1", ("NavMate", "true")),
     ],
 )
 def test_release_line(ref, version, expected):
@@ -30,6 +31,8 @@ def test_release_line(ref, version, expected):
         ("refs/heads/main", "1.23.0"),
         ("refs/heads/main", "3.0.0"),
         ("refs/heads/release/1.x", "2.0.0"),
+        ("refs/heads/release/2.x", "1.23.0"),
+        ("refs/heads/release/2.x", "3.0.0"),
         ("refs/heads/dev", "2.0.0"),
         ("refs/tags/v2.0.0", "2.0.0"),
         ("refs/heads/main", "2.0.0-rc.1"),

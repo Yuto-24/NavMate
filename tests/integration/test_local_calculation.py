@@ -864,6 +864,25 @@ def test_blocker_during_mode_transition_keeps_previous_mode_and_result(
     assert current["outcome"] == previous["outcome"]
 
 
+def _portable_calculation(application, feed, catalog, options=None):
+    application.begin_weather()
+    for _ in range(20):
+        result = json.loads(application.dispatch_response("calculate", options))
+        if "weather_request" not in result:
+            return result
+        request = result["weather_request"]
+        assert request["model"] == "MSM"
+        if request["kind"] == "catalog":
+            assert application.weather_catalog("MSM", json.dumps(catalog)) == "{}"
+        else:
+            asset = request["asset"]
+            assert application.accept_weather(
+                "MSM", (feed / asset["file"]).read_bytes(), asset["sha256"]
+            ) == "{}"
+    pytest.fail("portable calculation did not converge")
+
+
+
 def test_unprepared_weather_preflight_keeps_last_good_stale():
     from datetime import UTC, datetime, timedelta
 
@@ -882,10 +901,7 @@ def test_unprepared_weather_preflight_keeps_last_good_stale():
         now = datetime.now(UTC)
         catalog.update(generated_at=now.isoformat(),
                        expires_at=(now + timedelta(hours=1)).isoformat())
-        asset = json.loads(application.weather_plan(json.dumps(catalog)))
-        assert "error" not in asset
-        result = json.loads(application.accept_weather(
-            (fixture / asset["file"]).read_bytes(), asset["sha256"]))
+        result = _portable_calculation(application, fixture, catalog)
         assert result["error"]["code"] == "WEATHER_PREPARED_UNAVAILABLE"
         after = json.loads(application.dispatch("bootstrap"))
         assert not after["readiness"]["calculationIsCurrent"]
@@ -894,3 +910,165 @@ def test_unprepared_weather_preflight_keeps_last_good_stale():
             assert after["outcome"][key] == before["outcome"][key]
     finally:
         application.close()
+
+
+
+def _pin_old_forecast(local):
+    calculate(local, forecast=True)
+    local.session.project.selected_forecast_run_id = "20260912000000"
+    local.session.last_calculation = None
+    return json.loads(local.dispatch("calculate"))
+
+
+
+def _assert_forecast_snapshot(state, run):
+    assert state["project"]["selected_forecast_run_id"] == run
+    assert state["outcome"]["selected_forecast_run_id"] == run
+    last = state["workingRecovery"]["last_calculation"]
+    assert last["project"]["selected_forecast_run_id"] == run
+    assert last["outcome"]["selected_forecast_run_id"] == run
+    assert last["forecast_metadata"]["forecast_run_id"] == run
+    assert state["readiness"]["calculationIsCurrent"]
+    return last
+
+
+
+def test_unchanged_success_refreshes_once_including_after_restore(local):
+    first = _pin_old_forecast(local)
+    _assert_forecast_snapshot(first, "20260912000000")
+    assert "FORECAST_UPDATE_AVAILABLE" in {issue["code"] for issue in first["outcome"]["issues"]}
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
+
+    refreshed = json.loads(local.dispatch("calculate"))
+    _assert_forecast_snapshot(refreshed, "20260912030000")
+    assert "FORECAST_UPDATE_AVAILABLE" not in {
+        issue["code"] for issue in refreshed["outcome"]["issues"]
+    }
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
+
+    # Recovery never calculates. The next explicit unchanged action may refresh.
+    restored = json.loads(local.dispatch("bootstrap", first["workingRecovery"]))
+    _assert_forecast_snapshot(restored, "20260912000000")
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
+    _assert_forecast_snapshot(json.loads(local.dispatch("calculate")), "20260912030000")
+
+
+
+@pytest.mark.parametrize("edit_back", [False, True])
+def test_forecast_change_compares_with_last_success_including_edit_back(local, edit_back):
+    _pin_old_forecast(local)
+    original = local.session.project.sections[0].planned_altitude_ft_msl
+    section = local.session.project.sections[0]
+    for altitude in ([6000, original] if edit_back else [6000]):
+        local.dispatch("updateProject", {
+            "flight_date": "2026-09-12",
+            "departure_time_jst": "12:00",
+            "weather_mode": "FORECAST",
+            "ftd_weather": local.session.project.ftd_weather.model_dump(mode="json"),
+            "total_usable_fuel_gal": 90,
+            "default_variation_deg_east": local.session.project.default_variation_deg_east,
+            "sections": [{
+                "section_id": str(section.id),
+                "phase": section.phase.value,
+                "planned_altitude_ft_msl": altitude,
+            }],
+        })
+    assert local.app.forecast_refresh_requested(local.session, local.session.project) is edit_back
+    state = json.loads(local.dispatch("calculate"))
+    assert state["outcome"]["selected_forecast_run_id"] == (
+        "20260912030000" if edit_back else "20260912000000"
+    )
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
+    state = json.loads(local.dispatch("calculate"))
+    assert state["outcome"]["selected_forecast_run_id"] == "20260912030000"
+
+
+
+@pytest.mark.parametrize("failure", ["coverage", "acquisition", "processing"])
+def test_forecast_refresh_failure_retains_last_good_and_never_reports_success(
+    local, monkeypatch, failure
+):
+    first = _pin_old_forecast(local)
+    last = first["workingRecovery"]["last_calculation"]
+    provider = local.session.weather_provider
+    if failure == "processing":
+        target = "query_batch"
+    elif failure == "coverage":
+        target = "resolve_run"
+    else:
+        target = "prepare_run"
+
+    def fail(*args, **kwargs):
+        raise ValueError(f"refresh {failure} failed")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(provider, target, fail)
+        failed = json.loads(local.dispatch("calculate"))
+    assert any(issue["severity"] == "BLOCKER" for issue in failed["outcome"]["issues"])
+    assert failed["workingRecovery"]["last_calculation"] == last
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
+
+
+
+def test_ftd_never_requests_forecast_refresh(local):
+    baseline = calculate(local)
+    recalculated = json.loads(local.dispatch("calculate"))
+    assert recalculated["outcome"]["summary"] == baseline["outcome"]["summary"]
+    assert not local.app.forecast_refresh_requested(local.session, local.session.project)
+
+
+
+@pytest.mark.parametrize("invalid_plan", [
+    {"visual_reporting_point_node_id": "not-a-uuid"},
+    "not-a-plan",
+    {"visual_reporting_point_node_id": object()},
+    {"visual_reporting_point_node_id": float("nan")},
+])
+def test_invalid_planning_cannot_request_refresh_and_preserves_state_error(
+    local, invalid_plan,
+):
+    _pin_old_forecast(local)
+    assert local.app.forecast_refresh_requested(local.session, local.session.project)
+    local.session.project.metadata["ui_state"]["arrival_plan"] = invalid_plan
+    with pytest.raises(ValueError, match="PROJECT_STATE_INVALID"):
+        local.app.present(local.session)
+    assert not local.app.forecast_refresh_requested(local.session, local.session.project)
+    assert local.session.project.metadata["ui_state"]["arrival_plan"] is invalid_plan
+
+
+
+@pytest.mark.parametrize("first_mode", [False, True])
+def test_forecast_rounding_change_keeps_run_then_unchanged_action_refreshes(local, first_mode):
+    _pin_old_forecast(local)
+    if first_mode:
+        local.dispatch("calculate", {"rounding_mode": True})
+    switched = json.loads(local.dispatch("calculate", {"rounding_mode": not first_mode}))
+    _assert_forecast_snapshot(switched, "20260912000000")
+    assert "FORECAST_UPDATE_AVAILABLE" in {issue["code"] for issue in switched["outcome"]["issues"]}
+    refreshed = json.loads(local.dispatch("calculate", {"rounding_mode": not first_mode}))
+    _assert_forecast_snapshot(refreshed, "20260912030000")
+
+
+
+def test_portable_rounding_change_preflight_and_calculation_keep_the_same_pin():
+    from datetime import UTC, datetime, timedelta
+
+    from scripts.local_reference import reference_state
+
+    feed = ROOT / "tests/fixtures/msm-portable"
+    initial = reference_state(feed=str(feed), pinned=True)
+    catalog = json.loads((feed / "catalog.json").read_text())
+    now = datetime.now(UTC)
+    catalog.update(generated_at=now.isoformat(), expires_at=(now + timedelta(hours=1)).isoformat())
+    local = LocalApplication(ROOT / "data")
+    try:
+        local.dispatch("bootstrap", initial["workingRecovery"])
+        for mode, expected in [
+            (True, "20260915180000"), (True, "20260915210000"),
+        ]:
+            options = {"rounding_mode": mode}
+            state = _portable_calculation(local, feed, catalog, options)
+            _assert_forecast_snapshot(state, expected)
+            assert state["roundingMode"] is mode
+    finally:
+        local.close()

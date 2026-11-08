@@ -13,6 +13,7 @@ const reference = (pinned = false) => JSON.parse(execFileSync(
   [resolve("../scripts/local_reference.py"), "--feed", fixture, ...(pinned ? ["--pinned"] : [])],
   { encoding: "utf8" },
 ));
+const calculationState = (page: Page) => page.evaluate(() => (window as any).weatherCalculations.at(-1));
 const state = (page: Page) => page.evaluate(() => (window as any).weatherStates.at(-1));
 const record = (page: Page) => page.evaluate(() => new Promise<any>((resolve, reject) => {
   const opening = indexedDB.open("autonavlog.projects");
@@ -40,10 +41,11 @@ async function setup(page: Page) {
   }
 }
 async function calculate(page: Page) {
-  const previous = await page.evaluate(() => (window as any).weatherStates.length);
+  const previous = await page.evaluate(() => (window as any).weatherCalculations.length);
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-  await page.waitForFunction(count => (window as any).weatherStates.length > count, previous);
-  await expect.poll(async () => (await state(page))?.readiness?.calculationIsCurrent).toBe(true);
+  await page.waitForFunction(count => (window as any).weatherCalculations.length > count, previous);
+  await expect(page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ })).toBeEnabled();
+  await expect.poll(async () => (await calculationState(page))?.readiness?.calculationIsCurrent).toBe(true);
   await expect(page.locator(".nav-log-table")).toBeVisible();
 }
 
@@ -64,14 +66,22 @@ test.beforeEach(async ({ page, context }) => {
   }));
   await page.addInitScript(() => {
     (window as any).weatherStates = [];
+    (window as any).weatherCalculations = [];
     const Original = window.Worker;
     window.Worker = class extends Original {
+      calculationIds = new Set<string>();
+      postMessage(message: any, transfer?: any) {
+        if (message?.type === "APPLY" && message.argumentList?.[0]?.value === "calculate")
+          this.calculationIds.add(message.id);
+        super.postMessage(message, transfer);
+      }
       constructor(url: string | URL, options?: WorkerOptions) {
         super(url, options);
         this.addEventListener("message", event => {
           if (typeof event.data.value === "string") {
             try { const parsed = JSON.parse(event.data.value);
               if (parsed.workingRecovery || parsed.error) (window as any).weatherStates.push(parsed);
+              if (this.calculationIds.delete(event.data.id)) (window as any).weatherCalculations.push(parsed);
             } catch { /* other RPC result */ }
           }
         });
@@ -84,26 +94,24 @@ test("portable real MSM: cold, warm after reload, Python reference and saved NAV
   const downloads: string[] = [];
   context.on("request", r => { if (r.url().includes("/weather/msm/")) downloads.push(r.url()); });
   await setup(page); await calculate(page);
-  compare(calculationCoreGolden(await state(page)), calculationCoreGolden(reference()));
-  expect((await state(page)).outcome.selected_forecast_run_id).toBe("20260915210000");
+  compare(calculationCoreGolden(await calculationState(page)), calculationCoreGolden(reference()));
+  expect((await calculationState(page)).outcome.selected_forecast_run_id).toBe("20260915210000");
   expect(downloads.filter(url => url.endsWith(".npz"))).toHaveLength(1);
   const before = (await record(page)).lastCalculation;
   await page.reload();
   await expect(page.locator(".nav-log-table")).toBeVisible();
   await calculate(page);
   expect(downloads.filter(url => url.endsWith(".npz"))).toHaveLength(1);
-  expect(downloads.filter(url => url.endsWith("catalog.json"))).toHaveLength(1);
+  expect(downloads.filter(url => url.endsWith("catalog.json"))).toHaveLength(2);
   await page.evaluate(async () => { for (const key of await caches.keys())
     if (key.startsWith("autonavlog.weather.")) await caches.delete(key); });
   await page.reload();
   await expect(page.locator(".nav-log-table")).toBeVisible();
   expect((await record(page)).lastCalculation.outcome.summary).toEqual(before.outcome.summary);
+
 });
 
-test("saved Run stays fixed while a newer Run is available", async ({ page }) => {
-  const native = reference(true);
-  const recovery = native.workingRecovery;
-  for (const project of [recovery.project, recovery.last_calculation.project]) delete project.metadata.web_owner_id;
+async function openSaved(page: Page, recovery: any) {
   await page.goto("/");
   await enterImportWorkflow(page);
   await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
@@ -125,11 +133,47 @@ test("saved Run stays fixed while a newer Run is available", async ({ page }) =>
   await page.getByLabel("保存済み", { exact: true }).selectOption(recovery.project.id);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
+}
+
+for (const switchRounding of [false, true]) {
+test(`saved Run refreshes once when unchanged and stays fixed after input changes${switchRounding ? " after rounding change" : ""}`, async ({ page }) => {
+  const native = reference(true);
+  const recovery = native.workingRecovery;
+  for (const project of [recovery.project, recovery.last_calculation.project]) delete project.metadata.web_owner_id;
+  await openSaved(page, recovery);
+  if (switchRounding) {
+    const mode = page.getByRole("radio", { name: "四捨五入", exact: true });
+    await mode.click();
+    await expect(mode).toBeChecked();
+    await expect(mode).toBeEnabled();
+    expect((await state(page)).roundingMode).toBe(true);
+    expect((await state(page)).outcome.selected_forecast_run_id).toBe("20260915180000");
+    expect((await state(page)).outcome.issues.map((i: any) => i.code)).toContain("FORECAST_UPDATE_AVAILABLE");
+  }
+  await page.getByLabel("プロジェクト", { exact: true }).fill("Forecast refresh");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect.poll(async () => (await record(page)).checkpoint?.name).toBe("Forecast refresh");
   await calculate(page);
-  expect((await state(page)).outcome.selected_forecast_run_id).toBe("20260915180000");
-  expect((await state(page)).outcome.issues.map((i: any) => i.code)).toContain("FORECAST_UPDATE_AVAILABLE");
-  compare(calculationCoreGolden(await state(page)), calculationCoreGolden(native));
+  const refreshed = await state(page);
+  expect(refreshed.project.selected_forecast_run_id).toBe("20260915210000");
+  expect(refreshed.outcome.selected_forecast_run_id).toBe("20260915210000");
+  expect(refreshed.outcome.issues.map((i: any) => i.code)).not.toContain("FORECAST_UPDATE_AVAILABLE");
+  await expect.poll(async () => (await record(page)).lastCalculation.forecast_metadata.forecast_run_id)
+    .toBe("20260915210000");
+  const saved = (await record(page)).lastCalculation;
+  expect(saved.project.selected_forecast_run_id).toBe("20260915210000");
+  expect(saved.outcome.selected_forecast_run_id).toBe("20260915210000");
+  await page.reload();
+  if (switchRounding) {
+    await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
+    await expect(page.locator(".nav-log-table")).toHaveCount(0);
+    expect((await state(page)).roundingMode).toBe(false);
+  } else {
+    await expect(page.locator(".nav-log-table")).toBeVisible();
+  }
+  expect((await record(page)).lastCalculation).toEqual(saved);
 });
+}
 
 test("Project quota retry releases the actual Weather cache and keeps Last Calculation", async ({ page }) => {
   await setup(page); await calculate(page);
@@ -150,7 +194,7 @@ test("Project quota retry releases the actual Weather cache and keeps Last Calcu
   expect((await record(page)).lastCalculation).toEqual(before.lastCalculation);
 });
 
-for (const failure of ["listing", "communication", "missing", "integrity", "decode", "expired"] as const) {
+for (const failure of ["listing", "communication", "missing", "integrity", "decode"] as const) {
   test(`failure ${failure} is explicit and never selects Legacy`, async ({ page, context }) => {
     if (failure === "listing") await context.route("**/weather/msm/catalog.json", route => route.fulfill({ status: 503, body: "" }));
     if (failure === "communication") await context.route("**/weather/msm/catalog.json", route => route.abort());
@@ -167,15 +211,12 @@ for (const failure of ["listing", "communication", "missing", "integrity", "deco
         }),
       }));
     }
-    if (failure === "expired") await context.route("**/weather/msm/catalog.json", route => route.fulfill({
-      body: JSON.stringify({ ...frozen, generated_at: "2026-01-01T00:00:00Z", expires_at: "2026-01-01T01:00:00Z" }),
-    }));
     await setup(page);
     const before = await record(page);
     await page.getByRole("button", { name: "NAV LOGを作る", exact: true }).click();
     const code = { listing: "WEATHER_DISCOVERY_FAILED", communication: "WEATHER_COMMUNICATION_FAILED",
       missing: "WEATHER_SOURCE_UNAVAILABLE", integrity: "WEATHER_PAYLOAD_INTEGRITY_FAILED",
-      decode: "WEATHER_PAYLOAD_INTEGRITY_FAILED", expired: "WEATHER_CATALOG_EXPIRED" }[failure];
+      decode: "WEATHER_PAYLOAD_INTEGRITY_FAILED" }[failure];
     await expect.poll(async () => (await state(page))?.error?.code).toBe(code);
     const after = await record(page);
     expect(after.draft.id).toBe(before.draft.id);
@@ -183,3 +224,82 @@ for (const failure of ["listing", "communication", "missing", "integrity", "deco
     expect((await record(page)).lastCalculation).toBeNull();
   });
 }
+
+test("expired MSM continues locally with cached data and a missing new Run", async ({ page, context }) => {
+  await context.route("**/weather/msm/catalog.json", route => route.fulfill({
+    contentType: "application/json", body: JSON.stringify({ ...frozen,
+      generated_at: "2026-09-16T00:00:00Z", expires_at: "2026-09-16T06:00:00Z",
+      assets: frozen.assets.slice(1),
+    }),
+  }));
+  await setup(page);
+  await calculate(page);
+  expect((await calculationState(page)).outcome.selected_forecast_run_id).toBe("20260915180000");
+  expect((await record(page)).lastCalculation.forecast_metadata.latest_complete_msm_run_id).toBeNull();
+  await context.route("**/weather/msm/catalog.json", route => route.abort());
+  await context.route("**/weather/msm/*.npz", route => route.abort());
+  await page.reload();
+  await expect(page.locator(".nav-log-table")).toBeVisible();
+  await calculate(page);
+  expect((await calculationState(page)).outcome.selected_forecast_run_id).toBe("20260915180000");
+  await context.route("**/weather/msm/catalog.json", route => route.fulfill({
+    contentType: "application/json", body: JSON.stringify({ ...frozen,
+      generated_at: new Date(Date.now() - 1000).toISOString(),
+      expires_at: new Date(Date.now() + 3600000).toISOString(), assets: frozen.assets.slice(0, 1),
+    }),
+  }));
+  await context.route("**/weather/msm/*.npz", route => route.fulfill({ status: 404, body: "" }));
+  await calculate(page);
+  const result = await calculationState(page);
+  expect(result.outcome.selected_forecast_run_id).toBe("20260915180000");
+  expect(result.outcome.issues.map((issue: any) => issue.code)).not.toContain("FORECAST_BACKUP_USED");
+  expect(result.outcome.issues.map((issue: any) => issue.code)).not.toContain("FORECAST_STALE_RUN");
+  expect((await record(page)).lastCalculation.forecast_metadata.forecast_run_id).toBe("20260915180000");
+});
+
+test("saved MSM Advisory stays beside fuel and preserves workflow at 1100 and 1440px", async ({ page }) => {
+  const recovery = reference(true).workingRecovery;
+  // Rendering fixture only; Python tests establish the comparison and persistence contract.
+  const issue = {
+    code: "FORECAST_STALE_RUN", severity: "WARNING", acknowledgement_required: false,
+    message: "使用Run 20260915180000 は、計算時の最新Run 20260916030000 より9時間以上前のデータです。計算は継続されます。",
+    metadata: { selected_run_id: "20260915180000", latest_complete_msm_run_id: "20260916030000",
+      checked_at: "2026-09-16T06:00:00Z", run_steps_behind: 3 },
+  };
+  recovery.outcome.issues.push(issue);
+  recovery.last_calculation.outcome.issues.push(issue);
+  for (const project of [recovery.project, recovery.last_calculation.project]) delete project.metadata.web_owner_id;
+  await openSaved(page, recovery);
+  for (const width of [1100, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const advisory = page.locator(".forecast-advisory");
+    await expect(advisory).toContainText(issue.message);
+    await expect(page.locator(".issue-advisory")).toContainText(issue.message);
+    const positions = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const element = document.querySelector(selector)!;
+        const rect = element.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom,
+          color: getComputedStyle(element).color };
+      };
+      return { fuel: box(".fuel-plan-table"), advisory: box(".forecast-advisory"),
+        warning: box(".issue-advisory"), normal: getComputedStyle(document.body).color,
+        input: box(".input-rail"), route: box(".route-workspace"), readiness: box(".status-rail"),
+        navlog: box(".nav-log-section") };
+    });
+    expect(positions.advisory.x).toBeGreaterThanOrEqual(positions.fuel.right);
+    expect(positions.advisory.color).toBe(positions.normal);
+    expect(positions.warning.color).toBe(positions.normal);
+    if (width <= 1240) {
+      expect(positions.route.y).toBeGreaterThanOrEqual(positions.input.bottom);
+      expect(positions.readiness.y).toBeGreaterThanOrEqual(positions.route.bottom);
+    } else {
+      expect(positions.route.x).toBeGreaterThanOrEqual(positions.input.right);
+      expect(positions.readiness.x).toBeGreaterThanOrEqual(positions.route.right);
+    }
+    expect(positions.navlog.y).toBeGreaterThanOrEqual(positions.readiness.bottom);
+  }
+  await page.reload();
+  await expect(page.locator(".forecast-advisory")).toContainText(issue.message);
+  expect((await record(page)).lastCalculation.outcome.issues).toContainEqual(expect.objectContaining(issue));
+});

@@ -467,6 +467,7 @@ export interface NavLogSummary {
 }
 
 export interface CalculationOutcome {
+  issues: { code: string; message: string; metadata: Record<string, unknown> }[];
   selected_forecast_run_id: string | null;
   sections: SectionResult[];
   display_rows: NavLogDisplayRow[];

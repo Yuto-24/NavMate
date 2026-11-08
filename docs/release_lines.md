@@ -4,10 +4,30 @@
 | --- | --- | --- | --- |
 | `main` | 2 | `NavMate X.Y.Z` | yes |
 | `release/1.x` | 1 | `AutoNavLog X.Y.Z` | never |
+| `release/2.x` | 2 | `NavMate X.Y.Z` | yes |
+
+`release/2.x` is based on the confirmed production `v2.2.0` commit
+`2d344ce45a8a1a0ab25c659247afd4aef853977c`. Use it for reviewed fixes that must
+ship before unrelated main changes. Backport only the requested fix and necessary
+dependencies; preserve production data contracts unless their migration is separately
+reviewed. Do not create a maintenance line from an unreleased main snapshot.
+
+Both v2 branches share version numbers and immutable tags. Before a release-preparation
+PR, choose an unused version newer than canonical production. The publisher and app
+bridge retain their existing serialization, collision and monotonic version checks.
+Prepare the release on its actual source branch; merging a feature/fix with unchanged
+VERSION does not publish the app. Install the release publisher and CI branch support
+on the maintenance branch before its first version bump.
+
+Trusted publication tooling remains on main. For v2 candidates it freshly fetches
+main and accepts a main ancestor; otherwise it freshly fetches and requires ancestry
+in `release/2.x`. A feature branch alone never establishes publication eligibility.
+Fetch errors stop the operation. No new credential, environment permission, schema
+exception or production setting is part of this branch support.
 
 ## Ordinary development and explicit releases
 
-Ordinary feature/fix PRs use `Release: not-required` and a `Reason:` line on either
+Ordinary feature/fix PRs use `Release: not-required` and a `Reason:` line on each supported
 branch. Keep `VERSION` and `CHANGELOG.md` unchanged, including published notes.
 Collect pending user-visible changes in the PR body's `## Pending release notes` section.
 CI requires visible notes or an explicit `None`; HTML-comment placeholders do not count.
@@ -20,10 +40,10 @@ separation; a feature/fix does not itself require an immediate GitHub Release.
 
 `publish-github-release.yml` runs only for pushes changing `VERSION`, validates `VERSION` and `CHANGELOG.md`, then publishes
 only the matching line. Tags retain the shared historical `vX.Y.Z` format. Release
-notes contain only the matching CHANGELOG section. CI runs on pushes to both lines;
+notes contain only the matching CHANGELOG section. CI runs on pushes to all release branches;
 PR checks remain enabled for every target branch.
 
-Publication is serialized across both lines with `queue: max` (up to 100 pending
+Publication is serialized across all release branches with `queue: max` (up to 100 pending
 runs), rather than replacing the sole pending run on a new push. Inspect and rerun
 any run cancelled because the queue is full. Existing tags are never moved or
 deleted. An existing tag must resolve (including annotated tags) to an ancestor of
