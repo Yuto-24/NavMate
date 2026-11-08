@@ -13,8 +13,8 @@ export async function startApplication(platform: PlatformCapabilities, present: 
     return;
   }
   if (devSharedMode) {
-    const { createDevSharedApplication } = await import("./devSharedApplication");
-    present(createDevSharedApplication(platform));
+    const { startDevSharedApplication } = await import("./devSharedApplication");
+    await startDevSharedApplication(platform, present);
     return;
   }
   const { observeAccountContexts } = await import("./accountContext");
