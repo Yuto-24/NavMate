@@ -149,6 +149,8 @@ class _MsmProvider(MsmWeatherProvider):
     def check_run(self, run: str, requirement: ForecastRequirement) -> None:
         # Preparation alone does not validate requested forecast values. Keep the
         # other catalog snapshots eligible until the complete check succeeds.
+        # An earlier requirement cannot establish current-feed coverage for this one.
+        self.client.current_runs.discard(run)
         while True:
             try:
                 super().check_run(run, requirement)

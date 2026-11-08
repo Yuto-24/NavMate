@@ -1,5 +1,6 @@
 """Issue #356: usable Local data precedes backup, with explicit refresh boundaries."""
 
+import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 
@@ -125,6 +126,42 @@ def test_value_failure_tries_healthy_cached_payload_of_same_run(local, changed_i
     assert state["outcome"]["selected_forecast_run_id"] == "20260915210000"
     assert requested == ["20260915210000", "20260915210000"]
     assert not local.local_weather.clients["GSM"].catalog
+
+
+def test_final_requirement_does_not_keep_confirmation_from_an_incomplete_current_asset():
+    from jma_gpv_weather import MsmPreparedData
+
+    from autonavlog.domain.weather import ForecastRequirement
+    from autonavlog.weather.local_forecast import LocalForecastWeather
+
+    server = json.loads(catalog_text())
+    cached = json.loads(catalog_text())
+    cached["generated_at"] = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+    asset = cached["assets"][0]
+    full_payload = (FEED / asset["file"]).read_bytes()
+    data = MsmPreparedData.from_bytes(full_payload)
+    partial_payload = MsmPreparedData(
+        data.selection, {}, data.pressure, data.source_hashes,
+    ).to_bytes()
+    digest = hashlib.sha256(partial_payload).hexdigest()
+    server["assets"] = [
+        dict(asset, file=f"{digest}.npz", sha256=digest, bytes=len(partial_payload)),
+    ]
+    cached["assets"] = [asset]
+    weather = LocalForecastWeather()
+    weather.catalog("MSM", json.dumps(server))
+    weather.catalog("MSM", json.dumps(cached), current=False)
+    weather.accept("MSM", partial_payload, digest)
+    weather.accept("MSM", full_payload, asset["sha256"])
+    provider = weather.provider.models["MSM"]
+    initial = ForecastRequirement(valid_times_utc=(datetime(2026, 9, 16, 4, 30, tzinfo=UTC),))
+    provider.check_run(asset["run"], initial)
+    assert provider.latest_run_confirmed(asset["run"])
+
+    final = initial.model_copy(update={"require_surface_temperature": True})
+    provider.check_run(asset["run"], final)
+    assert weather.clients["MSM"].prepared_assets[asset["run"]] == asset["sha256"]
+    assert not provider.latest_run_confirmed(asset["run"])
 
 
 @pytest.mark.parametrize("hours,current,expected", [
