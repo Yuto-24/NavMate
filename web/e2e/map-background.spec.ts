@@ -34,12 +34,13 @@ for (const width of [1100, 1440]) {
     await page.getByRole("button", { name: "経路を確定", exact: true }).click();
     await expect(page.locator(".route-workspace.is-route-building")).toHaveCount(0);
     await expect(page.locator(".rjfm-pca-boundary")).toBeAttached();
-    const paths = await page.locator(".leaflet-overlay-pane path").count();
+    const paths = await page.locator(".leaflet-overlay-pane path").elementHandles();
     await page.getByLabel("背景地図").selectOption("map");
     await expect(tiles(page, "lndst")).toHaveCount(0);
     await expect(page.locator(".leaflet-control-attribution")).not.toContainText("GEBCO");
     await page.getByLabel("背景地図").selectOption("imagery");
-    expect(await page.locator(".leaflet-overlay-pane path").count()).toBe(paths);
+    // Airspace may finish loading during the switch; existing overlays must survive.
+    for (const path of paths) expect(await path.evaluate(element => element.isConnected)).toBe(true);
     const input = (await page.locator(".input-rail").boundingBox())!;
     const route = (await page.locator(".route-workspace").boundingBox())!;
     const readiness = (await page.locator(".status-rail").boundingBox())!;
