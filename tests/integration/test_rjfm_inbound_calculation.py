@@ -594,3 +594,25 @@ def test_roundtrip_keeps_both_exception_parents(airports, performance_repository
     assert (legs[1].start_node_id, legs[1].end_node_id) == (nodes[2].id, nodes[-2].id)
     assert legs[0].show_child_courses and legs[1].show_child_courses
     assert [identity for leg in legs for identity in leg.section_ids] == [s.id for s in sections]
+
+
+@pytest.mark.parametrize("adopted_altitude", [1500, 1700])
+def test_route_validation_checks_inbound_arrival_altitude(
+    airports: AirportRepository,
+    performance_repository: PerformanceRepository,
+    adopted_altitude: int,
+) -> None:
+    """Only a plan matching the current arrival permits repeated descent."""
+    project, refs = _inbound_project()
+    plan = apply_rjfm_inbound_exception(project, refs, adopted_vrep_altitude_ft_msl=1500)
+    assert plan is not None
+    state = load_persisted_ui_state(project.metadata["ui_state"]).model_copy(
+        update={
+            "rjfm_inbound_plan": plan.model_copy(
+                update={"adopted_vrep_altitude_ft_msl": adopted_altitude},
+            )
+        }
+    )
+    issues = _service(airports, performance_repository).route_validation_issues(project, state)
+    invalid_phase = [issue for issue in issues if issue.code == "FLIGHT_PHASE_SEQUENCE_INVALID"]
+    assert bool(invalid_phase) is (adopted_altitude != 1500)

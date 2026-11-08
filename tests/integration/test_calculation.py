@@ -2544,7 +2544,7 @@ def test_performance_hash_mismatch_fails_before_weather_access(
             calculation,
             msm_package_version=None,
         )
-        .evaluate(project, outcome)
+        .record_calculation(project, outcome)
         .evaluation
     )
     effective = [
