@@ -1,0 +1,15 @@
+# Compatible overlay for the existing v1.23.0 + calculation wait/UI fixes.
+# Build with the verified local base image; never use this to upgrade main.
+ARG LEGACY_BASE=autonavlog:v1.23.0-no-elapsed-d9e66e2
+FROM ${LEGACY_BASE}
+USER root
+COPY vendor/jma_gpv_weather-0.5.0+legacycache.1-py3-none-any.whl /tmp/jma_gpv_weather-0.5.0+legacycache.1-py3-none-any.whl
+RUN python -m pip install --no-deps --no-index /tmp/jma_gpv_weather-0.5.0+legacycache.1-py3-none-any.whl \
+    && rm /tmp/jma_gpv_weather-0.5.0+legacycache.1-py3-none-any.whl
+COPY src/autonavlog/weather/legacy_msm.py src/autonavlog/weather/prewarm.py /usr/local/lib/python3.12/site-packages/autonavlog/weather/
+COPY src/autonavlog/web/facade.py src/autonavlog/web/runtime.py /usr/local/lib/python3.12/site-packages/autonavlog/web/
+COPY src/autonavlog/weather/legacy_msm.py src/autonavlog/weather/prewarm.py /opt/autonavlog/src/autonavlog/weather/
+COPY src/autonavlog/web/facade.py src/autonavlog/web/runtime.py /opt/autonavlog/src/autonavlog/web/
+USER autonavlog
+ARG SOURCE_REVISION
+LABEL io.autonavlog.legacy-cache-revision=${SOURCE_REVISION}

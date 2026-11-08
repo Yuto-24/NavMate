@@ -63,6 +63,9 @@ class WeatherPrewarmer:
 
     def run_once(self) -> str:
         """Prepare one run covering the configured UTC horizon."""
+        begin_calculation = getattr(self._provider, "begin_calculation", None)
+        if begin_calculation is not None:
+            begin_calculation()
         now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
         hours = int(self._horizon.total_seconds() // 3600)
         requirement = ForecastRequirement(

@@ -756,3 +756,40 @@ def test_delete_failure_keeps_project_session_and_last_opened_marker(
     assert session.project.id == project_id
     assert application.project_service.last_opened_project(OWNER) == project_id
     assert application.project_service.load(project_id).id == project_id
+
+
+def test_cached_forecast_warning_persists_and_resets_on_next_action(tmp_path: Path) -> None:
+    class CachedProvider(FakeWeatherProvider):
+        begins = 0
+        use_cache = True
+        @property
+        def acquisition_metadata(self):
+            if self.use_cache:
+                return {"acquisition": "cached", "reason": "LISTING_REFRESH_FAILED"}
+            return {}
+        def begin_calculation(self):
+            self.begins += 1
+
+    application = _application(tmp_path)
+    application.development_weather = False
+    provider = CachedProvider()
+    application.weather_factory = lambda: provider
+    session, _ = _new_project(application, weather_mode="FORECAST")
+    application.calculate(session)
+    assert provider.begins == 1
+    assert len([i for i in session.outcome.issues if i.code == "FORECAST_CACHED_DATA"]) == 1
+    owner_key = application.project_service.owner_key(OWNER)
+    record = application.project_service.repository.load_last_calculation(
+        session.project.id, owner_key=owner_key,
+    )
+    assert record.forecast_metadata["reason"] == "LISTING_REFRESH_FAILED"
+    restored = application.create_session(OWNER)
+    assert any(i.code == "FORECAST_CACHED_DATA" for i in restored.outcome.issues)
+    provider.use_cache = False
+    application.calculate(session)
+    assert provider.begins == 2
+    assert not any(i.code == "FORECAST_CACHED_DATA" for i in session.outcome.issues)
+    record = application.project_service.repository.load_last_calculation(
+        session.project.id, owner_key=owner_key,
+    )
+    assert "acquisition" not in record.forecast_metadata

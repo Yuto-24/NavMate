@@ -23,7 +23,7 @@ from autonavlog.weather.destination_taf import (
     FakeDestinationWindProvider,
 )
 from autonavlog.weather.fake_provider import FakeWeatherProvider
-from autonavlog.weather.msm_adapter import MsmWeatherProvider
+from autonavlog.weather.legacy_msm import LegacyMsmWeatherProvider
 from autonavlog.weather.prewarm import WeatherPrewarmer
 from autonavlog.weather.provider import WeatherProvider
 
@@ -143,13 +143,11 @@ def _weather_factory(
         raise ValueError(f"unsupported weather mode: {config.weather_mode}")
 
     _prune_msm_cache(cache_dir)
-    shared_provider = MsmWeatherProvider(cache_dir=cache_dir)
+    def create_msm() -> WeatherProvider:
+        # Acquisition state belongs to one session; disk cache locks remain shared.
+        return LegacyMsmWeatherProvider(cache_dir=cache_dir)
 
-    def shared_msm() -> WeatherProvider:
-        """Return the process-wide provider with shared prepared runs."""
-        return shared_provider
-
-    return shared_msm, "MSM予報", False
+    return create_msm, "MSM予報", False
 
 
 def build_web_application(config: WebRuntimeConfig) -> AutoNavLogWebApplication:
