@@ -727,7 +727,17 @@ class Operator:
 
         major = version_tuple(self.git("show", f"{sha}:VERSION"))[0]
         require(major in (1, 2), "Unsupported release line")
-        return "release/1.x" if major == 1 else "main"
+        if major == 1:
+            return "release/1.x"
+        # A maintenance release may exclude unreleased changes on main. Only
+        # these two approved v2 branches are eligible; a feature branch is not.
+        # Fetch failure propagates rather than being mistaken for non-ancestry.
+        self.git("fetch", "origin", "+refs/heads/main:refs/remotes/origin/main")
+        main = "refs/remotes/origin/main"
+        contained = self.git("for-each-ref", "--format=%(refname)", f"--contains={sha}", main)
+        require(contained in ("", main), "Unexpected source branch result")
+        # Callers freshly fetch this exact branch and enforce ancestry again.
+        return "main" if contained == main else "release/2.x"
 
     def snapshot(self, sha: str, current: str, *, paused: bool = False) -> dict:
         require(

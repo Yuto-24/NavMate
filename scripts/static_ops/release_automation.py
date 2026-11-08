@@ -59,7 +59,7 @@ def select_release(operator: app.Operator, event: dict, name: str) -> dict:
             and run.get("conclusion") == "success" and run.get("event") == "push"
             and run.get("path") == PUBLISHER
             and run.get("head_repository", {}).get("full_name") == app.REPO
-            and run.get("head_branch") in ("main", "release/1.x")
+            and run.get("head_branch") in ("main", "release/1.x", "release/2.x")
             and re.fullmatch(r"[0-9a-f]{40}", run.get("head_sha", "")),
             "Successful trusted release publisher run required",
         )
@@ -67,7 +67,8 @@ def select_release(operator: app.Operator, event: dict, name: str) -> dict:
         operator.git("fetch", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}")
         operator.git("merge-base", "--is-ancestor", head, "origin/" + branch)
         version = parse_version_source(operator.git("show", head + ":VERSION"))
-        app.require(branch == ("release/1.x" if version_tuple(version)[0] == 1 else "main"),
+        expected_major = 1 if branch == "release/1.x" else 2
+        app.require(version_tuple(version)[0] == expected_major,
                     "Publisher version line mismatch")
         selected = stable(operator.gh("releases/tags/v" + version))
         tagged = resolve_tag(operator, selected["tag_name"])

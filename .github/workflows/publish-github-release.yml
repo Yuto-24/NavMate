@@ -2,13 +2,13 @@ name: publish-github-release
 
 on:
   push:
-    branches: [main, release/1.x]
+    branches: [main, release/1.x, release/2.x]
     paths: [VERSION]
 
 permissions:
   contents: write
 
-# Serialize publication across both version lines without cancelling a release.
+# Serialize publication across all release branches without cancelling a release.
 concurrency:
   group: publish-github-release
   cancel-in-progress: false

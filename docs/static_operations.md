@@ -547,7 +547,9 @@ sha256sum "$release_store/plan.json"
 これは **Rulesが同じ通常更新** の例。公開ツールの編集や移行記録は不要で、
 候補/current SHAと新規storeを指定し、prepare結果をレビューしてpublishする。
 Rulesが異なる場合だけ、次節の検証記録と外部Rules反映・停止確認が必要。
-SHA は40桁を必須とし、main に含まれる exact commit / VERSION を確認する。
+SHA は40桁を必須とし、対応する公開元ブランチに含まれる exact commit / VERSION を確認する。
+2.x は main または `release/2.x`、1.x は `release/1.x` に限定する。
+ブランチの選択と検証は [release_lines.md](release_lines.md) に従う。
 Firebase 4設定、TAF URL、Legacy migration URL、account、origin と repository variable を
 canonical release に照合し、environment variable による shadowing も拒否する。
 Migration URL は維持する。受付終了の検討（10/24〜25目安）は別の承認・変更として扱う。

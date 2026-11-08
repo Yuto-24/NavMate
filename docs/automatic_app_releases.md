@@ -2,7 +2,7 @@
 
 After explicit activation, a published stable `vX.Y.Z` GitHub Release is the app
 publication authorization for unchanged access/data contracts. Ordinary PR merges
-do not publish the app. Both `release/1.x` and `main` target the existing
+do not publish the app. `release/1.x`, `release/2.x` and `main` target the existing
 `https://navmate.yuto24.com` Pages project `navmate`, production branch `main`.
 The Pages branch is a delivery target, independent of the application source branch.
 Validate this delivery first with 1.x. After moving production to 2.x, end 1.x
@@ -15,7 +15,7 @@ Release from replacing 2.x. No legacy server stop is part of this mechanism.
 `STATIC_APP_RELEASE_ENABLED == true` (absent is disabled):
 
 - `workflow_run: completed` of successful `publish-github-release` pushes on
-  `main` / `release/1.x`. This is the default bridge for Releases created with
+  `main` / `release/1.x` / `release/2.x`. This is the default bridge for Releases created with
   `GITHUB_TOKEN`; those Releases do not themselves trigger `release` workflows.
   No PAT, dispatch step or deployment tool backport is needed in the v1 publisher.
 - `release: published` for Releases created through the UI or another authorized
@@ -30,6 +30,9 @@ actual stable Release and immutable tag ancestor. Every entrance peels annotated
 tags, compares API resolution with the fetched tag, checks exact VERSION and
 ancestry in the matching source branch, and rechecks identity at every snapshot.
 It never uses `latest`, release titles or `target_commitish` as app identity.
+V2 candidates must be ancestors of freshly fetched main or `release/2.x`;
+only the latter permits a reviewed fix without unrelated main changes.
+See [release_lines.md](release_lines.md) for maintenance branch initialization.
 Trusted tooling is checked out from main once, retained at that SHA in the plan;
 candidate release scripts only execute inside the existing credential-free Docker
 build. No publisher-run artifacts or caches are downloaded or executed.

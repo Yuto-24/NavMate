@@ -17,19 +17,22 @@ REPO = {"full_name": "Yuto-24/NavMate", "private": False}
 
 
 class Source(app.Operator):
-    def __init__(self, version="1.23.0"):
+    def __init__(self, version="1.23.0", *, branch=None):
         super().__init__(Path("/tmp"))
         self.version = version
         self.selected = {**RELEASE, "tag_name": "v" + version}
         self.run = {"status": "completed", "conclusion": "success", "event": "push",
                     "path": auto.PUBLISHER, "head_repository": REPO,
-                    "head_branch": "release/1.x" if version.startswith("1.") else "main",
+                    "head_branch": branch or (
+                        "release/1.x" if version.startswith("1.") else "main"
+                    ),
                     "head_sha": NEW}
         self.tag = {"type": "commit", "sha": NEW}
         self.calls = []
         self.fetch_sha = NEW
         self.source_version = version
         self.ancestor = True
+        self.main_contains = self.run["head_branch"] == "main"
 
     def gh(self, path):
         self.calls.append(path)
@@ -51,13 +54,17 @@ class Source(app.Operator):
             return self.fetch_sha
         if args[0] == "merge-base":
             app.require(self.ancestor, "Not on release line")
+        if args[0] == "for-each-ref":
+            return "refs/remotes/origin/main" if self.main_contains else ""
         return ""
 
 
-@pytest.mark.parametrize("version", ["1.23.0", "2.1.0"])
+@pytest.mark.parametrize("version,branch", [
+    ("1.23.0", "release/1.x"), ("2.1.0", "main"), ("2.2.1", "release/2.x"),
+])
 @pytest.mark.parametrize("trigger", ["workflow_run", "release", "workflow_dispatch"])
-def test_real_release_and_tag_selected_for_both_lines(version, trigger):
-    op = Source(version)
+def test_real_release_and_tag_selected_for_supported_branches(version, branch, trigger):
+    op = Source(version, branch=branch)
     event = {"repository": REPO,
              "action": "completed" if trigger == "workflow_run" else "published",
              "workflow_run": {"id": 42}, "release": op.selected,
@@ -211,9 +218,49 @@ def test_automation_workflow_contract():
         assert "group: static-production\n  cancel-in-progress: false\n  queue: max" in source
 
 
-@pytest.mark.parametrize("version,branch", [("1.23.0", "release/1.x"), ("2.1.0", "main")])
+@pytest.mark.parametrize("version,branch", [
+    ("1.23.0", "release/1.x"), ("2.1.0", "main"), ("2.2.1", "release/2.x"),
+])
 def test_source_branch_contract(version, branch):
-    assert Source(version).source_branch(NEW) == branch
+    assert Source(version, branch=branch).source_branch(NEW) == branch
+
+
+@pytest.mark.parametrize("version,branch", [
+    ("1.23.0", "release/2.x"), ("2.2.1", "release/1.x"), ("3.0.0", "main"),
+])
+def test_publisher_version_must_match_the_supported_branch(version, branch):
+    op = Source(version, branch=branch)
+    with pytest.raises(app.Blocked, match="version line"):
+        auto.select_release(op, {"repository": REPO, "action": "completed",
+                                 "workflow_run": {"id": 42}}, "workflow_run")
+
+
+def test_maintenance_candidate_requires_fresh_approved_branch_ancestry():
+    op = Source("2.2.1", branch="release/2.x")
+    assert auto.candidate(op, op.selected) == NEW
+    assert ("fetch", "origin", "+refs/heads/main:refs/remotes/origin/main") in op.calls
+    assert (
+        "fetch", "origin", "+refs/heads/release/2.x:refs/remotes/origin/release/2.x"
+    ) in op.calls
+    assert ("merge-base", "--is-ancestor", NEW, "origin/release/2.x") in op.calls
+    op.ancestor = False
+    with pytest.raises(app.Blocked, match="Not on release line"):
+        auto.candidate(op, op.selected)
+
+
+def test_failed_main_fetch_cannot_select_a_maintenance_branch():
+    op = Source("2.2.1", branch="release/2.x")
+    original = op.git
+
+    def git(*args):
+        if args == ("fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"):
+            raise app.Blocked("source fetch failed")
+        return original(*args)
+
+    op.git = git
+    with pytest.raises(app.Blocked, match="source fetch failed"):
+        auto.candidate(op, op.selected)
+    assert not any("release/2.x" in str(call) for call in op.calls)
 
 
 @pytest.mark.parametrize("version,current,expected", [
