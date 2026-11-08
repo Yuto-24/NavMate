@@ -196,7 +196,7 @@ test("account deletion drains Remote and Local, closes an offline device, and re
     expect(await page.evaluate(() => (window as any).authTest.state().notice)).toBe("NavMateアカウントを削除しました。");
     await stalePage.evaluate(() => (window as any).authTest.refresh());
     await expect.poll(() => stalePage.evaluate(() => (window as any).authTest.currentUser())).toBeNull();
-    expect(await stalePage.evaluate(() => (window as any).authTest.state().notice)).toBe("このNavMateアカウントは削除されました。");
+    await expect.poll(() => stalePage.evaluate(() => (window as any).authTest.state().notice)).toBe("このNavMateアカウントは削除されました。");
     await expect.poll(async () => stalePage.evaluate(oldId => indexedDB.databases().then(rows => rows.some(row => row.name === `autonavlog.projects.${oldId}`)), oldId)).toBe(false);
     expect(await page.evaluate(oldId => indexedDB.databases().then(rows => rows.some(row => row.name === `autonavlog.projects.${oldId}`)), oldId)).toBe(false);
     await expect(otherPage.locator("#saved-project option").filter({ hasText: "Other route" })).toHaveCount(1);
