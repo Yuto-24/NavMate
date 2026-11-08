@@ -2,6 +2,25 @@
 
 NavMate のRelease履歴です。公開日時はGitHub Releaseを正本とします。
 
+## 2.2.1
+
+### 利用者向け
+
+#### 追加
+
+- 使用Runが検証済みの最新Runより9時間以上古い場合、Warning欄とNAV LOGの燃料表の横にAdvisoryを表示します。確認日時を保存し、端末内キャッシュだけでは最新Runと断定しません。
+
+#### 修正
+
+- MSM配信情報の期限が切れていても、必要な範囲と値を確認できる端末内データで計算を継続します。初回計算や予報更新では、最新Runを利用できない場合に正常なMSM候補を確認します。
+- 最後に成功した計算と同じ入力で再計算すると、1回の操作で使用可能な最新Runへ更新します。入力を変更した場合は使用Runを保持し、失敗した計算で保存済み結果を置き換えません。
+
+### 開発者向け
+
+- [PR #390 MSM継続とRun更新を2.x保守版へ移植する](https://github.com/Yuto-24/NavMate/pull/390)で、[PR #385 MSM失効後のLocal継続と成功計算基準のRun更新](https://github.com/Yuto-24/NavMate/pull/385)と必要なMSM処理を本番v2.2.0へ移植しました。
+- Project schema 4、既存の保存形式、jma-gpv-weather 0.5.0、Firestore Rules・indexesを維持します。GSM・server backup・経路編集・Project自動命名・mainの画面構成変更は含めません。
+- [PR #389 2.x保守ブランチからの公開を既存検証に接続する](https://github.com/Yuto-24/NavMate/pull/389)でrelease/2.xからの公開を追加しました。公開元の祖先確認、CI、互換性、公開後の照合を維持します。
+
 ## 2.2.0
 
 ### 利用者向け
