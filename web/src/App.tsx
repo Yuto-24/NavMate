@@ -149,6 +149,12 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [calculationNotice, setCalculationNotice] = useState<{ message: string } | null>(null);
+  useEffect(() => {
+    if (!calculationNotice) return;
+    const timeout = window.setTimeout(() => setCalculationNotice(null), 5_000);
+    return () => window.clearTimeout(timeout);
+  }, [calculationNotice]);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [informationOpen, setInformationOpen] = useState(false);
   const [informationData] = useState<InformationData>(() => releaseNotesData as InformationData);
@@ -579,6 +585,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     setActiveOperation(options.operation ?? null);
     setError(null);
     setNotice(null);
+    setCalculationNotice(null);
     try {
       const result = await action();
       if (epoch !== lifecycle.current) return undefined;
@@ -1487,11 +1494,15 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       );
       scrollToCalculatedNavLogRef.current = next.outcome;
       return next;
-    }, "NAV LOGを計算しました。準備状況と各値を確認してください。", {
+    }, undefined, {
       syncCalculationInputs: true,
       operation: "calculate",
     });
-    if (!calculated?.outcome) scrollToCalculatedNavLogRef.current = null;
+    if (calculated?.outcome) {
+      setCalculationNotice({ message: "NAV LOGを計算しました。準備状況と各値を確認してください。" });
+    } else {
+      scrollToCalculatedNavLogRef.current = null;
+    }
     calculationInFlight.current = false;
   };
 
@@ -1807,6 +1818,23 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       />
       <ProgressRail activeStep={state.readiness.workflowStep} />
       <AccountNotice auth={application.auth} />
+
+      <div className="calculation-toast-region" role="status" aria-live="polite" aria-atomic="true">
+        {calculationNotice && (
+          <div className="message-bar message-success calculation-toast">
+            <CheckCircle2 aria-hidden="true" size={18} />
+            <span>{calculationNotice.message}</span>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={() => setCalculationNotice(null)}
+              aria-label="メッセージを閉じる"
+            >
+              <X aria-hidden="true" size={17} />
+            </button>
+          </div>
+        )}
+      </div>
 
       {(error || notice) && (
         <div

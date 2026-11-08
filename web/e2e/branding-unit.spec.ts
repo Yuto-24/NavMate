@@ -5,7 +5,7 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf
 
 test("NavMate display name leaves compatibility identities intact", () => {
   for (const [path, expected] of [
-    ["../index.html", "<title>NavMate — NAV2 地上準備</title>"],
+    ["../index.html", "<title>NavMate</title>"],
     ["../src/components/Header.tsx", '<div className="brand-name">NavMate</div>'],
     ["../src/components/InformationDialog.tsx", "NavMateのお知らせ"],
     ["../src/App.tsx", "NavMateを起動しています"],

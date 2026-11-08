@@ -310,6 +310,28 @@ h1, h2, h3, p { margin-top: 0; }
 .message-error { color: var(--red-700); background: var(--red-50); border-color: #f1b8b2; }
 .message-success { color: var(--green-700); background: #f0faf4; border-color: #b9dfc7; }
 
+.calculation-toast-region {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 1100;
+  width: min(480px, calc(100% - 32px));
+  pointer-events: none;
+}
+
+.calculation-toast {
+  position: static;
+  margin: 0;
+  pointer-events: auto;
+  box-shadow: 0 4px 16px #0002;
+}
+
+.calculation-toast > svg, .calculation-toast > button { flex-shrink: 0; }
+
+@media print {
+  .calculation-toast-region { display: none; }
+}
+
 .app-workspace {
   max-width: 1580px;
   margin: 0 auto;

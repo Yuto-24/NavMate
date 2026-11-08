@@ -59,6 +59,10 @@ decorative cards. Shadows are reserved for temporary overlays.
   and an unread dot at every width; only Known Issue additions/body changes use amber. The label is optional
   and appears only when the entire Header has ample room on one row (currently 1600 px and above).
 - Three-step progress rail: Route, Flight plan, Review/calculation.
+- NAV LOG calculation success uses a non-blocking, polite live-region toast at the
+  bottom right, below modal overlays. It closes after five seconds or via its close
+  button without changing layout, results, or readiness. Other notices and errors
+  retain their existing persistent message bars.
 - KML/KMZ drop zone and paste dialog.
 - Shape candidate list with a required route-use confirmation placed directly below the map.
 - Flight-plan fields: DATE, ETD JST, read-only KML-derived FROM/TO, FUEL
