@@ -1681,19 +1681,21 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     (selectedDestinationAirport === null ||
       destinationPatternAltitude > selectedDestinationAirport.elevationFtMsl)
   ) ? destinationPatternAltitude : null;
-  const destinationApplied = Boolean(
+  const calculationDestinationIsValid = Boolean(
     state.project &&
       selectedArrival?.selected_pattern_altitude_ft_msl !== null &&
       selectedArrival?.selected_pattern_altitude_ft_msl !== undefined &&
       selectedArrival.selected_pattern_altitude_source &&
       state.project.destination_airport_id === form.destinationAirportId &&
       state.project.departure_airport_id === form.departureAirportId &&
-      selectedArrival.selected_pattern_altitude_ft_msl === validDestinationPatternAltitude,
+      validDestinationPatternAltitude !== null,
   );
   const hasCalculationBlocker = state.readiness.issues.some(
     (issue) => issue.severity === "BLOCKER" && issue.code !== "RECALCULATION_REQUIRED",
   );
-  const canCalculate = destinationApplied && !hasCalculationBlocker;
+  // handleCalculate strictly saves/validates the displayed altitude before calculating.
+  // A restored, unapplied altitude must not deadlock the manual retry.
+  const canCalculate = calculationDestinationIsValid && !hasCalculationBlocker;
   const validFtdWeather = ftdWeatherSettings(form);
   const canConfirmRoute = Boolean(
     selectedCandidate &&
