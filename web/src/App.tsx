@@ -1784,6 +1784,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         });
       }} />
       <Header
+        networkAvailability={platform.networkAvailability}
         onBeforeAccountChange={confirmDiscardMapDraft}
         auth={application.auth}
         appVersion={state.runtime.appVersion}
