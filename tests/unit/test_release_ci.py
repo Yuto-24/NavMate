@@ -31,14 +31,13 @@ def test_contract_requires_exact_marker_and_reason():
             validator.parse_contract(body)
 
 
-def test_not_required_rejects_runtime(monkeypatch):
+def test_not_required_accepts_runtime_fix_without_release(monkeypatch):
     monkeypatch.setattr(validator, "validate_sources", lambda _: "1.0.0")
     monkeypatch.setattr(
         validator, "git", lambda _, *args: "base" if args[0] == "merge-base" else "web/src/App.tsx"
     )
     monkeypatch.setattr(validator, "base_version", lambda *_: "1.0.0")
-    with pytest.raises(ValueError, match="production/runtime"):
-        validator.validate(ROOT, "base", "Release: not-required\nReason: docs")
+    validator.validate(ROOT, "base", "Release: not-required\nReason: compatible Legacy fix")
 
 
 def test_required_needs_newer_changed_version_and_changelog(monkeypatch):
@@ -61,6 +60,7 @@ def test_required_needs_newer_changed_version_and_changelog(monkeypatch):
         ("1.1.0", "CHANGELOG.md", "required", "change VERSION and CHANGELOG"),
         ("1.1.0", "VERSION", "not-required", "must not change VERSION"),
         ("1.0.0", "VERSION", "not-required", "must not change VERSION"),
+        ("1.0.0", "CHANGELOG.md", "not-required", "must not change CHANGELOG"),
     ],
 )
 def test_contract_rejects_inconsistent_release(monkeypatch, current, changed, contract, error):
