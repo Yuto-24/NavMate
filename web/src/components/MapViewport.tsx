@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useMap, useMapEvents } from "react-leaflet";
 import type { KeyValueStorage } from "../platform";
+import { localAccountScope } from "../executionMode";
 
 interface Viewport { latitude: number; longitude: number; zoom: number }
 function readViewport(storage: KeyValueStorage, key: string): Viewport | null {
@@ -20,7 +21,7 @@ export function MapViewport({ storage, scope, projectId, coordinates, preserveVi
   const initialized = useRef(false);
   const previousProject = useRef<string | null>(null);
   const initializedKey = useRef<string | null>(null);
-  const prefix = `autonavlog.map-viewport.v1.${scope}`;
+  const prefix = `autonavlog.map-viewport.v1.${localAccountScope(scope)}`;
   const lastKey = `${prefix}.last`;
   const projectKey = projectId ? `${prefix}.project.${projectId}` : lastKey;
   const save = () => {

@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from "react";
+import { devSharedMode } from "../executionMode";
 import { UserRound, X } from "lucide-react";
 import type { AuthProvider, AuthState } from "../auth";
 import type { PlatformCapabilities } from "../platform";
@@ -41,9 +42,10 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
         <div className="modal-heading"><h2 id="account-title">アカウント</h2>
           <button type="button" className="icon-button" aria-label="アカウントを閉じる" onClick={() => setOpen(false)}><X size={20} /></button>
         </div>
-        <p>{state.account ? `${state.account.displayName} でログイン中` : "未ログイン・この端末のみで利用中"}</p>
-        <p>プロジェクトと最後の計算結果はこの端末に保存され、ログインすると同じアカウントの端末間で同期されます。</p>
-        {state.account ? <p>ログアウト後も保存データは残ります。同じアカウントでログインすると再び開けます。</p>
+        <p>{state.account ? `${state.account.displayName} でログイン中` : devSharedMode ? "共有プロジェクト" : "未ログイン・この端末のみで利用中"}</p>
+        <p>{devSharedMode ? "ログインすると、個人専用の領域に切り替わります。データはまず端末に保存され、開発環境内でのみ同期されるため、本番データとは分離されています。" : "プロジェクトと最後の計算結果はこの端末に保存され、ログインすると同じアカウントの端末間で同期されます。"}</p>
+        {devSharedMode ? <p>{state.account ? "ログアウトすると共通プロジェクトに戻りますが、個人プロジェクトのデータはこの端末に保存されたままになります。" : "共通プロジェクトのデータが個人プロジェクトへ自動で取り込まれることはありません。"}</p>
+          : state.account ? <p>ログアウト後も保存データは残ります。同じアカウントでログインすると再び開けます。</p>
           : <p>未ログイン中の保存データは、ログインしたアカウントへ取り込まれます。</p>}
         {!state.available && !state.notice && <p>この環境ではGoogleログインが設定されていません。未ログインのまま利用できます。</p>}
         {(error || state.notice) && <p role="alert">{error || state.notice}</p>}
@@ -53,7 +55,7 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
         </button>
         {auth?.deleteAccount && (state.account || state.deletionPending) && <>
           {offline && <p>オフラインのためアカウントを削除できません。</p>}
-          {confirmDeletion && <p>このアカウントの同期データと、この端末の保存データを削除します。元に戻せません。Googleアカウントは削除されません。</p>}
+          {confirmDeletion && <p>{devSharedMode ? "NavMate開発環境の個人データのみが削除されます。共通プロジェクトのデータやGoogleアカウント自体が削除されることはありません。続行しますか？" : "このアカウントの同期データと、この端末の保存データを削除します。元に戻せません。Googleアカウントは削除されません。"}</p>}
           <button type="button" disabled={pending || busy || offline || state.signOutPending} onClick={() => {
             if (!confirmDeletion && !state.deletionPending) { setConfirmDeletion(true); return; }
             void act(() => auth.deleteAccount!()).then(success => { if (success) setConfirmDeletion(false); });

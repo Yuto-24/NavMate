@@ -34,8 +34,10 @@ Git同期と更新処理は通常のコンテナネットワークで動かし�
 ## 開発用FirestoreでProjectを共有する（任意）
 
 開発環境は既存の **NavMate-dev（`navmate-6b281`）** を使い、本番の
-`navmate-prod` と分離します。Googleログイン操作は不要です。ブラウザがFirebaseの匿名認証を
-自動で行い、共通の `devWorkspaces/shared/projects` を既存のFirestore同期処理で利用します。
+`navmate-prod` と分離します。未ログイン時はブラウザがFirebaseの匿名認証を自動で行い、
+共通の `devWorkspaces/shared/projects` を既存のFirestore同期処理で利用します。
+ヘッダーの「アカウント」からGoogleでログインすると、同じ開発用DBの個人領域へ切り替わります。
+ログアウトすると共通Projectへ戻ります。開発用のGoogleログイン・アカウント同期・削除を検証できます。
 SQLite・専用保存API・管理者の認証情報は使いません。
 
 **開発環境を利用できる人は、共通のProjectを編集・削除できます。**
@@ -44,12 +46,16 @@ SQLite・専用保存API・管理者の認証情報は使いません。
 
 ### Firebase側の準備
 
-2026-11-08の読み取り確認では、開発用Webアプリと `(default)` Firestore DBは存在し、
-匿名認証と共有領域のRulesは未設定でした。設定変更前に対象プロジェクトを再確認してください。
+2026-11-08の読み取り確認では、開発用Webアプリと `(default)` Firestore DBが存在し、
+匿名認証・Google認証・共有領域のRulesは設定済みでした。個人用の世代管理Rulesは未反映でした。
+設定変更前に対象プロジェクトと稼働中Rulesを再確認してください。
 
-1. `navmate-6b281` のAuthenticationで匿名認証を有効にします。
-2. `firebase/firestore.dev.rules` を開発用DBに反映します。このファイルは確認時点の開発用Rulesを保持し、
-   共有領域だけを追加したものです。反映前に稼働中Rulesとの変更差分を確認します。
+1. `navmate-6b281` のAuthenticationで匿名認証とGoogle認証を有効にし、利用するdevホストを
+   承認済みドメインに含めます。Google認証の詳細は[認証ガイド](authentication.md)を参照してください。
+2. `firebase/firestore.dev.rules` を開発用DBに反映します。Google個人領域のRulesは本番と同じ
+   アカウント世代・削除の契約を使い、匿名認証向けの共有領域を追加しています。
+   以前の共有専用構成から更新する場合も、アカウント文書と世代別ProjectのRulesが必要です。
+   反映前に稼働中Rulesとの差分を確認します。
 
    ```bash
    firebase deploy --config firebase.dev.json --only firestore:rules --project navmate-6b281
@@ -89,6 +95,10 @@ Legacyアカウント移行にも接続しません。設定の切替時は同�
 - 既存の未ログインProjectは、既存の同期機能と同じ手順で共有用の端末内保存領域へ取り込みます。
   元データは取込先の印を付けて保持され、未ログイン一覧からは非表示になります。
   Googleアカウント所有のProjectは取り込みません。同期の削除記録により、削除済みProjectを再取込で復活させません。
+- Googleログイン時は共通Projectや未ログイン領域を個人領域へ自動取込しません。個人のProjectは
+  同じGoogleアカウントでログインした端末間だけで同期されます。アカウント削除後も共通Projectは残ります。
+- 個人用の端末内DB・編集セッション・地図表示・認証キャッシュは開発用に分離します。過去にこのURLを
+  本番設定で使っていた場合のアカウントデータは取り込まず、そのデータを開発用の削除処理で消しません。
 - 自動保存のLatestは端末ごとです。別端末で再開するProjectには名前を付けて保存してください。
   開いている編集内容を他端末の変更で自動置換しません。別端末の保存後は一覧から開き直します。
 

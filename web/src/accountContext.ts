@@ -6,11 +6,13 @@ import { accountBoundaryClosed, type AuthProvider } from "./auth";
 import { LocalApplication } from "./localApplication";
 import { SESSION_KEY } from "./applicationSession";
 import type { PlatformCapabilities } from "./platform";
+import { localAccountScope } from "./executionMode";
 
 // One immutable context per authentication lifetime. Never retarget an existing
 // Worker or queued save to another account's Repository.
 export function createAccountContext(platform: PlatformCapabilities, auth?: AuthProvider, allowRecovery = true,
-  createSync?: (context: LocalAccountContext) => Promise<AccountSyncRepository>, workspaceId?: string) {
+  createSync?: (context: LocalAccountContext) => Promise<AccountSyncRepository>, workspaceId?: string,
+  importAnonymous = true) {
   const account_id = workspaceId ?? auth?.getState().account?.account_id ?? null;
   let active = true;
   const assertActive = () => { if (!active) throw accountBoundaryClosed(); };
@@ -19,7 +21,7 @@ export function createAccountContext(platform: PlatformCapabilities, auth?: Auth
     assertActive(); closeListeners.add(listener); return () => { closeListeners.delete(listener); };
   } };
   const storage = platform.session.storage;
-  const key = account_id ? `${SESSION_KEY}.${account_id}` : SESSION_KEY;
+  const key = account_id ? `${SESSION_KEY}.${localAccountScope(account_id)}` : SESSION_KEY;
   const scopedPlatform: PlatformCapabilities = { ...platform, session: {
     isReload: () => allowRecovery && platform.session.isReload(),
     storage: {
@@ -36,6 +38,7 @@ export function createAccountContext(platform: PlatformCapabilities, auth?: Auth
     if (!deviceId) { deviceId = crypto.randomUUID(); platform.persistence.values.setItem(deviceKey, deviceId); }
     const repository = new AccountProjectRepository(validate, context, deviceId, cleanCalculation!);
     sync = new AccountSyncController(repository, context, () => createSync(context), async () => {
+      if (!importAnonymous) return [];
       const anonymous = platform.persistence.createProjectRepository(validate, { ...context, account_id: null });
       return await anonymous.claimAnonymous?.(account_id) ?? [];
     });
@@ -58,7 +61,8 @@ export function observeAccountContexts(platform: PlatformCapabilities, auth: Aut
   present: (context: ReturnType<typeof createAccountContext>) => void,
   createSync?: (context: LocalAccountContext) => Promise<AccountSyncRepository>,
   prepare?: (accountId: string, signal: AbortSignal) => Promise<void>,
-  pending?: (error?: string, retry?: () => void) => void) {
+  pending?: (error?: string, retry?: () => void) => void,
+  signedOutWorkspace?: { id: string; createSync: (context: LocalAccountContext) => Promise<AccountSyncRepository> }) {
   let context: ReturnType<typeof createAccountContext> | undefined;
   let accountId = auth?.getState().account?.account_id ?? null;
   let boundary = new AbortController();
@@ -70,7 +74,9 @@ export function observeAccountContexts(platform: PlatformCapabilities, auth: Aut
     context?.dispose(); context = undefined;
     const show = () => {
       if (signal.aborted) return;
-      context = createAccountContext(platform, auth, initial, createSync);
+      const workspace = accountId ? undefined : signedOutWorkspace;
+      context = createAccountContext(platform, auth, initial, workspace?.createSync ?? createSync,
+        workspace?.id, !signedOutWorkspace || !accountId);
       initial = false;
       present(context);
     };

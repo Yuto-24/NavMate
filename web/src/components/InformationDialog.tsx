@@ -52,7 +52,7 @@ export function InformationDialog({ open, releases, knownIssues, onClose, onOpen
       </div>
       {devSharedMode && <section aria-labelledby="shared-storage-heading">
         <h3 id="shared-storage-heading">端末内に保存</h3>
-        <p>Googleログインなしで、共通Projectを複数の端末間で同期できます。同期済みのProjectや最新の計算結果は、どの端末からでもアクセス・編集が可能です。</p>
+        <p>NavMate開発環境では、未ログイン時には共通プロジェクトが利用され、Googleログイン中は個人専用プロジェクトへ切り替わります。</p>
         <p>Projectの変更はまず端末のブラウザに保存されますが、これは同期の完了を意味しません。未同期の編集は、その端末でのみ利用可能です。</p>
         <p>プロジェクトと最後の計算結果は、このブラウザに保存されます。ブラウザのデータ削除、容量不足による自動削除、プライベートブラウズの終了で失われる場合があります。</p>
       </section>}
