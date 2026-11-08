@@ -384,3 +384,31 @@ test("successful deletion retains its completion notice after its own logout", a
     else delete (globalThis as { navigator?: Navigator }).navigator;
   }
 });
+
+for (const logoutFails of [false, true]) test(`deleted account ends Firebase authentication; persistence failure=${logoutFails}`, async () => {
+  const user = { providerData: [{ providerId: "google.com", uid: "deleted" }], getIdToken: async () => "token" } as unknown as User;
+  let failure = logoutFails, lookups = 0;
+  const auth = { currentUser: user as User | null, async signOut() {
+    if (failure) throw new Error("storage unavailable");
+    this.currentUser = null;
+  } } as unknown as Auth;
+  const provider = new FirebaseAuthProvider(auth, async () => {
+    lookups++;
+    throw new Error("ACCOUNT_DELETED");
+  });
+  await (provider as any).accept(user);
+  expect(provider.getState().account).toBeNull();
+  if (logoutFails) {
+    expect(provider.getState().signOutPending).toBe(true);
+    expect(provider.getState().notice).toContain("ログアウト状態を保存できませんでした");
+    await (provider as any).accept(user);
+    await provider.refresh();
+    expect(lookups).toBe(1);
+    failure = false;
+    await provider.signOut();
+  } else {
+    await (provider as any).accept(null); // initial SDK notification after startup logout
+    expect(provider.getState().notice).toBe("このNavMateアカウントは削除されました。");
+  }
+  expect(auth.currentUser).toBeNull();
+});

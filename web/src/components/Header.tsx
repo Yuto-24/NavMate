@@ -1,12 +1,14 @@
 import { LegacyAccountControl } from "./LegacyAccountControl";
 import { AccountControl } from "./AccountControl";
 import type { AuthProvider } from "../auth";
+import type { PlatformCapabilities } from "../platform";
 import { localMode } from "../executionMode";
 import { CheckCircle2, Info, FolderOpen, Plus, Save, Trash2 } from "lucide-react";
 import type { SavedProject } from "../types";
 
 interface HeaderProps {
   auth?: AuthProvider;
+  networkAvailability: PlatformCapabilities["networkAvailability"];
   onBeforeAccountChange?: () => boolean;
   appVersion: string;
   projectName: string;
@@ -26,7 +28,7 @@ interface HeaderProps {
 }
 
 export function Header({
-  auth, onBeforeAccountChange,
+  auth, onBeforeAccountChange, networkAvailability,
   appVersion,
   projectName,
   revision,
@@ -68,7 +70,7 @@ export function Header({
         {revision !== null && <span className="header-revision">rev.{revision}</span>}
       </div>
       <div className="header-actions">
-        {localMode ? <AccountControl auth={auth} busy={busy} onBeforeChange={onBeforeAccountChange} /> : <LegacyAccountControl busy={busy} />}
+        {localMode ? <AccountControl auth={auth} busy={busy} onBeforeChange={onBeforeAccountChange} networkAvailability={networkAvailability} /> : <LegacyAccountControl busy={busy} />}
         <button
           className={`header-button information-button${knownIssuesUnread ? " information-warning" : ""}`}
           type="button"

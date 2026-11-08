@@ -1,12 +1,25 @@
 import { useState, useSyncExternalStore } from "react";
 import { UserRound, X } from "lucide-react";
 import type { AuthProvider, AuthState } from "../auth";
+import type { PlatformCapabilities } from "../platform";
 import { useModalFocusTrap } from "../useModalFocusTrap";
 
 const unavailable: AuthState = { account: null, available: false };
 const noSubscribe = () => () => {};
-export function AccountControl({ auth, busy, onBeforeChange }: { auth?: AuthProvider; busy: boolean; onBeforeChange?: () => boolean }) {
+const subscribeConnectivity = (listener: () => void) => {
+  window.addEventListener("online", listener);
+  window.addEventListener("offline", listener);
+  return () => {
+    window.removeEventListener("online", listener);
+    window.removeEventListener("offline", listener);
+  };
+};
+export function AccountControl({ auth, busy, onBeforeChange, networkAvailability }: {
+  auth?: AuthProvider; busy: boolean; onBeforeChange?: () => boolean;
+  networkAvailability: PlatformCapabilities["networkAvailability"];
+}) {
   const state = useSyncExternalStore(auth?.subscribe ?? noSubscribe, auth?.getState ?? (() => unavailable));
+  const offline = useSyncExternalStore(subscribeConnectivity, networkAvailability) === "offline";
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +52,9 @@ export function AccountControl({ auth, busy, onBeforeChange }: { auth?: AuthProv
           {state.signOutPending ? "ログアウトを再試行" : state.account || state.deletionPending ? "ログアウト" : "Googleでログイン"}
         </button>
         {auth?.deleteAccount && (state.account || state.deletionPending) && <>
+          {offline && <p>オフラインのためアカウントを削除できません。</p>}
           {confirmDeletion && <p>このアカウントの同期データと、この端末の保存データを削除します。元に戻せません。Googleアカウントは削除されません。</p>}
-          <button type="button" disabled={pending || busy} onClick={() => {
+          <button type="button" disabled={pending || busy || offline || state.signOutPending} onClick={() => {
             if (!confirmDeletion && !state.deletionPending) { setConfirmDeletion(true); return; }
             void act(() => auth.deleteAccount!()).then(success => { if (success) setConfirmDeletion(false); });
           }}>{state.deletionPending ? "削除を再試行" : confirmDeletion ? "NavMateアカウントを削除する" : "アカウントを削除"}</button>
