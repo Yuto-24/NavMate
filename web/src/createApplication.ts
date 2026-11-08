@@ -2,6 +2,7 @@ import type { PlatformCapabilities } from "./platform";
 import type { AutoNavLogApplication } from "./application";
 import type { MigrationProgress } from "./legacyMigration";
 import type { AuthProvider } from "./auth";
+import { devSharedMode } from "./executionMode";
 import { LegacyApplication } from "./legacyApplication";
 
 export interface ApplicationContext { application: AutoNavLogApplication; platform: PlatformCapabilities; dispose(): void }
@@ -9,6 +10,11 @@ export async function startApplication(platform: PlatformCapabilities, present: 
   migrationProgress?: (progress: MigrationProgress) => void) {
   if (import.meta.env.VITE_CALCULATION_MODE !== "local") {
     present({ application: new LegacyApplication(), platform, dispose() {} });
+    return;
+  }
+  if (devSharedMode) {
+    const { createDevSharedApplication } = await import("./devSharedApplication");
+    present(createDevSharedApplication(platform));
     return;
   }
   const { observeAccountContexts } = await import("./accountContext");

@@ -1,7 +1,7 @@
 import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { collection, doc, getDocsFromServer, getFirestore, onSnapshot, runTransaction,
-  type Firestore, type DocumentData } from "firebase/firestore";
+  type Firestore, type DocumentData, type CollectionReference } from "firebase/firestore";
 import { ApplicationError } from "./application";
 import { accountBoundaryClosed } from "./auth";
 import { deletionState, type AccountSyncRepository, type SyncProject, type SyncMutation, type SyncCommit } from "./accountSync";
@@ -35,12 +35,12 @@ export class FirestoreSyncRepository implements AccountSyncRepository {
   private active = true;
   private readonly projects;
   constructor(private readonly db: Firestore, subject: string, private readonly assertContext: () => void,
-    accountId?: string) {
+    accountId?: string, projects?: CollectionReference) {
     // Backend key is verified by Rules against the authenticated Google subject.
     // Internal account_id remains independent of provider paths/UIDs.
-    this.projects = accountId?.startsWith("account_v2_")
+    this.projects = projects ?? (accountId?.startsWith("account_v2_")
       ? collection(db, "googleAccounts", subject, "generations", accountId, "projects")
-      : collection(db, "googleAccounts", subject, "projects");
+      : collection(db, "googleAccounts", subject, "projects"));
   }
   private assert() { this.assertContext(); if (!this.active) throw accountBoundaryClosed(); }
   async list() {

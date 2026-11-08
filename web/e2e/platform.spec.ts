@@ -1,13 +1,14 @@
+import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { selectAirport } from "./helpers/mapCandidates";
 import { enterImportWorkflow, expectImportedDraft, confirmImportedDraft } from "./helpers/importWorkflow";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 
 const isLocal = () => test.info().config.metadata.applicationMode === "local";
 const kml = readFileSync(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)), "utf8");
-const key = "autonavlog.working-session.v1";
+const key = artifactSessionKey;
 const snapshot = (page: Page) => page.evaluate(k => JSON.parse(sessionStorage.getItem(k)!), key);
 const paste = (page: Page) => page.getByRole("button", { name: "KMLを取り込む", exact: true });
 
@@ -46,7 +47,7 @@ test("picker opens compressed KMZ; drop replaces content; cancelled picker keeps
   await page.locator('input[type="file"]').setInputFiles([]);
   expect((await snapshot(page)).working.import_result).toEqual(previous);
   await drop(page, "broken.kml", "<broken");
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator('[role="alert"][aria-live="assertive"]')).toBeVisible();
   await expect.poll(async () => (await snapshot(page)).working.import_filename).toBe("ドロップ.kml");
   expect((await snapshot(page)).working.import_result).toEqual(previous);
 });

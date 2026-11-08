@@ -1,9 +1,10 @@
+import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { selectAirport } from "./helpers/mapCandidates";
 import { enterImportWorkflow, expectImportedDraft, confirmImportedDraft } from "./helpers/importWorkflow";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { resolve } from "node:path";
 
-const key = "autonavlog.working-session.v1";
+const key = artifactSessionKey;
 const isLocal = () => test.info().config.metadata.applicationMode === "local";
 const snapshot = (page: Page) => page.evaluate(k => JSON.parse(sessionStorage.getItem(k)!), key);
 

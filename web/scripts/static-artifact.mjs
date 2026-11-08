@@ -26,9 +26,20 @@ export function inventory(root) {
   if (Object.keys(files).length > limits.files) throw new Error("Pages file count exceeds 20000");
   return files;
 }
-export function checkArtifact(root, { freshWeather = true, allowDirty = false } = {}) {
+export function checkArtifact(root, { freshWeather = true, allowDirty = false, localRuntime = false } = {}) {
   const files = inventory(root);
   const release = JSON.parse(readFileSync(join(root, "release.json")));
+  if (release.localRuntime === true && !localRuntime) throw new Error("Local runtime artifact cannot pass a production check");
+  if (localRuntime) {
+    const config = release.configuration ?? {};
+    const shared = config.VITE_DEV_SHARED_PROJECTS === "1";
+    if (release.localRuntime !== true || config.VITE_LEGACY_MIGRATION_URL
+      || Object.keys(config).some(key => key.startsWith("VITE_FIREBASE_"))
+      || (shared ? config.VITE_DEV_FIREBASE_PROJECT_ID !== "navmate-6b281"
+        : Object.keys(config).some(key => key.startsWith("VITE_DEV_FIREBASE_")))) {
+      throw new Error("Local runtime artifact must exclude production account configuration");
+    }
+  }
   if (typeof release.dirty !== "boolean") throw new Error("Missing or invalid source dirty flag");
   if (release.dirty && !allowDirty) throw new Error("Dirty source artifact cannot pass a production check");
   const recorded = { ...files };

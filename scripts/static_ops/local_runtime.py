@@ -26,10 +26,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import urlopen
 
-PUBLIC_KEYS = (
-    "VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID",
-    "VITE_FIREBASE_APP_ID", "VITE_TAF_PROXY_URL", "VITE_LEGACY_MIGRATION_URL",
-)
+PUBLIC_KEYS = ("VITE_TAF_PROXY_URL",)
+DEV_FIREBASE_KEYS = ("VITE_DEV_FIREBASE_API_KEY", "VITE_DEV_FIREBASE_AUTH_DOMAIN",
+                     "VITE_DEV_FIREBASE_PROJECT_ID", "VITE_DEV_FIREBASE_APP_ID")
 SHA = re.compile(r"[a-f0-9]{40}")
 RELEASE = re.compile(r"r-[a-f0-9]{32}")
 
@@ -238,8 +237,14 @@ class Updater:
         self.run(["git", "checkout", "--detach", sha], destination)
 
     def configuration(self) -> dict:
-        """Pass only public Web identifiers, excluding inherited provider or Git tokens."""
-        return {key: os.environ[key] for key in PUBLIC_KEYS if os.environ.get(key)}
+        """Keep development storage separate from production accounts and Legacy migration."""
+        config = {key: os.environ[key] for key in PUBLIC_KEYS if os.environ.get(key)}
+        if os.getenv("LOCAL_SHARED_PROJECTS") == "1":
+            if os.getenv("VITE_DEV_FIREBASE_PROJECT_ID") != "navmate-6b281":
+                raise ValueError("Shared development requires the NavMate-dev Firebase project")
+            config.update({key: os.environ[key] for key in DEV_FIREBASE_KEYS})
+            config["VITE_DEV_SHARED_PROJECTS"] = "1"
+        return config
 
     def build(self, kind: str, sha: str, source: Path, job: Path) -> Path | None:
         """Reuse repository tools; always build app+feed together from one fixed SHA."""
@@ -305,7 +310,7 @@ class Updater:
                      [python, "scripts/export_schemas.py", "--check"],
                      [python, "-m", "pytest", "tests/unit/test_version.py"],
                      ["npm", "--prefix", "web", "run", "typecheck"],
-                     ["npm", "--prefix", "web", "run", "build:static"],
+                     ["npm", "--prefix", "web", "run", "build:static", "--", "--local-runtime"],
                      ["npm", "--prefix", "web", "run", "test:static-artifact"]):
             self.run(args, app)
         dist = app / "web/dist-static"
@@ -317,7 +322,7 @@ class Updater:
         # Browser checks can cross a forecast-hour boundary. Revalidate at publication time.
         self.run(validator, self.s.tooling)
         self.run(["npm", "--prefix", str(self.s.tooling / "web"), "run", "check:static",
-                  "--", str(dist)], self.s.tooling)
+                  "--", str(dist), "--local-runtime"], self.s.tooling)
         release = load(dist / "release.json")
         if (release["commit"] != sha or release["dirty"] is not False
                 or release["configuration"] != self.configuration()):
@@ -420,8 +425,11 @@ class Updater:
             return
         self.save_status(desired_sha=desired, source_error=None)
         active = self.s.active()
-        if active and load(active / "release.json")["commit"] == desired:
-            return
+        if active:
+            release = load(active / "release.json")
+            if (release["commit"] == desired
+                    and release.get("configuration", {}) == self.configuration()):
+                return
         if (self.status.get("failed_main_sha") == desired
                 and now < self.status.get("retry_main_at", 0)):
             return

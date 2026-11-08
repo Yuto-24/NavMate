@@ -1,25 +1,22 @@
 # Local版のDocker起動と自動更新
 
-`compose.local.yaml` は、本番と同じ `build:static` の配布物をローカルで配信する構成です。
+`compose.local.yaml` は、`build:static -- --local-runtime` の配布物をローカルで配信する構成です。
 計算・Project保存はブラウザ内で行い、mainとMSMは別コンテナで自動更新します。
 ルートの `compose.yaml` は引き続きLegacy版です。
 
 ## 初回準備
 
 Docker EngineとCompose v2を用意します。NodeやPythonをホストへインストールする必要はありません。
-Git管理外の `.env.local-static` に、既存環境と同じ公開Web設定を記載します。
+Git管理外の `.env.local-static` に、気象取得用の公開Web設定を記載します。
 
 ```dotenv
-VITE_FIREBASE_API_KEY=your-public-web-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project
-VITE_FIREBASE_APP_ID=your-web-app-id
 VITE_TAF_PROXY_URL=https://autonavlog-taf.utomatsu.workers.dev/taf
-VITE_LEGACY_MIGRATION_URL=https://your-legacy-host
 ```
 
-Firebase Web API keyは公開識別子です。管理token、service account、Git認証情報は記載しません。
-既存のFirebase・TAF設定は変更しません。利用するoriginが各設定で許可されている必要があります。
+通常のLocal DockerはFirebase認証・Firestore同期・Legacyアカウント移行に接続しません。
+既存の環境変数や `.env` にアカウント設定が残っていても、通常のローカル配布物から除外します。開発用の共有設定は後述のoverrideで有効化します。
+管理token、service account、Git認証情報は記載しません。TAFの利用originは許可が必要です。
+本番Pagesは従来のFirebase設定を使用し、ローカル配布物は本番用の検査では拒否します。
 
 ```bash
 docker compose -f compose.local.yaml up -d --build --wait
@@ -33,6 +30,80 @@ Web配信だけがWSL host networkの8123番を使用し、Windowsから `http:/
 既存Tunnel経由では `https://dev-navlog.yuto24.com/` を開きます。
 localhostとdevでは保存領域が別です。普段使うブラウザ・URLを維持し、サイトデータを消去しないでください。
 Git同期と更新処理は通常のコンテナネットワークで動かし、検証用サーバーは更新コンテナ内のloopbackだけに置きます。
+
+## 開発用FirestoreでProjectを共有する（任意）
+
+開発環境は既存の **NavMate-dev（`navmate-6b281`）** を使い、本番の
+`navmate-prod` と分離します。Googleログイン操作は不要です。ブラウザがFirebaseの匿名認証を
+自動で行い、共通の `devWorkspaces/shared/projects` を既存のFirestore同期処理で利用します。
+SQLite・専用保存API・管理者の認証情報は使いません。
+
+**開発環境を利用できる人は、共通のProjectを編集・削除できます。**
+匿名認証は利用者を限定するアクセス制限ではありません。個人のGoogleアカウントの保存領域とは
+分けていますが、共有するデータだけを置いてください。
+
+### Firebase側の準備
+
+2026-11-08の読み取り確認では、開発用Webアプリと `(default)` Firestore DBは存在し、
+匿名認証と共有領域のRulesは未設定でした。設定変更前に対象プロジェクトを再確認してください。
+
+1. `navmate-6b281` のAuthenticationで匿名認証を有効にします。
+2. `firebase/firestore.dev.rules` を開発用DBに反映します。このファイルは確認時点の開発用Rulesを保持し、
+   共有領域だけを追加したものです。反映前に稼働中Rulesとの変更差分を確認します。
+
+   ```bash
+   firebase deploy --config firebase.dev.json --only firestore:rules --project navmate-6b281
+   ```
+
+遠隔の認証設定とRulesの変更は、実装PRとは別に承認して実施します。本番の
+`firebase/firestore.rules` と既存の本番用デプロイ手順は変更しません。
+Rulesは匿名認証の発行先が `navmate-6b281` の場合だけ共有領域を許可します。
+
+### Local Dockerの設定
+
+Git管理外の `.env.dev-shared` に、NavMate-dev Webの公開設定を記載します。
+専用の変数名を使い、本番用の設定を引き継ぎません。
+
+```dotenv
+VITE_DEV_FIREBASE_API_KEY=development-web-api-key
+VITE_DEV_FIREBASE_AUTH_DOMAIN=navmate-6b281.firebaseapp.com
+VITE_DEV_FIREBASE_PROJECT_ID=navmate-6b281
+VITE_DEV_FIREBASE_APP_ID=1:97279151816:web:b151fe8f89650850f75ffd
+```
+
+```bash
+docker compose -f compose.local.yaml -f compose.local-shared.yaml up -d --build --wait
+```
+
+updaterが開発用設定でアプリを作成します。ビルドと起動処理は本番Project IDの指定を拒否し、
+Legacyアカウント移行にも接続しません。設定の切替時は同じmainのSHAでも再ビルドします。
+新しい配布物への更新完了後、開いていたタブを再読み込みしてください。
+通常の `compose.local.yaml` だけなら端末内保存となり、本番DBへ自動では接続しません。
+
+### 保存と端末の切替
+
+- 保存はまずブラウザ内に行い、開発用Firestoreへ同期します。同期済みのProjectと最後の計算結果を、
+  別端末でも保存済み一覧から選んで開けます。新しいタブでの自動選択やリアルタイム共同編集は行いません。
+- 通信断の間は未同期の変更を端末内に保持し、接続復帰後に再試行します。端末内の保存成功は
+  同期完了を意味しません。競合時は既存の選択画面で採用する内容を選びます。
+- 既存の未ログインProjectは、既存の同期機能と同じ手順で共有用の端末内保存領域へ取り込みます。
+  元データは取込先の印を付けて保持され、未ログイン一覧からは非表示になります。
+  Googleアカウント所有のProjectは取り込みません。同期の削除記録により、削除済みProjectを再取込で復活させません。
+- 自動保存のLatestは端末ごとです。別端末で再開するProjectには名前を付けて保存してください。
+  開いている編集内容を他端末の変更で自動置換しません。別端末の保存後は一覧から開き直します。
+
+停止も同じComposeファイルを指定します。共有overrideを外して再作成しても、開発用Firestoreと
+共有用のブラウザ保存領域は削除しません。共有側の変更は通常の未ログイン領域へ逆同期されません。
+
+```bash
+docker compose -f compose.local.yaml -f compose.local-shared.yaml stop
+```
+
+Codex worktreeでは先に `scripts/codex/setup_worktree.sh` を実行し、専用プロジェクトとポートを使います。
+自動テストは `firebase.dev.json` のAuth・Firestoreエミュレーターだけへ接続します。
+検証用runtimeは終了時に停止し、実DBと主環境の保存データは操作しません。
+自動更新時のStaticブラウザ検査も共有設定を引き継ぎますが、Firebase通信を遮断し、
+共有用の端末内保存領域を検証します。実際の同期とRulesはエミュレーターで別に確認します。
 
 ## 自動更新の動作
 
@@ -84,10 +155,11 @@ docker compose -f compose.local.yaml stop source updater
 候補の初回生成中に現在の8123番を止める必要はありません。
 
 切替後はdev URLの `/release.json`、MSM期限、普段のWindowsブラウザの保存済み一覧と計算結果を確認します。
-今回の切替でIndexedDBの移行や再取込みは行いません。
+通常モードへの切替ではIndexedDBの移行や再取込みは行いません。
+共有モードを有効にする場合は、前述の未ログインProjectの取込が行われます。
 
 復旧が必要なら更新サービスと新Webを停止し、保持してある旧Compose構成で旧Webを起動します。
 ブラウザの保存領域は巻き戻しません。保存形式が変わった版から戻す場合は互換性を先に確認します。
 旧配布物のMSMが失効している場合、旧Webの起動だけではFORECASTは復旧しません。
 
-この構成はローカル用です。本番Pagesの公開・自動更新設定、DNS、Firebase Rulesは変更しません。
+この構成はローカル用です。本番Pagesの公開・自動更新設定、DNS、本番Firebase Rulesは変更しません。

@@ -48,7 +48,7 @@ export class AccountSyncController implements AccountSyncControl {
     const terminal = /permission-denied|unauthenticated|resource-exhausted|SYNC_DATA_INVALID|invalid-argument/.test(code);
     const offline = globalThis.navigator?.onLine === false;
     if (terminal || (this.failures >= 5 && !offline)) {
-      void this.publish(/unauthenticated/.test(code)
+      void this.publish(/unauthenticated/.test(code) && !this.context.account_id?.startsWith("dev_shared_")
         ? "他の端末に変更を同期できません。Googleアカウントで再ログインしてください。"
         : "他の端末に変更を同期できていません。この端末の保存データは保持されています。時間をおいても続く場合は接続と保存容量を確認してください。");
     }

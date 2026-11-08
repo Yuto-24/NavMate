@@ -1,0 +1,6 @@
+# Use the existing NavMate-dev Firebase project; this never configures production.
+services:
+  updater:
+    env_file: [.env.local-static, .env.dev-shared]
+    environment:
+      LOCAL_SHARED_PROJECTS: "1"

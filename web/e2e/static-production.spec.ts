@@ -1,8 +1,13 @@
-import { expect, test } from "@playwright/test";
+import { test, artifactSessionKey } from "./helpers/localArtifact";
+import { expect } from "@playwright/test";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 
 test("production artifact shows storage limits and uses no Service Worker", async ({ page, context }) => {
   const api: string[] = [];
+  const blockedCloud: string[] = [];
+  context.on("requestfailed", request => {
+    if (request.url().includes("googleapis.com")) blockedCloud.push(request.failure()?.errorText ?? "");
+  });
   context.on("request", request => {
     if (new URL(request.url()).pathname.startsWith("/api/")) api.push(request.url());
   });
@@ -14,6 +19,10 @@ test("production artifact shows storage limits and uses no Service Worker", asyn
   await expect(page.getByText(/容量不足による自動削除/)).toBeVisible();
   expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
   expect(api).toEqual([]);
+  if (process.env.VITE_DEV_SHARED_PROJECTS === "1") {
+    await expect.poll(() => blockedCloud.length).toBeGreaterThan(0);
+    expect(blockedCloud.every(error => error.includes("BLOCKED_BY_CLIENT"))).toBe(true);
+  }
 });
 
 test("production artifact rejects a different build manifest and recovers on reload", async ({ page, context }) => {
@@ -23,7 +32,7 @@ test("production artifact rejects a different build manifest and recovers on rel
   await page.locator('input[type="file"]').setInputFiles("../tests/fixtures/issue_43_golden.kml");
   await confirmImportedDraft(page);
   await page.getByLabel("FUEL gal", { exact: true }).fill("76");
-  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("autonavlog.working-session.v1"))).toContain("76");
+  await expect.poll(() => page.evaluate(key => sessionStorage.getItem(key), artifactSessionKey)).toContain("76");
   await context.route("**/local/manifest.json", async route => {
     const response = await route.fetch();
     const manifest = await response.json();
@@ -73,6 +82,6 @@ test("production artifact calculates with its served real MSM feed and retains N
   });
   await context.route("**/weather/msm/catalog.json", route => route.fulfill({ status: 503, body: "outage" }));
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator('[role="alert"][aria-live="assertive"]')).toBeVisible();
   await expect(page.locator(".nav-log-table")).toHaveText(navlog, { useInnerText: true });
 });
