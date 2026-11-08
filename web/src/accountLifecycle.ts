@@ -22,6 +22,7 @@ export async function currentAccount(user: User, register = false, closeOldConte
   assertCurrent();
   const key = localKey(user);
   let serverConfirmedInactive = false;
+  let deletedGeneration = false;
   if (!navigator.onLine) {
     const cached = localStorage.getItem(key);
     if (cached && !cached.startsWith("retired:")) return { accountId: cached, deleting: false };
@@ -44,10 +45,18 @@ export async function currentAccount(user: User, register = false, closeOldConte
     assertCurrent();
     if (value.schema !== 1 || typeof value.accountId !== "string") throw new Error("アカウント情報を確認できません。");
     serverConfirmedInactive = value.state !== "ACTIVE";
-    const previous = cachedId(localStorage.getItem(key));
+    const cached = localStorage.getItem(key);
+    const previous = cachedId(cached);
+    deletedGeneration = value.state === "DELETED" || (!!previous &&
+      (previous !== value.accountId || (value.state === "ACTIVE" && cached?.startsWith("retired:") === true)));
     if (value.state !== "ACTIVE" || (previous && previous !== value.accountId)) closeOldContext();
     if (value.state !== "ACTIVE" || (previous && previous !== value.accountId))
       localStorage.setItem(key, retired(previous ?? value.accountId));
+    if (!register && previous && previous !== value.accountId) {
+      await removeLocalAccount(previous);
+      assertCurrent();
+      throw new Error("ACCOUNT_DELETED");
+    }
     if (value.state === "DELETING") {
       try {
         await removeLocalAccount(value.accountId);
@@ -63,7 +72,6 @@ export async function currentAccount(user: User, register = false, closeOldConte
       if (previous && previous !== value.accountId) await removeLocalAccount(previous);
       assertCurrent();
       if (!register) {
-        localStorage.removeItem(key);
         throw new Error("ACCOUNT_DELETED");
       }
       const next = { schema: 1, accountId: `account_v2_${crypto.randomUUID()}`, state: "ACTIVE" } as const;
@@ -78,10 +86,17 @@ export async function currentAccount(user: User, register = false, closeOldConte
     if (previous && previous !== value.accountId) await removeLocalAccount(previous);
     if (value.accountId !== legacyId) await removeLocalAccount(legacyId);
     assertCurrent();
+    // Keep the retired marker until deliberate login, even when another device
+    // has already registered a successor or Firebase logout persistence failed.
+    if (!register && deletedGeneration) throw new Error("ACCOUNT_DELETED");
     localStorage.setItem(key, value.accountId);
     return { accountId: value.accountId, deleting: value.state === "DELETING" };
   } catch (error) {
     assertCurrent();
+    // A failed Local purge must not retain authentication for a deleted owner.
+    // Keep its retired marker so explicit login can retry cleanup before entry.
+    if (!register && deletedGeneration && (error as Error)?.message !== "ACCOUNT_DELETED")
+      throw new Error("ACCOUNT_DELETED", { cause: error });
     // Cached identity permits existing Local work during an outage. A missing
     // cache on a fresh device must never guess which generation owns its data.
     if (!serverConfirmedInactive && (!navigator.onLine || ["unavailable", "deadline-exceeded"].includes((error as { code?: string })?.code ?? ""))) {
@@ -180,5 +195,6 @@ export async function deleteCurrentAccount(user: User, expectedId: string, onDel
     if (current.accountId !== expectedId || current.state !== "DELETING") throw new Error("アカウントの状態が変わりました。再試行してください。");
     transaction.update(ref, { state: "DELETED" });
   });
-  localStorage.removeItem(localKey(user));
+  // A failed Firebase sign-out must not reopen a successor after reload.
+  localStorage.setItem(localKey(user), retired(expectedId));
 }

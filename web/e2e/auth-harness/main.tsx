@@ -43,6 +43,7 @@ observeAccountContexts(browserPlatform, provider, ({ application, platform }) =>
   (error, retry) => progress({ percent: 0, message: "Legacyの引継ぎ状態を確認中", error, retry }));
 (window as any).authTest = {
   state: provider.getState,
+  currentUser: () => getAuth().currentUser?.uid ?? null,
   contexts,
   generation: () => generation,
   signIn: (subject: string) => signInWithCredential(getAuth(), GoogleAuthProvider.credential(subject)),

@@ -5,8 +5,18 @@ import { useModalFocusTrap } from "../useModalFocusTrap";
 
 const unavailable: AuthState = { account: null, available: false };
 const noSubscribe = () => () => {};
+const subscribeConnectivity = (listener: () => void) => {
+  window.addEventListener("online", listener);
+  window.addEventListener("offline", listener);
+  return () => {
+    window.removeEventListener("online", listener);
+    window.removeEventListener("offline", listener);
+  };
+};
+const isOnline = () => navigator.onLine;
 export function AccountControl({ auth, busy, onBeforeChange }: { auth?: AuthProvider; busy: boolean; onBeforeChange?: () => boolean }) {
   const state = useSyncExternalStore(auth?.subscribe ?? noSubscribe, auth?.getState ?? (() => unavailable));
+  const online = useSyncExternalStore(subscribeConnectivity, isOnline);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +49,9 @@ export function AccountControl({ auth, busy, onBeforeChange }: { auth?: AuthProv
           {state.signOutPending ? "ログアウトを再試行" : state.account || state.deletionPending ? "ログアウト" : "Googleでログイン"}
         </button>
         {auth?.deleteAccount && (state.account || state.deletionPending) && <>
+          {!online && <p>オフラインのためアカウントを削除できません。</p>}
           {confirmDeletion && <p>このアカウントの同期データと、この端末の保存データを削除します。元に戻せません。Googleアカウントは削除されません。</p>}
-          <button type="button" disabled={pending || busy} onClick={() => {
+          <button type="button" disabled={pending || busy || !online || state.signOutPending} onClick={() => {
             if (!confirmDeletion && !state.deletionPending) { setConfirmDeletion(true); return; }
             void act(() => auth.deleteAccount!()).then(success => { if (success) setConfirmDeletion(false); });
           }}>{state.deletionPending ? "削除を再試行" : confirmDeletion ? "NavMateアカウントを削除する" : "アカウントを削除"}</button>

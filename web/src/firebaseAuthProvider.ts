@@ -81,7 +81,12 @@ export class FirebaseAuthProvider implements AuthProvider {
       return;
     }
     const generation = ++this.generation;
-    if (!user) { this.subject = null; this.publish({ account: null, available: true }); return; }
+    if (!user) {
+      // The SDK's initial null event can follow a completed startup logout.
+      // Already-anonymous notifications must not erase its deletion/failure notice.
+      if (this.subject === null && !this.state.account) return;
+      this.subject = null; this.publish({ account: null, available: true }); return;
+    }
     if (user !== this.auth.currentUser) return;
     let subject: string;
     try { subject = googleSubject(user); }
@@ -121,7 +126,7 @@ export class FirebaseAuthProvider implements AuthProvider {
       }
       if ((error as Error)?.message === "ACCOUNT_DELETED") {
         if (generation === this.generation) {
-          this.publish({ account: null, available: true, notice: "このNavMateアカウントは削除されました。再利用する場合はGoogleでログインしてください。" });
+          await this.closeDeletedAccount(error as Error, "このNavMateアカウントは削除されました。");
         }
         return;
       }
@@ -133,7 +138,7 @@ export class FirebaseAuthProvider implements AuthProvider {
   }
   refresh = async () => {
     const user = this.auth.currentUser;
-    if (!user || this.refreshing || this.deleting) return;
+    if (!user || this.refreshing || this.deleting || this.closing) return;
     if (this.registrationMatches(user)) return;
     this.refreshing = true;
     try { await user.getIdToken(true); if (!this.registrationMatches(user)) await this.accept(user); }
@@ -194,6 +199,14 @@ export class FirebaseAuthProvider implements AuthProvider {
       throw new Error(notice);
     }
   }
+  private async closeDeletedAccount(error: Error, notice: string) {
+    try {
+      await this.signOut();
+      this.publish({ account: null, available: true, notice: error.cause
+        ? "端末内のデータを削除できませんでした。別のタブを閉じてからGoogleでログインし、旧アカウントのデータ削除を再試行してください。"
+        : notice });
+    } catch { /* Keep the closed boundary and visible logout retry on failure. */ }
+  }
   async deleteAccount() {
     const user = this.auth.currentUser;
     if (!user || !navigator.onLine) throw new Error("アカウント削除にはオンライン接続と再認証が必要です。");
@@ -212,11 +225,11 @@ export class FirebaseAuthProvider implements AuthProvider {
       await this.removeAccount(user, accountId, () => this.publish({ account: null, available: true,
         notice: "アカウントのデータを削除中です。完了までこの画面を閉じないでください。", deletionPending: true }));
       if (this.auth.currentUser === user) await this.signOut();
-      this.publish({ account: null, available: true, notice: "NavMateアカウントを削除しました。Googleアカウントは変更していません。" });
+      this.publish({ account: null, available: true, notice: "NavMateアカウントを削除しました。" });
     } catch (error) {
       if ((error as Error)?.message === "ACCOUNT_DELETED") {
-        this.publish({ account: null, available: true,
-          notice: "このNavMateアカウントは既に削除されています。再利用する場合はGoogleでログインしてください。" });
+        if (this.auth.currentUser === user)
+          await this.closeDeletedAccount(error as Error, "このNavMateアカウントは既に削除されています。");
         return;
       }
       let deletionPending = this.state.deletionPending || (error as Error)?.message === "ACCOUNT_DELETION_PENDING";
