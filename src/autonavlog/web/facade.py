@@ -63,6 +63,7 @@ from autonavlog.domain.planning import (
     load_persisted_ui_state,
 )
 from autonavlog.domain.project import NavSection, Project, RouteNode, VisualReference
+from autonavlog.domain.project_naming import normalize_project_name, refresh_automatic_name
 from autonavlog.importers.kml import (
     KmlImportError,
     KmlImportResult,
@@ -587,6 +588,7 @@ class AutoNavLogWebApplication:
                 {
                     "project_name_auto": True,
                     "project_name_generated": project.name,
+                    "project_name_format": 2,
                     "web_import_filename": (
                         None if request.candidate_kind == "map" else session.import_filename
                     ),
@@ -1439,7 +1441,8 @@ class AutoNavLogWebApplication:
             project_to_save = session.project.model_copy(deep=True)
             if request.name is not None:
                 project_to_save.name = self._normalize_project_name(request.name)
-                project_to_save.metadata["project_name_auto"] = False
+                if project_to_save.name != session.project.name:
+                    project_to_save.metadata["project_name_auto"] = False
             self._persist_draft(session, project_to_save)
             try:
                 saved = self.project_service.save(project_to_save)
@@ -1512,6 +1515,11 @@ class AutoNavLogWebApplication:
         *,
         set_last_opened: bool = False,
     ) -> None:
+        refresh_automatic_name(
+            project,
+            {summary.name for summary in self._owned_project_summaries(session)
+             if summary.id != project.id},
+        )
         if not session.persist_working:
             return
         try:
@@ -3205,9 +3213,4 @@ class AutoNavLogWebApplication:
 
     @staticmethod
     def _normalize_project_name(value: str) -> str:
-        normalized = "".join(
-            "_" if character in '<>:"/\\|?*' or ord(character) < 32 else character
-            for character in value.strip()
-        ).strip()
-        normalized = normalized[:60].rstrip(" .")
-        return normalized or "route"
+        return normalize_project_name(value)

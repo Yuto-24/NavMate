@@ -157,7 +157,7 @@ test("#176 empty Clipboard cannot offer a previously imported KML for replacemen
   expect((await snapshot(page)).mapRouteDraft).toEqual(before);
 });
 
-test("#176 #361 selected names survive Draft edits, reload, confirmation and saved Project reopening", async ({ page }) => {
+test("#176 #361 #293 selected names survive Draft edits, reload, confirmation and saved Project reopening", async ({ page }) => {
   await start(page);
   await upload(page, kml(
     `<Folder><name>other</name>${route("START→OTHER→END")}</Folder>`,
@@ -181,11 +181,24 @@ test("#176 #361 selected names survive Draft edits, reload, confirmation and sav
   await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
   const names = async () => (await snapshot(page)).working.project.route_nodes.map((node: any) => node.name);
   expect(await names()).toEqual(["RJFM", "KEEP", "RJFK"]);
+  const projectName = page.getByLabel("プロジェクト", { exact: true });
+  await expect(projectName).toHaveValue(/_RJFM-RJFK_KEEP$/);
   const editor = page.locator(".route-name-edit").first();
   await editor.click();
   await page.locator(".route-name-editor input").fill("MY POINT");
   await page.locator(".route-name-save").click();
   await expect.poll(names).toEqual(["RJFM", "MY POINT", "RJFK"]);
+  await expect(projectName).toHaveValue(/_RJFM-RJFK_MY POINT$/);
+  // Saving the offered automatic name does not opt out of future updates.
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
+  expect((await snapshot(page)).working.project.metadata.project_name_auto).toBe(true);
+  await projectName.fill("Imported names");
+  await editor.click();
+  await page.locator(".route-name-editor input").fill("RENAMED");
+  await page.locator(".route-name-save").click();
+  await expect.poll(names).toEqual(["RJFM", "RENAMED", "RJFK"]);
+  await expect(projectName).toHaveValue("Imported names");
   await page.getByLabel("プロジェクト", { exact: true }).fill("Imported names");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
@@ -194,7 +207,8 @@ test("#176 #361 selected names survive Draft edits, reload, confirmation and sav
   await expect(page.getByLabel("保存済み", { exact: true })).toBeVisible();
   await page.getByLabel("保存済み", { exact: true }).selectOption(project.id);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
-  await expect.poll(names).toEqual(["RJFM", "MY POINT", "RJFK"]);
+  await expect.poll(names).toEqual(["RJFM", "RENAMED", "RJFK"]);
+  await expect(projectName).toHaveValue("Imported names");
   const reopened = (await snapshot(page)).working.project;
   expect(reopened.route_nodes).toEqual(project.route_nodes);
   expect(reopened.sections).toEqual(project.sections);

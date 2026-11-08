@@ -9,6 +9,24 @@ storage failures never call Legacy, request authentication, or send Project data
 
 ## Durable data and session boundary
 
+Automatic Project names (#293) use `YYYY-MM-DD_FROM-TO_WP1-WP2` for FORECAST
+and `FTD_FROM-TO_WP1-WP2` for FTD; routes without intermediate points omit the
+last underscore. The common Python naming policy uses physical route order and
+excludes internally inserted RJFM points by their source, not their display name
+or label provenance. Names retain the existing normalization and 60-character limit.
+
+Project validation lazily converts old names only when `project_name_auto` is
+explicitly true and `project_name_generated` matches the current name. It preserves
+an existing collision ordinal and records the new naming format/base. Local and
+Legacy readers apply this same idempotent conversion to draft, checkpoint, and
+Last Calculation Project snapshots; IDs, revisions, timestamps, calculation payloads
+and fingerprints remain unchanged. Reading does not rewrite storage; the converted
+name is persisted by the next ordinary write. Unknown/manual names remain intact.
+Saving the offered name retains automatic naming; saving a different name disables it.
+Route confirmation and WP renaming refresh automatic names, including mode/date
+changes through the ordinary draft update. Unsaved text in the Project name field
+is preserved when the underlying automatic name changes.
+
 Each JSON-compatible record contains:
 
 - `schemaVersion`, Project `id`, opaque optimistic-concurrency `token`, and `updatedAt`;
