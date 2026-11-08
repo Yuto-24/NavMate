@@ -170,6 +170,10 @@ process.exit(9);
   const env = { ...process.env, PATH: root + ":" + process.env.PATH,
     AUTONAVLOG_TEST_FIXTURES: "0", AUTONAVLOG_MSM_FEED: root,
     VITE_TAF_PROXY_URL: "https://weather.example/taf" };
+  // Each case supplies its own development settings, including missing-key cases.
+  for (const key of Object.keys(env)) {
+    if (key === "VITE_DEV_SHARED_PROJECTS" || key.startsWith("VITE_DEV_FIREBASE_")) delete env[key];
+  }
   for (const key of accountKeys) env[key] = "shell-production";
   const build = resolve("scripts/build-static.mjs");
   const local = spawnSync(process.execPath, [build, "--local-runtime"], { cwd: root, env });
