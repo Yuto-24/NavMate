@@ -41,7 +41,8 @@ jobs:
       sha: ${{ steps.source.outputs.sha }}
       proceed: ${{ steps.preflight.outputs.proceed }}
       upstream_run: ${{ steps.preflight.outputs.upstream_run }}
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.STATIC_AUTOMATION_ENABLED == 'true') && (!inputs.feed_refresh || (vars.STATIC_EXTERNAL_TRIGGER_ENABLED == 'true' && vars.STATIC_AUTOMATION_ENABLED == 'true'))
+    # Serialize the boolean so missing/null metadata cannot compare equal to false.
+    if: toJSON(github.event.repository.private) == 'false' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.STATIC_AUTOMATION_ENABLED == 'true') && (!inputs.feed_refresh || (vars.STATIC_EXTERNAL_TRIGGER_ENABLED == 'true' && vars.STATIC_AUTOMATION_ENABLED == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: ${{ (github.event_name == 'schedule' || inputs.publish) && 'static-production' || 'static-validation' }}

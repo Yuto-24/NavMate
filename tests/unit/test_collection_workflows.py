@@ -1,5 +1,6 @@
 """Catalog monitoring is independent; opted-in quota failures remain failures."""
 
+import json
 import os
 import re
 import subprocess
@@ -168,6 +169,41 @@ def test_collection_shell_preserves_exit_and_redacted_summary(tmp_path, step, ex
     assert result.returncode == exit_code
     assert summary.read_text() == result.stdout == '{"status":"BLOCKED"}\n'
     assert result.stderr == ""
+
+
+@pytest.mark.parametrize("private", [False, True, None, "", "false", 0])
+@pytest.mark.parametrize("event,automation,external,refresh,ref,enabled", [
+    ("schedule", "true", "", False, "refs/heads/main", True),
+    ("schedule", "", "", False, "refs/heads/main", False),
+    ("schedule", "false", "", False, "refs/heads/main", False),
+    ("schedule", "true", "", False, "refs/heads/feature", False),
+    ("workflow_dispatch", "", "", False, "refs/heads/main", True),
+    ("workflow_dispatch", "true", "", False, "refs/heads/feature", False),
+    ("workflow_dispatch", "true", "true", True, "refs/heads/main", True),
+    ("workflow_dispatch", "true", "", True, "refs/heads/main", False),
+    ("workflow_dispatch", "", "true", True, "refs/heads/main", False),
+])
+def test_preflight_requires_explicit_public_metadata_before_runner_allocation(
+    private, event, automation, external, refresh, ref, enabled,
+):
+    """Only boolean false admits a repository; existing trigger opt-ins still apply."""
+    preflight = PRODUCTION.split("  preflight:\n", 1)[1].split("    steps:\n", 1)[0]
+    condition = re.search(r"^    if: (.+)$", preflight, re.MULTILINE)
+    assert condition is not None  # job-level, not a step after allocating the runner
+    expression = condition[1]
+    # toJSON distinguishes false from null/empty/zero despite Actions' loose equality.
+    expression = expression.replace("toJSON(github.event.repository.private)",
+                                    repr(json.dumps(private)))
+    for name, value in {
+        "github.event_name": event,
+        "github.ref": ref,
+        "vars.STATIC_AUTOMATION_ENABLED": automation,
+        "vars.STATIC_EXTERNAL_TRIGGER_ENABLED": external,
+        "inputs.feed_refresh": refresh,
+    }.items():
+        expression = expression.replace(name, repr(value))
+    expression = expression.replace("&&", "and").replace("||", "or").replace("!", "not ")
+    assert bool(eval(expression, {"__builtins__": {}})) == (private is False and enabled)
 
 
 def test_hourly_preflight_precedes_all_heavy_work_and_preserves_serialization():
