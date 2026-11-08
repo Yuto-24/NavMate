@@ -226,10 +226,12 @@ for (const failure of ["listing", "communication", "missing", "integrity", "deco
 }
 
 test("expired MSM continues locally with cached data and a missing new Run", async ({ page, context }) => {
+  const listings = Object.fromEntries(Object.entries(frozen.listings)
+    .filter(([url]) => !url.endsWith("/09/16")));
   await context.route("**/weather/msm/catalog.json", route => route.fulfill({
     contentType: "application/json", body: JSON.stringify({ ...frozen,
       generated_at: "2026-09-16T00:00:00Z", expires_at: "2026-09-16T06:00:00Z",
-      assets: frozen.assets.slice(1),
+      listings, assets: frozen.assets.slice(1),
     }),
   }));
   await setup(page);
@@ -245,7 +247,7 @@ test("expired MSM continues locally with cached data and a missing new Run", asy
   await context.route("**/weather/msm/catalog.json", route => route.fulfill({
     contentType: "application/json", body: JSON.stringify({ ...frozen,
       generated_at: new Date(Date.now() - 1000).toISOString(),
-      expires_at: new Date(Date.now() + 3600000).toISOString(), assets: frozen.assets.slice(0, 1),
+      expires_at: new Date(Date.now() + 3600000).toISOString(), listings, assets: frozen.assets.slice(0, 1),
     }),
   }));
   await context.route("**/weather/msm/*.npz", route => route.fulfill({ status: 404, body: "" }));

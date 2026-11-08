@@ -2,6 +2,19 @@
 
 NavMate のRelease履歴です。公開日時はGitHub Releaseを正本とします。
 
+## 2.2.2
+
+### 利用者向け
+
+#### 修正
+
+- MSM配信情報の期限が切れていても、必要な範囲と値を確認できる端末内データで計算を継続します。初回計算や予報更新では、最新Runを利用できない場合に正常なMSM候補を確認します。
+
+### 開発者向け
+
+- [Issue #396 日別一覧欠落時のLocal計算](https://github.com/Yuto-24/NavMate/issues/396): 一部の日別一覧が欠けても、保存済みの実在する一覧からMSM候補を評価します。NPZのhash・size・Run/source identityと実計算の日時・経路・高度・必要値の検証を維持します。
+- 不完全な一覧では最新Runを確認済みと記録しません。固定RunとLast Calculationの保持、配信情報の生成時刻・期限、Project schema・Firestore Rulesは変更しません。
+
 ## 2.2.1
 
 ### 利用者向け
