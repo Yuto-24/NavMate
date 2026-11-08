@@ -309,7 +309,7 @@ test("pasted KML draft resumes without reading a changed clipboard", async ({ pa
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", {
     configurable: true, value: { readText: async () => { throw new Error("denied"); } },
   }));
-  await page.getByRole("button", { name: "KMLを取り込む", exact: true }).click();
+  await page.getByRole("button", { name: "Google Earth からペースト", exact: true }).click();
   await page.getByRole("dialog").getByRole("textbox").fill("<kml>入力途中");
   await page.reload();
   await expect(page.getByRole("dialog")).toHaveCount(0);

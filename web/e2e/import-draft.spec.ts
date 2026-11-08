@@ -27,7 +27,7 @@ for (const width of [1100, 1440]) test(`#176 import Draft single route, reload a
   expect((await snapshot(page)).mapRouteDraft).toEqual(before);
   await page.getByRole("button", { name: "経路を確定", exact: true }).click();
   await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "KMLを取り込む", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Google Earth からペースト", exact: true })).toHaveCount(0);
   const input = (await page.getByRole("complementary", { name: "経路と飛行計画" }).boundingBox())!;
   const map = (await page.getByRole("region", { name: "経路地図とLeg設定" }).boundingBox())!;
   const readiness = (await page.locator(".status-rail").boundingBox())!;
@@ -105,7 +105,7 @@ test("#176 denied Clipboard falls back to manual paste without losing the Draft"
     expect(dialog.message()).toBe("作成中の変更を破棄しますか？");
     void dialog.accept();
   });
-  await page.getByRole("button", { name: "KMLを取り込む", exact: true }).click();
+  await page.getByRole("button", { name: "Google Earth からペースト", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   expect((await snapshot(page)).mapRouteDraft).toEqual(before);
   await page.getByRole("dialog").getByRole("button", { name: "閉じる", exact: true }).click();
@@ -143,14 +143,14 @@ test("#176 empty Clipboard cannot offer a previously imported KML for replacemen
       value: { readText: () => Promise.resolve(reads++ === 0 ? text : "") } });
   }, kml(route("clipboard")));
   await start(page);
-  await page.getByRole("button", { name: "KMLを取り込む", exact: true }).click();
+  await page.getByRole("button", { name: "Google Earth からペースト", exact: true }).click();
   await expect(strip(page).locator("li")).toHaveCount(3);
   const before = (await snapshot(page)).mapRouteDraft;
   page.on("dialog", dialog => {
     expect(dialog.message()).toBe("作成中の変更を破棄しますか？");
     void dialog.accept();
   });
-  await page.getByRole("button", { name: "KMLを取り込む", exact: true }).click();
+  await page.getByRole("button", { name: "Google Earth からペースト", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "KML/XMLを貼り付け", exact: true });
   await expect(dialog.getByRole("textbox", { name: "KML/XML", exact: true })).toHaveValue("");
   await expect(dialog.getByRole("button", { name: "貼付KMLを読み込む", exact: true })).toBeDisabled();

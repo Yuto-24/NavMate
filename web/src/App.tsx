@@ -1847,7 +1847,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
               : "KML終点から5 NM以内に目的空港が見つかりません。経路終点を確認してください。"
           }</p>}
           <FileInput busy={busy} onFile={handleFile} inputRef={routeFileInput} />
-          <button className="secondary-button" disabled={busy} onClick={() => void handlePasteImport("clipboard")}>KMLを取り込む</button>
+          <button className="secondary-button" disabled={busy} onClick={() => void handlePasteImport("clipboard")}>Google Earth からペースト</button>
           </>}
         </aside> : <ImportPlanPanel
           panelRef={planningPanelRef}

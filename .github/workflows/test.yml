@@ -53,12 +53,15 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install "pytest>=8.3,<9"
+      - name: Check retained UI copy review evidence and source context
+        run: python scripts/ui_copy_review.py check
       - name: Check CI classification and source contracts without application dependencies
         run: >-
           python -m pytest --noconftest
           tests/integration/check_ci_changes.py
           tests/integration/check_release_merge.py
           tests/unit/test_release_ci.py
+          tests/unit/test_ui_copy_review.py
           tests/unit/test_publish_github_release.py
           tests/integration/check_publish_github_release.py
           tests/unit/test_supported_runtime_contract.py
