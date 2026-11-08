@@ -53,6 +53,29 @@ async function calculated(page: Page) {
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
 }
+test("#355 startup reload replaces a failed Worker", async ({ page, context }) => {
+  test.skip(!isLocal(), "Local Worker initialization failure");
+  await context.addInitScript(() => {
+    if (sessionStorage.getItem("issue355-worker-failed")) return;
+    const Original = Worker;
+    window.Worker = class extends Original {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        sessionStorage.setItem("issue355-worker-failed", "1");
+        setTimeout(() => this.dispatchEvent(new ErrorEvent("error", { message: "private Worker stack and token" })), 0);
+      }
+    };
+  });
+  await page.goto("/");
+  await expect(page.getByRole("alert").locator("code")).toHaveText("APPLICATION_UNAVAILABLE");
+  await expect(page.locator("body")).not.toContainText("private Worker stack and token");
+  const firstDocument = await page.evaluate(() => performance.timeOrigin);
+  await page.getByRole("button", { name: "起動を再試行", exact: true }).click();
+  await enterImportWorkflow(page);
+  await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => performance.timeOrigin)).not.toBe(firstDocument);
+});
+
 test("reload preserves raw invalid planning values, import and route selection", async ({ page }) => {
   await imported(page);
   const importedDraft = (await snapshot(page)).mapRouteDraft;
