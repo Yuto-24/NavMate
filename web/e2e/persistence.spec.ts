@@ -85,6 +85,51 @@ async function serveForecast(context: BrowserContext) {
 }
 test.beforeEach(async ({ context }) => { await blockApi(context); await serveForecast(context); });
 
+test("#355 startup reload recovers after asset failure and preserves saved Project, result and same-tab edits", async ({ page, context }) => {
+  test.setTimeout(240_000);
+  await start(page);
+  await confirm(page, "FTD");
+  await calculate(page);
+  await save(page, "Startup recovery");
+  await page.locator(".nav-log-table").getByLabel(/手動TAS$/).first().fill("999");
+  const before = await working(page);
+  const saved = await records(page);
+  const session = await page.evaluate(key => sessionStorage.getItem(key), sessionKey);
+  let blocked = true;
+  let failures = 0;
+  await context.route("**/local/manifest.json", route => {
+    if (!blocked) return route.continue();
+    failures++;
+    return route.fulfill({ status: 503, body: "private initialization details" });
+  });
+  const dialogs: string[] = [];
+  page.on("dialog", async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
+  await page.reload();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("処理を実行できませんでした。画面を再読み込みしてください。");
+  await expect(alert.locator("code")).toHaveText("APPLICATION_UNAVAILABLE");
+  await expect(page.locator("body")).not.toContainText("private initialization details");
+  const failedDocument = await page.evaluate(() => performance.timeOrigin);
+  await page.getByRole("button", { name: "起動を再試行", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => performance.timeOrigin)).not.toBe(failedDocument);
+  await expect(alert.locator("code")).toHaveText("APPLICATION_UNAVAILABLE");
+  expect(failures).toBe(2);
+  await expect(page.locator(".nav-log-table")).toHaveCount(0);
+  expect(await records(page)).toEqual(saved);
+  expect(await page.evaluate(key => sessionStorage.getItem(key), sessionKey)).toBe(session);
+  blocked = false;
+  const retryDocument = await page.evaluate(() => performance.timeOrigin);
+  await page.getByRole("button", { name: "起動を再試行", exact: true }).click();
+  await expect(page.locator(".nav-log-table")).toBeVisible();
+  expect(await page.evaluate(() => performance.timeOrigin)).not.toBe(retryDocument);
+  expect(await page.evaluate(() => (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming).type)).toBe("reload");
+  await expect(page.locator(".nav-log-table").getByLabel(/手動TAS$/).first()).toHaveValue("999");
+  expect((await working(page)).outcome).toEqual(before.outcome);
+  expect((await working(page)).project.id).toBe(before.project.id);
+  expect(await records(page)).toEqual(saved);
+  expect(dialogs).toEqual([]);
+});
+
 test("browser process restart loads named checkpoint and retains Last Calculation, opens only explicitly", async ({ baseURL }) => {
   test.setTimeout(180_000);
   const profile = mkdtempSync(join(tmpdir(), "autonavlog-124-profile-"));
