@@ -898,6 +898,10 @@ class CalculationService:
         issues: list[Issue] = []
         geometries = self._build_geometry(project, issues)
         plan = state.rjfm_inbound_plan
+        arrival = calculate_arrival_altitude(project, state).result
+        arrival_altitude_ft_msl = (
+            None if arrival is None else float(arrival.adopted_altitude_ft_msl)
+        )
         allow_repeated_descent = bool(
             plan is not None
             and self.expected_rjfm_reference_revision is not None
@@ -906,6 +910,7 @@ class CalculationService:
             and plan.reference_content_fingerprint
             == self.expected_rjfm_reference_content_fingerprint
             and rjfm_inbound_plan_matches_project(project, plan)
+            and plan.adopted_vrep_altitude_ft_msl == arrival_altitude_ft_msl
         )
         issues.extend(self._flight_phase_sequence_issues(
             geometries, allow_repeated_descent=allow_repeated_descent,
