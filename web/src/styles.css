@@ -1319,12 +1319,12 @@ tbody tr:last-child td { border-bottom: 0; }
 .nav-log-table thead th, .nav-log-table tbody tr:last-child td {
   border-bottom: 2px solid var(--nav-log-grid);
 }
-/* Count from FUEL so adding VOR/DME columns cannot move the paper boundaries:
-   TO, TAS, MC, MH, ZONE/CUM ETE, ETO, ATE, then the right outer frame. */
+/* Count from CUT so adding VOR/DME columns cannot move the paper boundaries:
+   TO, TAS, MC, MH, ZONE/CUM ETE, ETO, ATE, FUEL, then the right outer frame. */
 .nav-log-table tr > :is(th, td):is(
-  :nth-last-child(18), :nth-last-child(14), :nth-last-child(11),
-  :nth-last-child(8), :nth-last-child(5), :nth-last-child(4),
-  :nth-last-child(2), :last-child
+  :nth-last-child(19), :nth-last-child(15), :nth-last-child(12),
+  :nth-last-child(9), :nth-last-child(6), :nth-last-child(5),
+  :nth-last-child(3), :nth-last-child(2), :last-child
 ) { border-right: 2px solid var(--nav-log-grid); }
 .nav-log-table col.nav-log-vor-column { width: 90px; }
 .nav-log-table col.nav-log-from-column, .nav-log-table col.nav-log-to-column { width: 110px; }
@@ -1339,6 +1339,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .nav-log-table col.nav-log-eto-column, .nav-log-table col.nav-log-ato-column,
 .nav-log-table col.nav-log-ate-column { width: 60px; }
 .nav-log-table col.nav-log-fuel-column { width: 90px; }
+.nav-log-table col.nav-log-cut-column { width: 80px; }
 .nav-log-table th, .nav-log-table td { padding: 4px 5px; }
 .nav-log-table th { text-align: center; line-height: 1.25; }
 .nav-log-table th small { font-size: 8px; font-weight: 650; }

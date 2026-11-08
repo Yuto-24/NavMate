@@ -69,6 +69,7 @@ const NAV_LOG_COLUMN_WIDTHS_PX = {
   ato: 60,
   ate: 60,
   fuel: 90,
+  cut: 80,
 } as const;
 const BASE_NAV_LOG_WIDTH_PX = Object.values(NAV_LOG_COLUMN_WIDTHS_PX)
   .filter((_, index) => index > 0)
@@ -495,6 +496,12 @@ function DisplayResultCells({
       <DisplayCell cell={row.ato} extraClass="manual-entry-cell" />
       <DisplayCell cell={row.ate} extraClass="manual-entry-cell" />
       <DisplayCell cell={row.fuel} />
+      <td className="derived-readonly-cell nav-log-cut-cell">
+        {row.row_type === "PHYSICAL_LEG_SUMMARY"
+          ? (Number.isInteger(row.thirty_degree_cut_seconds) && (row.thirty_degree_cut_seconds ?? 0) > 0
+            ? row.thirty_degree_cut_seconds : "—")
+          : ""}
+      </td>
     </>
   );
 }
@@ -667,7 +674,7 @@ export function NavLogTable({
     () => resolveVorStations(vorColumns),
     [automaticVorStation, orderedVorStations, vorColumns],
   );
-  const navLogColumnCount = 19 + vorColumns.length;
+  const navLogColumnCount = 20 + vorColumns.length;
   const navLogWidth = BASE_NAV_LOG_WIDTH_PX
     + vorColumns.length * VOR_COLUMN_WIDTH_PX;
   const addVorColumn = () => {
@@ -789,6 +796,7 @@ export function NavLogTable({
             <col className="nav-log-ete-column" /><col className="nav-log-eto-column" />
             <col className="nav-log-ato-column" /><col className="nav-log-ate-column" />
             <col className="nav-log-fuel-column" />
+            <col className="nav-log-cut-column" />
           </colgroup>
           <thead>
             <tr>
@@ -857,6 +865,7 @@ export function NavLogTable({
               <th>ATO</th>
               <th>ATE</th>
               <th>SECT / REM<br /><small>FUEL gal</small></th>
+              <th>30° CUT<br /><small>sec</small></th>
             </tr>
           </thead>
           <tbody>

@@ -30,10 +30,10 @@ export async function expectNavLogPaperGrid(page: Page) {
   });
   expect(grid.top).toBe("2px");
   expect(grid.left).toBe("2px");
-  const groupEnds = new Set(["TO", "TASkt", "MC", "MH", "ZONE / CUMETE min", "ETO", "ATE"]);
+  const groupEnds = new Set(["TO", "TASkt", "MC", "MH", "ZONE / CUMETE min", "ETO", "ATE", "SECT / REMFUEL gal"]);
   // BR separates rendered header lines but is not a textContent character.
   const strong = grid.labels.map((label, index) => groupEnds.has(label ?? "") || index === grid.labels.length - 1);
-  expect(strong.filter(Boolean)).toHaveLength(8);
+  expect(strong.filter(Boolean)).toHaveLength(9);
   for (const [index, header] of grid.headers.entries()) {
     expect(header.right).toBe(strong[index] ? "2px" : "1px");
     expect(header.rightStyle).toBe("solid");

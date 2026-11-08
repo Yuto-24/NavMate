@@ -7,6 +7,7 @@ from re import sub
 from typing import Any
 from uuid import UUID
 
+from autonavlog.application.thirty_degree_cut import solve_thirty_degree_cut
 from autonavlog.application.vertical_profile import descent_profile_from_metadata
 from autonavlog.domain.calculation import (
     CalculationOutcome,
@@ -850,6 +851,54 @@ def _row_cells_blank() -> dict[str, NavLogDisplayCell]:
     }
 
 
+def _thirty_degree_cut(
+    index: int, legs: list[NavLogPhysicalLeg], sections: list[SectionResult],
+) -> int | None:
+    if index == 0:
+        return None
+    previous, leg = legs[index - 1], legs[index]
+    if leg.start_node_id is None or previous.end_node_id != leg.start_node_id:
+        return None
+    inbound = [zone for zone in sections if zone.section_id in previous.section_ids]
+    outbound = [zone for zone in sections if zone.section_id in leg.section_ids]
+    if not inbound or not outbound:
+        return None
+    before, after = inbound[-1], outbound[0]
+    values = [value.adopted() for value in (
+        before.true_course_deg, before.magnetic_heading_deg, before.variation_deg_east,
+        after.magnetic_course_deg, after.magnetic_heading_deg, after.variation_deg_east,
+        after.tas_kt, after.wind_speed_kt,
+    )]
+    if any(value is None or not isfinite(value) for value in values):
+        return None
+    tc_in, mh_in, var_in, mc, mh, variation, tas, wind = [
+        float(value) for value in values if value is not None
+    ]
+    direction = after.wind_direction_deg_from.adopted()
+    if wind == 0:
+        direction = 0.0
+    if direction is None:
+        return None
+    # A merged display parent can contain multiple real courses. The entry
+    # manoeuvre must finish before the first physical course change, not merely
+    # before that parent's final endpoint. RCA/EOC splits share a section ID.
+    distances = [zone.zone_distance_nm.adopted() for zone in outbound
+                 if zone.section_id == after.section_id]
+    if any(value is None or not isfinite(value) or value < 0 for value in distances):
+        return None
+    solution = solve_thirty_degree_cut(
+        inbound_course_deg=tc_in,
+        inbound_heading_deg=mh_in - var_in,
+        course_deg=mc - variation,
+        heading_deg=mh - variation,
+        tas_kt=tas,
+        wind_direction_deg_from=direction,
+        wind_speed_kt=wind,
+        distance_nm=sum(value for value in distances if value is not None),
+    )
+    return int(round_half_up(solution.seconds, 1.0)) if solution else None
+
+
 def build_navlog_display_rows(
     physical_legs: list[NavLogPhysicalLeg],
     sections: list[SectionResult],
@@ -1023,6 +1072,7 @@ def build_navlog_display_rows(
                 ato=_blank(),
                 ate=_blank(),
                 fuel=fuel_cell,
+                thirty_degree_cut_seconds=_thirty_degree_cut(leg_index, physical_legs, sections),
             )
         )
 
