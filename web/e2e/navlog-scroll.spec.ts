@@ -97,21 +97,24 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   }
 
   await expect(page.getByLabel("計算済みNAV LOG")).toHaveCount(0);
+  const toast = page.locator(".calculation-toast");
+  // Freeze before calculation so layout/assertion time on slower CI runners
+  // cannot consume the toast's five-second lifetime.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 200));
   await page.getByRole("button", { name: "NAV LOGを作る", exact: true }).click();
+  await expect(toast).toHaveText("NAV LOGを計算しました。準備状況と各値を確認してください。");
+  await page.clock.runFor(500); // Run the existing scroll-to-result frame.
   await expectNavLogAtViewportTop(page);
   expect(await page.evaluate(() => (window as any).navLogScrollsAtCalculationStart)).toBe(0);
   expect(await page.evaluate(() => (window as any).navLogScrolls)).toBe(1);
   await expectNavLogPaperGrid(page);
   const firstTable = await page.locator(".nav-log-table").innerText();
-  const toast = page.locator(".calculation-toast");
-  await expect(toast).toHaveText("NAV LOGを計算しました。準備状況と各値を確認してください。");
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 200));
   await expect(page.locator(".calculation-toast-region")).toHaveAttribute("aria-live", "polite");
   const readiness = await page.locator(".status-rail").innerText();
   for (const width of [390, 1100, 1440]) await checkToastLayout(page, width);
-  await page.clock.runFor(3_500);
+  await page.clock.runFor(4_499);
   await expect(toast).toBeVisible();
-  await page.clock.runFor(1_500);
+  await page.clock.runFor(1);
   await expect(toast).toHaveCount(0);
   await expect(page.locator(".nav-log-table")).toHaveText(firstTable, { useInnerText: true });
   await expect(page.locator(".status-rail")).toHaveText(readiness, { useInnerText: true });
@@ -120,7 +123,10 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect.poll(() => page.getByLabel("計算済みNAV LOG").evaluate((element) => element.getBoundingClientRect().top))
     .toBeGreaterThan(await page.evaluate(() => window.innerHeight / 3));
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 200));
   await page.getByRole("button", { name: "NAV LOGを再計算", exact: true }).click();
+  await expect(toast).toBeVisible();
+  await page.clock.runFor(500);
   await expectNavLogAtViewportTop(page);
   expect(await page.evaluate(() => (window as any).navLogScrollsAtCalculationStart)).toBe(1);
   expect(await page.evaluate(() => (window as any).navLogScrolls)).toBe(2);
@@ -128,14 +134,12 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await expectNavLogPaperGrid(page);
 
   // A new successful calculation gets a fresh five seconds even if the old toast was still open.
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 200));
-  await page.clock.runFor(3_500);
+  await page.clock.runFor(3_000);
   await expect(toast).toBeVisible();
-  await page.clock.resume();
   await page.getByRole("button", { name: "NAV LOGを再計算", exact: true }).click();
-  await expectNavLogAtViewportTop(page);
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 200));
+  await expect(toast).toBeVisible();
   await page.clock.runFor(2_000);
+  await expectNavLogAtViewportTop(page);
   await expect(toast).toBeVisible();
   await toast.getByRole("button", { name: "メッセージを閉じる" }).click();
   await expect(toast).toHaveCount(0);
