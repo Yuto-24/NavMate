@@ -1,0 +1,10 @@
+{
+  "items": [
+    {
+      "id": "map-clipboard-paste",
+      "text": "Google Earth からペースト",
+      "reason": "Gemini は本人指定・既存の ImportPlanPanel との一致、ファイル入力・候補確定との区別を理由に採用可能と判断した。指定文言を保持し、MAP側のみ復旧する。表示幅とフォールバック動作は既存ブラウザーテストで確認する。Google Earth以外を処理できる点は本人指定の主用途表現と両立する。",
+      "response_quote": "Google Earth からペースト"
+    }
+  ]
+}

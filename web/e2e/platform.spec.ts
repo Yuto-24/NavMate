@@ -10,7 +10,7 @@ const isLocal = () => test.info().config.metadata.applicationMode === "local";
 const kml = readFileSync(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)), "utf8");
 const key = artifactSessionKey;
 const snapshot = (page: Page) => page.evaluate(k => JSON.parse(sessionStorage.getItem(k)!), key);
-const paste = (page: Page) => page.getByRole("button", { name: "KMLを取り込む", exact: true });
+const paste = (page: Page) => page.getByRole("button", { name: "Google Earth からペースト", exact: true });
 
 test.beforeEach(async ({ context }) => {
   if (isLocal()) await context.route("**/api/**", route => route.abort());
