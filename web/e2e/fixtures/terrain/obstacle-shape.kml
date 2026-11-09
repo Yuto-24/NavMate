@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic reproduction of the supplied AREA1 structure, not actual obstacle data. -->
+<kml xmlns="http://earth.google.com/kml/2.2"><Document><Placemark>
+  <name>TOWER</name>
+  <description><![CDATA[<table>
+    <tr><td>Obstacle type</td><td>TOWER</td></tr>
+    <tr><td>Height</td><td>50</td></tr>
+    <tr><td>Elevation</td><td>1000</td></tr>
+    <tr><td>Vertical reference system</td><td>OTHER:TP</td></tr>
+    <tr><td>Unit of measurement used</td><td>Metric</td></tr>
+  </table>]]></description>
+  <Point><coordinates>131.45,31.88,YES</coordinates></Point>
+</Placemark></Document></kml>

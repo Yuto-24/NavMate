@@ -21,6 +21,8 @@
     "test:forecast-backup": "playwright test --config playwright.forecast-backup.config.ts",
     "test:dev-shared": "playwright test --config playwright.dev-shared.config.ts",
     "test:local:full": "playwright test --config playwright.local.config.ts",
+    "pretest:terrain": "npm run generate:release-notes",
+    "test:terrain": "playwright test --config playwright.terrain.config.ts",
     "test:application": "playwright test --config playwright.application.config.ts",
     "test:auth": "playwright test --config playwright.auth.config.ts --grep 'anonymous workflow, account switch, logout, reauthentication and cross-tab closure|Account dialog remains compact and workflow regions retain their order|different identity closes the prior Application before async mapping, token refresh preserves it|failed persistent logout closes access and offers a visible retry in the new context|blocked Google popup reports an actionable error without resetting anonymous input|New orders pending sync'",
     "test:auth:full": "playwright test --config playwright.auth.config.ts",
