@@ -321,6 +321,9 @@ Firestore Rules→storage-upgrade→migrationは別のcontracts runnerで全対�
 [依存関係と計測方針](evidence/ci/account-sync-project-shards-20261101.md)を参照。
 ローカルのPlaywright configの既定値も1 workerのままとする。
 
+`#350` ARITA回帰の初回NAV LOG表示待ちは、[Issue #408のtrace調査](evidence/ci/arita-calculation-wait-20261109.md)
+に基づき60秒とする。共通expectの30秒、テスト全体の120秒、retryなしは維持する。
+
 同期テストの初回ログインは、テスト用`authTest`の存在だけでなく、初期画面の
 「アカウント」ボタン表示を待つ。この表示は匿名Applicationのworker bootstrap完了後で、
 実際の利用者が認証操作を始められる時点に対応する。初期化前のVite再読込とログインが
