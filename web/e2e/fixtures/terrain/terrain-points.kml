@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic terrain input. TP/terrain meaning require separate source evidence. -->
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <Placemark><name>Boundary</name><Point><altitudeMode>absolute</altitudeMode><coordinates>131.45,31.88,123.45</coordinates></Point></Placemark>
+  <Placemark><name>Negative</name><Point><altitudeMode>absolute</altitudeMode><coordinates>131.451,31.881,-2.25</coordinates></Point></Placemark>
+  <Placemark><name>Zero</name><Point><altitudeMode>absolute</altitudeMode><coordinates>131.452,31.882,0</coordinates></Point></Placemark>
+  <Placemark><name>Outside</name><Point><altitudeMode>absolute</altitudeMode><coordinates>132,32,900</coordinates></Point></Placemark>
+</Document></kml>
