@@ -9,6 +9,8 @@ Read [the workflow](README.md) before adding or applying lessons. Search by the 
 
 - [MAP background imagery](../map_background.md): Issue #243の配信元・出典、倍率と欠損時の表示、端末保存の境界。
 
+- [WX cloud/RH feasibility](../wx_profile_feasibility.md): Issue #374。指定KML経路のMSM/GSM実GPV、雲高推定の限界、portableの追加コストとAPI境界。2026-11-09確認、Safari実機は未検証。
+
 ## Reusable entries
 
 No new lessons have been extracted by this setup. Add an entry only when supported by actual evidence.
