@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { selectAirport } from "./helpers/mapCandidates";
 import { enterImportWorkflow, expectImportedDraft, confirmImportedDraft } from "./helpers/importWorkflow";
@@ -331,6 +332,7 @@ test("source links open without an opener and cannot unlock a pending save", asy
     await page.getByLabel(name + "出発Legの計画高度", { exact: true }).fill(altitude);
   }
   const save = page.getByRole("button", { name: "保存", exact: true });
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("External reference during save");
   await expect(save).toBeEnabled();
   let held = false;

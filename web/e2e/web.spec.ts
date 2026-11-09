@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { confirmImportedDraft, expectImportedDraft, enterImportWorkflow } from "./helpers/importWorkflow";
 import { observeLegacySession } from "./helpers/legacySession";
 import { disableClipboardRead } from "./helpers/clipboard";
@@ -1304,6 +1305,7 @@ test("desktop workflow renders without the removed A4 output", async ({ page }, 
   await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
   await expect(page.locator("body")).not.toBeEmpty();
   const savedProjectButton = page.getByRole("button", { name: "保存済みプロジェクトを開く" });
+  await openProjectMenu(page);
   const savedProjectButtonLayout = await savedProjectButton.evaluate((button) => {
     const icon = button.querySelector("svg");
     const buttonRect = button.getBoundingClientRect();
@@ -1477,6 +1479,7 @@ test("tab last-good calculation survives reload and cookie loss until explicit d
   });
 
   page.once("dialog", (dialog) => dialog.accept());
+  await openProjectMenu(page);
   await page.getByRole("button", { name: "保存済みプロジェクトを削除" }).click();
   await expect(page.getByText("保存済みプロジェクトを削除しました。", { exact: true })).toBeVisible();
   await context.clearCookies();
@@ -1743,7 +1746,7 @@ test("tab-only drafts become shared projects only after explicit save", async ({
   if (!latest) throw new Error("tab Project is missing");
   expect(latest.revision).toBe(0);
   expect(latestState.savedProjects.filter((project) => project.kind === "LATEST")).toHaveLength(0);
-  await expect(page.getByRole("option", { name: "自動保存", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: "自動保存", exact: true, includeHidden: true })).toHaveCount(0);
   expect(latestState.savedProjects.some(project => project.id === latest.id)).toBe(false);
 
   const routeAltitudes = page.locator(
@@ -1769,6 +1772,7 @@ test("tab-only drafts become shared projects only after explicit save", async ({
   await altitudeSaved;
 
   const projectName = `タブから保存-${latest.id.slice(0, 8)}`;
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill(projectName);
   const saveResponse = page.waitForResponse(
     (response) => response.url().endsWith("/api/projects/save") && response.ok(),
@@ -1785,8 +1789,8 @@ test("tab-only drafts become shared projects only after explicit save", async ({
   )).toBe(true);
   expect(savedState.savedProjects.find((project) => project.id === latest.id)?.revision).toBe(1);
   expect(savedState.savedProjects.some((project) => project.kind === "LATEST")).toBe(false);
-  await expect(page.getByRole("option", { name: projectName, exact: true })).toHaveCount(1);
-  await expect(page.getByRole("option", { name: "自動保存", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: projectName, exact: true, includeHidden: true })).toHaveCount(1);
+  await expect(page.getByRole("option", { name: "自動保存", exact: true, includeHidden: true })).toHaveCount(0);
 
   const postSaveAutosave = page.waitForResponse((response) => {
     if (!response.url().endsWith("/api/project") || !response.ok()) return false;
@@ -1814,15 +1818,17 @@ test("tab-only drafts become shared projects only after explicit save", async ({
     (project) => project.id === latest.id && project.kind === "SAVED" && project.name === projectName,
   )).toBe(true);
   expect(afterNew.savedProjects.filter((project) => project.kind === "LATEST")).toHaveLength(0);
-  await expect(page.getByRole("option", { name: "自動保存", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("option", { name: projectName, exact: true })).toHaveCount(1);
+  await expect(page.getByRole("option", { name: "自動保存", exact: true, includeHidden: true })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: projectName, exact: true, includeHidden: true })).toHaveCount(1);
 
   // Keep the persistent Compose volume clean while exercising explicit deletion.
+  await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption(latest.id);
   page.once("dialog", (dialog) => dialog.accept());
+  await openProjectMenu(page);
   await page.getByRole("button", { name: "保存済みプロジェクトを削除" }).click();
   await expect(page.getByText("保存済みプロジェクトを削除しました。", { exact: true })).toBeVisible();
-  await expect(page.getByRole("option", { name: projectName, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: projectName, exact: true, includeHidden: true })).toHaveCount(0);
 });
 
 test("new work replaces only the tab draft and does not create shared Latest", async ({ page }) => {
@@ -2056,6 +2062,7 @@ test("phase-specific TAS drafts on one RCA-split Physical Leg persist independen
   const saved = page.waitForResponse(
     (response) => response.url().endsWith("/api/projects/save") && response.ok(),
   );
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("phase TAS");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await saved;
@@ -2201,6 +2208,7 @@ test("stale destination pattern response cannot overwrite a loaded project or du
       body: JSON.stringify(replacementState),
     });
   }, { times: 1 });
+  await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption(replacementProjectId);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く" }).click();
   await expect(patternAltitude).toHaveValue("1900");
@@ -3815,6 +3823,7 @@ test("NAV LOG safe inputs validate and recalculate automatically", async ({ page
   const saveResponse = page.waitForResponse(
     (response) => response.url().endsWith("/api/projects/save") && response.ok(),
   );
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("訓練航法 8月");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   const savedResponse = await saveResponse;

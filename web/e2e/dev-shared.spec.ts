@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { test, expect, type Page } from "@playwright/test";
 import { resolve } from "node:path";
 import { initializeApp, deleteApp } from "firebase/app";
@@ -22,12 +23,14 @@ async function create(page: Page, name: string, calculate = false) {
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
     await expect(page.locator(".nav-log-table")).toBeVisible();
   }
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill(name);
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
 }
 async function load(page: Page, id: string) {
   await expect(page.locator(`#saved-project option[value="${id}"]`)).toHaveCount(1);
+  await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption(id);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(page.getByRole("button", { name: "保存", exact: true })).toBeEnabled();
@@ -53,7 +56,7 @@ async function start(page: Page) {
   await page.goto("/e2e/dev-shared-harness/index.html");
   await enterImportWorkflow(page);
   await expect.poll(() => page.evaluate(() => (window as any).devSharedTest.user().anonymous)).toBe(true);
-  await expect(page.getByRole("button", { name: "アカウント", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^アカウント(?:（|$)/ })).toBeVisible();
 }
 test.beforeEach(async ({ request, page }) => {
   page.on("dialog", dialog => dialog.accept());
@@ -77,6 +80,7 @@ test("independent desktop and mobile anonymous visitors share Project and NAV LO
       .not.toBe(await page.evaluate(() => (window as any).devSharedTest.user().uid));
     await load(second, row.id);
     await expect(second.locator(".nav-log-table")).toHaveText(navlog!);
+    await openProjectMenu(second);
     await second.getByLabel("プロジェクト", { exact: true }).fill("shared-from-mobile");
     await second.getByRole("button", { name: "保存", exact: true }).click();
     await expect.poll(async () => JSON.parse((await remoteRows(second)).find((value: any) => value.id === row.id)?.payload ?? "null")?.checkpoint?.name)
@@ -102,6 +106,7 @@ test("offline edits remain local and synchronize to the development workspace af
   const row = (await localRows(page)).find(row => row.checkpoint);
   await expect.poll(async () => (await localRows(page)).find(value => value.id === row.id)?.sync.dirty).toBe(false);
   await context.setOffline(true);
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("offline-edit");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect.poll(async () => (await localRows(page)).find(value => value.id === row.id)?.checkpoint?.name).toBe("offline-edit");
@@ -123,6 +128,7 @@ test("anonymous originals are retained and claimed only into the development nam
   expect(claimedAccount).toBe("dev_shared_navmate-6b281");
   expect(retained).toEqual(original);
   await load(page, original.id);
+  await openProjectMenu(page);
   await page.getByRole("button", { name: "保存済みプロジェクトを削除", exact: true }).click();
   await expect(page.locator(`#saved-project option[value="${original.id}"]`)).toHaveCount(0);
   await expect.poll(async () => (await remoteRows(page)).find((value: any) => value.id === original.id)?.deletion).toBe("PENDING_DELETE");
@@ -134,13 +140,13 @@ test("anonymous originals are retained and claimed only into the development nam
 
 async function googleLogin(page: Page, subject: string) {
   await page.evaluate(subject => (window as any).devSharedTest.selectGoogle(subject), subject);
-  await page.getByRole("button", { name: "アカウント", exact: true }).click();
+  await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
   await page.getByRole("button", { name: "Googleでログイン", exact: true }).click();
   await enterImportWorkflow(page);
   await expect(page.locator(".storage-state")).toHaveText("端末・個人保存");
 }
 async function logout(page: Page) {
-  await page.getByRole("button", { name: "アカウント", exact: true }).click();
+  await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
   await page.getByRole("button", { name: "ログアウト", exact: true }).click();
   await enterImportWorkflow(page);
   await expect(page.locator(".storage-state")).toHaveText("端末・共有保存");
@@ -198,7 +204,7 @@ test("Google accounts switch away from shared Projects, sync privately, and dele
   await googleLogin(page, "dev-google-one");
   await load(page, personal.id);
   await expect(page.locator(".nav-log-table")).toHaveText(navlog!);
-  await page.getByRole("button", { name: "アカウント", exact: true }).click();
+  await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
   await page.getByRole("button", { name: "アカウントを削除", exact: true }).click();
   await page.getByRole("button", { name: "NavMateアカウントを削除する", exact: true }).click();
   await enterImportWorkflow(page);

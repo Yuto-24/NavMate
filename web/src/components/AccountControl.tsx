@@ -1,6 +1,7 @@
+import { createPortal } from "react-dom";
 import { useState, useSyncExternalStore } from "react";
 import { devSharedMode } from "../executionMode";
-import { UserRound, X } from "lucide-react";
+import { CircleUserRound, UserRound, X } from "lucide-react";
 import type { AuthProvider, AuthState } from "../auth";
 import type { PlatformCapabilities } from "../platform";
 import { useModalFocusTrap } from "../useModalFocusTrap";
@@ -34,10 +35,10 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
     finally { setPending(false); }
   };
   return <>
-    <button type="button" className="icon-button header-icon-button" aria-label="アカウント" title={state.account ? `アカウント（${state.account.displayName}）` : "アカウント（未ログイン）"} onClick={() => setOpen(true)}>
-      <UserRound aria-hidden="true" size={18} />
+    <button type="button" className="icon-button header-icon-button" aria-label={state.account ? `アカウント（${state.account.displayName}でログイン中）` : "アカウント（未ログイン）"} title={state.account ? `アカウント（${state.account.displayName}）` : "アカウント（未ログイン）"} onClick={() => setOpen(true)}>
+      {state.account ? <CircleUserRound aria-hidden="true" size={18} /> : <UserRound aria-hidden="true" size={18} />}
     </button>
-    {open && <div className="modal-backdrop">
+    {open && createPortal(<div className="modal-backdrop">
       <section className="modal-panel account-dialog" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="account-title" onKeyDown={event => { if (event.key === "Escape") setOpen(false); }}>
         <div className="modal-heading"><h2 id="account-title">アカウント</h2>
           <button type="button" className="icon-button" aria-label="アカウントを閉じる" onClick={() => setOpen(false)}><X size={20} /></button>
@@ -63,7 +64,7 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
           {confirmDeletion && <button type="button" disabled={pending} onClick={() => setConfirmDeletion(false)}>キャンセル</button>}
         </>}
       </section>
-    </div>}
+    </div>, document.body)}
   </>;
 }
 

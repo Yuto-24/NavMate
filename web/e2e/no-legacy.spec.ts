@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 import { dirname, resolve } from "node:path";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -83,6 +84,7 @@ async function synced(page: Page, name: string, fuel = 90) {
 }
 async function open(page: Page, name: string, calculation = true) {
   await expect(page.locator("#saved-project option").filter({ hasText: name })).toHaveCount(1);
+  await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption({ label: name });
   await page.getByRole("button", { name: "保存済みプロジェクトを開く" }).click();
   if (calculation) await expect(page.locator(".nav-log-table")).toBeVisible();
@@ -121,6 +123,7 @@ async function create(page: Page, name: string) {
   }
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill(name);
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.locator("#saved-project option").filter({ hasText: name })).toHaveCount(1);

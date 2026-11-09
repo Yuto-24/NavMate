@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { selectAirport } from "./helpers/mapCandidates";
 import { enterImportWorkflow, expectImportedDraft, confirmImportedDraft } from "./helpers/importWorkflow";
@@ -459,6 +460,7 @@ test("confirmed route extension relocates arrival phases and preserves retained 
 for (const draftKind of ["map", "import", "unmatched import", "multiple unmatched import"] as const) {
   test(`deleting another saved Project preserves the new ${draftKind} Draft`, async ({ page }) => {
     await confirmed(page);
+    await openProjectMenu(page);
     await page.getByLabel("プロジェクト", { exact: true }).fill("Saved route");
     await page.getByRole("button", { name: "保存", exact: true }).click();
     await expect(page.getByText("プロジェクトを保存しました。", { exact: true })).toBeVisible();
@@ -496,9 +498,11 @@ for (const draftKind of ["map", "import", "unmatched import", "multiple unmatche
       expect(before.pendingImportDraft).toBe(true);
       await expect(page.getByRole("button", { name: "経路を確定", exact: true })).toBeDisabled();
     }
+    await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(savedId);
     const confirmations: string[] = [];
     page.on("dialog", dialog => { confirmations.push(dialog.message()); void dialog.accept(); });
+    await openProjectMenu(page);
     await page.getByRole("button", { name: "保存済みプロジェクトを削除", exact: true }).click();
     await expect(page.getByLabel("保存済み", { exact: true }).locator(`option[value="${savedId}"]`)).toHaveCount(0);
     expect(confirmations).toHaveLength(1);

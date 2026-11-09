@@ -191,12 +191,11 @@ test("green theme keeps readable controls, keyboard selection and aviation color
   const selected = page.locator('.descent-rate-segments input:checked + span');
   for (const width of [390, 1100, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
-    await expect(header).toHaveCSS("background-color", "rgb(0, 80, 64)");
+    await expect(header).toHaveCSS("background-color", "rgb(255, 255, 255)");
     await expect(primary).toBeEnabled();
     await page.mouse.move(0, 0);
-    await expect(primary).toHaveCSS("background-color", "rgb(0, 96, 80)");
+    await expect(primary).toHaveCSS("background-color", "rgb(34, 92, 77)");
     const savedProjects = header.getByLabel("保存済み", { exact: true });
-    await expect(savedProjects).toHaveCSS("appearance", "none");
     for (const element of [header, primary, selected, savedProjects]) {
       const colors = await element.evaluate(el => {
         const style = getComputedStyle(el);
@@ -205,8 +204,8 @@ test("green theme keeps readable controls, keyboard selection and aviation color
       expect(contrast(colors[0]!, colors[1]!)).toBeGreaterThanOrEqual(4.5);
     }
     await primary.hover();
-    await expect(primary).toHaveCSS("background-color", "rgb(0, 128, 96)");
-    expect(contrast(await primary.evaluate(el => getComputedStyle(el).color), "rgb(0, 128, 96)")).toBeGreaterThanOrEqual(4.5);
+    await expect(primary).toHaveCSS("background-color", "rgb(27, 75, 63)");
+    expect(contrast(await primary.evaluate(el => getComputedStyle(el).color), "rgb(27, 75, 63)")).toBeGreaterThanOrEqual(4.5);
     await expect(selected).toHaveCSS("text-decoration-line", "underline");
     const standard = page.locator('.descent-rate-segments input[value="500"]');
     await standard.focus();
@@ -217,7 +216,7 @@ test("green theme keeps readable controls, keyboard selection and aviation color
     await expect(page.locator('.descent-rate-segments input[value="1000"]')).toBeChecked();
     await page.keyboard.press("ArrowLeft");
     await expect(standard).toBeChecked();
-    await expect(selected).toHaveCSS("background-color", "rgb(0, 116, 91)");
+    await expect(selected).toHaveCSS("background-color", "rgb(34, 92, 77)");
     await expect(selected).toHaveCSS("box-shadow", "rgb(255, 255, 255) 0px 0px 0px 3px inset");
     await page.locator(".descent-rate-control").screenshot({ path: info.outputPath(`green-selection-${width}.png`) });
     const newButton = header.getByRole("button", { name: "新規", exact: true });
@@ -226,27 +225,26 @@ test("green theme keeps readable controls, keyboard selection and aviation color
     await page.keyboard.press("Shift+Tab");
     await expect(newButton).toBeFocused();
     await expect(newButton).toHaveCSS("outline-style", "solid");
-    await expect(newButton).toHaveCSS("outline-color", "rgb(255, 255, 255)");
-    expect(contrast(await newButton.evaluate(el => getComputedStyle(el).outlineColor), "rgb(0, 80, 64)")).toBeGreaterThanOrEqual(3);
+    await expect(newButton).toHaveCSS("outline-color", "rgb(34, 92, 77)");
+    expect(contrast(await newButton.evaluate(el => getComputedStyle(el).outlineColor), "rgb(255, 255, 255)")).toBeGreaterThanOrEqual(3);
     await header.screenshot({ path: info.outputPath(`green-header-${width}.png`) });
     await page.screenshot({ path: info.outputPath(`green-workspace-${width}.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 1600, height: 1000 });
-  const information = header.getByRole("button", { name: /お知らせ/ });
+  const information = header.getByRole("button", { name: /^その他/ });
   // Exercise the existing warning CSS state even when KNOWN_ISSUES is empty.
   await information.evaluate(el => el.classList.add("information-warning"));
   await information.hover();
-  await expect(information.locator(".information-label")).toBeVisible();
   const warningColors = await information.evaluate(el => [getComputedStyle(el).color, getComputedStyle(el).backgroundColor]);
   expect(contrast(warningColors[0]!, warningColors[1]!)).toBeGreaterThanOrEqual(4.5);
   await header.screenshot({ path: info.outputPath("green-warning-1600.png") });
   await information.evaluate(el => el.classList.remove("information-warning"));
-  await header.getByRole("button", { name: "アカウント", exact: true }).click();
+  await header.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
   const dialog = page.getByRole("dialog", { name: "アカウント", exact: true });
   await page.keyboard.press("Tab");
   const close = dialog.getByRole("button", { name: "アカウントを閉じる", exact: true });
   await close.focus();
-  await expect(close).toHaveCSS("outline-color", "rgb(0, 116, 91)");
+  await expect(close).toHaveCSS("outline-color", "rgb(34, 92, 77)");
   expect(contrast(await close.evaluate(el => getComputedStyle(el).outlineColor), "rgb(255, 255, 255)")).toBeGreaterThanOrEqual(3);
   await dialog.screenshot({ path: info.outputPath("green-account-focus.png") });
   await close.click();

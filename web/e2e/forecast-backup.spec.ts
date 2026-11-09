@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
@@ -96,6 +97,7 @@ for (const failure of ["offline", "missing"] as const) {
     expect(result.outcome.selected_forecast_run_id).toBe("20260915210000");
     await expect.poll(async () => (await record(page))?.lastCalculation?.forecast_metadata?.calculation_source?.source)
       .toBe("forecast_backup_server");
+    await openProjectMenu(page);
     await page.getByLabel("プロジェクト", { exact: true }).fill("Guest backup fixture");
     await page.getByRole("button", { name: "保存", exact: true }).click();
     // IndexedDB commits before the worker/session adopts the new revision and token.

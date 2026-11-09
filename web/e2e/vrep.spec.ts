@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { expect, test, type Page } from "@playwright/test";
 
 test.use({ actionTimeout: 15_000 });
@@ -122,6 +123,7 @@ for (const width of [1100, 1440]) {
     await page.getByRole("button", { name: "新規", exact: true }).click();
     await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
     await expect(page.locator(".airport-draft-marker.is-selected, .vrep-draft-marker.is-selected")).toHaveCount(0);
+    await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(savedId);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();

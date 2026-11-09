@@ -1,0 +1,396 @@
+{
+  "items": [
+    {
+      "id": "brand",
+      "text": "NavMate",
+      "location": "常時表示する採用済みアイコンのaltとデスクトップの製品名",
+      "purpose": "製品の識別",
+      "context": "狭幅では画像のみ。文字は二重読み上げを避ける。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "      <div className=\"brand-block\">",
+        "end": "      </div>\n      <div className=\"header-project\"",
+        "expected": "      <div className=\"brand-block\">\n        <img src={`${import.meta.env.BASE_URL}navmate-192.png`} width=\"32\" height=\"32\" alt=\"NavMate\" />\n        <span className=\"brand-name\" aria-hidden=\"true\">NavMate</span>\n      </div>\n      <div className=\"header-project\""
+      }
+    },
+    {
+      "id": "project-menu",
+      "text": "プロジェクトメニュー",
+      "location": "Project名を表示する開閉ボタンの読み上げ",
+      "purpose": "名前確認・変更と保存済み操作の入口",
+      "context": "クリック・Enter・Spaceでパネル開閉。Project名は省略表示、titleとパネルの折り返しテキストで全文確認。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "        <button ref={projectButton}",
+        "end": "        <div id=\"header-project-panel\"",
+        "expected": "        <button ref={projectButton} type=\"button\" className=\"header-button project-menu-button\"\n          aria-label=\"プロジェクトメニュー\" aria-expanded={panel === \"project\"} aria-controls=\"header-project-panel\"\n          title={projectName} onClick={() => setPanel(panel === \"project\" ? null : \"project\")}>\n          <span>{projectName || \"プロジェクト\"}</span><ChevronDown aria-hidden=\"true\" size={16} />\n        </button>\n        <div id=\"header-project-panel\""
+      }
+    },
+    {
+      "id": "project",
+      "text": "プロジェクト",
+      "location": "パネル内の名前入力ラベルと未命名時表示",
+      "purpose": "名前を編集する",
+      "context": "既存ラベルを移動。revisionなし又はbusy中は編集不可。変更は現在の入力状態に反映し独立した保存ボタンで保存。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "          <p className=\"header-project-full-name\">",
+        "end": "          <div className=\"saved-project-control\">",
+        "expected": "          <p className=\"header-project-full-name\">{projectName || \"プロジェクト\"}</p>\n          <label className=\"header-project-label\" htmlFor=\"project-name\">プロジェクト</label>\n          <input id=\"project-name\" className=\"header-project-name\" type=\"text\" value={projectName}\n            maxLength={60} disabled={revision === null || busy}\n            aria-invalid={revision !== null && normalizedProjectName.length === 0}\n            onChange={(event) => onProjectNameChange(event.target.value)} />\n          {revision !== null && <span className=\"header-revision\">rev.{revision}</span>}\n          <div className=\"saved-project-control\">"
+      }
+    },
+    {
+      "id": "revision",
+      "text": "rev.",
+      "location": "Project名入力直下",
+      "purpose": "revisionの確認",
+      "context": "既存形式を移動。数値を続ける。Projectありの場合。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "          {revision !== null && <span className=\"header-revision\">rev.{revision}</span>}",
+        "end": "          {revision !== null && <span className=\"header-revision\">rev.{revision}</span>}",
+        "expected": "          {revision !== null && <span className=\"header-revision\">rev.{revision}</span>}"
+      }
+    },
+    {
+      "id": "saved",
+      "text": "保存済み",
+      "location": "Projectパネルの保存済み選択欄",
+      "purpose": "保存したProjectの選択",
+      "context": "既存表記。選択のみでは読込や削除しない。空選択では両ボタン無効。busy中は選択不可。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <label htmlFor=\"saved-project\">",
+        "end": "            </select>",
+        "expected": "            <label htmlFor=\"saved-project\">保存済み</label>\n            <select id=\"saved-project\" value={selectedProjectId} disabled={busy}\n              onChange={(event) => onSelectedProjectIdChange(event.target.value)}>\n              <option value=\"\">選択</option>\n              {savedProjects.map((project) => (\n                <option key={project.id} value={project.id}>{project.kind === \"LATEST\" ? \"自動保存\" : project.name}</option>\n              ))}\n            </select>"
+      }
+    },
+    {
+      "id": "select",
+      "text": "選択",
+      "location": "Projectパネルの保存済み選択欄",
+      "purpose": "保存したProjectの選択",
+      "context": "既存表記。選択のみでは読込や削除しない。空選択では両ボタン無効。busy中は選択不可。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <label htmlFor=\"saved-project\">",
+        "end": "            </select>",
+        "expected": "            <label htmlFor=\"saved-project\">保存済み</label>\n            <select id=\"saved-project\" value={selectedProjectId} disabled={busy}\n              onChange={(event) => onSelectedProjectIdChange(event.target.value)}>\n              <option value=\"\">選択</option>\n              {savedProjects.map((project) => (\n                <option key={project.id} value={project.id}>{project.kind === \"LATEST\" ? \"自動保存\" : project.name}</option>\n              ))}\n            </select>"
+      }
+    },
+    {
+      "id": "latest",
+      "text": "自動保存",
+      "location": "Projectパネルの保存済み選択欄",
+      "purpose": "保存したProjectの選択",
+      "context": "既存表記。選択のみでは読込や削除しない。空選択では両ボタン無効。busy中は選択不可。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <label htmlFor=\"saved-project\">",
+        "end": "            </select>",
+        "expected": "            <label htmlFor=\"saved-project\">保存済み</label>\n            <select id=\"saved-project\" value={selectedProjectId} disabled={busy}\n              onChange={(event) => onSelectedProjectIdChange(event.target.value)}>\n              <option value=\"\">選択</option>\n              {savedProjects.map((project) => (\n                <option key={project.id} value={project.id}>{project.kind === \"LATEST\" ? \"自動保存\" : project.name}</option>\n              ))}\n            </select>"
+      }
+    },
+    {
+      "id": "load",
+      "text": "保存済みプロジェクトを開く",
+      "location": "Projectパネル内の独立したアイコン操作の読み上げとtitle",
+      "purpose": "選択した保存済みProjectへの明示的操作",
+      "context": "既存表記を移動。busy/未選択で無効。既存の確認処理を維持。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <button className=\"icon-button header-icon-button\" type=\"button\" onClick={onLoad}",
+        "end": "              <FolderOpen aria-hidden=\"true\" size={18} />\n            </button>",
+        "expected": "            <button className=\"icon-button header-icon-button\" type=\"button\" onClick={onLoad}\n              disabled={!selectedProjectId || busy} aria-label=\"保存済みプロジェクトを開く\" title=\"保存済みプロジェクトを開く\">\n              <FolderOpen aria-hidden=\"true\" size={18} />\n            </button>"
+      }
+    },
+    {
+      "id": "delete",
+      "text": "保存済みプロジェクトを削除",
+      "location": "Projectパネル内の独立したアイコン操作の読み上げとtitle",
+      "purpose": "選択した保存済みProjectへの明示的操作",
+      "context": "既存表記を移動。busy/未選択で無効。既存の確認処理を維持。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <button className=\"icon-button header-icon-button\" type=\"button\" onClick={onDelete}",
+        "end": "              <Trash2 aria-hidden=\"true\" size={18} />\n            </button>",
+        "expected": "            <button className=\"icon-button header-icon-button\" type=\"button\" onClick={onDelete}\n              disabled={!selectedProjectId || busy} aria-label=\"保存済みプロジェクトを削除\" title=\"保存済みプロジェクトを削除\">\n              <Trash2 aria-hidden=\"true\" size={18} />\n            </button>"
+      }
+    },
+    {
+      "id": "save",
+      "text": "保存",
+      "location": "ヘッダー常時表示ボタンのラベル/読み上げ/title",
+      "purpose": "保存と新規を独立操作にする",
+      "context": "既存表記。狭幅はアイコンのみ。busyで無効、保存はProjectありかつ名前非空に限定。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "        <button className=\"header-button header-button-primary header-save-button\"",
+        "end": "        <button className=\"header-button header-new-button\"",
+        "expected": "        <button className=\"header-button header-button-primary header-save-button\" aria-label=\"保存\" title=\"保存\" type=\"button\"\n          onClick={() => onSave(normalizedProjectName)} disabled={revision === null || busy || normalizedProjectName.length === 0}>\n          <Save aria-hidden=\"true\" size={18} /><span className=\"header-action-label\">保存</span>\n        </button>\n        <button className=\"header-button header-new-button\""
+      }
+    },
+    {
+      "id": "new",
+      "text": "新規",
+      "location": "ヘッダー常時表示ボタンのラベル/読み上げ/title",
+      "purpose": "保存と新規を独立操作にする",
+      "context": "既存表記。狭幅はアイコンのみ。busyで無効、保存はProjectありかつ名前非空に限定。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "        <button className=\"header-button header-new-button\"",
+        "end": "        {localMode ?",
+        "expected": "        <button className=\"header-button header-new-button\" aria-label=\"新規\" title=\"新規\" type=\"button\" onClick={onNew} disabled={busy}>\n          <Plus aria-hidden=\"true\" size={18} /><span className=\"header-action-label\">新規</span>\n        </button>\n        {localMode ?"
+      }
+    },
+    {
+      "id": "more",
+      "text": "その他",
+      "location": "右端の三点アイコンボタン読み上げ",
+      "purpose": "低頻度情報と未読通知の入口",
+      "context": "通常/通常未読/既知の不具合更新で読み上げを切替。未読ドットは緑、既知の不具合はアンバー。開くだけでは既読にしない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "          <button ref={moreButton}",
+        "end": "          <div id=\"header-more-panel\"",
+        "expected": "          <button ref={moreButton} className={`header-button header-more-button${knownIssuesUnread ? \" information-warning\" : \"\"}`}\n            type=\"button\" aria-label={knownIssuesUnread ? \"その他（既知の不具合に更新があります）\" : informationUnread ? \"その他（未読の更新があります）\" : \"その他\"}\n            title=\"その他\" aria-expanded={panel === \"more\"} aria-controls=\"header-more-panel\"\n            onClick={() => setPanel(panel === \"more\" ? null : \"more\")}>\n            <span className=\"information-icon-wrap\"><MoreHorizontal aria-hidden=\"true\" size={20} />{informationUnread && <span className=\"information-unread-dot\" />}</span>\n          </button>\n          <div id=\"header-more-panel\""
+      }
+    },
+    {
+      "id": "more-unread",
+      "text": "その他（未読の更新があります）",
+      "location": "右端の三点アイコンボタン読み上げ",
+      "purpose": "低頻度情報と未読通知の入口",
+      "context": "通常/通常未読/既知の不具合更新で読み上げを切替。未読ドットは緑、既知の不具合はアンバー。開くだけでは既読にしない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "          <button ref={moreButton}",
+        "end": "          <div id=\"header-more-panel\"",
+        "expected": "          <button ref={moreButton} className={`header-button header-more-button${knownIssuesUnread ? \" information-warning\" : \"\"}`}\n            type=\"button\" aria-label={knownIssuesUnread ? \"その他（既知の不具合に更新があります）\" : informationUnread ? \"その他（未読の更新があります）\" : \"その他\"}\n            title=\"その他\" aria-expanded={panel === \"more\"} aria-controls=\"header-more-panel\"\n            onClick={() => setPanel(panel === \"more\" ? null : \"more\")}>\n            <span className=\"information-icon-wrap\"><MoreHorizontal aria-hidden=\"true\" size={20} />{informationUnread && <span className=\"information-unread-dot\" />}</span>\n          </button>\n          <div id=\"header-more-panel\""
+      }
+    },
+    {
+      "id": "more-warning",
+      "text": "その他（既知の不具合に更新があります）",
+      "location": "右端の三点アイコンボタン読み上げ",
+      "purpose": "低頻度情報と未読通知の入口",
+      "context": "通常/通常未読/既知の不具合更新で読み上げを切替。未読ドットは緑、既知の不具合はアンバー。開くだけでは既読にしない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "          <button ref={moreButton}",
+        "end": "          <div id=\"header-more-panel\"",
+        "expected": "          <button ref={moreButton} className={`header-button header-more-button${knownIssuesUnread ? \" information-warning\" : \"\"}`}\n            type=\"button\" aria-label={knownIssuesUnread ? \"その他（既知の不具合に更新があります）\" : informationUnread ? \"その他（未読の更新があります）\" : \"その他\"}\n            title=\"その他\" aria-expanded={panel === \"more\"} aria-controls=\"header-more-panel\"\n            onClick={() => setPanel(panel === \"more\" ? null : \"more\")}>\n            <span className=\"information-icon-wrap\"><MoreHorizontal aria-hidden=\"true\" size={20} />{informationUnread && <span className=\"information-unread-dot\" />}</span>\n          </button>\n          <div id=\"header-more-panel\""
+      }
+    },
+    {
+      "id": "info",
+      "text": "お知らせ",
+      "location": "その他パネル内のお知らせボタン",
+      "purpose": "お知らせダイアログを開く",
+      "context": "独立ヘッダーボタンを移動し既存通知名を維持。ダイアログを開いた時に既読化。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "  const informationLabel =",
+        "end": "  return (\n    <header",
+        "expected": "  const informationLabel = knownIssuesUnread ? \"お知らせ（既知の不具合に更新があります）\" : informationUnread ? \"お知らせ（未読の更新があります）\" : \"お知らせ\";\n\n  return (\n    <header"
+      }
+    },
+    {
+      "id": "info-unread",
+      "text": "お知らせ（未読の更新があります）",
+      "location": "その他パネル内のお知らせボタン",
+      "purpose": "お知らせダイアログを開く",
+      "context": "独立ヘッダーボタンを移動し既存通知名を維持。ダイアログを開いた時に既読化。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "  const informationLabel =",
+        "end": "  return (\n    <header",
+        "expected": "  const informationLabel = knownIssuesUnread ? \"お知らせ（既知の不具合に更新があります）\" : informationUnread ? \"お知らせ（未読の更新があります）\" : \"お知らせ\";\n\n  return (\n    <header"
+      }
+    },
+    {
+      "id": "info-warning",
+      "text": "お知らせ（既知の不具合に更新があります）",
+      "location": "その他パネル内のお知らせボタン",
+      "purpose": "お知らせダイアログを開く",
+      "context": "独立ヘッダーボタンを移動し既存通知名を維持。ダイアログを開いた時に既読化。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "  const informationLabel =",
+        "end": "  return (\n    <header",
+        "expected": "  const informationLabel = knownIssuesUnread ? \"お知らせ（既知の不具合に更新があります）\" : informationUnread ? \"お知らせ（未読の更新があります）\" : \"お知らせ\";\n\n  return (\n    <header"
+      }
+    },
+    {
+      "id": "about",
+      "text": "NAV2 地上準備 / v",
+      "location": "その他パネル",
+      "purpose": "アプリの説明と版数の確認",
+      "context": "末尾に動的なappVersionを表示。既存の説明を移動。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <p className=\"brand-subtitle\">",
+        "end": "            <div className=\"storage-state\"",
+        "expected": "            <p className=\"brand-subtitle\">NAV2 地上準備 / v{appVersion}</p>\n            <div className=\"storage-state\""
+      }
+    },
+    {
+      "id": "local",
+      "text": "端末内に保存",
+      "location": "その他パネルの保存先表示/読み上げ",
+      "purpose": "保存場所の確認",
+      "context": "既存の条件を維持。Localは端末、Legacyはサーバー。開発共有モードのみ個人/共有を認証状態で切替。「/ Local」は表示しない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <div className=\"storage-state\"",
+        "end": "            </div>\n          </div>",
+        "expected": "            <div className=\"storage-state\" aria-label={devSharedMode ? (personal ? \"Googleアカウントでログイン中の個人プロジェクト保存領域\" : \"端末内に保存し、開発用の共通スペースへ同期する方式\") : localMode ? \"保存先はこの端末のブラウザです\" : \"保存先はサーバーです\"}>\n              <CheckCircle2 aria-hidden=\"true\" size={17} />\n              <span>{devSharedMode ? (personal ? \"端末・個人保存\" : \"端末・共有保存\") : localMode ? \"端末内に保存\" : \"サーバー保存\"}</span>\n            </div>\n          </div>"
+      }
+    },
+    {
+      "id": "server",
+      "text": "サーバー保存",
+      "location": "その他パネルの保存先表示/読み上げ",
+      "purpose": "保存場所の確認",
+      "context": "既存の条件を維持。Localは端末、Legacyはサーバー。開発共有モードのみ個人/共有を認証状態で切替。「/ Local」は表示しない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <div className=\"storage-state\"",
+        "end": "            </div>\n          </div>",
+        "expected": "            <div className=\"storage-state\" aria-label={devSharedMode ? (personal ? \"Googleアカウントでログイン中の個人プロジェクト保存領域\" : \"端末内に保存し、開発用の共通スペースへ同期する方式\") : localMode ? \"保存先はこの端末のブラウザです\" : \"保存先はサーバーです\"}>\n              <CheckCircle2 aria-hidden=\"true\" size={17} />\n              <span>{devSharedMode ? (personal ? \"端末・個人保存\" : \"端末・共有保存\") : localMode ? \"端末内に保存\" : \"サーバー保存\"}</span>\n            </div>\n          </div>"
+      }
+    },
+    {
+      "id": "personal",
+      "text": "端末・個人保存",
+      "location": "その他パネルの保存先表示/読み上げ",
+      "purpose": "保存場所の確認",
+      "context": "既存の条件を維持。Localは端末、Legacyはサーバー。開発共有モードのみ個人/共有を認証状態で切替。「/ Local」は表示しない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <div className=\"storage-state\"",
+        "end": "            </div>\n          </div>",
+        "expected": "            <div className=\"storage-state\" aria-label={devSharedMode ? (personal ? \"Googleアカウントでログイン中の個人プロジェクト保存領域\" : \"端末内に保存し、開発用の共通スペースへ同期する方式\") : localMode ? \"保存先はこの端末のブラウザです\" : \"保存先はサーバーです\"}>\n              <CheckCircle2 aria-hidden=\"true\" size={17} />\n              <span>{devSharedMode ? (personal ? \"端末・個人保存\" : \"端末・共有保存\") : localMode ? \"端末内に保存\" : \"サーバー保存\"}</span>\n            </div>\n          </div>"
+      }
+    },
+    {
+      "id": "shared",
+      "text": "端末・共有保存",
+      "location": "その他パネルの保存先表示/読み上げ",
+      "purpose": "保存場所の確認",
+      "context": "既存の条件を維持。Localは端末、Legacyはサーバー。開発共有モードのみ個人/共有を認証状態で切替。「/ Local」は表示しない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <div className=\"storage-state\"",
+        "end": "            </div>\n          </div>",
+        "expected": "            <div className=\"storage-state\" aria-label={devSharedMode ? (personal ? \"Googleアカウントでログイン中の個人プロジェクト保存領域\" : \"端末内に保存し、開発用の共通スペースへ同期する方式\") : localMode ? \"保存先はこの端末のブラウザです\" : \"保存先はサーバーです\"}>\n              <CheckCircle2 aria-hidden=\"true\" size={17} />\n              <span>{devSharedMode ? (personal ? \"端末・個人保存\" : \"端末・共有保存\") : localMode ? \"端末内に保存\" : \"サーバー保存\"}</span>\n            </div>\n          </div>"
+      }
+    },
+    {
+      "id": "local-label",
+      "text": "保存先はこの端末のブラウザです",
+      "location": "その他パネルの保存先表示/読み上げ",
+      "purpose": "保存場所の確認",
+      "context": "既存の条件を維持。Localは端末、Legacyはサーバー。開発共有モードのみ個人/共有を認証状態で切替。「/ Local」は表示しない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <div className=\"storage-state\"",
+        "end": "            </div>\n          </div>",
+        "expected": "            <div className=\"storage-state\" aria-label={devSharedMode ? (personal ? \"Googleアカウントでログイン中の個人プロジェクト保存領域\" : \"端末内に保存し、開発用の共通スペースへ同期する方式\") : localMode ? \"保存先はこの端末のブラウザです\" : \"保存先はサーバーです\"}>\n              <CheckCircle2 aria-hidden=\"true\" size={17} />\n              <span>{devSharedMode ? (personal ? \"端末・個人保存\" : \"端末・共有保存\") : localMode ? \"端末内に保存\" : \"サーバー保存\"}</span>\n            </div>\n          </div>"
+      }
+    },
+    {
+      "id": "server-label",
+      "text": "保存先はサーバーです",
+      "location": "その他パネルの保存先表示/読み上げ",
+      "purpose": "保存場所の確認",
+      "context": "既存の条件を維持。Localは端末、Legacyはサーバー。開発共有モードのみ個人/共有を認証状態で切替。「/ Local」は表示しない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <div className=\"storage-state\"",
+        "end": "            </div>\n          </div>",
+        "expected": "            <div className=\"storage-state\" aria-label={devSharedMode ? (personal ? \"Googleアカウントでログイン中の個人プロジェクト保存領域\" : \"端末内に保存し、開発用の共通スペースへ同期する方式\") : localMode ? \"保存先はこの端末のブラウザです\" : \"保存先はサーバーです\"}>\n              <CheckCircle2 aria-hidden=\"true\" size={17} />\n              <span>{devSharedMode ? (personal ? \"端末・個人保存\" : \"端末・共有保存\") : localMode ? \"端末内に保存\" : \"サーバー保存\"}</span>\n            </div>\n          </div>"
+      }
+    },
+    {
+      "id": "personal-label",
+      "text": "Googleアカウントでログイン中の個人プロジェクト保存領域",
+      "location": "その他パネルの保存先表示/読み上げ",
+      "purpose": "保存場所の確認",
+      "context": "既存の条件を維持。Localは端末、Legacyはサーバー。開発共有モードのみ個人/共有を認証状態で切替。「/ Local」は表示しない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <div className=\"storage-state\"",
+        "end": "            </div>\n          </div>",
+        "expected": "            <div className=\"storage-state\" aria-label={devSharedMode ? (personal ? \"Googleアカウントでログイン中の個人プロジェクト保存領域\" : \"端末内に保存し、開発用の共通スペースへ同期する方式\") : localMode ? \"保存先はこの端末のブラウザです\" : \"保存先はサーバーです\"}>\n              <CheckCircle2 aria-hidden=\"true\" size={17} />\n              <span>{devSharedMode ? (personal ? \"端末・個人保存\" : \"端末・共有保存\") : localMode ? \"端末内に保存\" : \"サーバー保存\"}</span>\n            </div>\n          </div>"
+      }
+    },
+    {
+      "id": "shared-label",
+      "text": "端末内に保存し、開発用の共通スペースへ同期する方式",
+      "location": "その他パネルの保存先表示/読み上げ",
+      "purpose": "保存場所の確認",
+      "context": "既存の条件を維持。Localは端末、Legacyはサーバー。開発共有モードのみ個人/共有を認証状態で切替。「/ Local」は表示しない。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "            <div className=\"storage-state\"",
+        "end": "            </div>\n          </div>",
+        "expected": "            <div className=\"storage-state\" aria-label={devSharedMode ? (personal ? \"Googleアカウントでログイン中の個人プロジェクト保存領域\" : \"端末内に保存し、開発用の共通スペースへ同期する方式\") : localMode ? \"保存先はこの端末のブラウザです\" : \"保存先はサーバーです\"}>\n              <CheckCircle2 aria-hidden=\"true\" size={17} />\n              <span>{devSharedMode ? (personal ? \"端末・個人保存\" : \"端末・共有保存\") : localMode ? \"端末内に保存\" : \"サーバー保存\"}</span>\n            </div>\n          </div>"
+      }
+    },
+    {
+      "id": "account",
+      "text": "アカウント（未ログイン）",
+      "location": "Localの常時表示Accountアイコン読み上げ/title",
+      "purpose": "未ログイン状態を伝える",
+      "context": "未ログインはUserRound、ログイン済みはCircleUserRoundで形状変更。既存ダイアログへ進む。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/AccountControl.tsx",
+        "start": "    <button type=\"button\" className=\"icon-button header-icon-button\"",
+        "end": "    {open && createPortal(",
+        "expected": "    <button type=\"button\" className=\"icon-button header-icon-button\" aria-label={state.account ? `アカウント（${state.account.displayName}でログイン中）` : \"アカウント（未ログイン）\"} title={state.account ? `アカウント（${state.account.displayName}）` : \"アカウント（未ログイン）\"} onClick={() => setOpen(true)}>\n      {state.account ? <CircleUserRound aria-hidden=\"true\" size={18} /> : <UserRound aria-hidden=\"true\" size={18} />}\n    </button>\n    {open && createPortal("
+      }
+    },
+    {
+      "id": "account-signed-in",
+      "text": "でログイン中",
+      "location": "Localの常時表示Accountアイコン読み上げ",
+      "purpose": "ログイン名と状態を伝える",
+      "context": "読み上げはアカウント（動的displayNameでログイン中）。titleはアカウント（動的displayName）。",
+      "constraints": "Issue #218。白い1段固定ヘッダー。既存表記は原則維持。各 text をそのまま引用して採用可否を回答。動的値は利用者のProject名、版数、ログイン名に置換される。",
+      "source": {
+        "path": "web/src/components/AccountControl.tsx",
+        "start": "    <button type=\"button\" className=\"icon-button header-icon-button\"",
+        "end": "    {open && createPortal(",
+        "expected": "    <button type=\"button\" className=\"icon-button header-icon-button\" aria-label={state.account ? `アカウント（${state.account.displayName}でログイン中）` : \"アカウント（未ログイン）\"} title={state.account ? `アカウント（${state.account.displayName}）` : \"アカウント（未ログイン）\"} onClick={() => setOpen(true)}>\n      {state.account ? <CircleUserRound aria-hidden=\"true\" size={18} /> : <UserRound aria-hidden=\"true\" size={18} />}\n    </button>\n    {open && createPortal("
+      }
+    }
+  ]
+}

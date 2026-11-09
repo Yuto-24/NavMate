@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test, chromium, type BrowserContext, type Page } from "@playwright/test";
 import { resolve, join } from "node:path";
@@ -74,6 +75,7 @@ async function saveRoute(page: Page, name: string) {
   }
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill(name);
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.locator("#saved-project option").filter({ hasText: name })).toHaveCount(1);
@@ -105,6 +107,7 @@ for (const [phase, resetFails] of [["resolve", true], ["refresh", true], ["load"
     await enterImportWorkflow(page);
     await saveRoute(page, "Resolved");
     const resolvedId = await page.locator("#saved-project").inputValue();
+    await openProjectMenu(page);
     await page.locator("#saved-project").selectOption(originalId);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await expect(page.getByLabel("プロジェクト", { exact: true })).toHaveValue("Original");
@@ -161,6 +164,7 @@ for (const [phase, resetFails] of [["resolve", true], ["refresh", true], ["load"
       };
     }, { phase, resolvedId, resetFails });
     // A real UI edit renders the newly attached test synchronization control.
+    await openProjectMenu(page);
     await page.getByLabel("プロジェクト", { exact: true }).fill("Original draft");
     await page.getByRole("button", { name: "両方残す", exact: true }).click();
     await expect.poll(() => page.evaluate(() => (window as any).syncNewRace.held)).toBe(true);
@@ -234,11 +238,13 @@ test("anonymous workflow, account switch, logout, reauthentication and cross-tab
   await signIn(page, "A");
   expect(await savedNames(page)).toContain("Account A route");
   await expect(page.getByLabel("プロジェクト", { exact: true })).toBeDisabled();
+  await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption({ label: "Account A route" });
   page.once("dialog", async dialog => {
     expect(dialog.message()).toBe("作成中の変更を破棄しますか？");
     await dialog.accept();
   });
+  await openProjectMenu(page);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く" }).click();
   await expect(page.getByLabel("FUEL gal", { exact: true })).toHaveValue("90");
   const loaded = (await accountRecords(page))[0];
@@ -271,15 +277,22 @@ test("cached authentication survives offline/provider failure at startup, termin
 });
 
 test("Account dialog remains compact and workflow regions retain their order", async ({ page, context }) => {
-  await backend(context); await start(page); await planRoute(page);
+  await backend(context); await start(page);
+  const account = page.getByRole("button", { name: /^アカウント（/ });
+  await expect(account).toHaveAccessibleName("アカウント（未ログイン）");
+  await expect(account.locator(".lucide-user-round")).toHaveCount(1);
+  await signIn(page, "Header account");
+  await expect(account).toHaveAccessibleName("アカウント（Header accountでログイン中）");
+  await expect(account.locator(".lucide-circle-user-round")).toHaveCount(1);
+  await planRoute(page);
   for (const width of [320, 390, 629, 630, 631, 820, 996, 997, 1100, 1242, 1273, 1440, 1600]) {
     await page.setViewportSize({ width, height: 1000 });
-    await page.getByRole("button", { name: "アカウント", exact: true }).click();
+    await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
     const dialog = page.getByRole("dialog", { name: "アカウント" });
     await expect(dialog).toBeVisible();
     const box = await dialog.boundingBox(); expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.x + box!.width).toBeLessThanOrEqual(width);
     await page.keyboard.press("Escape"); await expect(dialog).not.toBeVisible();
-    await expect(page.getByRole("button", { name: "アカウント", exact: true })).toBeFocused();
+    await expect(page.getByRole("button", { name: /^アカウント(?:（|$)/ })).toBeFocused();
     for (const control of await page.locator(".header-actions > *:visible").all()) {
       const controlBox = await control.boundingBox();
       expect(controlBox!.x).toBeGreaterThanOrEqual(0);
@@ -365,7 +378,7 @@ test("failed persistent logout closes access and offers a visible retry in the n
     };
     (window as any).restoreStorage = () => { Storage.prototype.removeItem = original; };
   });
-  await page.getByRole("button", { name: "アカウント", exact: true }).click();
+  await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
   await page.getByRole("button", { name: "ログアウト", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("ログアウト状態を保存できませんでした");
   expect((await authState(page)).account).toBeNull();
@@ -428,7 +441,7 @@ test("blocked Google popup reports an actionable error without resetting anonymo
   await backend(context); await start(page); await planRoute(page);
   await page.getByLabel("FUEL gal", { exact: true }).fill("81");
   await page.evaluate(() => { window.open = () => null; });
-  await page.getByRole("button", { name: "アカウント", exact: true }).click();
+  await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
   await page.getByRole("button", { name: "Googleでログイン", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("ポップアップがブロックされました");
   expect((await authState(page)).account).toBeNull();

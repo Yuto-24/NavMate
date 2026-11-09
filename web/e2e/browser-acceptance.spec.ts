@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow, expectImportedDraft, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test } from "@playwright/test";
 import { fileURLToPath } from "node:url";
@@ -45,6 +46,7 @@ test("Static Local workflow saves and restores a calculated Project across lifec
   await scroll.evaluate(element => { element.scrollLeft = 420; });
   expect(await scroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
 
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("Browser acceptance");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
@@ -56,6 +58,7 @@ test("Static Local workflow saves and restores a calculated Project across lifec
   const other = await context.newPage();
   await other.goto("/");
   await expect(other.getByLabel("保存済み", { exact: true }).locator(`option[value="${savedId}"]`)).toHaveCount(1);
+  await openProjectMenu(other);
   await other.getByLabel("保存済み", { exact: true }).selectOption(savedId);
   await other.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(other.locator(".nav-log-table")).toHaveText(initialResult, { useInnerText: true });

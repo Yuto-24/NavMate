@@ -1,3 +1,4 @@
+import { openInformation } from "./helpers/header";
 import { expectNavLogPaperGrid } from "./helpers/navLogGrid";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test, type Page } from "@playwright/test";
@@ -45,7 +46,7 @@ async function checkToastLayout(page: Page, width: number) {
   }
   for (const guidance of geometry.guidance) expect(guidance.top).toBeGreaterThanOrEqual(navlog.bottom - 1);
   // The header stays usable, and the modal backdrop covers the toast rather than the reverse.
-  await page.getByRole("button", { name: /^お知らせ/ }).click();
+  await openInformation(page);
   await expect(page.getByRole("dialog", { name: "お知らせ", exact: true })).toBeVisible();
   expect(await page.locator(".calculation-toast").evaluate(el => {
     const r = el.getBoundingClientRect();

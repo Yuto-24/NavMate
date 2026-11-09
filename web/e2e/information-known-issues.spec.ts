@@ -27,19 +27,21 @@ test("real bundle shows Known Issues first, distinguishes warning updates, and m
     if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, id);
   }, informationId());
   await page.goto("/");
-  const button = page.locator(".app-header").getByRole("button", { name: /お知らせ/ });
+  const button = page.locator(".app-header").getByRole("button", { name: /^その他/ });
   const dialog = page.getByRole("dialog", { name: "お知らせ" });
   const acknowledge = async () => {
     await button.click();
+    await page.getByRole("button", { name: /^お知らせ/ }).click();
     await expect(dialog).toBeVisible();
-    await expect(button).toHaveAccessibleName("お知らせ");
+    await expect(button).toHaveAccessibleName("その他");
     await expect(button.locator(".information-unread-dot")).toHaveCount(0);
     await page.keyboard.press("Escape");
   };
-  await expect(button).toHaveAccessibleName("お知らせ（既知の不具合に更新があります）");
+  await expect(button).toHaveAccessibleName("その他（既知の不具合に更新があります）");
   await expect(button).toHaveClass(/information-warning/);
   const warningColor = await button.evaluate((element) => getComputedStyle(element).color);
   await button.click();
+    await page.getByRole("button", { name: /^お知らせ/ }).click();
   await expect(dialog.getByRole("heading", { name: "既知の不具合", exact: true })).toBeVisible();
   await expect(dialog.getByText(first.sections[0]!.items[0]!, { exact: true })).toBeVisible();
   await expect(dialog.locator(".information-known-issues")).not.toContainText(/saved-plan|saved-body|github-issue|Issue #|配布/);
@@ -51,27 +53,27 @@ test("real bundle shows Known Issues first, distinguishes warning updates, and m
   await expect(button).not.toHaveClass(/information-warning/);
   expect(await button.evaluate((element) => getComputedStyle(element).color)).not.toBe(warningColor);
   await page.reload();
-  await expect(button).toHaveAccessibleName("お知らせ");
+  await expect(button).toHaveAccessibleName("その他");
 
   issues = [second, first];
   await page.reload();
-  await expect(button).toHaveAccessibleName("お知らせ（未読の更新があります）");
+  await expect(button).toHaveAccessibleName("その他（未読の更新があります）");
   await expect(button).not.toHaveClass(/information-warning/);
   await acknowledge();
 
   issues = [first];
   await page.reload();
-  await expect(button).toHaveAccessibleName("お知らせ（未読の更新があります）");
+  await expect(button).toHaveAccessibleName("その他（未読の更新があります）");
   await expect(button).not.toHaveClass(/information-warning/);
   await acknowledge();
 
   issues = [{ ...first, id: "renamed-management-id" }];
   await page.reload();
-  await expect(button).toHaveAccessibleName("お知らせ");
+  await expect(button).toHaveAccessibleName("その他");
 
   issues = [{ ...first, id: "renamed-management-id", bodyHash: "updated-body", description: ["一部の計画で内容が表示されません。"] }];
   await page.reload();
-  await expect(button).toHaveAccessibleName("お知らせ（既知の不具合に更新があります）");
+  await expect(button).toHaveAccessibleName("その他（既知の不具合に更新があります）");
   await acknowledge();
 
   issues = [...issues, second];
@@ -81,8 +83,9 @@ test("real bundle shows Known Issues first, distinguishes warning updates, and m
 
   issues = [];
   await page.reload();
-  await expect(button).toHaveAccessibleName("お知らせ（未読の更新があります）");
+  await expect(button).toHaveAccessibleName("その他（未読の更新があります）");
   await expect(button).not.toHaveClass(/information-warning/);
   await button.click();
+    await page.getByRole("button", { name: /^お知らせ/ }).click();
   await expect(dialog.locator(".information-known-issues")).toHaveCount(0);
 });
