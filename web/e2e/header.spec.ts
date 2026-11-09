@@ -152,3 +152,56 @@ test("#218 single-row sticky header preserves workflow, long names and keyboard/
   const date = await page.getByLabel("DATE", { exact: true }).boundingBox();
   expect(date!.y).toBeGreaterThanOrEqual(56);
 });
+
+test("#218 panel pointer actions survive input blur and keyboard departure still closes panels", async ({ page }) => {
+  await page.goto("/");
+  await enterImportWorkflow(page);
+  await page.locator('input[type="file"]').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
+  await confirmImportedDraft(page);
+  await openProjectMenu(page);
+  const name = page.getByLabel("プロジェクト", { exact: true });
+  await name.fill("Panel pointer route");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
+  await openProjectMenu(page);
+  const selector = page.getByLabel("保存済み", { exact: true });
+  const id = await selector.inputValue();
+  await selector.selectOption(id);
+  await name.fill("Unsaved name");
+  const confirmations: string[] = [];
+  page.on("dialog", async dialog => {
+    confirmations.push(dialog.message());
+    await dialog.accept();
+  });
+  // Linux WebKit can focus clicked buttons. Reproduce Safari's null-relatedTarget
+  // transition using a real DOM blur between mousedown and click.
+  for (const label of ["保存済みプロジェクトを開く", "保存済みプロジェクトを削除"]) {
+    await page.getByRole("button", { name: label, exact: true }).evaluate(button => {
+      button.addEventListener("mousedown", () => document.getElementById("project-name")!.blur(), { once: true });
+    });
+  }
+  await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click({ timeout: 5000 });
+  await expect(name).toHaveValue("Panel pointer route");
+  expect(confirmations).toHaveLength(1);
+  await openProjectMenu(page);
+  await name.focus();
+  await page.getByRole("button", { name: "保存済みプロジェクトを削除", exact: true }).click({ timeout: 5000 });
+  await expect(selector.locator(`option[value="${id}"]`)).toHaveCount(0);
+  expect(confirmations).toHaveLength(2);
+
+  const project = page.getByRole("button", { name: "プロジェクトメニュー", exact: true });
+  await openProjectMenu(page);
+  await selector.focus();
+  await page.keyboard.press("Tab");
+  await expect(project).toHaveAttribute("aria-expanded", "false");
+  const more = page.getByRole("button", { name: /^その他/ });
+  await more.focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: /^お知らせ/ }).click({ timeout: 5000 });
+  await expect(page.getByRole("dialog", { name: "お知らせ", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await more.press("Enter");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+});

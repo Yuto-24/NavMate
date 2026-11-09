@@ -52,6 +52,7 @@ export function Header({
   const personal = useSyncExternalStore(auth?.subscribe ?? noSubscribe, () => !!auth?.getState().account);
 
   const [panel, setPanel] = useState<"project" | "more" | null>(null);
+  const pointerInPanel = useRef(false);
   const projectControl = useRef<HTMLDivElement>(null);
   const moreControl = useRef<HTMLDivElement>(null);
   const projectButton = useRef<HTMLButtonElement>(null);
@@ -64,10 +65,21 @@ export function Header({
     if (!panel) return;
     const dismiss = (event: PointerEvent) => {
       const control = panel === "project" ? projectControl : moreControl;
-      if (event.target instanceof Node && !control.current?.contains(event.target)) setPanel(null);
+      pointerInPanel.current = event.target instanceof Node && !!control.current?.contains(event.target);
+      if (!pointerInPanel.current) setPanel(null);
     };
+    const clearPointer = () => { pointerInPanel.current = false; };
     document.addEventListener("pointerdown", dismiss);
-    return () => document.removeEventListener("pointerdown", dismiss);
+    document.addEventListener("pointerup", clearPointer);
+    document.addEventListener("pointercancel", clearPointer);
+    document.addEventListener("keydown", clearPointer, true);
+    return () => {
+      clearPointer();
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("pointerup", clearPointer);
+      document.removeEventListener("pointercancel", clearPointer);
+      document.removeEventListener("keydown", clearPointer, true);
+    };
   }, [panel]);
   const informationLabel = knownIssuesUnread ? "お知らせ（既知の不具合に更新があります）" : informationUnread ? "お知らせ（未読の更新があります）" : "お知らせ";
 
@@ -80,7 +92,8 @@ export function Header({
         <span className="brand-name" aria-hidden="true">NavMate</span>
       </div>
       <div className="header-project" ref={projectControl} onBlur={event => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setPanel(current => current === "project" ? null : current);
+        // Safari may blur an input to no focus target before an internal button's click.
+        if (!event.currentTarget.contains(event.relatedTarget) && !(event.relatedTarget === null && pointerInPanel.current)) setPanel(current => current === "project" ? null : current);
       }}>
         <button ref={projectButton} type="button" className="header-button project-menu-button"
           aria-label="プロジェクトメニュー" aria-expanded={panel === "project"} aria-controls="header-project-panel"
@@ -125,7 +138,8 @@ export function Header({
         </button>
         {localMode ? <AccountControl auth={auth} busy={busy} onBeforeChange={onBeforeAccountChange} networkAvailability={networkAvailability} /> : <LegacyAccountControl busy={busy} />}
         <div className="header-more" ref={moreControl} onBlur={event => {
-          if (!event.currentTarget.contains(event.relatedTarget)) setPanel(current => current === "more" ? null : current);
+          // Safari may blur an input to no focus target before an internal button's click.
+          if (!event.currentTarget.contains(event.relatedTarget) && !(event.relatedTarget === null && pointerInPanel.current)) setPanel(current => current === "more" ? null : current);
         }}>
           <button ref={moreButton} className={`header-button header-more-button${knownIssuesUnread ? " information-warning" : ""}`}
             type="button" aria-label={knownIssuesUnread ? "その他（既知の不具合に更新があります）" : informationUnread ? "その他（未読の更新があります）" : "その他"}
