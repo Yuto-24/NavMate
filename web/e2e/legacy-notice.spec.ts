@@ -7,20 +7,20 @@ for (const width of [390, 1100, 1440]) {
     await context.route("**/api/account-link/config", route => route.fulfill({ status: 404, json: {} }));
     await context.route("**/api/account-link", route => route.fulfill({ json: { state: "UNLINKED", completed: 0, total: 0, navmateUrl: "/navmate" } }));
     await page.goto(path);
-    const notice = page.getByRole("dialog", { name: "NavMateへの移行", exact: true });
+    const notice = page.getByRole("dialog", { name: "新サービス「NavMate」への移行", exact: true });
     await expect(notice).toBeVisible();
-    await expect(notice).toContainText("旧画面は2026年12月を目途に提供終了を予定しています（確定日は未定です）。");
-    await expect(notice).toContainText("紐付けたGoogleアカウントでNavMateに初めてログインすると");
+    await expect(notice).toContainText("本画面は2026年12月を目途に提供を終了し、新サービス「NavMate」へ画面・URLを移行します。");
+    await expect(notice).toContainText("今後はGoogleアカウント連携を利用します。まずは現在のデータをGoogleアカウントに紐づけてください。");
     await expect(notice.getByRole("alert")).toHaveText("アカウント設定情報を取得できませんでした。時間をおいて再読み込みしてください。");
     expect(await page.locator(".legacy-migration-notice").boundingBox()).toEqual({ x: 0, y: 0, width, height: 800 });
     expect(await page.getByText("Legacy workspace").evaluate(el => !!el.closest("[inert]"))).toBe(true);
     await expect(notice.getByRole("link")).toHaveCount(0);
-    await expect(notice.getByRole("button", { name: "Googleアカウントを紐付ける" })).toBeDisabled();
+    await expect(notice.getByRole("button", { name: "Googleアカウントを紐づける" })).toBeDisabled();
     await page.keyboard.press("Escape");
     await expect(notice).toBeVisible();
     await page.keyboard.press("Tab");
     expect(await notice.evaluate(el => el.contains(document.activeElement))).toBe(true);
-    await notice.getByRole("button", { name: "今回は旧画面を使う" }).click();
+    await notice.getByRole("button", { name: "今回はスキップ" }).click();
     await expect(notice).toHaveCount(0);
     expect(await page.getByText("Legacy workspace").evaluate(el => !!el.closest("[inert]"))).toBe(false);
     await page.getByRole("button", { name: "アカウント", exact: true }).click();
@@ -31,7 +31,7 @@ for (const width of [390, 1100, 1440]) {
     await expect(notice).toBeVisible();
     const second = await context.newPage();
     await second.goto(path);
-    await expect(second.getByRole("dialog", { name: "NavMateへの移行", exact: true })).toBeVisible();
+    await expect(second.getByRole("dialog", { name: "新サービス「NavMate」への移行", exact: true })).toBeVisible();
   });
 }
 
@@ -41,7 +41,11 @@ test("linked accounts get the configured destination, while migration takes prec
   await page.route("**/api/account-link", route => route.fulfill({ json: { state, completed: 1, total: 2, navmateUrl: "/configured-navmate" } }));
   await page.goto(path);
   await expect(page.getByRole("link", { name: "NavMateを開く" })).toHaveAttribute("href", "/configured-navmate");
-  await expect(page.getByRole("button", { name: "Googleアカウントを紐付ける" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Googleアカウントを紐づける" })).toHaveCount(0);
+  const notice = page.getByRole("dialog", { name: "新サービス「NavMate」への移行", exact: true });
+  await expect(notice).toContainText("新サービスへ移動し、同じGoogleアカウントでログインしてください。");
+  await expect(notice).toContainText("移動後は新URLのブックマークをお願いします。");
+  await expect(notice).not.toContainText("今後はGoogleアカウント連携を利用します。まずは現在のデータをGoogleアカウントに紐づけてください。");
   state = "MIGRATING";
   await expect(page.getByRole("status", { name: "NavMateへ引継ぎ中" })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -70,9 +74,9 @@ test("a hanging link operation can be dismissed and is aborted without reopening
   });
   await page.route("**/api/account-link", route => route.fulfill({ json: { state: "UNLINKED", completed: 0, total: 0, navmateUrl: "/navmate" } }));
   await page.goto(path);
-  await page.getByRole("button", { name: "Googleアカウントを紐付ける" }).click();
+  await page.getByRole("button", { name: "Googleアカウントを紐づける" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__noticeLinkStarted)).toBe(true);
-  await page.getByRole("button", { name: "今回は旧画面を使う" }).click();
+  await page.getByRole("button", { name: "今回はスキップ" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__noticeLinkAborted)).toBe(true);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(await page.getByText("Legacy workspace").evaluate(el => !!el.closest("[inert]"))).toBe(false);

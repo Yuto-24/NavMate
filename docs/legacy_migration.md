@@ -167,7 +167,7 @@ Record live deployment/physical acceptance separately from emulator and browser 
 
 The Legacy entry shows a full-screen notice on every page opening/reload. Dismissal
 is React memory only, never a localStorage/cookie preference. The small explicit
-`今回は旧画面を使う` action restores the existing workspace for this opening;
+`今回はスキップ` action restores the existing workspace for this opening;
 Escape/backdrop clicks do not dismiss the notice. The workspace is inert while
 it is shown, and active migration progress takes precedence over the notice.
 
@@ -182,7 +182,9 @@ a link already accepted by the server is not undone. The link POST has a 30-seco
 request deadline. Neither mechanism cancels a server-side migration or deletes data.
 
 The user's target is December 2026, with the exact retirement day undecided. The
-notice and fallback messages use the confirmed Gemini/agy wording; see the
+notice explains the new service and Google linking first, then shows login and bookmark
+instructions after linking. The undecided exact day is not shown. The copy was shortened
+using Gemini/agy on 2026-11-09; see the update in the
 [review evidence](evidence/pr-335-migration-wording.md). This is guidance only,
 not a scheduled cutoff. Existing wording reuse and specification approval do not
 replace this wording review.
