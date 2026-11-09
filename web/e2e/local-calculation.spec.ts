@@ -508,7 +508,9 @@ for (const width of [1100, 1440]) {
     if (explicit) await page.getByRole("radio", { name: "1000 fpm", exact: true }).check();
     const calculate = page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ });
     await calculate.click();
-    await expect(page.locator(".nav-log-table")).toBeVisible();
+    // #408: CI trace shows completion at the old 30s boundary. Allow this
+    // ARITA calculation 60s; retain the 120s test budget and all result checks.
+    await expect(page.locator(".nav-log-table")).toBeVisible({ timeout: 60_000 });
     const state = await page.evaluate(() => (window as any).localStates.at(-1));
     expect(state.readiness.calculationIsCurrent).toBe(true);
     expect(state.project.sections.map((s: any) => s.phase)).toEqual([
