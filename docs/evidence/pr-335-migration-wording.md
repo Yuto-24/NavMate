@@ -42,3 +42,32 @@ Legacy移行案内・Accountダイアログ・関連エラーの文言は、Gemi
 本記録は本番公開・実Google同意画面・物理Safariの確認完了を示さない。
 関連：[PR #335 Legacy起動時の移行案内](https://github.com/Yuto-24/AutoNavLog/pull/335)、
 [Issue #336 UI文言確認の共通手順](https://github.com/Yuto-24/AutoNavLog/issues/336)。
+
+## 2026-11-09: 起動案内の短縮
+
+利用者のフィードバックに従い、起動案内だけを短縮した。新サービス名と画面・URLの移行、
+Google紐付けを先に説明し、紐付け後に同じアカウントでのログインとブックマークを案内する。
+「確定日未定」と移行中の説明を起動案内から外し、退出を「今回はスキップ」に変更した。
+通常のAccountダイアログ、認証・移行処理、終了時期の目安は保持する。
+
+- agy 1.5.3、指定モデル `gemini-3.8-flash-medium`、plan / sandbox / JSON出力。
+- exit 0、status SUCCESS、1 turn。応答に独立したバックエンドモデルIDはない。
+- 会話ID: `9d32b1a4-2455-4fa4-8d77-35831ad80e2c`。
+- prompt.txt SHA-256: `559bf533c21adbabd32ce812229d227d1993a1c70118172d07831eeb3ed61a1b`。
+- response.json SHA-256: `0f0ced13ba7ca52b3965f14a2c9c5133e3a2b673c55ac4fc81b0b4cd5193823b`。
+
+確定文言（逐語反映。段落配置のみ状態に応じて切り替える）:
+
+```json
+{
+  "title": "新サービス「NavMate」への移行",
+  "announcement": "本画面は2026年12月を目途に提供を終了し、新サービス「NavMate」へ画面・URLを移行します。",
+  "instruction": "今後はGoogleアカウント連携を利用します。まずは現在のデータをGoogleアカウントに紐づけてください。",
+  "afterLink": "新サービスへ移動し、同じGoogleアカウントでログインしてください。",
+  "bookmark": "移動後は新URLのブックマークをお願いします。",
+  "primaryButton": "Googleアカウントを紐づける",
+  "linkedStatus": "Googleアカウントに紐づけ済みです",
+  "destinationButton": "NavMateを開く",
+  "skipButton": "今回はスキップ"
+}
+```

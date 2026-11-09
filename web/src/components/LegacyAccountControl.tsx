@@ -30,14 +30,21 @@ function LegacyAccountDialog({ busy, notice = false, onClose }: { busy: boolean;
   };
   return <div className={notice ? "modal-backdrop legacy-migration-notice" : "modal-backdrop"}>
     <section ref={dialog} tabIndex={-1} className="modal-panel account-dialog" role="dialog" aria-modal="true" aria-labelledby="legacy-account-title" onKeyDown={event => { if (event.key === "Escape" && !pending && !notice) onClose(); }}>
-      <div className="modal-heading"><h2 id="legacy-account-title">{notice ? "NavMateへの移行" : "アカウント"}</h2>{!notice && <button type="button" className="icon-button" aria-label="アカウントダイアログを閉じる" disabled={pending} onClick={onClose}><X size={20} /></button>}</div>
-      {notice && <p>旧画面は2026年12月を目途に提供終了を予定しています（確定日は未定です）。</p>}
-      <p>現在のデータをGoogleアカウントに紐付けます。紐付け後も、移行を開始するまではこの画面で編集・保存・計算を続けられます。</p>
-      <p>紐付けたGoogleアカウントでNavMateに初めてログインすると、その時点のプロジェクトと計算結果を引き継ぎます。移行中は本画面の操作を一時停止し、完了後はNavMateへ移動します。</p>
-      {status && status.state !== "UNLINKED" ? <><p>Googleアカウントに紐付け済みです。</p><a className={notice ? "primary-button" : undefined} href={status.navmateUrl}>NavMateを開く</a></> :
-        <button type="button" className="primary-button" disabled={busy || pending || !status || !linkOperation} onClick={() => { void link(); }}>Googleアカウントを紐付ける</button>}
+      <div className="modal-heading"><h2 id="legacy-account-title">{notice ? "新サービス「NavMate」への移行" : "アカウント"}</h2>{!notice && <button type="button" className="icon-button" aria-label="アカウントダイアログを閉じる" disabled={pending} onClick={onClose}><X size={20} /></button>}</div>
+      {notice ? <p>本画面は2026年12月を目途に提供を終了し、新サービス「NavMate」へ画面・URLを移行します。</p> : <>
+        <p>現在のデータをGoogleアカウントに紐付けます。紐付け後も、移行を開始するまではこの画面で編集・保存・計算を続けられます。</p>
+        <p>紐付けたGoogleアカウントでNavMateに初めてログインすると、その時点のプロジェクトと計算結果を引き継ぎます。移行中は本画面の操作を一時停止し、完了後はNavMateへ移動します。</p>
+      </>}
+      {status && status.state !== "UNLINKED" ? <>
+        <p>{notice ? "Googleアカウントに紐づけ済みです" : "Googleアカウントに紐付け済みです。"}</p>
+        {notice && <p>新サービスへ移動し、同じGoogleアカウントでログインしてください。移動後は新URLのブックマークをお願いします。</p>}
+        <a className={notice ? "primary-button" : undefined} href={status.navmateUrl}>NavMateを開く</a>
+      </> : <>
+        {notice && <p>今後はGoogleアカウント連携を利用します。まずは現在のデータをGoogleアカウントに紐づけてください。</p>}
+        <button type="button" className="primary-button" disabled={busy || pending || !status || !linkOperation} onClick={() => { void link(); }}>{notice ? "Googleアカウントを紐づける" : "Googleアカウントを紐付ける"}</button>
+      </>}
       {error && <p role="alert">{error}</p>}
-      {notice && <button type="button" className="legacy-migration-dismiss" onClick={onClose}>今回は旧画面を使う</button>}
+      {notice && <button type="button" className="legacy-migration-dismiss" onClick={onClose}>今回はスキップ</button>}
     </section>
   </div>;
 }

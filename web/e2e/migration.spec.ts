@@ -98,8 +98,8 @@ test("Legacy account UI preserves 1100/1300 workflow order and locks then redire
     await route.fulfill({ response });
   });
   await page.goto("http://127.0.0.1:5180/");
-  await expect(page.getByRole("dialog", { name: "NavMateへの移行", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "今回は旧画面を使う" }).click();
+  await expect(page.getByRole("dialog", { name: "新サービス「NavMate」への移行", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "今回はスキップ" }).click();
   await enterImportWorkflow(page);
   await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
   for (const width of [1100, 1300]) {
