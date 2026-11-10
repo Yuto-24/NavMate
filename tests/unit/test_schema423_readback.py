@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 from scripts.static_ops import app_release as app
 from scripts.static_ops import schema423_readback as check
 
@@ -154,3 +160,20 @@ def test_wrong_canonical_version_stops_before_provider_reads():
         raise AssertionError("wrong canonical version accepted")
     assert "target" not in provider.actions
     assert "rules_get" not in provider.actions
+
+
+def test_cli_path_execution_without_credentials_returns_bounded_blocked_json():
+    """Exercise the exact script-path command used by GitHub Actions."""
+    root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts/static_ops/schema423_readback.py")],
+        cwd=root,
+        env={"PATH": os.environ.get("PATH", "")},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert json.loads(result.stdout) == {"status": "BLOCKED", "phase": "scope"}
+    assert result.stderr == ""
