@@ -581,7 +581,7 @@ class Operator:
         return {"path": str(path), "sha256": digest(raw), "record": record, "evidence": evidence}
 
     def reviewed_schema(self, sha: str, current: str, variables: dict) -> dict | None:
-        """One-way reference-snapshot transition; never an automatic schema override."""
+        """Reviewed, narrowly defined manual transitions; never an automatic override."""
         if self.schema_transition is None:
             return None
         path = self.schema_transition.resolve()
@@ -592,9 +592,11 @@ class Operator:
         except (OSError, ValueError):
             raise Blocked("Schema transition record unavailable or invalid") from None
         require(isinstance(record, dict), "Invalid schema transition record")
+        forecast = record.get("kind") == "forecast-model-selection"
         require(
             type(record.get("schema_version")) is int and record["schema_version"] == 1
-            and record.get("kind") == "reference-snapshot-writer-fence"
+            and record.get("kind") in (
+                "reference-snapshot-writer-fence", "forecast-model-selection")
             and record.get("sha") == sha and record.get("current_sha") == current
             and record.get("tooling_sha") == self.git("rev-parse", "HEAD")
             and record.get("project") == variables["VITE_FIREBASE_PROJECT_ID"]
@@ -617,31 +619,59 @@ class Operator:
         try:
             before = json.loads(self.git("show", f"{current}:{schema}"))
             after = json.loads(self.git("show", f"{sha}:{schema}"))
-            definitions = after["$defs"]
-            require(isinstance(definitions.pop("ReferencePointSnapshot"), dict)
-                    and isinstance(definitions.pop("ReferencePointSource"), dict),
-                    "Reference snapshot definitions required")
-            addition = definitions["RouteNode"]["properties"].pop("reference_snapshot")
-            require(addition == {"anyOf": [{"$ref": "#/$defs/ReferencePointSnapshot"},
-                                          {"type": "null"}], "default": None}
-                    and before == after,
-                    "Only the reviewed optional reference snapshot is supported")
+            if forecast:
+                version = {"const": 4, "default": 4, "title": "Schema Version", "type": "integer"}
+                require(fingerprint(before["properties"]["schema_version"]) == fingerprint(version)
+                        and fingerprint(after["properties"]["schema_version"])
+                        == fingerprint({**version, "const": 5, "default": 5}),
+                        "Only Project schema 4 to 5 is supported")
+                after["properties"]["schema_version"] = version
+                addition = after["properties"].pop("selected_forecast_model")
+                require(fingerprint(addition) == fingerprint({
+                            "anyOf": [{"enum": ["MSM", "GSM"], "type": "string"},
+                                      {"type": "null"}], "default": None,
+                            "title": "Selected Forecast Model"})
+                        and fingerprint(before) == fingerprint(after),
+                        "Only the reviewed optional forecast model is supported")
+            else:
+                definitions = after["$defs"]
+                require(isinstance(definitions.pop("ReferencePointSnapshot"), dict)
+                        and isinstance(definitions.pop("ReferencePointSource"), dict),
+                        "Reference snapshot definitions required")
+                addition = definitions["RouteNode"]["properties"].pop("reference_snapshot")
+                require(addition == {"anyOf": [{"$ref": "#/$defs/ReferencePointSnapshot"},
+                                              {"type": "null"}], "default": None}
+                        and before == after,
+                        "Only the reviewed optional reference snapshot is supported")
         except (KeyError, TypeError, ValueError):
             raise Blocked("Unsupported Project schema transition") from None
         source = self.git("show", f"{sha}:{writer}")
         previous = self.git("show", f"{current}:{writer}")
         # Presence is a prerequisite, NOT proof of safety. Reviewed browser/SDK
         # evidence below must cover the complete pinned candidate, including races.
-        require(
-            ", 1)" in previous
-            and "export const LOCAL_DATABASE_VERSION = 2;" in source
-            and ", LOCAL_DATABASE_VERSION)" in source,
-            "Candidate must contain the version-1 to version-2 writer fence",
-        )
+        if forecast:
+            require(record.get("latest_policy") == "replace-own-device-latest-on-open"
+                    and self.rules_transition is None
+                    and all(self.source_digest(current, name) == self.source_digest(sha, name)
+                            for name in COMPATIBILITY[:2]),
+                    "Forecast transition requires reviewed Latest policy "
+                    "and identical Rules/indexes")
+            require(all("export const LOCAL_DATABASE_VERSION = 2;" in text
+                        and ", LOCAL_DATABASE_VERSION)" in text for text in (previous, source)),
+                    "Forecast transition requires existing database version 2 on both clients")
+        else:
+            require(
+                ", 1)" in previous
+                and "export const LOCAL_DATABASE_VERSION = 2;" in source
+                and ", LOCAL_DATABASE_VERSION)" in source,
+                "Candidate must contain the version-1 to version-2 writer fence",
+            )
         checks = record.get("checks")
         require(isinstance(checks, dict), "Schema compatibility evidence required")
         evidence = {}
-        for role in ("old_to_new", "old_writer_fenced", "storage_sync_roundtrip"):
+        roles = ("old_to_new", "old_writer_coexistence" if forecast else "old_writer_fenced",
+                 "storage_sync_roundtrip")
+        for role in roles:
             check = checks.get(role)
             require(isinstance(check, dict) and check.get("result") == "PASS"
                     and all(isinstance(check.get(key), str) and check[key].strip()
@@ -661,6 +691,20 @@ class Operator:
             require(0 < len(content) <= 8 * 1024 * 1024 and content.strip()
                     and digest(content) == reference["sha256"],
                     "Schema compatibility evidence changed or missing")
+            if forecast:
+                # A hash alone cannot prevent retargeting an old report to another
+                # app/tooling/configuration. The reviewer pins these inside each report.
+                try:
+                    report = json.loads(content)
+                except ValueError:
+                    raise Blocked("Forecast compatibility report must be JSON") from None
+                identity = {key: value for key, value in record.items() if key != "checks"}
+                require(isinstance(report, dict)
+                        and fingerprint(report.get("identity")) == fingerprint(identity)
+                        and report.get("check") == role
+                        and all(report.get(key) == check[key]
+                                for key in ("result", "reviewed_by", "summary")),
+                        "Forecast compatibility report identity or review mismatch")
             evidence[role] = {"path": str(source_path), "sha256": digest(content)}
         return {"path": str(path), "sha256": digest(raw), "record": record, "evidence": evidence}
 

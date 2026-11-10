@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "kind": "forecast-model-selection",
+  "current_sha": "03cc463cf09192e1403f839df4165410c5db8d7b",
+  "sha": "1a4cc915d1a871d9044942078d00aea90e37d340",
+  "tooling_sha": "REPLACE_WITH_CLEAN_REVIEWED_MAIN_TOOLING_FULL_SHA",
+  "project": "REPLACE_WITH_VERIFIED_EXISTING_FIREBASE_PROJECT",
+  "origin": "https://navmate.yuto24.com",
+  "configuration_digest": "REPLACE_WITH_PUBLIC_CONFIGURATION_FINGERPRINT",
+  "before_blob": "b3bdd7e593eb9a7c6257994762934c35cfdda430",
+  "after_blob": "d19086279b8f903d0c6209ab9e5065974af5d294",
+  "writer_blob": "5b6178c23ed9788f08b465d9003088e4ad9e2978",
+  "database_version": 2,
+  "direction": "old-to-new",
+  "recovery": "forward-fix; preserve Project data",
+  "checks": {
+    "old_to_new": {
+      "result": "UNVERIFIED",
+      "reviewed_by": "",
+      "summary": "",
+      "record": {
+        "path": "old_to_new.json",
+        "sha256": ""
+      }
+    },
+    "storage_sync_roundtrip": {
+      "result": "UNVERIFIED",
+      "reviewed_by": "",
+      "summary": "",
+      "record": {
+        "path": "storage_sync_roundtrip.json",
+        "sha256": ""
+      }
+    },
+    "old_writer_coexistence": {
+      "result": "UNVERIFIED",
+      "reviewed_by": "",
+      "summary": "",
+      "record": {
+        "path": "old_writer_coexistence.json",
+        "sha256": ""
+      }
+    }
+  },
+  "latest_policy": "replace-own-device-latest-on-open"
+}

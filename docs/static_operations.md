@@ -505,6 +505,9 @@ Its timestamps are historical evidence, not current publication authorization.
 
 ## WSL からのアプリ更新: prepare / publish
 
+Project schema 4 → 5 の限定移行は [forecast schema transition](forecast_schema_transition.md)
+の証拠を追加する。同一 Rules・indexes、独立レビュー、操作窓と公開の個別承認は引き続き必要。
+
 工程の重複・排他・部分失敗・診断情報の現状と改善案は
 [Issue #339 アプリ公開工程の棚卸し](app_publication_audit.md)を参照。
 調査結果だけでは、以下の公開gateや停止・復旧条件を変更しない。
