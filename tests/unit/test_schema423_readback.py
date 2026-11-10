@@ -15,6 +15,7 @@ ENV = {
 }
 RULES = "rules_version = '2';\n"
 RULES_HASH = app.digest(RULES.encode())
+RULES_BLOB = "a" * 40
 
 
 class Provider:
@@ -36,7 +37,12 @@ class Provider:
     def source_digest(self, sha, path):
         self.actions.append("source_digest")
         assert sha in (check.CURRENT, check.CANDIDATE)
-        return RULES_HASH if path == check.RULES_PATH else "indexes-blob"
+        return RULES_BLOB if path == check.RULES_PATH else "indexes-blob"
+
+    def rules_source(self, sha):
+        self.actions.append("rules_source")
+        assert sha == check.CANDIDATE
+        return RULES
 
     def target(self, variables):
         self.actions.append("target")
@@ -77,7 +83,7 @@ def test_readback_observes_canonical_pages_and_rules_without_mutation():
     assert result["candidate_sha"] == check.CANDIDATE
     assert result["live_rules_source_sha256"] == RULES_HASH
     assert provider.actions.count("rules_get") == 3
-    assert set(provider.actions) == {"git", "source_digest", "target", "rules_get"}
+    assert set(provider.actions) == {"git", "source_digest", "rules_source", "target", "rules_get"}
     assert "CLOUDFLARE_SECRET" not in str(result)
     assert "GOOGLE_SECRET" not in str(result)
 
