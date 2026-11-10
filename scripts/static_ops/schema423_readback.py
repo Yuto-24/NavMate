@@ -54,7 +54,7 @@ def observe(operator: app.Operator, env: dict[str, str], *, canonical_reader=app
             CANDIDATE, index_path
         ):
             raise ValueError("Indexes source differs")
-        return after
+        return app.digest(operator.rules_source(CANDIDATE).encode("utf-8"))
 
     rules_digest = step("source", source_identity)
     canonical = step("canonical", lambda: canonical_reader(gate.ORIGIN, CURRENT))
