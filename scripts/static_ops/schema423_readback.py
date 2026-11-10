@@ -9,9 +9,14 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
+from pathlib import Path
 
-from scripts.static_ops import app_release as app
-from scripts.static_ops import publication_gate as gate
+ROOT = Path(__file__).resolve().parents[2]
+sys.path[:0] = [str(ROOT), str(ROOT / "src")]
+
+from scripts.static_ops import app_release as app  # noqa: E402
+from scripts.static_ops import publication_gate as gate  # noqa: E402
 
 CURRENT = "03cc463cf09192e1403f839df4165410c5db8d7b"
 CANDIDATE = "c717ac6baaa3d7556120d2a7f6c9435f165f132b"
