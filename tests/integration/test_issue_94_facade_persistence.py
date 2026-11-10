@@ -560,10 +560,14 @@ def test_forecast_identity_metadata_and_warning_outcome_are_persisted(
         (date(2026, 8, 10), "10:00"),
     ],
 )
-def test_changed_departure_datetime_preserves_pin_until_two_click_refresh(
+@pytest.mark.parametrize("has_last_good", [False, True])
+@pytest.mark.parametrize("update_and_calculate", [False, True])
+def test_changed_departure_datetime_selects_latest_run_on_first_calculation(
     tmp_path: Path,
     flight_date: date,
     departure_time_jst: str,
+    has_last_good: bool,
+    update_and_calculate: bool,
 ) -> None:
     application = _application(tmp_path / "storage")
     application.development_weather = False
@@ -573,8 +577,15 @@ def test_changed_departure_datetime_preserves_pin_until_two_click_refresh(
     session.weather_provider = ForecastWeatherProvider({"MSM": provider, "GSM": provider})
 
     historical_run_id = provider.old_run_id
+    if has_last_good:
+        previous = application.calculate(session)
+        assert previous["outcome"]["selected_forecast_run_id"] == historical_run_id
+        assert session.last_calculation is not None
     saved_project = session.project.model_copy(
-        update={"selected_forecast_run_id": historical_run_id}
+        update={
+            "selected_forecast_model": "MSM",
+            "selected_forecast_run_id": historical_run_id,
+        }
     )
     application.project_service.autosave(saved_project, set_last_opened=True)
     loaded = application.load(session, saved_project.id)
@@ -586,20 +597,28 @@ def test_changed_departure_datetime_preserves_pin_until_two_click_refresh(
             "departure_time_jst": departure_time_jst,
         }
     )
-    updated = application.update_project(session, request)
-    # #161 replaces the former per-field clearing rule: the pin survives input
-    # edits, while refresh intent is scoped to the new requirement fingerprint.
-    assert updated["project"]["selected_forecast_run_id"] == historical_run_id
-    first = application.calculate(session)
-    assert first["project"]["selected_forecast_run_id"] == historical_run_id
-    assert "FORECAST_UPDATE_REQUIRED" in [issue["code"] for issue in first["outcome"]["issues"]]
-    assert not first["outcome"]["sections"]
+    if update_and_calculate:
+        first = application.update_and_calculate(session, request)
+    else:
+        updated = application.update_project(session, request)
+        assert updated["project"]["selected_forecast_run_id"] is None
+        assert updated["project"]["selected_forecast_model"] is None
+        if has_last_good:
+            assert session.last_calculation is not None
+            assert session.last_calculation.outcome.selected_forecast_run_id == historical_run_id
+        first = application.calculate(session)
 
-    # Repeating a failed calculation cannot replace the successful-input baseline.
-    calculated = application.calculate(session)
-    assert calculated["project"]["selected_forecast_run_id"] == historical_run_id
-    assert "FORECAST_UPDATE_REQUIRED" in [i["code"] for i in calculated["outcome"]["issues"]]
-    assert not calculated["outcome"]["sections"]
+    assert first["readiness"]["calculationIsCurrent"]
+    assert first["outcome"]["sections"]
+    assert first["project"]["selected_forecast_run_id"] == provider.fresh_run_id
+    assert first["project"]["selected_forecast_model"] == "MSM"
+    assert first["outcome"]["selected_forecast_run_id"] == provider.fresh_run_id
+    assert first["outcome"]["selected_forecast_model"] == "MSM"
+    assert "FORECAST_UPDATE_REQUIRED" not in {
+        issue["code"] for issue in first["outcome"]["issues"]
+    }
+    assert session.last_calculation is not None
+    assert session.last_calculation.outcome.selected_forecast_run_id == provider.fresh_run_id
 
 
 def test_saved_forecast_pin_is_retained_when_departure_datetime_is_unchanged(
