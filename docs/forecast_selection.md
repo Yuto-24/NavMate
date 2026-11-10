@@ -21,7 +21,8 @@ halos. Local delivery boundaries remain explicit: a payload missing requested
 points is a processing/delivery failure, not a model exclusion.
 
 A fixed MSM Run remains selected until explicit refresh if another MSM Run can
-satisfy the request. If no MSM candidate satisfies it, selection immediately
+satisfy the request. Editing DATE or ETD in FORECAST mode clears the saved model
+and Run selection, so the next calculation chooses a healthy Run for the new time. If no MSM candidate satisfies it, selection immediately
 tries GSM. A fixed GSM Run never moves back to MSM without explicit refresh.
 An unavailable latest comparison does not block an otherwise validated fixed Run;
 latest status remains unknown. Failure to obtain the required fixed Run retains
@@ -30,8 +31,8 @@ the last successful calculation and never silently replaces that Run.
 The dedicated `forecast_selection_fingerprint` includes flight timing, airports,
 route, altitude/phase/manual inputs, TGL, descent rate and relevant planning
 state. It excludes the selected Forecast and save/revision bookkeeping. Each explicit recalculation compares this fingerprint with the last successful
-calculation. Unchanged inputs permit refresh in one action; changed inputs keep
-the Run. See [the corrected refresh contract](forecast_refresh.md). It is distinct from the calculation fingerprint,
+calculation. Unchanged inputs permit refresh in one action; changed inputs other than
+DATE/ETD keep the Run. See [the corrected refresh contract](forecast_refresh.md). It is distinct from the calculation fingerprint,
 which also identifies the model and Run actually used. Its historical MSM and
 FTD encoding remains byte-identical; GSM and an explicitly unknown forecast model
 extend that encoding. Existing snapshot hashes are not rewritten or promoted.
@@ -110,7 +111,7 @@ and backup selection/adoption.
 
 Refresh uses the shared typed-planning and rounding fingerprint from #277/#356.
 Save does not change the successful comparison baseline; changed planning or
-rounding inputs keep the previous Run.
+rounding inputs keep the previous Run unless DATE/ETD changed.
 The backup input identity also includes the fixed model and Run. Backup adoption
 accepts an unrequested model change only for the explicit MSM-to-GSM coverage
 fallback recorded in the result. NAV LOG source labels follow the retained result,
