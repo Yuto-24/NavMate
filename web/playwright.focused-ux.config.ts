@@ -3,7 +3,7 @@ import local from "./playwright.local.config";
 
 // Hosted Local-browser CI supplies the built static app; no Legacy/FastAPI calls.
 export default defineConfig(local, {
-  testMatch: ["map-checkpoint.spec.ts", "altitude-layout.spec.ts"],
+  testMatch: ["header.spec.ts", "map-checkpoint.spec.ts", "altitude-layout.spec.ts"],
   timeout: 180_000,
   outputDir: "/tmp/autonavlog-focused-ux-browser",
   projects: [

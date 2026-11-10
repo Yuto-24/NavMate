@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
@@ -131,6 +132,7 @@ async function openSaved(page: Page, recovery: any) {
   }), recovery);
   await page.goto("/");
   await enterImportWorkflow(page);
+  await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption(recovery.project.id);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
@@ -151,6 +153,7 @@ test(`saved Run refreshes once when unchanged and stays fixed after input change
     expect((await state(page)).outcome.selected_forecast_run_id).toBe("20260915180000");
     expect((await state(page)).outcome.issues.map((i: any) => i.code)).toContain("FORECAST_UPDATE_AVAILABLE");
   }
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("Forecast refresh");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect.poll(async () => (await record(page)).checkpoint?.name).toBe("Forecast refresh");
@@ -188,6 +191,7 @@ test("Project quota retry releases the actual Weather cache and keeps Last Calcu
       return put.apply(this, args);
     };
   });
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("Weather quota");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect.poll(async () => (await record(page)).checkpoint?.name).toBe("Weather quota");

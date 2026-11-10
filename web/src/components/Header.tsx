@@ -1,10 +1,10 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { LegacyAccountControl } from "./LegacyAccountControl";
 import { AccountControl } from "./AccountControl";
 import type { AuthProvider } from "../auth";
 import type { PlatformCapabilities } from "../platform";
 import { localMode, devSharedMode } from "../executionMode";
-import { CheckCircle2, Info, FolderOpen, Plus, Save, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, Info, MoreHorizontal, FolderOpen, Plus, Save, Trash2 } from "lucide-react";
 import type { SavedProject } from "../types";
 
 const noSubscribe = () => () => {};
@@ -51,93 +51,114 @@ export function Header({
   const normalizedProjectName = projectName.trim();
   const personal = useSyncExternalStore(auth?.subscribe ?? noSubscribe, () => !!auth?.getState().account);
 
+  const [panel, setPanel] = useState<"project" | "more" | null>(null);
+  const pointerInPanel = useRef(false);
+  const projectControl = useRef<HTMLDivElement>(null);
+  const moreControl = useRef<HTMLDivElement>(null);
+  const projectButton = useRef<HTMLButtonElement>(null);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const closePanel = () => {
+    (panel === "project" ? projectButton : moreButton).current?.focus();
+    setPanel(null);
+  };
+  useEffect(() => {
+    if (!panel) return;
+    const dismiss = (event: PointerEvent) => {
+      const control = panel === "project" ? projectControl : moreControl;
+      pointerInPanel.current = event.target instanceof Node && !!control.current?.contains(event.target);
+      if (!pointerInPanel.current) setPanel(null);
+    };
+    const clearPointer = () => { pointerInPanel.current = false; };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("pointerup", clearPointer);
+    document.addEventListener("pointercancel", clearPointer);
+    document.addEventListener("keydown", clearPointer, true);
+    return () => {
+      clearPointer();
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("pointerup", clearPointer);
+      document.removeEventListener("pointercancel", clearPointer);
+      document.removeEventListener("keydown", clearPointer, true);
+    };
+  }, [panel]);
+  const informationLabel = knownIssuesUnread ? "お知らせ（既知の不具合に更新があります）" : informationUnread ? "お知らせ（未読の更新があります）" : "お知らせ";
+
   return (
-    <header className="app-header">
+    <header className="app-header" onKeyDown={event => {
+      if (event.key === "Escape" && panel) { event.preventDefault(); closePanel(); }
+    }}>
       <div className="brand-block">
-        <div className="brand-name">NavMate</div>
-        <div className="brand-subtitle">NAV2 地上準備 / v{appVersion}</div>
+        <img src={`${import.meta.env.BASE_URL}navmate-192.png`} width="32" height="32" alt="NavMate" />
+        <span className="brand-name" aria-hidden="true">NavMate</span>
       </div>
-      <div className="header-project">
-        <label className="header-project-label" htmlFor="project-name">
-          プロジェクト
-        </label>
-        <input
-          id="project-name"
-          className="header-project-name"
-          type="text"
-          value={projectName}
-          maxLength={60}
-          disabled={revision === null || busy}
-          aria-invalid={revision !== null && normalizedProjectName.length === 0}
-          onChange={(event) => onProjectNameChange(event.target.value)}
-        />
-        {revision !== null && <span className="header-revision">rev.{revision}</span>}
+      <div className="header-project" ref={projectControl} onBlur={event => {
+        // Safari may blur an input to no focus target before an internal button's click.
+        if (!event.currentTarget.contains(event.relatedTarget) && !(event.relatedTarget === null && pointerInPanel.current)) setPanel(current => current === "project" ? null : current);
+      }}>
+        <button ref={projectButton} type="button" className="header-button project-menu-button"
+          aria-label="プロジェクトメニュー" aria-expanded={panel === "project"} aria-controls="header-project-panel"
+          title={projectName} onClick={() => setPanel(panel === "project" ? null : "project")}>
+          <span>{projectName || "プロジェクト"}</span><ChevronDown aria-hidden="true" size={16} />
+        </button>
+        <div id="header-project-panel" className="header-panel project-panel" hidden={panel !== "project"}>
+          <p className="header-project-full-name">{projectName || "プロジェクト"}</p>
+          <label className="header-project-label" htmlFor="project-name">プロジェクト</label>
+          <input id="project-name" className="header-project-name" type="text" value={projectName}
+            maxLength={60} disabled={revision === null || busy}
+            aria-invalid={revision !== null && normalizedProjectName.length === 0}
+            onChange={(event) => onProjectNameChange(event.target.value)} />
+          {revision !== null && <span className="header-revision">rev.{revision}</span>}
+          <div className="saved-project-control">
+            <label htmlFor="saved-project">保存済み</label>
+            <select id="saved-project" value={selectedProjectId} disabled={busy}
+              onChange={(event) => onSelectedProjectIdChange(event.target.value)}>
+              <option value="">選択</option>
+              {savedProjects.map((project) => (
+                <option key={project.id} value={project.id}>{project.kind === "LATEST" ? "自動保存" : project.name}</option>
+              ))}
+            </select>
+            <button className="icon-button header-icon-button" type="button" onClick={onLoad}
+              disabled={!selectedProjectId || busy} aria-label="保存済みプロジェクトを開く" title="保存済みプロジェクトを開く">
+              <FolderOpen aria-hidden="true" size={18} />
+            </button>
+            <button className="icon-button header-icon-button" type="button" onClick={onDelete}
+              disabled={!selectedProjectId || busy} aria-label="保存済みプロジェクトを削除" title="保存済みプロジェクトを削除">
+              <Trash2 aria-hidden="true" size={18} />
+            </button>
+          </div>
+        </div>
       </div>
       <div className="header-actions">
-        {localMode ? <AccountControl auth={auth} busy={busy} onBeforeChange={onBeforeAccountChange} networkAvailability={networkAvailability} /> : <LegacyAccountControl busy={busy} />}
-        <button
-          className={`header-button information-button${knownIssuesUnread ? " information-warning" : ""}`}
-          type="button"
-          onClick={onInformation}
-          aria-label={knownIssuesUnread ? "お知らせ（既知の不具合に更新があります）" : informationUnread ? "お知らせ（未読の更新があります）" : "お知らせ"}
-        >
-          <span className="information-icon-wrap"><Info aria-hidden="true" size={18} />{informationUnread && <span className="information-unread-dot" />}</span>
-          <span className="information-label">お知らせ</span>
-        </button>
-        <div className="storage-state" aria-label={devSharedMode ? (personal ? "Googleアカウントでログイン中の個人プロジェクト保存領域" : "端末内に保存し、開発用の共通スペースへ同期する方式") : localMode ? "保存先はこの端末のブラウザです" : "保存先はサーバーです"}>
-          <CheckCircle2 aria-hidden="true" size={17} />
-          <span>{devSharedMode ? (personal ? "端末・個人保存" : "端末・共有保存") : localMode ? "端末内に保存" : "サーバー保存"}</span>
-        </div>
-        <div className="saved-project-control">
-          <label htmlFor="saved-project">保存済み</label>
-          <select
-            id="saved-project"
-            value={selectedProjectId}
-            onChange={(event) => onSelectedProjectIdChange(event.target.value)}
-          >
-            <option value="">選択</option>
-            {savedProjects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.kind === "LATEST" ? "自動保存" : project.name}
-              </option>
-            ))}
-          </select>
-          <button
-            className="icon-button header-icon-button"
-            type="button"
-            onClick={onLoad}
-            disabled={!selectedProjectId || busy}
-            aria-label="保存済みプロジェクトを開く"
-            title="保存済みプロジェクトを開く"
-          >
-            <FolderOpen aria-hidden="true" size={18} />
-          </button>
-          <button
-            className="icon-button header-icon-button"
-            type="button"
-            onClick={onDelete}
-            disabled={!selectedProjectId || busy}
-            aria-label="保存済みプロジェクトを削除"
-            title="保存済みプロジェクトを削除"
-          >
-            <Trash2 aria-hidden="true" size={18} />
-          </button>
-        </div>
-        <button
-          className="header-button header-button-primary header-save-button"
-          aria-label="保存"
-          title="保存"
-          type="button"
-          onClick={() => onSave(normalizedProjectName)}
-          disabled={revision === null || busy || normalizedProjectName.length === 0}
-        >
-          <Save aria-hidden="true" size={18} />
-          <span className="header-action-label">保存</span>
+        <button className="header-button header-button-primary header-save-button" aria-label="保存" title="保存" type="button"
+          onClick={() => onSave(normalizedProjectName)} disabled={revision === null || busy || normalizedProjectName.length === 0}>
+          <Save aria-hidden="true" size={18} /><span className="header-action-label">保存</span>
         </button>
         <button className="header-button header-new-button" aria-label="新規" title="新規" type="button" onClick={onNew} disabled={busy}>
-          <Plus aria-hidden="true" size={18} />
-          <span className="header-action-label">新規</span>
+          <Plus aria-hidden="true" size={18} /><span className="header-action-label">新規</span>
         </button>
+        {localMode ? <AccountControl auth={auth} busy={busy} onBeforeChange={onBeforeAccountChange} networkAvailability={networkAvailability} /> : <LegacyAccountControl busy={busy} />}
+        <div className="header-more" ref={moreControl} onBlur={event => {
+          // Safari may blur an input to no focus target before an internal button's click.
+          if (!event.currentTarget.contains(event.relatedTarget) && !(event.relatedTarget === null && pointerInPanel.current)) setPanel(current => current === "more" ? null : current);
+        }}>
+          <button ref={moreButton} className={`header-button header-more-button${knownIssuesUnread ? " information-warning" : ""}`}
+            type="button" aria-label={knownIssuesUnread ? "その他（既知の不具合に更新があります）" : informationUnread ? "その他（未読の更新があります）" : "その他"}
+            title="その他" aria-expanded={panel === "more"} aria-controls="header-more-panel"
+            onClick={() => setPanel(panel === "more" ? null : "more")}>
+            <span className="information-icon-wrap"><MoreHorizontal aria-hidden="true" size={20} />{informationUnread && <span className="information-unread-dot" />}</span>
+          </button>
+          <div id="header-more-panel" className="header-panel more-panel" hidden={panel !== "more"}>
+            <button className={`header-button information-button${knownIssuesUnread ? " information-warning" : ""}`}
+              type="button" aria-label={informationLabel} onClick={() => { closePanel(); onInformation(); }}>
+              <Info aria-hidden="true" size={18} /><span>お知らせ</span>
+            </button>
+            <p className="brand-subtitle">NAV2 地上準備 / v{appVersion}</p>
+            <div className="storage-state" aria-label={devSharedMode ? (personal ? "Googleアカウントでログイン中の個人プロジェクト保存領域" : "端末内に保存し、開発用の共通スペースへ同期する方式") : localMode ? "保存先はこの端末のブラウザです" : "保存先はサーバーです"}>
+              <CheckCircle2 aria-hidden="true" size={17} />
+              <span>{devSharedMode ? (personal ? "端末・個人保存" : "端末・共有保存") : localMode ? "端末内に保存" : "サーバー保存"}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
   );

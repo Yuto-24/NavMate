@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { expect, test, type Page } from "@playwright/test";
 
 const route = (name: string, coordinates = "131.4486,31.8772,0 131.2,32,0 130.7194,31.8034,0") =>
@@ -193,18 +194,22 @@ test("#176 #361 #293 selected names survive Draft edits, reload, confirmation an
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
   expect((await snapshot(page)).working.project.metadata.project_name_auto).toBe(true);
+  await openProjectMenu(page);
   await projectName.fill("Imported names");
   await editor.click();
   await page.locator(".route-name-editor input").fill("RENAMED");
   await page.locator(".route-name-save").click();
   await expect.poll(names).toEqual(["RJFM", "RENAMED", "RJFK"]);
   await expect(projectName).toHaveValue("Imported names");
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("Imported names");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
   const project = (await snapshot(page)).working.project;
   await page.reload();
+  await openProjectMenu(page);
   await expect(page.getByLabel("保存済み", { exact: true })).toBeVisible();
+  await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption(project.id);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect.poll(names).toEqual(["RJFM", "RENAMED", "RJFK"]);

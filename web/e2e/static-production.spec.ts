@@ -1,3 +1,4 @@
+import { openInformation } from "./helpers/header";
 import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { expect } from "@playwright/test";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
@@ -15,7 +16,7 @@ test("production artifact shows storage limits and uses no Service Worker", asyn
   await page.goto("/");
   await enterImportWorkflow(page);
   await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /^お知らせ/ }).click();
+  await openInformation(page);
   await expect(page.getByText(/容量不足による自動削除/)).toBeVisible();
   expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
   expect(api).toEqual([]);

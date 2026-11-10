@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { confirmImportedDraft } from "./helpers/importWorkflow";
 import { mapZoom, revealAirport, selectAirport, zoomMapTo } from "./helpers/mapCandidates";
 import { expect, test, type Page } from "@playwright/test";
@@ -183,16 +184,19 @@ for (const width of [1100, 1440]) {
     expect(await page.evaluate(() => localStorage.getItem("autonavlog.map-viewport.v1.anonymous.last"))).toBe(savedView);
     await selectAirport(page, "RJFM");
     await zoomMapTo(page, (await mapZoom(page)) + 1);
+    await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(projectId);
     const cancelledLoad = new Promise<void>(resolve => page.once("dialog", async dialog => {
       await dialog.dismiss();
       resolve();
     }));
+    await openProjectMenu(page);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await cancelledLoad;
     await expect(page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true })).toBeEnabled();
     await expect(strip(page).locator("li")).toHaveCount(1);
     page.once("dialog", dialog => dialog.accept());
+    await openProjectMenu(page);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await expect(page.locator(".nav-log-table")).toBeVisible();
     await expect.poll(() => page.evaluate(() => localStorage.getItem("autonavlog.map-viewport.v1.anonymous.last"))).toBe(savedView);
@@ -217,6 +221,7 @@ for (const width of [1100, 1440]) {
     }, projectId);
     await page.reload();
     await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible({ timeout: 120_000 });
+    await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(projectId);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await expect(page.locator(".nav-log-table")).toBeVisible();
@@ -367,6 +372,7 @@ for (const manualVor of [false, true]) {
     page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "新規", exact: true }).click();
     await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
+    await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(projectId);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await expect(vor).toBeChecked({ checked: manualVor });
@@ -471,6 +477,7 @@ for (const width of [390, 1100, 1440]) {
     page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "新規", exact: true }).click();
     await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
+    await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(projectId);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await expect(vor).toBeChecked();

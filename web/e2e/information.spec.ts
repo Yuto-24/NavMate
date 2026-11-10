@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { disableClipboardRead } from "./helpers/clipboard";
 import { expect, test, type Page } from "@playwright/test";
@@ -18,11 +19,12 @@ const routeKml = `<?xml version="1.0" encoding="UTF-8"?>
 131.4486111111,31.8772222222,0 131.5000000000,32.4000000000,0 131.6500000000,33.1000000000,0 131.7372222222,33.4794444444,0
 </coordinates></LineString></Placemark></Document></kml>`;
 
-const informationButton = (page: Page) => page.getByRole("button", { name: /お知らせ/ });
+const informationButton = (page: Page) => page.getByRole("button", { name: /^その他/ });
 const informationDialog = (page: Page) => page.getByRole("dialog", { name: "お知らせ" });
 
 async function openInformation(page: Page) {
   await informationButton(page).click();
+  await page.getByRole("button", { name: /^お知らせ/ }).click();
   const dialog = informationDialog(page);
   await expect(dialog).toBeVisible();
   return dialog;
@@ -72,6 +74,7 @@ async function createEditCalculateAndSave(page: Page) {
   await calculateButton.click();
   await expect(page.getByLabel("計算済みNAV LOG")).toBeVisible({ timeout: 30_000 });
 
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("storage fallback");
   const saved = page.waitForResponse((response) => (
     response.url().endsWith("/api/projects/save") && response.ok()
@@ -93,7 +96,7 @@ test("Information exposes bundle-generated latest and historical release section
   await expect(informationDialog(page)).toBeHidden();
 
   const button = informationButton(page);
-  await expect(button).toHaveAccessibleName("お知らせ（未読の更新があります）");
+  await expect(button).toHaveAccessibleName("その他（未読の更新があります）");
   await expect(button).not.toHaveClass(/information-warning/);
   await expect(button.locator(".information-unread-dot")).toBeVisible();
 
@@ -139,7 +142,7 @@ test("Information traps focus, closes with Escape and backdrop, and keeps latest
 
   await page.reload();
   await expectBaseWorkflow(page);
-  await expect(informationButton(page)).toHaveAccessibleName("お知らせ");
+  await expect(informationButton(page)).toHaveAccessibleName("その他");
   await expect(informationButton(page).locator(".information-unread-dot")).toBeHidden();
   await expect(informationDialog(page)).toBeHidden();
 });
@@ -150,7 +153,7 @@ test("Information keeps the exact current update ID seen after reload", async ({
     latestInformationId,
   ]);
   await page.goto("/");
-  await expect(informationButton(page)).toHaveAccessibleName("お知らせ");
+  await expect(informationButton(page)).toHaveAccessibleName("その他");
   await expect(informationButton(page).locator(".information-unread-dot")).toBeHidden();
 });
 
@@ -162,7 +165,7 @@ test("Information treats the known same-version legacy baseline as unread after 
     legacy110BaselineId,
   ]);
   await page.goto("/");
-  await expect(informationButton(page)).toHaveAccessibleName("お知らせ（未読の更新があります）");
+  await expect(informationButton(page)).toHaveAccessibleName("その他（未読の更新があります）");
   await expect(informationButton(page).locator(".information-unread-dot")).toBeVisible();
 });
 
@@ -193,7 +196,7 @@ for (const [name, key, storedValue] of [
     await page.goto("/");
     await expectBaseWorkflow(page);
     await expect(informationDialog(page)).toBeHidden();
-    await expect(informationButton(page)).toHaveAccessibleName("お知らせ（未読の更新があります）");
+    await expect(informationButton(page)).toHaveAccessibleName("その他（未読の更新があります）");
     await expect((await openInformation(page)).getByRole("heading", { name: `v${latestRelease.version}` })).toBeVisible();
   });
 }
@@ -221,7 +224,7 @@ test("Information tolerates unavailable local storage without blocking create, e
   await page.goto("/");
   await enterImportWorkflow(page);
   await expect(page.getByRole("button", { name: "新規", exact: true })).toBeEnabled();
-  await expect(informationButton(page)).toHaveAccessibleName("お知らせ（未読の更新があります）");
+  await expect(informationButton(page)).toHaveAccessibleName("その他（未読の更新があります）");
   await openInformation(page);
   await page.keyboard.press("Escape");
   await expect(informationDialog(page)).toBeHidden();
@@ -231,76 +234,8 @@ test("Information tolerates unavailable local storage without blocking create, e
   await expect(page.getByLabel("プロジェクト", { exact: true })).toHaveValue("storage fallback");
   await expect(page.getByLabel("計算済みNAV LOG")).toBeVisible();
   await expect(page.getByRole("button", { name: "新規", exact: true })).toBeEnabled();
-  await expect(informationButton(page)).toHaveAccessibleName("お知らせ（未読の更新があります）");
+  await expect(informationButton(page)).toHaveAccessibleName("その他（未読の更新があります）");
 });
-
-test("Information remains reachable without displacing header actions or workflow regions", async ({ page }) => {
-  await page.goto("/");
-  await createEditCalculateAndSave(page);
-
-  for (const width of [320, 390, 820, 1100, 1440, 1600, 1273, 1242, 997, 996, 631, 630, 629] as const) {
-    await page.setViewportSize({ width, height: 900 });
-    const button = informationButton(page);
-    const [header, information, save, newProject, input, route, status] = await Promise.all([
-      page.locator(".app-header").boundingBox(),
-      button.boundingBox(),
-      page.getByRole("button", { name: "保存", exact: true }).boundingBox(),
-      page.getByRole("button", { name: "新規", exact: true }).boundingBox(),
-      page.locator(".input-rail").boundingBox(),
-      page.locator(".route-workspace").boundingBox(),
-      page.locator(".status-rail").boundingBox(),
-    ]);
-    if (!header || !information || !save || !newProject || !input || !route || !status) {
-      throw new Error(`Information header or workflow geometry is missing at ${width}px`);
-    }
-    // The existing <=430px layout places brand, actions and project on three rows.
-    expect(header.height).toBeLessThanOrEqual(width <= 430 ? 150 : 110);
-    const project = await page.locator(".header-project").boundingBox();
-    const nameInput = await page.locator("#project-name").boundingBox();
-    const label = await page.locator(".header-project-label").boundingBox();
-    if (!project || !nameInput || !label) throw new Error("Project geometry missing");
-    expect(label.height).toBeLessThan(20);
-    expect(label.width).toBeGreaterThan(50);
-    const revision = await page.locator(".header-revision").boundingBox();
-    if (!revision) throw new Error("Revision missing");
-    expect(revision.height).toBeLessThan(20);
-    await expect(page.getByRole("button", { name: "保存", exact: true })).toBeEnabled();
-    if ([390, 1100, 1242, 1440].includes(width)) {
-      await page.screenshot({ path: `/tmp/issue140-header-${width}.png` });
-    }
-    if (width <= 1320) {
-      expect(project.y).toBeGreaterThanOrEqual(information.y + information.height - 1);
-      expect(project.width).toBeGreaterThan(header.width - 75);
-      expect(nameInput.width).toBeGreaterThan(project.width - 145);
-    }
-    for (const control of [".saved-project-control select", ".saved-project-control button:first-of-type", ".saved-project-control button:last-of-type"]) {
-      const bounds = await page.locator(control).boundingBox();
-      if (!bounds) throw new Error("Saved control missing");
-      expect(bounds.x).toBeGreaterThanOrEqual(header.x);
-      expect(bounds.x + bounds.width).toBeLessThanOrEqual(header.x + header.width);
-      expect(Math.abs(bounds.y - information.y)).toBeLessThanOrEqual(3);
-    }
-    expect(information.x).toBeGreaterThanOrEqual(header.x);
-    expect(information.x + information.width).toBeLessThanOrEqual(header.x + header.width + 1);
-    expect(save.x + save.width).toBeLessThanOrEqual(header.x + header.width + 1);
-    expect(newProject.x + newProject.width).toBeLessThanOrEqual(header.x + header.width + 1);
-    await expect(button).toBeVisible();
-    await expect(page.getByRole("button", { name: "新規", exact: true })).toBeEnabled();
-
-    if (width <= 1240) {
-      expect(route.y).toBeGreaterThanOrEqual(input.y + input.height - 1);
-      expect(status.y).toBeGreaterThanOrEqual(route.y + route.height - 1);
-    } else {
-      expect(route.x).toBeGreaterThanOrEqual(input.x + input.width - 1);
-      expect(status.x).toBeGreaterThanOrEqual(route.x + route.width - 1);
-      expect(Math.abs(route.y - input.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(status.y - input.y)).toBeLessThanOrEqual(1);
-    }
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
-      .toBeLessThanOrEqual(1);
-  }
-});
-
 
 test("compact header still saves, loads, deletes and starts a new project", async ({ page }) => {
   await page.goto("/");
@@ -310,15 +245,18 @@ test("compact header still saves, loads, deletes and starts a new project", asyn
   const id = await selector.inputValue();
   expect(id).not.toBe("");
   const loaded = page.waitForResponse((response) => response.url().endsWith("/api/projects/load") && response.ok());
+  await openProjectMenu(page);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await loaded;
   await expect(page.getByLabel("プロジェクト", { exact: true })).toHaveValue("storage fallback");
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("狭い画面で保存");
   const saved = page.waitForResponse((response) => response.url().endsWith("/api/projects/save") && response.ok());
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await saved;
   page.once("dialog", (dialog) => void dialog.accept());
   const deleted = page.waitForResponse((response) => response.request().method() === "DELETE" && response.url().includes("/api/projects/") && response.ok());
+  await openProjectMenu(page);
   await page.getByRole("button", { name: "保存済みプロジェクトを削除", exact: true }).click();
   await deleted;
   await expect(selector.locator(`option[value="${id}"]`)).toHaveCount(0);

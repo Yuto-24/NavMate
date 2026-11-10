@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { test } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect } from "@playwright/test";
@@ -260,6 +261,7 @@ for (const width of [390, 1100, 1440]) {
       await page.getByRole("button", { name: "保存", exact: true }).click();
       await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
       await expect(mode).toBeChecked();
+      await openProjectMenu(page);
       await page.getByLabel("保存済み", { exact: true }).selectOption(state.project.id);
       await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
       await expect(page.locator(".nav-log-table")).toHaveCount(0);
@@ -525,6 +527,7 @@ for (const width of [1100, 1440]) {
     await page.reload();
     await expect(fixed).toContainText("4,500 - 1,500 ft 固定");
     await expect(descentRow.locator("input, select")).toHaveCount(0);
+    await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(state.project.id);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await expect(fixed).toBeVisible();

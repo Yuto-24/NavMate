@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow } from "./helpers/importWorkflow";
 import { test, expect } from "@playwright/test";
 import { backend } from "./helpers/sync-auth";
@@ -44,6 +45,7 @@ test("first login migrates 200 Legacy Projects through Firestore and fresh devic
     await expect(fresh.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
     await fresh.evaluate(subject => (window as any).authTest.signIn(subject), subject);
     await expect(fresh.locator(`#saved-project option[value="${projectId}"]`)).toHaveCount(1);
+    await openProjectMenu(fresh);
     await fresh.locator("#saved-project").selectOption(projectId);
     await fresh.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await expect(fresh.locator(".nav-log-table")).toBeVisible();
@@ -104,6 +106,7 @@ test("Legacy account UI preserves 1100/1300 workflow order and locks then redire
   await enterImportWorkflow(page);
   await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
   await expect(page.locator(`#saved-project option[value="${projectId}"]`)).toHaveCount(1);
+  await openProjectMenu(page);
   await page.locator("#saved-project").selectOption(projectId);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
@@ -120,8 +123,8 @@ test("Legacy account UI preserves 1100/1300 workflow order and locks then redire
       expect(route!.x + route!.width).toBeLessThanOrEqual(readiness!.x);
     }
   }
-  await page.getByRole("button", { name: "アカウント", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "アカウント", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
+  await expect(page.getByRole("dialog", { name: /^アカウント(?:（|$)/ })).toBeVisible();
   await expect(page.getByText("紐付け済みです。", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "アカウントを閉じる", exact: true }).click();
   const part = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");

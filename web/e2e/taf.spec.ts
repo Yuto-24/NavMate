@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test, type Page } from "@playwright/test";
 import { resolve } from "node:path";
@@ -67,6 +68,7 @@ test("Static Local TAF success, quota/timeout/outage and recovery preserve navig
   await expect(page.getByRole("region", { name: "目的地空港の風予報" })).not.toContainText("到着区間の計算はCALMです。");
   const initial = await working(page);
   expect(count).toBe(1);
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill("TAF retained");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect.poll(async () => (await records(page))[0]?.checkpoint?.name).toBe("TAF retained");

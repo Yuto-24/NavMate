@@ -15,10 +15,10 @@ and actions remain code-native and accessible.
 
 | Token | Value | Use |
 | --- | ---: | --- |
-| `--brand-950` | `#005040` | Header and headings |
-| `--brand-900` | `#006050` | primary actions |
-| `--brand-800` | `#008060` | action hover |
-| `--brand-accent` | `#00745b` | selected controls and focus |
+| `--brand-950` | `#194638` | headings |
+| `--brand-900` | `#225c4d` | primary actions |
+| `--brand-800` | `#1b4b3f` | action hover |
+| `--brand-accent` | `#225c4d` | selected controls and focus |
 | `--color-navy-950` | `#0b1f33` | aviation point indices and map tooltip text |
 | `--color-navy-800` | `#173b5e` | route line |
 | `--color-teal-700` | `#0c7c78` | VREP/manual values/automatic success |
@@ -26,13 +26,14 @@ and actions remain code-native and accessible.
 | `--color-red-700` | `#b42318` | blockers and unavailable values |
 | `--color-slate-50` | `#f7f9fb` | utility rails |
 | `--color-slate-200` | `#d8e0e8` | borders and dividers |
+| Body text | `#252c35` | charcoal text on white |
 | `--color-white` | `#ffffff` | primary canvas |
 | `--radius-sm` | `6px` | fields and compact controls |
 | `--radius-md` | `10px` | purposeful panels |
 
 The green brand palette is separate from warning, error, aviation-map, VREP,
 and manual-value colors. Selected controls retain checked markers or underlines;
-keyboard focus uses a solid outline, white on the Header and selected segments.
+keyboard focus uses a solid pine-green outline on white, and a white inset on selected segments.
 Custom radio controls use `:focus` for their visible focus treatment: WebKit
 can clear `:focus-visible` after arrow-key selection while retaining DOM focus.
 `map-checkpoint.spec.ts` covers Tab entry and arrow-key selection in both engines.
@@ -52,12 +53,22 @@ decorative cards. Shadows are reserved for temporary overlays.
 
 ## Component inventory
 
-- App header with app version, Information, project identity, storage state, Save, and New actions.
-  Local mode adds a compact Account icon opening the login/logout dialog; account controls do not
-  move any workflow region. At 430 px and below, brand, actions and Project identity use separate rows to keep Save and Delete independently reachable. The dialog explains Local-first storage and account synchronization. Conflicts and Latest import collisions use a blocking modal; normal sync progress is not shown.
-  Information opens notices and the full release history without changing Project state. Use an Info icon
-  and an unread dot at every width; only Known Issue additions/body changes use amber. The label is optional
-  and appears only when the entire Header has ample room on one row (currently 1600 px and above).
+- A white, 56 px sticky header keeps the adopted NavMate icon, current Project menu,
+  Save, New, Account and More on one row. Desktop also displays the NavMate name.
+  Project names truncate in the trigger; its title and the wrapping text in the panel
+  expose the full name. The panel contains the existing name input, revision and saved
+  Project selector with separate Open/Delete buttons. Selection alone performs no action.
+  Save/New retain their accessible names and show only icons at 630 px and below.
+- Local Account uses UserRound when signed out and CircleUserRound when signed in;
+  its accessible name includes the state. Local and Legacy dialogs render into the
+  document body so the sticky header cannot constrain their overlay order. Existing
+  authentication, Local-first synchronization and Legacy migration remain unchanged.
+- More carries the normal green unread dot or amber Known Issue update dot and the
+  corresponding accessible notification. Its panel contains Information, the version,
+  existing ground-preparation description and storage location. Opening More does not
+  mark notices read; opening Information does. No `/ Local` suffix is displayed.
+  The form/disclosure panels use native buttons and Tab order (not ARIA menu roles).
+  Escape restores trigger focus; leaving the panel or clicking outside closes it.
 - Three-step progress rail: Route, Flight plan, Review/calculation.
 - NAV LOG calculation success uses a non-blocking, polite live-region toast at the
   bottom right, below modal overlays. It closes after five seconds or via its close
@@ -99,12 +110,17 @@ decorative cards. Shadows are reserved for temporary overlays.
 
 ## Container and responsive rules
 
-- The Header uses one explicit row above 1320 px and two from 431 through 1320 px.
-  At 430 px and below, explicitly place the brand, actions, and Project controls on three separate rows;
-  independent controls must not wrap into additional rows. On two rows, put actions beside the brand
-  and give the Project row all remaining width. Project label/revision remain nowrap and non-shrinking; only the name input flexes.
-  At 630 px and below, Save/New show icons with their accessible labels and titles retained.
-  Verify 390/820/1100/1440 px and 1273/1242/997/996/631/630/629 px boundaries; also cover 320/1600 px.
+- The Header remains one row from 320 px through desktop widths. Only the Project
+  name shrinks; Save, New, Account and More keep 40 px targets. At 630 px and below,
+  hide the redundant product name and Save/New text, retaining the adopted icon.
+  Sticky positioning reserves the header's normal-flow height. Root scroll padding
+  keeps focused/scrolled-to content below it. Panels stay within the viewport and
+  scroll vertically on short screens. Header/panels sit above map controls and below
+  modal dialogs and blocking calculation overlays. Persistent message bars stick below the
+  header at 56 px; the workflow rail stays in normal flow.
+  `web/e2e/header.spec.ts` checks 320/390/1100/1239/1240/1241/1440 px before and after
+  scrolling, including workflow positions, long names, keyboard access and overlay order
+  in Chromium and WebKit. Account and persistence suites cover their existing operations.
 - Above 1240 px, use input / route workspace / readiness columns and allow the
   route map height to be adjusted from 320 to 900 px.
 - At 1240 px and below, keep one downward workflow: input, route and map,
@@ -125,7 +141,7 @@ the imported route controls, flight-plan labels, `準備状況`, its next action
 reference provenance, and the current primary action. Marketing copy, claims,
 metrics, badges, and unrelated navigation are prohibited.
 
-Information is a low-priority utility in the Header. Its compact unread indicator is the only
+Information is a low-priority utility inside More. The More unread indicator is the only
 copy-lock exception; it must not displace the workflow rail or move a workflow region.
 
 The generated Information snapshot uses a namespaced SHA-256 content ID over every user-visible
@@ -136,7 +152,7 @@ or same-version-changed values remain unread. `autonavlog.information.knownIssue
 Known Issue IDs and visible-body hashes. Additions/edits warn in amber and in the accessible name;
 removals/reordering produce only the normal dot. Opening the dialog marks everything read immediately.
 
-The dialog subtitle is `NavMate のお知らせ`. Show `既知の不具合` first (hide the entire section at zero),
+The dialog subtitle is `NavMateのお知らせ`. Show `既知の不具合` first (hide the entire section at zero),
 then `更新履歴`, with all historical entries expanded. Known Issues use amber panels, distinct from runtime
 errors. User-facing content comes from `KNOWN_ISSUES.md` and the 利用者向け section of `CHANGELOG.md`, with no developer Issues,
 distribution section or implementation jargon. Release dates are stored by GitHub Releases and are not
@@ -190,7 +206,7 @@ image, which was not available in the repository or issue attachments.
 
 | Area | Concept | Implementation | Result |
 | --- | --- | --- | --- |
-| Header | Navy product bar, version, Information, project identity, save/new actions | Explicit one/two-row Header; unread dot at every width, amber only for Known Issue additions/edits | Match |
+| Header | Navy product bar, version, Information, project identity, save/new actions | Explicit one/two-row Header; unread dot at every width, amber only for Known Issue additions/edits | Historical; superseded by Issue #218 above |
 | Workflow | Three numbered stages directly below header | Route, flight plan, review/calculation rail with completed states | Match |
 | Desktop layout | Input / route / readiness columns | 24% / fluid / 25% three-column workspace | Match |
 | Route workspace | Map over compact POINT/ROLE/ALT/PHASE table | Leaflet/OSM route, airport/VREP/RCA/EOC markers, editable Leg table | Match |

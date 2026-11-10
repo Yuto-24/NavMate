@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { test, artifactSessionKey, artifactDatabase, blockDevCloud } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, chromium, type Page, type BrowserContext } from "@playwright/test";
@@ -57,11 +58,13 @@ async function calculate(page: Page) {
   await expect.poll(async () => (await records(page))[0]?.lastCalculation?.outcome).not.toBeNull();
 }
 async function save(page: Page, name: string) {
+  await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill(name);
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
 }
 async function load(page: Page, id: string) {
+  await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption(id);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect.poll(async () => (await working(page)).project?.id).toBe(id);
@@ -231,6 +234,7 @@ test("Latest replacement, promotion, opening another Project and explicit delete
   await page.reload();
   await expect(page.getByLabel("気象モード")).toHaveValue("FTD");
   expect((await records(page)).map(row => row.id)).toEqual([first.id]);
+  await openProjectMenu(page);
   await page.getByRole("button", { name: "保存済みプロジェクトを削除", exact: true }).click();
   await expect.poll(async () => (await records(page)).length).toBe(0);
   await expect.poll(async () => (await working(page)).project).toBeNull();
@@ -278,6 +282,7 @@ test("migration and corruption are isolated per Project, originals survive faile
     (window as any).restorePut = () => { IDBObjectStore.prototype.put = original; };
     IDBObjectStore.prototype.put = function () { throw new DOMException("quota", "QuotaExceededError"); };
   });
+  await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption(old.id);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "端末への保存に失敗" })).toBeVisible();
@@ -333,12 +338,14 @@ test("a stale selector cannot delete a Project updated by another tab", async ({
   await page.getByLabel("FUEL gal", { exact: true }).fill("74");
   await expect.poll(async () => (await records(page))[0].draft.total_usable_fuel_gal).toBe(74);
   other.on("dialog", dialog => dialog.accept());
+  await openProjectMenu(other);
   await other.getByLabel("保存済み", { exact: true }).selectOption(saved.id);
   await other.getByRole("button", { name: "保存済みプロジェクトを削除", exact: true }).click();
   await expect(other.getByRole("alert")).toContainText("別のタブでプロジェクトが更新または削除されています。編集内容を確認してから開き直してください。");
   expect((await records(page))[0].draft.total_usable_fuel_gal).toBe(74);
   await other.reload();
   await expect(other.getByLabel("保存済み", { exact: true }).locator("option")).toHaveCount(2);
+  await openProjectMenu(other);
   await other.getByLabel("保存済み", { exact: true }).selectOption(saved.id);
   await other.getByRole("button", { name: "保存済みプロジェクトを削除", exact: true }).click();
   await expect.poll(async () => (await records(other)).length).toBe(0);
@@ -399,6 +406,7 @@ test("#358 checkpoint load confirms only discarded edits and survives reload, pe
   let accept = false;
   const dialogs: string[] = [];
   page.on("dialog", async dialog => { dialogs.push(dialog.message()); await (accept ? dialog.accept() : dialog.dismiss()); });
+  await openProjectMenu(page);
   await open.click();
   await expect(open).toBeEnabled();
   expect(dialogs).toEqual([]);
@@ -407,6 +415,7 @@ test("#358 checkpoint load confirms only discarded edits and survives reload, pe
   await page.reload();
   await expect(fuel).toHaveValue("76");
   const beforeCancel = (await records(page))[0];
+  await openProjectMenu(page);
   await open.click();
   await expect.poll(() => dialogs.length).toBe(1);
   await expect(open).toBeEnabled();
@@ -416,6 +425,7 @@ test("#358 checkpoint load confirms only discarded edits and survives reload, pe
   const calculated = (await records(page))[0].lastCalculation;
   expect(calculated.project.total_usable_fuel_gal).toBe(76);
   accept = true;
+  await openProjectMenu(page);
   await open.click();
   await expect(fuel).toHaveValue("90");
   await expect.poll(async () => (await records(page))[0].draft).toEqual(saved.checkpoint);
@@ -424,11 +434,13 @@ test("#358 checkpoint load confirms only discarded edits and survives reload, pe
   await page.reload();
   await expect(fuel).toHaveValue("90");
   const count = dialogs.length;
+  await openProjectMenu(page);
   await open.click();
   await expect(open).toBeEnabled();
   expect(dialogs).toHaveLength(count);
   // Click in the same task as the input event, before the 300 ms autosave.
   await fuel.fill("");
+  await openProjectMenu(page);
   await open.click();
   await expect(fuel).toHaveValue("90");
   expect(dialogs).toHaveLength(count + 1);
@@ -437,6 +449,7 @@ test("#358 checkpoint load confirms only discarded edits and survives reload, pe
   await fuel.fill("82");
   await save(page, "New checkpoint");
   await fuel.fill("71");
+  await openProjectMenu(page);
   await open.click();
   await expect(fuel).toHaveValue("82");
   await page.reload();
@@ -472,6 +485,7 @@ for (const operation of ["updateProject", "updateAndRecalculate"] as const) {
     await field.fill(operation === "updateProject" ? "72" : "125");
     page.once("dialog", dialog => dialog.accept());
     const open = page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true });
+    await openProjectMenu(page);
     await open.click();
     await expect(open).toBeDisabled();
     await page.evaluate(() => (window as any).releaseEdit());
@@ -558,6 +572,7 @@ test("#280 saved CUT seconds and legacy Last Calculation reopen without recalcul
     .map((row: any) => row.thirty_degree_cut_seconds === null ? "—" : String(row.thirty_degree_cut_seconds));
   expect(values.some((value: string) => /^\d+$/.test(value))).toBe(true);
   await page.reload();
+  await openProjectMenu(page);
   await expect(page.getByLabel("保存済み", { exact: true })).toBeVisible();
   await page.workers()[0]!.evaluate(() => {
     self.addEventListener("message", event => {

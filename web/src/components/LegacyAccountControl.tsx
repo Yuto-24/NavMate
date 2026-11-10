@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useState, type ReactNode } from "react";
 import { UserRound, X } from "lucide-react";
 import { prepareLegacyLink, legacyLinkStatus, observeLegacyMigration, progressOf, type MigrationStatus } from "../legacyMigration";
@@ -27,14 +28,14 @@ export function LegacyAccountControl({ busy }: { busy: boolean }) {
       setOpen(true); setError(undefined); void prepare();
       void legacyLinkStatus().then(setStatus).catch(() => setError("この環境ではアカウント紐付けが設定されていません。"));
     }}><UserRound aria-hidden="true" size={18} /></button>
-    {open && <div className="modal-backdrop"><section ref={dialog} className="modal-panel account-dialog" role="dialog" aria-modal="true" aria-labelledby="legacy-account-title" onKeyDown={event => { if (event.key === "Escape" && !pending) setOpen(false); }}>
+    {open && createPortal(<div className="modal-backdrop"><section ref={dialog} className="modal-panel account-dialog" role="dialog" aria-modal="true" aria-labelledby="legacy-account-title" onKeyDown={event => { if (event.key === "Escape" && !pending) setOpen(false); }}>
       <div className="modal-heading"><h2 id="legacy-account-title">アカウント</h2><button type="button" className="icon-button" aria-label="アカウントを閉じる" disabled={pending} onClick={() => setOpen(false)}><X size={20} /></button></div>
       <p>現在のデータをGoogleアカウントに紐付けます。紐付け後も、引き続きこの画面で編集・保存・計算が可能です。</p>
       <p>NavMateへの初回ログイン時に、その時点のプロジェクトと計算結果を自動で引き継ぎます。引継ぎ中は現在の画面操作を一時停止し、完了後にNavMateへ移動します。</p>
       {status && status.state !== "UNLINKED" ? <><p>紐付け済みです。</p><a href={status.navmateUrl}>NavMateを開く</a></> :
         <button type="button" className="primary-button" disabled={busy || pending || !status || !linkOperation} onClick={() => { void link(); }}>Googleアカウントを紐付ける</button>}
       {error && <p role="alert">{error}</p>}
-    </section></div>}
+    </section></div>, document.body)}
   </>;
 }
 

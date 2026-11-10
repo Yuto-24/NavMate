@@ -1,3 +1,4 @@
+import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { test, expect, type Page } from "@playwright/test";
 import { resolve } from "node:path";
@@ -87,6 +88,7 @@ async function create(page: Page, name: string) {
   await expect(page.locator(".nav-log-table")).toBeVisible();
   await expect(page.getByLabel("計算済みNAV LOG", { exact: true })).toBeFocused();
   const projectName = page.getByLabel("プロジェクト", { exact: true });
+  await openProjectMenu(page);
   await projectName.click();
   await projectName.fill(name);
   await expect(projectName).toHaveValue(name);
@@ -95,6 +97,7 @@ async function create(page: Page, name: string) {
 }
 async function open(page: Page, name: string) {
   await expect(page.locator("#saved-project option").filter({ hasText: name })).toHaveCount(1);
+  await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption({ label: name });
   await page.getByRole("button", { name: "保存済みプロジェクトを開く" }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
@@ -141,6 +144,7 @@ test("real SDK: fresh device Last Calculation, offline edit, blocking conflict b
     await expect(ipad.getByLabel("FUEL gal", { exact: true })).toHaveValue("78");
     await expect(ipad.locator(".nav-log-table")).not.toBeVisible(); // edited fingerprint is stale
     ipad.once("dialog", dialog => dialog.accept());
+    await openProjectMenu(ipad);
     await ipad.getByRole("button", { name: "保存済みプロジェクトを削除" }).click();
     await expect(ipad.getByRole("button", { name: "元に戻す", exact: true })).toBeVisible();
     await ipad.getByRole("button", { name: "元に戻す", exact: true }).click();
@@ -169,7 +173,7 @@ test("account deletion drains Remote and Local, closes an offline device, and re
     await start(stalePage, subject); await open(stalePage, "Old route");
     await staleContext.setOffline(true);
     await start(otherPage, `other-${subject}`); await create(otherPage, "Other route");
-    await page.getByRole("button", { name: "アカウント", exact: true }).click();
+    await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
     await page.getByRole("button", { name: "アカウントを削除", exact: true }).click();
     await blockLocalDeletion(page, oldId);
     await blockLocalDeletion(stalePage, oldId);
@@ -183,14 +187,14 @@ test("account deletion drains Remote and Local, closes an offline device, and re
     await expect.poll(() => stalePage.evaluate(() => (window as any).authTest.state().account)).toBeNull();
     await expect(stalePage.locator("#saved-project option").filter({ hasText: "Old route" })).toHaveCount(0);
     expect(await stalePage.evaluate(subject => localStorage.getItem(`autonavlog.account.current.${subject}`)?.startsWith("retired:"), subject)).toBe(true);
-    await stalePage.getByRole("button", { name: "アカウント", exact: true }).click();
+    await stalePage.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
     await expect(stalePage.getByRole("button", { name: "削除を再試行", exact: true })).toBeVisible();
     await stalePage.getByRole("button", { name: "削除を再試行", exact: true }).click();
     await expect(stalePage.getByRole("alert").filter({ hasText: "端末内のデータを削除できませんでした" })).toBeVisible();
     await stalePage.getByRole("button", { name: "アカウントを閉じる" }).click();
     await stalePage.evaluate(() => { (window as any).blockedAccountDb.close(); });
     await page.evaluate(() => { (window as any).blockedAccountDb.close(); });
-    await page.getByRole("button", { name: "アカウント", exact: true }).click();
+    await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
     await page.getByRole("button", { name: "削除を再試行", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: "NavMateアカウントを削除しました" }).first()).toBeVisible();
     expect(await page.evaluate(() => (window as any).authTest.state().notice)).toBe("NavMateアカウントを削除しました。");
@@ -238,7 +242,7 @@ test("offline account deletion is rejected without a Local-only deletion queue",
   const subject = `offline-delete-${crypto.randomUUID()}`;
   await start(page, subject); await create(page, "Keep route");
   const oldId = await page.evaluate(() => (window as any).authTest.state().account.account_id);
-  await page.getByRole("button", { name: "アカウント", exact: true }).click();
+  await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
   await context.setOffline(true);
   await expect(page.getByRole("button", { name: "アカウントを削除", exact: true })).toBeDisabled();
   await expect(page.getByText("オフラインのためアカウントを削除できません。", { exact: true })).toBeVisible();
@@ -446,7 +450,7 @@ for (const failure of ["none", "logout", "purge", "successor-deleting"] as const
       await expect.poll(() => stalePage.evaluate(() => (window as any).authTest.state().deletionPending)).toBe(true);
       expect(await stalePage.evaluate(subject => localStorage.getItem(`autonavlog.account.current.${subject}`), subject)).toBe(`retired:${newId}`);
       await page.evaluate(() => { (window as any).blockedAccountDb.close(); });
-      await stalePage.getByRole("button", { name: "アカウント", exact: true }).click();
+      await stalePage.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
       await stalePage.getByRole("button", { name: "削除を再試行", exact: true }).click();
       await expect(stalePage.getByRole("dialog", { name: "アカウント", exact: true }).getByRole("alert"))
         .toHaveText("NavMateアカウントを削除しました。");
