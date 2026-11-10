@@ -49,8 +49,9 @@ def observe(operator: app.Operator, env: dict[str, str], *, canonical_reader=app
         after = operator.source_digest(CANDIDATE, RULES_PATH)
         if before != after:
             raise ValueError("Rules source differs")
-        if operator.source_digest(CURRENT, "firebase/firestore.indexes.json") != operator.source_digest(
-            CANDIDATE, "firebase/firestore.indexes.json"
+        index_path = "firebase/firestore.indexes.json"
+        if operator.source_digest(CURRENT, index_path) != operator.source_digest(
+            CANDIDATE, index_path
         ):
             raise ValueError("Indexes source differs")
         return after
