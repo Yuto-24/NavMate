@@ -6,7 +6,6 @@ from scripts.static_ops import app_release as app
 from scripts.static_ops import schema423_readback as check
 
 
-
 ENV = {
     "STATIC_APPROVED_SHA": check.CURRENT,
     "VITE_FIREBASE_PROJECT_ID": check.PROJECT,
