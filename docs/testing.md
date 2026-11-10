@@ -45,6 +45,14 @@ python -m pytest --noconftest tests/integration/check_ci_changes.py \
   tests/integration/check_ci_gate.py tests/unit/test_account_sync_ci.py
 ```
 
+Release と runtime のソース契約は次で検証できます（アプリ依存は不要）:
+
+```bash
+python -m pytest --noconftest tests/integration/check_release_merge.py \
+  tests/unit/test_release_ci.py tests/unit/test_supported_runtime_contract.py \
+  tests/unit/test_version.py::test_version_is_the_only_release_version_source
+```
+
 ## テストを追加する場所
 
 検証したい仕様を先に決め、その仕様を失敗させられる最も小さい境界を使います。

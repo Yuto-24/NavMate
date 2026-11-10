@@ -254,6 +254,8 @@ jobs:
     needs: release-sources
     # Missing/failed classification runs this suite; only an explicit false skips.
     if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_local_browser != 'false') }}
+    permissions:
+      contents: read
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
