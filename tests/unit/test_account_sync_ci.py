@@ -12,19 +12,27 @@ ROOT = Path(__file__).resolve().parents[2]
 @pytest.fixture
 def command_runner(tmp_path):
     binary = tmp_path / "npm"
-    binary.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALLS"\n'
-                      '[ "$*" != "${FAIL_COMMAND:-}" ]\n')
+    binary.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALLS"\n[ "$*" != "${FAIL_COMMAND:-}" ]\n'
+    )
     binary.chmod(0o755)
     calls = tmp_path / "calls"
 
     def run(suite, fail="", script="run_account_sync_suite.sh"):
         result = subprocess.run(
             ["sh", str(ROOT / "scripts" / script), *suite],
-            env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}",
-                 "CALLS": str(calls), "FAIL_COMMAND": fail},
-            capture_output=True, text=True, timeout=5,
+            env={
+                **os.environ,
+                "PATH": f"{tmp_path}:{os.environ['PATH']}",
+                "CALLS": str(calls),
+                "FAIL_COMMAND": fail,
+            },
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         return result, calls.read_text().splitlines() if calls.exists() else []
+
     return run
 
 
@@ -38,8 +46,9 @@ def test_sync_projects_keep_all_tests_and_worker_setting(command_runner, project
 def test_contracts_keep_rules_storage_and_both_migration_projects(command_runner):
     result, calls = command_runner(["contracts"])
     assert result.returncode == 0
-    assert calls == [f"--prefix web run test:{suite}"
-                     for suite in ["firestore", "storage-upgrade", "migration"]]
+    assert calls == [
+        f"--prefix web run test:{suite}" for suite in ["firestore", "storage-upgrade", "migration"]
+    ]
 
 
 @pytest.mark.parametrize("suite", [[], ["unknown"], ["chromium; true"]])
@@ -69,12 +78,15 @@ def test_workflow_requires_every_isolated_runner_and_complete_selection():
     assert "name: account-sync-${{ matrix.suite }}-failure" in block
 
 
-@pytest.mark.parametrize(("suite", "engines"), [
-    ("chromium", "chromium"),
-    ("ipad-webkit", "webkit"),
-    ("iphone-webkit", "webkit"),
-    ("contracts", "chromium webkit"),
-])
+@pytest.mark.parametrize(
+    ("suite", "engines"),
+    [
+        ("chromium", "chromium"),
+        ("ipad-webkit", "webkit"),
+        ("iphone-webkit", "webkit"),
+        ("contracts", "chromium webkit"),
+    ],
+)
 def test_browser_install_matches_suite(command_runner, suite, engines):
     result, calls = command_runner([suite], script="install_account_sync_browsers.sh")
     assert result.returncode == 0
@@ -90,17 +102,30 @@ def test_browser_install_rejects_unknown_suite(command_runner, suite):
 
 def test_browser_install_failure_is_not_ignored(command_runner):
     result, _ = command_runner(
-        ["chromium"], "--prefix web exec -- playwright install --with-deps chromium",
+        ["chromium"],
+        "--prefix web exec -- playwright install --with-deps chromium",
         script="install_account_sync_browsers.sh",
     )
     assert result.returncode != 0
 
 
-def test_workflow_installs_only_suite_browsers_without_changing_local_runner():
+def test_browser_jobs_use_matching_preinstalled_image():
+    import json
+
     source = (ROOT / ".github/workflows/test.yml").read_text()
-    sync = source.split("  account-sync-tests:\n")[1].split("  account-sync:\n")[0]
-    assert 'run: sh scripts/install_account_sync_browsers.sh "$SUITE"' in sync
-    assert "SUITE: ${{ matrix.suite }}" in sync
-    assert "playwright install --with-deps chromium webkit" not in sync
-    local = source.split("  local-browser-tests:\n")[1].split("  local-browser:\n")[0]
-    assert "playwright install --with-deps chromium webkit" in local
+    version = json.loads((ROOT / "web/package.json").read_text())["devDependencies"][
+        "@playwright/test"
+    ]
+    lock = json.loads((ROOT / "web/package-lock.json").read_text())
+    assert lock["packages"]["node_modules/@playwright/test"]["version"] == version
+    for job, next_job in [
+        ("local-browser-tests", "local-browser"),
+        ("account-sync-tests", "account-sync"),
+    ]:
+        block = source.split(f"  {job}:\n")[1].split(f"  {next_job}:\n")[0]
+        assert f"image: mcr.microsoft.com/playwright:v{version}-noble" in block
+        assert "options: --ipc=host" in block
+        assert "shell: bash" in block
+        assert "playwright install" not in block
+        assert "install_account_sync_browsers.sh" not in block
+        assert "npm --prefix web ci" in block

@@ -1,45 +1,48 @@
 # Backendテストのレイヤーと計測
 
-## ドキュメント変更時の CI
+## PR と main の CI
 
-`test.yml` は PR と main / release/1.x への push で起動し、`release-sources` を常に実行します。
-PRのrelease契約は、checkoutした合成mergeが2親を持ち、第2親がイベントのPR headと
-一致することを検証してから、第1親（実際に検証したbase）と比較します。イベントのbase SHAが
-古い場合にmain側のrelease変更をPR変更と誤認しないためです。不一致のcheckoutは失敗させ、
-PR自身のVERSION/CHANGELOG変更の検査と、非PR push時のsource検査は維持します。
-Python 3.12 上で変更判定とソース契約のテスト、VERSION / CHANGELOG と PR の Release 契約を
-確認します。このジョブには Docker build やアプリの依存関係のインストールは不要です。
+`test.yml` は PR、main / release/1.x / release/2.x への push、手動実行で起動します。
+PR は変更影響に応じた**完全な suite 単位**で選択し、push と手動実行は文書変更も含め全検証します。
+既存の concurrency とキャンセル条件は維持します。
 
-`scripts/ci_changes.py` が、変更全体を次の範囲だけと確認できた場合は、残りの7ジョブを
-runner 起動前に skip します。対象は pytest、runtime、web、taf-proxy、local-browser、
-account-sync、static-tooling-install です。
+`release-sources` は常に実行し、変更判定・集約の回帰、文言証跡、VERSION / CHANGELOG と
+PR の Release 契約を検証します。PRのrelease契約は、checkoutした合成mergeの第2親が
+PR headと一致することを確認し、第1親（実際に検証したbase）と比較します。
+このジョブはアプリの依存関係や Docker build を必要としません。
 
-- ルートの `AGENTS.md`
-- ルートの `README.md`（削除・symlink 化は対象外）
-- `docs/` 以下の Markdown（`.md`）
+| PR の変更入力 | 必須 suite（release-sources は常時） |
+| --- | --- |
+| `AGENTS.md`、通常ファイルとして残る `README.md`、`docs/**/*.md` のみ | source 検証のみ |
+| `web/src/` 内の `.ts` / `.tsx` / `.css` | web、local-browser、account-sync |
+| `src/autonavlog/` 内の `.py` | pytest、runtime、web、local-browser、account-sync、static-tooling-install |
+| `services/taf-proxy/worker.mjs` | taf-proxy、web、local-browser |
+| `services/msm-trigger/worker.ts` / `entrypoint.ts` | msm-trigger |
+| テスト、CI、依存関係、ビルド設定、Rules、データ、その他のパス | 全 suite |
 
-通常ファイル以外や実行権限の変更は全文検証の対象です。
-`CHANGELOG.md` / `KNOWN_ISSUES.md` は画面生成の入力なので、この省略範囲に含めません。
-コード・テスト・CI・依存関係、参照データ、未知のパスが1つでも混ざれば従来の全ジョブを実行します。
+Web は画面と共有状態の依存が広いため、保存・NAV LOG・認証・同期の全マトリクスを維持します。
+Python はブラウザの計算エンジンと配信ツールにも組み込まれるため、golden / regression を
+含む pytest 全体と、それらの利用側の検証を維持します。独立したサービスの実装だけを
+限定選択します。テスト内の assertion、grep、project、worker 数、pytest の分配は変更しません。
 
-PR は base と head の共通祖先から head まで、push はイベントの before から after までを
-比較します。rename は削除と追加の両方で評価し、API のファイル件数上限に依存しません。
-比較元が取得できない場合や判定が失敗した場合、空の差分では全文検証に戻します。
-`release-sources` の失敗や出力欠落でも後続ジョブを省略しません。キャンセル時は停止します。
+複合変更は選択の和集合です。PR の共通祖先から head までを Git で比較し、rename は削除と
+追加の両方を評価します。ファイル件数上限はありません。未知パス、空差分、判定エラー、
+通常ファイル以外・実行権限の変更は全検証へ戻ります。`CHANGELOG.md` / `KNOWN_ISSUES.md`
+は画面生成の入力なので文書省略の対象外です。判定ジョブの失敗・出力欠落でも各 suite を
+起動し、最終集約は判定失敗を成功に変換しません。
 
-workflow 全体の `paths-ignore` は使わず、既存の check 名を維持して job の条件で制御します。
-判定の根拠は Actions の job summary に記録します。skip はテスト成功として報告せず、
-実際に実行したチェックと区別します。GitHub の skip / 必須チェックの扱いは
-[公式ドキュメント](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)
-を参照してください。
+`ci-required` は常に完了結果を集約します。判定の成功、全 suite の出力、選択された suite の
+success、非選択 suite の skipped を照合し、失敗・キャンセル・必須 suite の skip は失敗にします。
+既存チェック名は維持し、summary は実行成功と意図的 skip を区別します。
+GitHub 上でマージを制限するには `ci-required` を必須チェックに登録する必要があります。
+2026-11-10 の調査時点では既存 Ruleset に required status checks はなく、設定変更は未実施です。
+実測と残る受入条件は [Issue #421 の証跡](evidence/ci/impact-selection-20261110.md) を参照してください。
 
-判定とソース契約だけを確認するコマンド（Python 3.12、pytest、Git が必要）:
+判定・集約をアプリ依存なしで検証するコマンド:
 
 ```bash
 python -m pytest --noconftest tests/integration/check_ci_changes.py \
-  tests/integration/check_release_merge.py \
-  tests/unit/test_release_ci.py tests/unit/test_supported_runtime_contract.py \
-  tests/unit/test_version.py::test_version_is_the_only_release_version_source
+  tests/integration/check_ci_gate.py tests/unit/test_account_sync_ci.py
 ```
 
 ## テストを追加する場所
@@ -416,10 +419,23 @@ The `pytest` aggregate checks that both shards collected the same complete test 
 their selected lists cover it exactly once. Both coverage files are mandatory and are combined
 before the complete report is produced. Coverage combines map installed-package paths inside Docker back to `src/autonavlog` in
 the checkout; the Docker tests still exercise the installed package. A failing, missing, or cancelled shard cannot
-make either aggregate green. Existing docs-only classification remains unchanged.
+make either aggregate green. PR selection is applied to complete suites as described above; branch pushes run all suites.
 
 This reduces elapsed time by using more simultaneous standard runners, not by reducing test
 coverage. Queue time, cold dependency downloads, and runner variation can still exceed ten
 minutes. Account Sync runs in separate project and contracts runners as described above.
 The complete workflow combines all three partitions; use hosted timings to assess the ten-minute target. Timing evidence
 and the refresh procedure are in [the shard evidence](evidence/ci/independent-shards-20261101.md).
+
+### Playwright の準備
+
+Local browser と Account Sync は、`web/package.json` / lockfile と同じ Playwright 版の
+公式 `mcr.microsoft.com/playwright:v1.62.1-noble` job container を使用します。
+ブラウザと OS ライブラリは同梱済みで、各 job の `playwright install --with-deps` を省きます。
+Node、Python、Java、npm / pip の導入と現在の checkout のビルドは引き続き実行します。
+版の不一致は source 検証で検出します。更新時には package / lockfile と image を揃えてください。
+ローカル向けのブラウザ導入スクリプトはそのまま利用できます。
+
+公式 image の説明は [Playwright Docker](https://playwright.dev/docs/docker) を参照してください。
+コンテナ取得と npm / pip / Firebase emulator の外部取得は残ります。コンテナ利用だけから
+高速化を断定せず、Hosted Run の Initialize containers、依存導入、テスト本体を分けて比較します。
