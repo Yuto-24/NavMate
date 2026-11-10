@@ -2,6 +2,18 @@
 
 NavMate のRelease履歴です。公開日時はGitHub Releaseを正本とします。
 
+## 2.3.1
+
+### 利用者向け
+
+#### 修正
+- 過去のプロジェクトで出発日または出発予定時刻を変更すると、古い気象予報が固定されたままNAV LOGを作成できなくなる問題を修正しました。変更後の日時に対応する予報を選んで計算します。
+
+### 開発者向け
+
+- [PR #425 DATE/ETD変更時のForecast Run再選択](https://github.com/Yuto-24/NavMate/pull/425)：日時変更時だけ保存済みForecast model/Runの固定を解除し、既存のMSM優先・GSMフォールバックで再選択します。レグ・高度変更時のRun保持、保存済み計算結果、予報データの検証条件は維持します。
+- v2.3.0からの製品変更はPR #425のみです。Project schema、Firestore Rules、indexes、気象配信処理は変更しません。
+
 ## 2.3.0
 
 ### 利用者向け
