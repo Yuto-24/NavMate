@@ -29,6 +29,7 @@ class ReadbackBlocked(Exception):
 
 
 def step(phase: str, action):
+    """Expose only the failed read-only phase, never provider exception details."""
     try:
         return action()
     except Exception:
@@ -47,6 +48,7 @@ def observe(operator: app.Operator, env: dict[str, str], *, canonical_reader=app
         raise ReadbackBlocked("credentials")
 
     def source_identity() -> str:
+        """Validate the immutable release and source compatibility identities."""
         if operator.git("rev-parse", "v2.3.1^{commit}") != CANDIDATE:
             raise ValueError("release tag mismatch")
         operator.git("merge-base", "--is-ancestor", CANDIDATE, "HEAD")
@@ -73,6 +75,7 @@ def observe(operator: app.Operator, env: dict[str, str], *, canonical_reader=app
         raise ReadbackBlocked("pages_identity")
 
     def read_live_rules() -> None:
+        """Compare the stable live Rules content with the pinned candidate."""
         prefix = f"projects/{PROJECT}"
         release_path = prefix + "/releases/cloud.firestore"
         release = operator.rules_get(release_path)
@@ -113,6 +116,7 @@ def observe(operator: app.Operator, env: dict[str, str], *, canonical_reader=app
 
 
 def main() -> int:
+    """Emit a bounded read-only observation or a fail-closed phase result."""
     try:
         result = observe(app.Operator(), dict(os.environ))
     except ReadbackBlocked as error:
