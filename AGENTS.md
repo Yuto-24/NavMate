@@ -16,6 +16,7 @@
 - Do not bundle incidental refactoring, cleanup, optimization, or unrelated tests and documentation. Report worthwhile out-of-scope findings separately; propose follow-up work only when justified.
 - Choose focused verification in proportion to the changed behavior and risk. Preserve mandatory CI, independent review, and safety checks; do not add redundant tests or rerun checks without a specific reason.
 - Retrieve evidence incrementally, batch related fixes before expensive validation, and avoid repeatedly inspecting unchanged CI/review state. Follow [the investigation, validation, and waiting procedure](docs/agent_workflow.md#調査検証待機の進め方); efficiency does not waive required gates.
+- Do not wait for or continuously monitor CI or external reviews unless the user explicitly requests monitoring. After push/PR updates, report pending checks and end the turn; fixes and new commits do not authorize restarting monitoring. A request to check results permits one snapshot only. This stop rule takes precedence over the default completion workflow; see the linked procedure for details.
 - Before completion, audit the diff for scope expansion and unnecessary complexity. Remove or separate changes not justified by the task.
 
 ## Product constraints

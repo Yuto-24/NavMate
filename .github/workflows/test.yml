@@ -3,6 +3,7 @@ name: test
 on:
   push:
     branches: [main, release/1.x, release/2.x]
+  workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened, edited]
 
@@ -13,8 +14,8 @@ concurrency:
 jobs:
   static-tooling-install:
     needs: release-sources
-    # Missing/failed classification runs the full checks; only proven docs-only changes skip.
-    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
+    # Missing/failed classification runs this suite; only an explicit false skips.
+    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_static_tooling_install != 'false') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -43,7 +44,14 @@ jobs:
   release-sources:
     runs-on: ubuntu-latest
     outputs:
-      run_full: ${{ steps.changes.outputs.run_full }}
+      run_pytest: ${{ steps.changes.outputs.run_pytest }}
+      run_runtime: ${{ steps.changes.outputs.run_runtime }}
+      run_web: ${{ steps.changes.outputs.run_web }}
+      run_taf_proxy: ${{ steps.changes.outputs.run_taf_proxy }}
+      run_local_browser: ${{ steps.changes.outputs.run_local_browser }}
+      run_account_sync: ${{ steps.changes.outputs.run_account_sync }}
+      run_static_tooling_install: ${{ steps.changes.outputs.run_static_tooling_install }}
+      run_msm_trigger: ${{ steps.changes.outputs.run_msm_trigger }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,6 +67,8 @@ jobs:
         run: >-
           python -m pytest --noconftest
           tests/integration/check_ci_changes.py
+          tests/integration/check_ci_gate.py
+          tests/unit/test_account_sync_ci.py
           tests/integration/check_release_merge.py
           tests/unit/test_release_ci.py
           tests/unit/test_ui_copy_review.py
@@ -84,8 +94,8 @@ jobs:
 
   pytest-tests:
     needs: release-sources
-    # Missing/failed classification runs the full checks; only proven docs-only changes skip.
-    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
+    # Missing/failed classification runs this suite; only an explicit false skips.
+    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_pytest != 'false') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -119,7 +129,7 @@ jobs:
 
   pytest:
     needs: [release-sources, pytest-tests]
-    if: ${{ always() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
+    if: ${{ always() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_pytest != 'false') }}
     runs-on: ubuntu-latest
     steps:
       - name: Require every Python shard
@@ -145,8 +155,8 @@ jobs:
 
   runtime:
     needs: release-sources
-    # Missing/failed classification runs the full checks; only proven docs-only changes skip.
-    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
+    # Missing/failed classification runs this suite; only an explicit false skips.
+    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_runtime != 'false') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -201,8 +211,8 @@ jobs:
 
   web:
     needs: release-sources
-    # Missing/failed classification runs the full checks; only proven docs-only changes skip.
-    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
+    # Missing/failed classification runs this suite; only an explicit false skips.
+    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_web != 'false') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -222,8 +232,8 @@ jobs:
 
   taf-proxy:
     needs: release-sources
-    # Missing/failed classification runs the full checks; only proven docs-only changes skip.
-    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
+    # Missing/failed classification runs this suite; only an explicit false skips.
+    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_taf_proxy != 'false') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -242,10 +252,19 @@ jobs:
 
   local-browser-tests:
     needs: release-sources
-    # Missing/failed classification runs the full checks; only proven docs-only changes skip.
-    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
-    # Keep browser dependencies on the established image during ubuntu-latest migrations.
+    # Missing/failed classification runs this suite; only an explicit false skips.
+    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_local_browser != 'false') }}
+    permissions:
+      contents: read
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --ipc=host
+    env:
+      PIP_CACHE_DIR: /tmp/navmate-pip-cache
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 25
     strategy:
       fail-fast: false
@@ -256,14 +275,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
+        id: python
         with:
           python-version: "3.12"
-          # Cache pip artifacts; always install the current checkout below.
-          cache: pip
-          cache-dependency-path: |
-            pyproject.toml
-            vendor/jma_gpv_weather-0.6.0-py3-none-any.whl
-            .github/workflows/test.yml
+      # setup-python's Linux pip cache requires lsb_release, absent from the browser image.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PIP_CACHE_DIR }}
+          key: pip-${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'vendor/*.whl', '.github/workflows/test.yml') }}
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -271,7 +290,6 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: python -m pip install "setuptools>=69" wheel vendor/jma_gpv_weather-0.6.0-py3-none-any.whl ".[test]"
       - run: npm --prefix web ci
-      - run: npm --prefix web exec -- playwright install --with-deps chromium webkit
       - run: npm --prefix web run test:terrain
         if: matrix.suite == 'local'
       - run: npm --prefix web run build:local
@@ -331,7 +349,7 @@ jobs:
 
   local-browser:
     needs: [release-sources, local-browser-tests]
-    if: ${{ always() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
+    if: ${{ always() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_local_browser != 'false') }}
     runs-on: ubuntu-latest
     steps:
       - name: Require every Local browser suite
@@ -341,12 +359,19 @@ jobs:
 
   account-sync-tests:
     needs: release-sources
-    # Missing/failed classification runs the full checks; only proven docs-only changes skip.
-    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
+    # Missing/failed classification runs this suite; only an explicit false skips.
+    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_account_sync != 'false') }}
     permissions:
       contents: read
-    # Keep browser dependencies on the established image during ubuntu-latest migrations.
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --ipc=host
+    env:
+      PIP_CACHE_DIR: /tmp/navmate-pip-cache
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -357,14 +382,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
+        id: python
         with:
           python-version: "3.12"
-          # Cache pip artifacts; always install the current checkout below.
-          cache: pip
-          cache-dependency-path: |
-            pyproject.toml
-            vendor/jma_gpv_weather-0.6.0-py3-none-any.whl
-            .github/workflows/test.yml
+      # setup-python's Linux pip cache requires lsb_release, absent from the browser image.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PIP_CACHE_DIR }}
+          key: pip-${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'vendor/*.whl', '.github/workflows/test.yml') }}
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -376,10 +401,6 @@ jobs:
           java-version: "21"
       - run: python -m pip install "setuptools>=69" wheel vendor/jma_gpv_weather-0.6.0-py3-none-any.whl ".[test]"
       - run: npm --prefix web ci
-      - name: Install browsers required by the Account Sync suite
-        env:
-          SUITE: ${{ matrix.suite }}
-        run: sh scripts/install_account_sync_browsers.sh "$SUITE"
       - run: npm --prefix web run prepare:local
         env:
           AUTONAVLOG_TEST_FIXTURES: "1"
@@ -410,7 +431,7 @@ jobs:
 
   account-sync:
     needs: [release-sources, account-sync-tests]
-    if: ${{ always() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
+    if: ${{ always() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_account_sync != 'false') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -435,7 +456,7 @@ jobs:
 
   msm-trigger:
     needs: release-sources
-    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_full != 'false') }}
+    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_msm_trigger != 'false') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -452,3 +473,18 @@ jobs:
       - run: npm --prefix services/msm-trigger run typecheck
       - run: npm --prefix services/msm-trigger run check
       - run: npm --prefix services/msm-trigger test
+
+  ci-required:
+    needs: [release-sources, pytest, runtime, web, taf-proxy, local-browser, account-sync, static-tooling-install, msm-trigger]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require selected suites and report intentional skips
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/check_ci_results.py

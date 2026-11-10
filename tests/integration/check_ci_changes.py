@@ -75,7 +75,9 @@ def pr(base, head):
 def test_scope_allowlist_and_runtime_inputs(repo, changes, run_full):
     root, base = repo
     head = commit(root, changes)
-    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] is run_full
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == (
+        ci_changes.JOBS if run_full else frozenset()
+    )
 
 
 def test_pr_uses_merge_base_and_all_commits_on_the_pr(repo):
@@ -84,28 +86,28 @@ def test_pr_uses_merge_base_and_all_commits_on_the_pr(repo):
     head = commit(root, {"docs/guide.md": "Updated docs\n"})
     git(root, "checkout", "--quiet", "main")
     advanced_base = commit(root, {"src/app.py": "print('base moved')\n"})
-    assert ci_changes.ci_scope(root, "pull_request", pr(advanced_base, head))[0] is False
+    assert ci_changes.ci_scope(root, "pull_request", pr(advanced_base, head))[0] == frozenset()
 
     git(root, "checkout", "--quiet", "docs")
     commit(root, {"src/app.py": "print('PR code')\n"})
     head = commit(root, {"AGENTS.md": "Latest commit is documentation\n"})
-    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] is True
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == ci_changes.JOBS
 
 
-def test_push_checks_entire_before_after_range(repo):
+def test_push_always_runs_full_including_documentation(repo):
     root, base = repo
     docs_head = commit(root, {"docs/guide.md": "Updated docs\n"})
     event = {"before": base, "after": docs_head}
-    assert ci_changes.ci_scope(root, "push", event)[0] is False
+    assert ci_changes.ci_scope(root, "push", event)[0] == ci_changes.JOBS
     commit(root, {"src/app.py": "print('changed')\n"})
     event["after"] = commit(root, {"AGENTS.md": "Latest commit is documentation\n"})
-    assert ci_changes.ci_scope(root, "push", event)[0] is True
+    assert ci_changes.ci_scope(root, "push", event)[0] == ci_changes.JOBS
 
 
 def test_moving_code_to_docs_does_not_hide_the_deleted_source(repo):
     root, base = repo
     head = commit(root, {"src/app.py": None, "docs/example.md": "print('app')\n"})
-    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] is True
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == ci_changes.JOBS
 
 
 @pytest.mark.parametrize("kind", ["symlink", "executable"])
@@ -117,7 +119,7 @@ def test_non_regular_documentation_changes_require_full_ci(repo, kind):
     else:
         (root / "docs/guide.md").chmod(0o755)
     head = commit(root, {})
-    assert ci_changes.ci_scope(root, "push", {"before": base, "after": head})[0] is True
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == ci_changes.JOBS
 
 
 def test_diff_has_no_file_limit_and_preserves_unusual_paths(repo):
@@ -126,9 +128,9 @@ def test_diff_has_no_file_limit_and_preserves_unusual_paths(repo):
     changes["docs/space and\nnewline 日本語.md"] = "More docs\n"
     docs_head = commit(root, changes)
     assert len(ci_changes.changed_files(root, "pull_request", pr(base, docs_head))) == 351
-    assert ci_changes.ci_scope(root, "pull_request", pr(base, docs_head))[0] is False
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, docs_head))[0] == frozenset()
     head = commit(root, {"src/app.py": "print('changed after many docs')\n"})
-    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] is True
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == ci_changes.JOBS
 
 
 @pytest.mark.parametrize(
@@ -143,12 +145,12 @@ def test_diff_has_no_file_limit_and_preserves_unusual_paths(repo):
     ],
 )
 def test_unknown_scope_runs_full_ci(repo, event_name, event):
-    assert ci_changes.ci_scope(repo[0], event_name, event)[0] is True
+    assert ci_changes.ci_scope(repo[0], event_name, event)[0] == ci_changes.JOBS
 
 
 def test_empty_diff_runs_full_ci(repo):
     root, base = repo
-    assert ci_changes.ci_scope(root, "pull_request", pr(base, base))[0] is True
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, base))[0] == ci_changes.JOBS
 
 
 def test_github_outputs_and_summary(repo, monkeypatch):
@@ -163,9 +165,64 @@ def test_github_outputs_and_summary(repo, monkeypatch):
     monkeypatch.setenv("GITHUB_OUTPUT", os.fspath(output_path))
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", os.fspath(summary_path))
     ci_changes.main(root)
-    assert output_path.read_text() == "run_full=false\n"
+    assert set(output_path.read_text().splitlines()) == {
+        f"run_{job.replace('-', '_')}=false" for job in ci_changes.JOBS
+    }
     assert "Documentation-only change (1 files)" in summary_path.read_text()
 
     event_path.write_text("invalid JSON")
     ci_changes.main(root)
-    assert output_path.read_text().splitlines()[-1] == "run_full=true"
+    assert all(
+        line.endswith("=true")
+        for line in output_path.read_text().splitlines()[-len(ci_changes.JOBS) :]
+    )
+
+
+@pytest.mark.parametrize(
+    "paths,expected",
+    [
+        (["web/src/components/NavLogTable.tsx"], ci_changes.WEB_JOBS),
+        (["web/src/styles.css"], ci_changes.WEB_JOBS),
+        (["web/src/accountSync.ts", "web/src/auth.ts"], ci_changes.WEB_JOBS),
+        (["web/src/localProjectRepository.ts"], ci_changes.WEB_JOBS),
+        (["src/autonavlog/domain/calculation.py"], ci_changes.PYTHON_JOBS),
+        (["src/autonavlog/web/cloudflare_access.py"], ci_changes.PYTHON_JOBS),
+        (["services/taf-proxy/worker.mjs"], {"taf-proxy", "web", "local-browser"}),
+        (["services/msm-trigger/worker.ts"], {"msm-trigger"}),
+        (
+            ["web/src/App.tsx", "services/msm-trigger/entrypoint.ts"],
+            ci_changes.WEB_JOBS | {"msm-trigger"},
+        ),
+        (["web/src/App.tsx", "docs/guide.md"], ci_changes.WEB_JOBS),
+        (["web/src/App.tsx", "new-tool.py"], ci_changes.JOBS),
+        (["web/src/new.wasm"], ci_changes.JOBS),
+        (["web/e2e/sync.spec.ts"], ci_changes.JOBS),
+        (["web/package-lock.json"], ci_changes.JOBS),
+        (["services/msm-trigger/package.json"], ci_changes.JOBS),
+        (["firestore.rules"], ci_changes.JOBS),
+        (["data/performance/sr22.csv"], ci_changes.JOBS),
+        (["pyproject.toml"], ci_changes.JOBS),
+        (["web/vite.config.ts"], ci_changes.JOBS),
+    ],
+)
+def test_pr_impact_selects_complete_suites(repo, paths, expected):
+    root, base = repo
+    head = commit(root, dict.fromkeys(paths, "changed\n"))
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == expected
+
+
+def test_deleted_and_moved_inputs_retain_both_scopes(repo):
+    root, _ = repo
+    base = commit(root, {"web/src/App.tsx": "web", "services/msm-trigger/worker.ts": "worker"})
+    head = commit(root, {"web/src/App.tsx": None, "services/msm-trigger/worker.ts": "web"})
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == ci_changes.WEB_JOBS | {
+        "msm-trigger"
+    }
+
+
+@pytest.mark.parametrize("mode", ["100755", "120000", "160000"])
+def test_non_regular_source_falls_back_to_full(mode):
+    assert (
+        ci_changes.affected_jobs(ci_changes.Change("web/src/App.tsx", "100644", mode))
+        == ci_changes.JOBS
+    )
