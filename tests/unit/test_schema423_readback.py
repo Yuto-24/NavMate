@@ -6,6 +6,7 @@ from scripts.static_ops import app_release as app
 from scripts.static_ops import schema423_readback as check
 
 
+
 ENV = {
     "STATIC_APPROVED_SHA": check.CURRENT,
     "VITE_FIREBASE_PROJECT_ID": check.PROJECT,
@@ -97,7 +98,9 @@ def test_missing_authentication_fails_before_network():
 def test_changed_approved_sha_fails_before_network():
     provider = Provider()
     try:
-        check.observe(provider, {**ENV, "STATIC_APPROVED_SHA": "b" * 40}, canonical_reader=canonical)
+        check.observe(
+            provider, {**ENV, "STATIC_APPROVED_SHA": "b" * 40}, canonical_reader=canonical
+        )
     except check.ReadbackBlocked as error:
         assert str(error) == "scope"
     else:
