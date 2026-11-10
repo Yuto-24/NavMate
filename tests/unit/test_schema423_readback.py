@@ -5,7 +5,6 @@ from __future__ import annotations
 from scripts.static_ops import app_release as app
 from scripts.static_ops import schema423_readback as check
 
-
 ENV = {
     "STATIC_APPROVED_SHA": check.CURRENT,
     "VITE_FIREBASE_PROJECT_ID": check.PROJECT,
@@ -21,7 +20,7 @@ RULES_BLOB = "a" * 40
 class Provider:
     def __init__(self):
         self.pages_commit = check.CURRENT
-        self.rules_source = RULES
+        self.live_rules_content = RULES
         self.tag = check.CANDIDATE
         self.release_reads = 0
         self.actions: list[str] = []
@@ -66,7 +65,7 @@ class Provider:
             }
         assert path == ruleset
         return {
-            "source": {"files": [{"name": check.RULES_PATH, "content": self.rules_source}]}
+            "source": {"files": [{"name": check.RULES_PATH, "content": self.live_rules_content}]}
         }
 
 
@@ -119,7 +118,7 @@ def test_mismatched_tag_or_rules_cannot_pass():
         if changed == "tag":
             provider.tag = "b" * 40
         else:
-            provider.rules_source = "different"
+            provider.live_rules_content = "different"
         try:
             check.observe(provider, ENV, canonical_reader=canonical)
         except check.ReadbackBlocked as error:
