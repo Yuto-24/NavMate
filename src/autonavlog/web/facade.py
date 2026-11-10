@@ -1065,6 +1065,13 @@ class AutoNavLogWebApplication:
             request.departure_time_jst,
         )
         weather_mode_changed = working.weather_mode != request.weather_mode
+        forecast_selection_invalidated = weather_mode_changed or (
+            request.weather_mode == "FORECAST"
+            and (
+                working.flight_date != request.flight_date
+                or working.planned_departure_time_jst != requested_departure_time
+            )
+        )
         working.flight_date = request.flight_date
         working.planned_departure_time_jst = requested_departure_time
         if request.pilot_name is not None:
@@ -1082,12 +1089,10 @@ class AutoNavLogWebApplication:
                 "weather_mode": request.weather_mode,
                 "ftd_weather": request.ftd_weather,
                 "selected_forecast_run_id": (
-                    None
-                    if weather_mode_changed
-                    else working.selected_forecast_run_id
+                    None if forecast_selection_invalidated else working.selected_forecast_run_id
                 ),
                 "selected_forecast_model": (
-                    None if weather_mode_changed else working.selected_forecast_model
+                    None if forecast_selection_invalidated else working.selected_forecast_model
                 ),
             }
         )
