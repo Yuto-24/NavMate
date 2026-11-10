@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from scripts.static_ops import app_release as app
-from scripts.static_ops import schema423_readback as check
+from scripts.static_ops import app_release as app, schema423_readback as check
 
 
 
