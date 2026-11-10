@@ -259,7 +259,7 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
       options: --ipc=host
     env:
-      PIP_CACHE_DIR: ${{ runner.temp }}/pip-cache
+      PIP_CACHE_DIR: /tmp/navmate-pip-cache
     defaults:
       run:
         shell: bash
@@ -366,7 +366,7 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
       options: --ipc=host
     env:
-      PIP_CACHE_DIR: ${{ runner.temp }}/pip-cache
+      PIP_CACHE_DIR: /tmp/navmate-pip-cache
     defaults:
       run:
         shell: bash
