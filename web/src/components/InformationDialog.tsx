@@ -57,10 +57,11 @@ export function InformationDialog({ open, releases, knownIssues, onClose, onOpen
         <p>プロジェクトと最後の計算結果は、このブラウザに保存されます。ブラウザのデータ削除、容量不足による自動削除、プライベートブラウズの終了で失われる場合があります。</p>
       </section>}
       {import.meta.env.VITE_CALCULATION_MODE === "local" && !devSharedMode && <section aria-labelledby="local-storage-heading">
-        <h3 id="local-storage-heading">この端末の保存について</h3>
-        <p>プロジェクトと最後の計算結果は、このブラウザに保存されます。ブラウザのデータ削除、容量不足による自動削除、プライベートブラウズの終了で失われる場合があります。</p>
-        <p>Googleアカウントへの同期完了後は、同期済みの内容を別端末でも開けます。未同期の変更はこの端末のみに残ります。NAV LOGのJSON出力はプロジェクトのバックアップではありません。</p>
-        <p>アプリの起動と外部データの取得にはネットワーク接続が必要です。更新時は画面を再読み込みしてください。</p>
+        <h3 id="local-storage-heading">保存と同期</h3>
+        <p>プロジェクトと計算結果はブラウザに保存されます。データ削除・容量不足・プライベートブラウズ終了で失われることがあります。</p>
+        <p>Googleアカウントに同期した内容は別端末でも開けます。未同期の変更はこの端末だけに残ります。</p>
+        <p>NAV LOGのJSONは、プロジェクトのバックアップには使えません。</p>
+        <p>起動・データ取得にはネット接続が必要です。更新時は再読み込みしてください。</p>
       </section>}
       {knownIssues.length > 0 && <section className="information-known-issues" aria-labelledby="known-issues-heading">
         <h3 id="known-issues-heading">既知の不具合</h3>
