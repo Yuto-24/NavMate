@@ -258,6 +258,8 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
       options: --ipc=host
+    env:
+      PIP_CACHE_DIR: ${{ runner.temp }}/pip-cache
     defaults:
       run:
         shell: bash
@@ -271,14 +273,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
+        id: python
         with:
           python-version: "3.12"
-          # Cache pip artifacts; always install the current checkout below.
-          cache: pip
-          cache-dependency-path: |
-            pyproject.toml
-            vendor/jma_gpv_weather-0.6.0-py3-none-any.whl
-            .github/workflows/test.yml
+      # setup-python's Linux pip cache requires lsb_release, absent from the browser image.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PIP_CACHE_DIR }}
+          key: pip-${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'vendor/*.whl', '.github/workflows/test.yml') }}
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -363,6 +365,8 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
       options: --ipc=host
+    env:
+      PIP_CACHE_DIR: ${{ runner.temp }}/pip-cache
     defaults:
       run:
         shell: bash
@@ -376,14 +380,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
+        id: python
         with:
           python-version: "3.12"
-          # Cache pip artifacts; always install the current checkout below.
-          cache: pip
-          cache-dependency-path: |
-            pyproject.toml
-            vendor/jma_gpv_weather-0.6.0-py3-none-any.whl
-            .github/workflows/test.yml
+      # setup-python's Linux pip cache requires lsb_release, absent from the browser image.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PIP_CACHE_DIR }}
+          key: pip-${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('pyproject.toml', 'vendor/*.whl', '.github/workflows/test.yml') }}
       - uses: actions/setup-node@v4
         with:
           node-version: "24"

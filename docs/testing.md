@@ -365,16 +365,15 @@ Playwright 1.62.1、`CI=1`、子プロセスとHTTP serverを含め`taskset -c 0
 
 ### Browser-job pip cache
 
-`local-browser`と`account-sync-tests`は`setup-python@v5`の`cache: pip`を使用する。
-保存対象は`pip cache dir`のHTTP応答とbuilt wheelで、venvやsite-packagesではない。
-既存の`pip install`はcache hit時も実行し、checkoutの`.`をビルド・導入する。
-依存版は固定していないため、cacheはlockfileやオフライン導入の代わりにはならない。
+`local-browser-tests` と `account-sync-tests` は `actions/cache@v4` で
+`PIP_CACHE_DIR` の HTTP 応答・built wheel を保存する。venv / site-packages は保存しない。
+コンテナ内では setup-python の pip cache が要求する `lsb_release` がないため、
+cache を独立した step で管理する。OS ライブラリの追加導入で回避しない。
 
-keyは`pyproject.toml`、vendor wheel、install引数を含む`test.yml`のhashを使う。
-setup-python v5がOS、architecture、Linux distribution/version、解決したPython版を追加する。
-同じ環境では両jobで共有できる。hash変更時には環境prefixでのfallback restoreもあり得るが、
-pipが現在の要件を再評価する。VERSIONやアプリソースをkeyに含める必要はない。
-cache miss/evictionでは通常取得へ戻る。cacheを保存するのは成功jobのpost stepである。
+key は runner OS / architecture、Playwright image 版、解決した Python 版、
+pyproject / vendor wheel / test.yml の hash。cache hit 時も同じ pip install を実行し、
+現在の checkout をビルド・導入する。cache miss / eviction は通常取得に戻り、成功 job で保存する。
+依存は完全には固定していないため、cache は lockfile やオフライン導入の代わりにはならない。
 
 2026-10-29、同じcheckoutと既存installコマンドを使い、WSL / CPython 3.12.3 /
 pip 24.0の新規venvで逐次計測した。専用`PIP_CACHE_DIR`でcold 41.71秒、warm 17.21秒、

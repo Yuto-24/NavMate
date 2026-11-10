@@ -44,3 +44,11 @@ container 初期化・npm / pip・テスト本体を比較する。全体時間�
   通常 PR の5分達成の根拠にしない。
 - 新構成の main 全回帰は、承認されたマージ後に確認する。
 - PR の独立レビュー・CodeRabbit・Hosted 結果は PR 本文から参照する。
+
+## コンテナ初回検証
+
+[PR #428 の初回 run 42815518647](https://github.com/Yuto-24/NavMate/actions/runs/42815518647)
+では8 browser job の image 取得・初期化が26〜33秒で成功した。その後 setup-python の
+pip cache が `lsb_release` 不在で失敗したため、テスト本体の成功や全体高速化の根拠にはしない。
+Python 自体の導入は成功していた。cache を `actions/cache@v4` と明示的な
+`PIP_CACHE_DIR` へ分離し、pip の通常導入と checkout の再ビルドを維持した。
