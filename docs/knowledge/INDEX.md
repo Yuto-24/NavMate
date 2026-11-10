@@ -4,6 +4,7 @@ Read [the workflow](README.md) before adding or applying lessons. Search by the 
 
 ## Existing canonical sources
 - [Agent workflow](../agent_workflow.md)
+- [Forecast schema 4 → 5 transition](../forecast_schema_transition.md): Issue #423。旧版生成データ、旧タブとの共存、同一端末 Latest 置換の了承範囲、手動公開の証拠と制約。
 - [Existing evidence](../evidence/)
 - [App publication audit](../app_publication_audit.md): prepare/publish重複、排他、部分失敗、診断境界。2026-11-08のコード・実行証拠に基づく判断と未実装の後続案。
 

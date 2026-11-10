@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
-  testDir: "./e2e", testMatch: "storage-upgrade.spec.ts", workers: 1, timeout: 60_000,
+  testDir: "./e2e", testMatch: ["storage-upgrade.spec.ts", "schema4-transition.spec.ts"], workers: 1, timeout: 60_000,
   outputDir: "/tmp/autonavlog-storage-upgrade", reporter: "line",
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "webkit", use: { ...devices["iPad Pro 11"], browserName: "webkit" } }],

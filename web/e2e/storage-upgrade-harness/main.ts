@@ -8,6 +8,10 @@ import { AccountProjectRepository as OldAccount } from "../fixtures/v1.20.1/acco
 import { IndexedDbProjectRepository as OldLocal } from "../fixtures/v1.20.1/localProjectRepository";
 import { FirestoreSyncRepository as OldRemote } from "../fixtures/v1.20.1/firestoreSyncRepository";
 
+import { FirestoreSyncRepository as Schema4Remote } from "../fixtures/v2.2.2/firestoreSyncRepository";
+import { AccountProjectRepository as Schema4Account } from "../fixtures/v2.2.2/accountProjectRepository";
+import { IndexedDbProjectRepository as Schema4Local } from "../fixtures/v2.2.2/localProjectRepository";
+
 setLogLevel("silent"); // Expected stale-write Rules denials must not print full synthetic records.
 
 let repository: any, remote: any, firebase: any, db: any, databaseName: string;
@@ -23,6 +27,21 @@ const validate = (old: boolean) => async (record: any) => {
     project => project?.route_nodes.some((node: any) => "reference_snapshot" in node))) throw Error("old domain reader");
   return value;
 };
+const schema4Validate = async (record: any) => {
+  // Actual v2.2.2 Python rejection is checked separately. The frozen browser/SDK
+  // writers below are real; this small predicate models only that read boundary.
+  if ([record.draft, record.checkpoint, record.lastCalculation?.project].some(
+    project => project && (project.schema_version !== 4 || "selected_forecast_model" in project))) {
+    throw Error("schema4 domain reader");
+  }
+  return copy(record);
+};
+async function domain(operation: string, payload: any) {
+  const response = await fetch("/__schema5_record", { method: "POST",
+    body: JSON.stringify({ operation, payload }) });
+  if (!response.ok) throw Error("domain validation failed");
+  return response.json();
+}
 async function snapshot() {
   return new Promise<any[]>((resolve, reject) => {
     const open = indexedDB.open(databaseName);
@@ -37,18 +56,21 @@ async function snapshot() {
 }
 (window as any).upgrade = {
   status,
-  async init({ old = false, account = null, subject = "", device = "same-device" }: any) {
+  async init({ old = false, account = null, subject = "", device = "same-device", schema4 = false,
+    schema5 = false }: any) {
     databaseName = account ? `autonavlog.projects.${account}` : "autonavlog.projects";
     const context = { account_id: account, assertActive() {}, onClose() { return () => {}; } };
-    repository = account ? new (old ? OldAccount : AccountProjectRepository)(validate(old), context, device, async value => value)
-      : new (old ? OldLocal : IndexedDbProjectRepository)(validate(old));
+    const validator = schema4 ? schema4Validate : schema5 ? (record: any) => domain("validateRecord", record) : validate(old);
+    const clean = schema5 ? (record: any, copy_id?: string) => domain("prepareSyncResolution", { record, copy_id }) : async (value: any) => value;
+    repository = account ? new (schema4 ? Schema4Account : old ? OldAccount : AccountProjectRepository)(validator, context, device, clean)
+      : new (schema4 ? Schema4Local : old ? OldLocal : IndexedDbProjectRepository)(validator);
     if (subject) {
       firebase = initializeApp({ projectId: "demo-autonavlog-sync", apiKey: "test" }, crypto.randomUUID());
       // Emulator-only finite long polling avoids open streaming requests during tab teardown.
       db = initializeFirestore(firebase, { experimentalForceLongPolling: true });
       connectFirestoreEmulator(db, "127.0.0.1", 8088, { mockUserToken: { sub: `firebase-${subject}`,
         firebase: { sign_in_provider: "google.com", identities: { "google.com": [subject] } } } });
-      remote = new (old ? OldRemote : FirestoreSyncRepository)(db, subject, () => {});
+      remote = new (schema4 ? Schema4Remote : old ? OldRemote : FirestoreSyncRepository)(db, subject, () => {});
     }
   },
   list: () => repository.list(), read: (id: string) => repository.read(id),
@@ -70,6 +92,7 @@ async function snapshot() {
   },
   remoteList: () => remote.list(), pending: () => repository.pending(),
   receive: (values: any) => repository.receive(values),
+  resolve: (id: string, choice: string) => repository.resolve(id, choice),
   async holdPending() {
     [mutation] = await repository.pending();
     if (!mutation || !await repository.markSending(mutation)) throw Error("missing pending mutation");

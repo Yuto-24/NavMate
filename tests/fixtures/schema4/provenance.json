@@ -1,0 +1,10 @@
+{
+  "commit": "03cc463cf09192e1403f839df4165410c5db8d7b",
+  "app_version": "2.2.2",
+  "weather_version": "0.5.0",
+  "files": {
+    "project.schema.json": "00c2b1a5e9755de157a096c9396340f87c6cd75af7746cea129788ef5eb2cf9e",
+    "msm.json": "230c15df816d619f51edc287a1440ce02d3663c293f6cbd794f5e40bda2faa3b",
+    "ftd.json": "c71634a7b7dd17d7c84306c793ae50a183dda177a483d26ba358c926d5185630"
+  }
+}

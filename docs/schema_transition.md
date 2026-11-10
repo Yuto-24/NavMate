@@ -2,9 +2,13 @@
 
 This is a manual, separately authorized transition, not an automatic publication
 exception. Ordinary and automated releases still require identical schema/index
-blobs and Rules bytes. The only supported schema difference is the optional
+blobs and Rules bytes. This document covers the optional
 `RouteNode.reference_snapshot` plus its two new definitions; all prior fields,
 types and required constraints must remain identical. Index changes stay blocked.
+The separately reviewed [Project schema 4 → 5 forecast transition](forecast_schema_transition.md)
+uses the same manual prepare/publish receipts with its own exact difference and
+coexistence evidence. It does not use or weaken the reference-snapshot writer fence
+described below.
 
 ## Two distinct migrations
 
