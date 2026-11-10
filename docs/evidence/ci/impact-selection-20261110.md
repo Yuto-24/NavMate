@@ -52,3 +52,31 @@ container 初期化・npm / pip・テスト本体を比較する。全体時間�
 pip cache が `lsb_release` 不在で失敗したため、テスト本体の成功や全体高速化の根拠にはしない。
 Python 自体の導入は成功していた。cache を `actions/cache@v4` と明示的な
 `PIP_CACHE_DIR` へ分離し、pip の通常導入と checkout の再ビルドを維持した。
+
+## 全 suite の Hosted 完走
+
+[run 42816184788](https://github.com/Yuto-24/NavMate/actions/runs/42816184788)
+（PR、`9d3872da`）は20 job がすべて成功し、`ci-required` も成功した。
+workflow 開始から最後の必須 job 完了まで20分30秒。image 初期化は8 runner で26〜39秒、
+pip install は16〜34秒だった。OS/browser の追加導入 step はない。
+
+| 対象 | 変更前 PR #417 | 今回の全 suite run |
+| --- | ---: | ---: |
+| workflow 全体 | 13分36秒 | 20分30秒 |
+| Local local job | 13分00秒 | 19分30秒 |
+| Local 回帰本体 | 10分09秒 | 15分48秒 |
+| iPhone sync job | 12分10秒 | 8分11秒 |
+| focused-ux の準備（旧: browser install、新: container 初期化） | 3分52秒 | 27秒 |
+
+別 commit・別 runner の観測であり、全体の短縮率や原因別の差分には換算しない。
+今回の全体時間は改善しておらず、5分目標の達成とは扱わない。Local は既存選択の70件を収集し、
+69 passed / 1 skipped、予報 backup は5 passed。skip は既存の Legacy 専用 pending-save
+テスト（`web/e2e/checkpoint-enter.spec.ts:119`）で、Local の選択や assertion を減らしていない。
+
+律速は Local 回帰本体で、10ファイルにわたる実計算・保存・復元を2 workersで実行している。
+次の候補は、ファイル内の順序を維持した Local の file-level shard と、Chromium sync 後の
+共有開発検証の分離。採用する場合は全件の exact-once 分配と Hosted 時間を検証する。
+今回の証拠だけで worker 数増加や重要なテストの削除を正当化しない。
+
+通常変更を選択した Hosted Run、必須チェックの登録、新構成での main run は引き続き未確認。
+この全 suite run をそれらの代替証拠にしない。

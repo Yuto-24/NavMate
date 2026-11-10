@@ -119,7 +119,7 @@ def test_non_regular_documentation_changes_require_full_ci(repo, kind):
     else:
         (root / "docs/guide.md").chmod(0o755)
     head = commit(root, {})
-    assert ci_changes.ci_scope(root, "push", {"before": base, "after": head})[0] == ci_changes.JOBS
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == ci_changes.JOBS
 
 
 def test_diff_has_no_file_limit_and_preserves_unusual_paths(repo):
