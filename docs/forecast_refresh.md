@@ -1,9 +1,15 @@
 # Forecast recalculation (#356 / corrected #277)
 
-An explicit calculation compares Forecast inputs with the **last successful
-calculation**, using `forecast_selection_fingerprint`. Changed inputs keep that
-Run. Unchanged inputs select the newest usable normal Run in that single action;
-if no newer normal Run exists, the same usable Run remains selected.
+DATE or ETD changes in FORECAST mode invalidate the saved model/Run pin.
+The next calculation selects the newest healthy Run covering the new requirements
+(MSM first, with the existing coverage-based GSM fallback). This also applies
+to an old Project loaded without a successful calculation baseline.
+
+For other edits, an explicit calculation compares Forecast inputs with the **last
+successful calculation**, using `forecast_selection_fingerprint`. Changed
+inputs keep that Run. Unchanged inputs select the newest usable normal Run in
+that single action; if no newer normal Run exists, the same usable Run remains
+selected.
 
 For example: success with Run A → altitude edit → calculate with A → calculate
 again without edits → select the newest normal Run. A warning is not required to
@@ -22,9 +28,10 @@ roundtrips. The calculation fingerprint remains separate and identifies the Run
 actually used; historical snapshot hashes are not rewritten.
 
 Opening, restoring, saving and displaying a Project never acquire another Run.
-The next explicit calculation compares with the restored successful snapshot.
-If there is no successful Forecast baseline, a saved pin remains pinned. FTD
-never requests Forecast refresh. A rounding change counts as an input change;
+The next explicit calculation compares with the restored successful snapshot,
+unless DATE or ETD was edited. Without a successful Forecast baseline, a saved
+pin remains pinned until DATE/ETD or weather mode changes. FTD never requests
+Forecast refresh. A rounding change counts as an input change;
 restored rounded results retain the existing rounding recovery rules.
 
 Local acquisition replays the same user action after each requested catalog or
