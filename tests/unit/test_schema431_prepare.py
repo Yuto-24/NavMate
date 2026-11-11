@@ -483,12 +483,10 @@ def test_workflow_manual_prepare_is_disjoint_and_only_uploads_ciphertext():
     assert "group: static-production\n  cancel-in-progress: false\n  queue: max" in workflow
 
 
-@pytest.mark.parametrize("failure", [None, "preflight", "pause-response", "build"])
-def test_runner_retains_encrypted_recovery_and_removes_plaintext(
-        transport, simulated, context, tmp_path, monkeypatch, capsys, failure):
+@pytest.fixture
+def runner_environment(transport, simulated, context, tmp_path, monkeypatch):
     _, _, secret, key, _ = transport
     _, state, _, _, _ = simulated
-    state["fail"] = failure
     env, event, _ = context
     event_path, outputs = tmp_path / "event.json", tmp_path / "outputs"
     event_path.write_text(json.dumps(event))
@@ -508,6 +506,18 @@ def test_runner_retains_encrypted_recovery_and_removes_plaintext(
         assert "SCHEMA431_ARCHIVE_KEY" not in os.environ
         return app
     monkeypatch.setattr(driver, "load_tooling", load)
+    previous_umask = os.umask(0o022)
+    try:
+        yield env, state, outputs
+    finally:
+        os.umask(previous_umask)
+
+
+@pytest.mark.parametrize("failure", [None, "preflight", "pause-response", "build"])
+def test_runner_retains_encrypted_recovery_and_removes_plaintext(
+        runner_environment, tmp_path, capsys, failure):
+    env, state, outputs = runner_environment
+    state["fail"] = failure
     result = driver.run(tmp_path)
     store, output, status_path = driver.locations(env)
     assert result == (0 if failure is None else 1)
@@ -516,9 +526,65 @@ def test_runner_retains_encrypted_recovery_and_removes_plaintext(
     assert status["archive_ready"] and "PRIVATE" not in status_path.read_text()
     assert "SECRET-TOKEN" not in output.read_bytes().decode("latin-1")
     assert outputs.read_text() == "archive_ready=true\n"
+    assert output.stat().st_mode & 0o777 == 0o600
+    ordinary_file = tmp_path / "subsequent-coverage"
+    ordinary_file.touch()
+    assert ordinary_file.stat().st_mode & 0o777 == 0o644
     if failure in ("pause-response", "build"):
         assert state["automation"] == "false"
     assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("failure", ["locations", "initial-status"])
+def test_run_restores_creation_permissions_after_initialization_exception(
+        runner_environment, tmp_path, monkeypatch, failure):
+    if failure == "locations":
+        monkeypatch.delenv("GITHUB_RUN_ID")
+    else:
+        def fail_status(*args):
+            raise OSError("Synthetic status write failure")
+        monkeypatch.setattr(driver, "public_status", fail_status)
+    with pytest.raises((bundle.InvalidBundle, OSError)):
+        driver.run(tmp_path)
+    ordinary_file = tmp_path / "subsequent-coverage"
+    ordinary_file.touch()
+    assert ordinary_file.stat().st_mode & 0o777 == 0o644
+
+
+@pytest.mark.parametrize("failure", ["journal-status", "handoff", "sealed-status"])
+def test_finalization_faults_preserve_output_and_cleanup(
+        runner_environment, tmp_path, monkeypatch, failure):
+    env, _, outputs = runner_environment
+    store, output, status_path = driver.locations(env)
+    write_status, write_json = driver.public_status, app.write_json
+
+    def status(path, value):
+        if (failure == "journal-status" and value["status"] == "RUNNING") or (
+                failure == "sealed-status" and output.exists()):
+            raise OSError("Synthetic status write failure")
+        write_status(path, value)
+
+    def handoff(path, value):
+        if failure == "handoff" and path.name == "handoff.json":
+            raise OSError("Synthetic handoff write failure")
+        write_json(path, value)
+
+    monkeypatch.setattr(driver, "public_status", status)
+    monkeypatch.setattr(app, "write_json", handoff)
+    if failure == "journal-status":
+        assert driver.run(tmp_path) == 1
+    else:
+        with pytest.raises(OSError):
+            driver.run(tmp_path)
+    assert not store.exists() and not bundle.EVIDENCE_ROOT.exists()
+    assert output.exists() == (failure == "sealed-status")
+    assert outputs.read_text() == (
+        "archive_ready=true\n" if failure == "sealed-status" else "archive_ready=false\n")
+    if failure != "sealed-status":
+        assert json.loads(status_path.read_text())["status"] == "BLOCKED"
+    ordinary_file = tmp_path / "subsequent-coverage"
+    ordinary_file.touch()
+    assert ordinary_file.stat().st_mode & 0o777 == 0o644
 
 
 def test_original_record_hash_and_tooling_cannot_be_overridden_by_cli():
@@ -569,23 +635,8 @@ def test_cleanup_rejects_unowned_path_or_symlink(tmp_path):
 
 @pytest.mark.parametrize("cleanup_failure", [False, True])
 def test_archive_output_is_recorded_before_cleanup_even_when_cleanup_fails(
-        transport, simulated, context, tmp_path, monkeypatch, cleanup_failure):
-    _, _, secret, key, _ = transport
-    _, _, _, _, _ = simulated
-    env, event, _ = context
-    event_path, outputs = tmp_path / "event.json", tmp_path / "outputs"
-    event_path.write_text(json.dumps(event))
-    outputs.touch()
-    env.update(RUNNER_TEMP=str(tmp_path), GITHUB_EVENT_PATH=str(event_path),
-               GITHUB_OUTPUT=str(outputs), GH_TOKEN="synthetic", CLOUDFLARE_API_TOKEN="synthetic",
-               STATIC_GOOGLE_ACCESS_TOKEN="synthetic")
-    for name, value in env.items():
-        monkeypatch.setenv(name, value)
-    monkeypatch.setenv("SCHEMA431_EVIDENCE", secret)
-    monkeypatch.setenv("SCHEMA431_ARCHIVE_KEY", base64.b64encode(key).decode())
-    monkeypatch.setattr(driver.shutil, "which", lambda name: "/bin/" + name)
-    monkeypatch.setattr(driver, "checked_checkout", lambda root, sha: None)
-    monkeypatch.setattr(driver, "load_tooling", lambda root: app)
+        runner_environment, tmp_path, monkeypatch, cleanup_failure):
+    env, _, outputs = runner_environment
     def cleanup(store, actual_env):
         assert outputs.read_text() == "archive_ready=true\n"
         if cleanup_failure:

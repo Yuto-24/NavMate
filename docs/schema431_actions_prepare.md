@@ -178,6 +178,8 @@ plan SHA-256とsummaryの一致を人が確認する。
 
 停止試行後の失敗では、可能な場合にjournalと元証拠だけの暗号化した復旧記録を保存する。
 未検証の途中buildや生ログは保存しない。
+handoffやstatusの書込みに失敗しても、作成済み暗号文のupload条件の通知と平文のcleanupを試行する。
+status自体を更新できない場合、summaryは途中の状態のまま残りうる。jobの失敗を無視せず、remote stateを確認する。
 強制終了時の平文はephemeralなGitHub-hosted runnerの破棄に依存し、保存完了を保証しない。
 
 復旧では `STATIC_AUTOMATION_ENABLED`、`STATIC_APPROVED_SHA`、両workflowの状態とRun一覧、
@@ -206,3 +208,15 @@ CIでは実際の固定tooling checkoutと実Git sourceを使い、synthetic rec
 その `reviewed_schema()` が受理し、不正identity・欠落・改変を拒否することを確認する。
 これは本番のprivate record、WIF、実build、Artifact保存の運用受入を代替しない。
 本番のSecret登録、停止、prepare、publishは実装・PR・テスト中には実施しない。
+
+### #432で確認したCIの権限回帰
+
+[pytest shard 2の失敗](https://github.com/Yuto-24/NavMate/actions/runs/42988397511/job/130415096735)は、
+テスト成功後の `.coverage` アップロードで発生した。テストから直接呼ぶ `run()` が
+umaskを077に変更したまま戻しておらず、その後に生成するcoverageファイルも0600になった。
+Docker内のrootが作るファイルを、ホストのrunnerユーザーが読めなかった。
+同じユーザーが作成・読取するローカル検証では、この境界を確認できていなかった。
+
+このdriverでは処理中だけ077を使い、正常終了・失敗・初期化例外のいずれでも元のumaskへ戻す。
+回帰テストでは、private成果物が0600を維持することと、処理後の通常ファイルが呼出し元の
+権限設定で作成されることを確認する。CI側でcoverageの権限を変更する回避策は追加していない。

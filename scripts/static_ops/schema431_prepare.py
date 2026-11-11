@@ -281,7 +281,15 @@ def cleanup_store(store: Path, env: dict) -> None:
 
 
 def run(root: Path) -> int:
-    os.umask(0o077)
+    """Keep this run private without changing the caller's later file permissions."""
+    previous_umask = os.umask(0o077)
+    try:
+        return _run_private(root)
+    finally:
+        os.umask(previous_umask)
+
+
+def _run_private(root: Path) -> int:
     # Transport material is never inherited by provider/producer subprocesses.
     encoded = os.environ.pop("SCHEMA431_EVIDENCE", "")
     encoded_key = os.environ.pop("SCHEMA431_ARCHIVE_KEY", "")
@@ -290,7 +298,8 @@ def run(root: Path) -> int:
     public_status(status_path, {"status": "BLOCKED", "stage": "scope",
                                "automation": "UNCHANGED", "automation_before": "UNKNOWN",
                                "archive_ready": False})
-    journal, evidence, key, created_evidence = None, None, None, False
+    journal, evidence, key = None, None, None
+    created_store, created_evidence = False, False
     success, archive_ready = False, False
     plan_digest = None
     try:
@@ -310,6 +319,7 @@ def run(root: Path) -> int:
                                       bundle.MAGIC) == b"probe", "archive-crypto")
         app = load_tooling(root)
         store.mkdir(mode=0o700, exist_ok=False)
+        created_store = True
         journal = quiet_journal(app, store, status_path)
         bundle.restore_evidence(evidence)
         created_evidence = True
@@ -321,47 +331,50 @@ def run(root: Path) -> int:
         if journal is not None:
             journal.finish(False)
     finally:
-        if journal is not None and evidence is not None and key is not None:
-            handoff = {"schema_version": 1, "sha": bundle.CANDIDATE,
-                       "current_sha": bundle.CURRENT, "tooling_sha": bundle.TOOLING,
-                       "driver_sha": env["GITHUB_SHA"], "run_id": env["GITHUB_RUN_ID"],
-                       "run_attempt": env["GITHUB_RUN_ATTEMPT"], "prepared": success,
-                       "plan_sha256": plan_digest,
-                       "prepared_at": plan["prepared_at"] if success else None}
-            app.write_json(store / "handoff.json", handoff)
-            try:
-                bundle.seal(store, evidence, key, output, success=success)
-                archive_ready = True
-            except Exception:
-                success = False
-            status = json.loads(status_path.read_text())
-            status.update(status="PREPARED" if success else "BLOCKED", archive_ready=archive_ready,
-                          archive_status="READY" if archive_ready else "FAILED",
-                          plan_sha256=plan_digest if success else None)
-            public_status(status_path, status)
-        # Preserve the encrypted result even when cleanup cannot finish. Actions
-        # consumes this output for its always()-upload after a failed step, too.
         try:
-            with Path(env["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
-                stream.write("archive_ready=" + str(archive_ready).lower() + "\n")
+            if journal is not None and evidence is not None and key is not None:
+                handoff = {"schema_version": 1, "sha": bundle.CANDIDATE,
+                           "current_sha": bundle.CURRENT, "tooling_sha": bundle.TOOLING,
+                           "driver_sha": env["GITHUB_SHA"], "run_id": env["GITHUB_RUN_ID"],
+                           "run_attempt": env["GITHUB_RUN_ATTEMPT"], "prepared": success,
+                           "plan_sha256": plan_digest,
+                           "prepared_at": plan["prepared_at"] if success else None}
+                app.write_json(store / "handoff.json", handoff)
+                try:
+                    bundle.seal(store, evidence, key, output, success=success)
+                    archive_ready = True
+                except Exception:
+                    success = False
         finally:
-            cleanup_ok = True
-            if created_evidence:
-                try:
-                    shutil.rmtree(bundle.EVIDENCE_ROOT)
-                except Exception:
-                    cleanup_ok = False
-            if journal is not None:
-                try:
-                    cleanup_store(store, env)
-                except Exception:
-                    cleanup_ok = False
-            status = json.loads(status_path.read_text())
-            status["cleanup"] = "COMPLETE" if cleanup_ok else "FAILED"
-            if not cleanup_ok:
-                success = False
-                status.update(status="BLOCKED", stage="cleanup")
-            public_status(status_path, status)
+            # Even a handoff/status write failure must reach output and cleanup.
+            # Actions can upload the encrypted result after a failed step, too.
+            try:
+                with Path(env["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+                    stream.write("archive_ready=" + str(archive_ready).lower() + "\n")
+            finally:
+                cleanup_ok = True
+                if created_evidence:
+                    try:
+                        shutil.rmtree(bundle.EVIDENCE_ROOT)
+                    except Exception:
+                        cleanup_ok = False
+                if created_store:
+                    try:
+                        cleanup_store(store, env)
+                    except Exception:
+                        cleanup_ok = False
+                status = json.loads(status_path.read_text())
+                if journal is not None:
+                    prepared = success and archive_ready
+                    status.update(status="PREPARED" if prepared else "BLOCKED",
+                                  archive_ready=archive_ready,
+                                  archive_status="READY" if archive_ready else "FAILED",
+                                  plan_sha256=plan_digest if prepared else None)
+                status["cleanup"] = "COMPLETE" if cleanup_ok else "FAILED"
+                if not cleanup_ok:
+                    success = False
+                    status.update(status="BLOCKED", stage="cleanup")
+                public_status(status_path, status)
     return 0 if success and archive_ready else 1
 
 
