@@ -177,3 +177,29 @@ def test_cli_path_execution_without_credentials_returns_bounded_blocked_json():
     assert result.returncode == 1
     assert json.loads(result.stdout) == {"status": "BLOCKED", "phase": "scope"}
     assert result.stderr == ""
+
+
+def test_wif_pinned_dispatch_never_runs_publisher_for_readback():
+    """WIF-bound readback and release-replay jobs are explicitly disjoint."""
+    workflow = (
+        Path(__file__).resolve().parents[2]
+        / ".github/workflows/static-app-release.yml"
+    ).read_text(encoding="utf-8")
+    assert "default: readback" in workflow
+    assert "options:\n          - readback\n          - replay-release" in workflow
+    publish, readback = workflow.split("\n  readback:\n", maxsplit=1)
+    assert "github.event_name != 'workflow_dispatch'" in publish
+    assert "inputs.operation == 'replay-release'" in publish
+    assert "inputs.release_id != ''" in publish
+    assert "python3 scripts/static_ops/release_automation.py prepare" in publish
+    assert "python3 scripts/static_ops/release_automation.py publish" in publish
+    assert "github.event_name == 'workflow_dispatch'" in readback
+    assert "inputs.operation == 'readback'" in readback
+    assert "github.ref == 'refs/heads/main'" in readback
+    assert "environment: static-production" in readback
+    assert "https://www.googleapis.com/auth/firebase.readonly" in readback
+    assert "secrets.STATIC_CLOUDFLARE_READ_TOKEN" in readback
+    assert "python scripts/static_ops/schema423_readback.py" in readback
+    assert "secrets.CLOUDFLARE_PAGES_TOKEN" not in readback
+    assert "secrets.STATIC_APP_RELEASE_GH_TOKEN" not in readback
+    assert "release_automation.py" not in readback
