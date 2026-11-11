@@ -505,6 +505,11 @@ Its timestamps are historical evidence, not current publication authorization.
 
 ## WSL からのアプリ更新: prepare / publish
 
+v2.3.1の固定Schema移行をGitHub Actionsでprepareする場合は、
+[#431専用手順](schema431_actions_prepare.md)を使う。
+既存WIFのまま実行し、非公開証拠と成果物を安全に受け渡す。
+以下の一般的な手動公開ゲートと、plan digestへの個別承認は維持する。
+
 Project schema 4 → 5 の限定移行は [forecast schema transition](forecast_schema_transition.md)
 の証拠を追加する。同一 Rules・indexes、独立レビュー、操作窓と公開の個別承認は引き続き必要。
 

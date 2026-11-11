@@ -34,6 +34,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: 64225b82c9b2e978409f0b35490be3c83af3f157
+          path: reviewed-schema431
+          fetch-depth: 0
+          persist-credentials: false
       - name: Install workflow dependencies from the tooling checkout and import the producer
         run: python tooling/tests/integration/check_static_tooling_install.py
       - name: Build credential-free artifact handoff test image

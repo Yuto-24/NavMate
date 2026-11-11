@@ -110,6 +110,12 @@ approved manual operation.
 
 ## Private evidence and operation window
 
+For the fixed v2.3.1 transition in #431, the
+[Actions manual-prepare procedure](schema431_actions_prepare.md) transfers the existing
+record and three reports through private environment secrets, runs this exact reviewed
+tooling under the existing WIF workflow, and retains only an encrypted plan/result.
+It does not add a publish operation or replace the record's tooling identity.
+
 1. Copy [the failing template](forecast_schema_transition.example.json) outside the
    checkout only if new evidence is needed. For v2.3.1, use the reviewed private
    `SCHEMA_RECORD` pinned to current v2.2.2 and candidate v2.3.1; verify those two
