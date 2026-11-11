@@ -188,9 +188,18 @@ def test_wif_pinned_dispatch_never_runs_publisher_for_readback():
     assert "default: readback" in workflow
     assert "options:\n          - readback\n          - replay-release" in workflow
     publish, readback = workflow.split("\n  readback:\n", maxsplit=1)
-    assert "github.event_name != 'workflow_dispatch'" in publish
-    assert "inputs.operation == 'replay-release'" in publish
-    assert "inputs.release_id != ''" in publish
+    publish_condition = " ".join(
+        publish.split("\n    if: >-\n", 1)[1].split("\n    runs-on:", 1)[0].split()
+    )
+    assert publish_condition == (
+        "github.repository == 'Yuto-24/NavMate' && "
+        "vars.STATIC_APP_RELEASE_ENABLED == 'true' && "
+        "(github.event_name != 'workflow_dispatch' || "
+        "(github.ref == 'refs/heads/main' && "
+        "inputs.operation == 'replay-release' && inputs.release_id != '')) && "
+        "(github.event_name != 'workflow_run' || "
+        "github.event.workflow_run.conclusion == 'success')"
+    )
     assert "python3 scripts/static_ops/release_automation.py prepare" in publish
     assert "python3 scripts/static_ops/release_automation.py publish" in publish
     assert "github.event_name == 'workflow_dispatch'" in readback
