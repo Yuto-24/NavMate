@@ -10,15 +10,17 @@ cannot be combined with a Rules transition.
 | Identity | Reviewed source |
 | --- | --- |
 | Current v2.2.2 | `03cc463cf09192e1403f839df4165410c5db8d7b` |
-| Candidate v2.3.0 | `1a4cc915d1a871d9044942078d00aea90e37d340` |
+| Historical candidate v2.3.0 | `1a4cc915d1a871d9044942078d00aea90e37d340` |
+| Current readback candidate v2.3.1 | `c717ac6baaa3d7556120d2a7f6c9435f165f132b` |
 | Before Project schema blob | `b3bdd7e593eb9a7c6257994762934c35cfdda430` |
 | After Project schema blob | `d19086279b8f903d0c6209ab9e5065974af5d294` |
 | Candidate Local repository blob | `5b6178c23ed9788f08b465d9003088e4ad9e2978` |
 | Tooling | Pin the clean, reviewed tooling commit used for prepare in the private record; the PR records the tested/reviewed commit. Do not substitute the older tooling in the v2.3.0 tag. |
 
 [Automatic publication run 42778669318](https://github.com/Yuto-24/NavMate/actions/runs/42778669318/job/129703114029)
-selected those application SHAs and stopped at the compatibility gate on 2026-11-10.
-They are historical publication evidence, not a fresh production observation. A direct
+selected the historical v2.2.2 → v2.3.0 identities and stopped at the compatibility
+gate on 2026-11-10. They are historical publication evidence, not evidence of the
+current v2.3.1 candidate or a fresh production observation. A direct
 canonical `release.json` read from the implementation environment returned HTTP 403;
 current canonical/approved alignment, Pages inventory, live Rules and complete public
 configuration must be refreshed with existing authorized access before prepare.
@@ -79,10 +81,39 @@ The gate tests cover both transition kinds, exact identities, missing/altered ev
 retargeted reports, schema/Rules/index drift, unchanged prepare/publish and invalidation
 between them. Existing automatic/default release behavior stays fail-closed.
 
+## Read-only production observation under pinned Google WIF
+
+On 2026-11-11, [readback Run 42916903164](https://github.com/Yuto-24/NavMate/actions/runs/42916903164)
+failed at Google token exchange with `unauthorized_client` because the existing WIF provider
+pins both the `static-production` environment and the exact `static-app-release.yml`
+workflow on `main`. This was an authentication-condition rejection, **not** a mismatch
+between deployed Firestore Rules and candidate sources.
+
+Do not widen the provider condition or create alternate credentials. Once the
+read-only mode has merged, dispatch `static-app-release` on `main` with
+`operation=readback` (leave `release_id` empty). Its readback job uses the existing
+`firebase.readonly` identity and Cloudflare read token, without entering
+`release_automation.py prepare/publish`. Manual release replay separately requires
+`operation=replay-release` and a nonempty `release_id`; the release and workflow-run
+automatic triggers retain their previous gate. The separate `schema423-readback`
+workflow was removed because WIF cannot authorize its `workflow_ref`.
+
+The readback checks the fixed **v2.3.1 candidate** (`c717ac6baaa3d7556120d2a7f6c9435f165f132b`)
+against live canonical, Pages inventory and Rules. It does not validate the historical
+v2.3.0 candidate identity. For v2.3.0, use the previously recorded release/tag,
+source/blob identities and tests above; do not infer a v2.3.0 PASS from v2.3.1 readback.
+For the intended v2.3.1 transition, confirm the readback candidate SHA against the
+v2.3.1 Release/tag and the separately reviewed private `SCHEMA_RECORD` identity.
+The observation is neither a schema-record re-review nor authorization to stop
+schedules, prepare or publish. Recheck production immediately before any separately
+approved manual operation.
+
 ## Private evidence and operation window
 
 1. Copy [the failing template](forecast_schema_transition.example.json) outside the
-   checkout. Keep the exact application SHAs above only if fresh readback agrees.
+   checkout only if new evidence is needed. For v2.3.1, use the reviewed private
+   `SCHEMA_RECORD` pinned to current v2.2.2 and candidate v2.3.1; verify those two
+   identities against fresh readback. Do not substitute the historical v2.3.0 candidate.
    Supply the reviewed, clean tooling SHA, verified Firebase project and the digest of
    the complete `app_release.public_configuration(variables)` inventory. Do not copy
    credentials or publish a private configuration inventory in the PR.
@@ -105,7 +136,7 @@ between them. Existing automatic/default release behavior stays fail-closed.
 
 ```sh
 scripts/static_ops/app_release.sh prepare \
-  --sha 1a4cc915d1a871d9044942078d00aea90e37d340 \
+  --sha c717ac6baaa3d7556120d2a7f6c9435f165f132b \
   --current-sha 03cc463cf09192e1403f839df4165410c5db8d7b \
   --store "$STORE" --schema-transition "$SCHEMA_RECORD"
 ```
