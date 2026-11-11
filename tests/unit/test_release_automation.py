@@ -211,9 +211,9 @@ def test_automation_workflow_contract():
     assert "environment: static-production" in workflow and "static-publication" not in workflow
     assert "ref: main" in workflow and "persist-credentials: false" in workflow
     assert "github.repository == 'Yuto-24/NavMate' &&" in workflow
-    # Existing prepare/publish readers plus the dispatch-only schema readback reader.
-    assert workflow.count("create_credentials_file: false") == 3
-    assert workflow.count("https://www.googleapis.com/auth/firebase.readonly") == 3
+    # Existing readers plus the separately dispatched manual schema preparation.
+    assert workflow.count("create_credentials_file: false") == 4
+    assert workflow.count("https://www.googleapis.com/auth/firebase.readonly") == 4
     for name in ("static-app-release", "static-production"):
         source = (auto.ROOT / f".github/workflows/{name}.yml").read_text()
         assert "group: static-production\n  cancel-in-progress: false\n  queue: max" in source

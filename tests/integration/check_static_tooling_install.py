@@ -61,6 +61,10 @@ def check_install(workspace: Path) -> None:
                        "scripts/static_ops/preflight_feed.py"):
             subprocess.run([python, str(tooling / script), "--help"],
                            cwd=workspace, env=env, check=True)
+        subprocess.run([
+            python, str(tooling / "tests/integration/check_schema431_tooling.py"),
+            "--tooling", str(workspace / "reviewed-schema431"),
+        ], cwd=workspace, env=env, check=True)
         print(json.dumps({"status": "OK", "tooling_version": installed["version"],
                           "app_sha": app_head, "app_version": "1.20.1",
                           "local_checkout_origin": True, "producer_imports": "OK"}))

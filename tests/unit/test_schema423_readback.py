@@ -188,6 +188,7 @@ def test_wif_pinned_dispatch_never_runs_publisher_for_readback():
     assert "default: readback" in workflow
     assert "options:\n          - readback\n          - replay-release" in workflow
     publish, readback = workflow.split("\n  readback:\n", maxsplit=1)
+    readback = readback.split("\n  manual-prepare:\n", maxsplit=1)[0]
     publish_condition = " ".join(
         publish.split("\n    if: >-\n", 1)[1].split("\n    runs-on:", 1)[0].split()
     )
