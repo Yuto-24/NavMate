@@ -79,6 +79,28 @@ The gate tests cover both transition kinds, exact identities, missing/altered ev
 retargeted reports, schema/Rules/index drift, unchanged prepare/publish and invalidation
 between them. Existing automatic/default release behavior stays fail-closed.
 
+## Read-only production observation under pinned Google WIF
+
+On 2026-11-11, [readback Run 42916903164](https://github.com/Yuto-24/NavMate/actions/runs/42916903164)
+failed at Google token exchange with `unauthorized_client` because the existing WIF provider
+pins both the `static-production` environment and the exact `static-app-release.yml`
+workflow on `main`. This was an authentication-condition rejection, **not** a mismatch
+between deployed Firestore Rules and candidate sources.
+
+Do not widen the provider condition or create alternate credentials. Once the
+read-only mode has merged, dispatch `static-app-release` on `main` with
+`operation=readback` (leave `release_id` empty). Its readback job uses the existing
+`firebase.readonly` identity and Cloudflare read token, without entering
+`release_automation.py prepare/publish`. Manual release replay separately requires
+`operation=replay-release` and a nonempty `release_id`; the release and workflow-run
+automatic triggers retain their previous gate. The separate `schema423-readback`
+workflow was removed because WIF cannot authorize its `workflow_ref`.
+
+The observation only checks the pinned candidate against live canonical, Pages inventory
+and Rules. It is neither a schema-record re-review nor authorization to stop schedules,
+prepare or publish. Recheck production immediately before any separately approved
+manual operation.
+
 ## Private evidence and operation window
 
 1. Copy [the failing template](forecast_schema_transition.example.json) outside the
