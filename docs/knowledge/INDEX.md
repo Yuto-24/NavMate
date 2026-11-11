@@ -7,7 +7,7 @@ Read [the workflow](README.md) before adding or applying lessons. Search by the 
 - [Forecast schema 4 → 5 transition](../forecast_schema_transition.md): Issue #423。旧版生成データ、旧タブとの共存、同一端末 Latest 置換の了承範囲、手動公開の証拠と制約。
 - [Existing evidence](../evidence/)
 - [App publication audit](../app_publication_audit.md): prepare/publish重複、排他、部分失敗、診断境界。2026-11-08のコード・実行証拠に基づく判断と未実装の後続案。
-- [Schema #431 Actions prepare](../schema431_actions_prepare.md): 固定toolingを維持した移行証拠の転送、自己Runの厳密な識別、private journalとplanの暗号化保存。実運用は別途承認・受入が必要。
+- [Schema #431 Actions prepare/publish](../schema431_actions_prepare.md): 固定toolingを維持した証拠転送、自己Runの識別、planへの個別承認と暗号化記録。30分期限内に公開へ進めるよう、公開経路を先に準備する。実運用は別途承認・受入が必要。
 
 - [MAP background imagery](../map_background.md): Issue #243の配信元・出典、倍率と欠損時の表示、端末保存の境界。
 - [Terrain inputs](../terrain_inputs.md): Issue #313のDEM10B PNG復号、画素被覆、欠損と標高基準、実タイル確認の限界。

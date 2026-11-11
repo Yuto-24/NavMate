@@ -30,7 +30,8 @@ CANDIDATE_CI = 42821632575
 OPERATION = "prepare-schema431"
 
 
-def scope(env: dict, event: dict) -> None:
+def scope(env: dict, event: dict, *, operation: str = OPERATION,
+          job: str = "manual-prepare") -> None:
     repository = event.get("repository", {})
     inputs = event.get("inputs", {})
     bundle.require(
@@ -43,14 +44,14 @@ def scope(env: dict, event: dict) -> None:
         and env.get("GITHUB_REF") == "refs/heads/main"
         and env.get("GITHUB_WORKFLOW_REF") == REPO + "/" + WORKFLOW + "@refs/heads/main"
         and env.get("GITHUB_WORKFLOW_SHA") == env.get("GITHUB_SHA")
-        and env.get("GITHUB_JOB") == "manual-prepare"
+        and env.get("GITHUB_JOB") == job
         and re.fullmatch(r"[0-9a-f]{40}", env.get("GITHUB_SHA", ""))
         and all(re.fullmatch(r"[1-9]\d{0,19}", env.get(name, ""))
                 for name in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"))
         and repository.get("id") == REPO_ID
         and repository.get("full_name") == REPO and repository.get("private") is False
         and repository.get("owner", {}).get("id") == OWNER_ID
-        and inputs.get("operation") == OPERATION and inputs.get("release_id", "") == "",
+        and inputs.get("operation") == operation and inputs.get("release_id", "") == "",
         "dispatch-scope",
     )
 
