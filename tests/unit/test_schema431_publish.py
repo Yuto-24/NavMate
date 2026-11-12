@@ -96,6 +96,52 @@ def test_exact_successful_prepare_attempt_is_required(provenance):
     assert driver.source_run(operator, inputs) == source
 
 
+@pytest.fixture(params=["manual-prepare", "skipped"])
+def optional_job_attempt(provenance, request):
+    operator, inputs, responses, source, job, _ = provenance
+    if request.param == "skipped":
+        job = {**job, "id": 10, "name": "publish", "conclusion": "skipped"}
+        listing = responses["actions/runs/123/attempts/2/jobs?per_page=100&page=1"]
+        listing["jobs"].append(job)
+        listing["total_count"] = 2
+    return operator, inputs, source, job
+
+
+def test_attempt_scoped_jobs_accept_an_omitted_optional_attempt(optional_job_attempt):
+    operator, inputs, source, job = optional_job_attempt
+    del job["run_attempt"]
+    assert driver.source_run(operator, inputs) == source
+
+
+@pytest.mark.parametrize("value", [None, True, "2", 1, 3])
+def test_present_job_attempt_must_still_be_the_exact_integer(optional_job_attempt, value):
+    operator, inputs, _, job = optional_job_attempt
+    job["run_attempt"] = value
+    with pytest.raises(bundle.InvalidBundle, match="prepare-job-identity"):
+        driver.source_run(operator, inputs)
+
+
+@pytest.mark.parametrize("value", ["missing", None, True, "2", 3])
+def test_optional_job_attempt_does_not_weaken_the_latest_run_check(provenance, value):
+    operator, inputs, _, source, job, _ = provenance
+    del job["run_attempt"]
+    if value == "missing":
+        del source["run_attempt"]
+    else:
+        source["run_attempt"] = value
+    with pytest.raises(bundle.InvalidBundle, match="prepare-run-identity"):
+        driver.source_run(operator, inputs)
+
+
+@pytest.mark.parametrize("field,value", [("run_id", 345), ("head_sha", "f" * 40)])
+def test_optional_job_attempt_keeps_run_and_source_checks(provenance, field, value):
+    operator, inputs, _, _, job, _ = provenance
+    del job["run_attempt"]
+    job[field] = value
+    with pytest.raises(bundle.InvalidBundle, match="prepare-job-identity"):
+        driver.source_run(operator, inputs)
+
+
 @pytest.mark.parametrize("name,value", [
     ("run_attempt", 3), ("status", "queued"), ("conclusion", "failure"),
     ("head_branch", "feature"), ("workflow_id", 999), ("head_sha", "bad"),

@@ -106,10 +106,12 @@ def source_run(operator, inputs: dict) -> dict:
         count = total
         for job in rows:
             job_id = job.get("id")
+            # This endpoint selects the attempt; the job schema makes its echo optional.
             bundle.require(type(job_id) is int and job_id > 0 and job_id not in seen
                            and job.get("run_id") == int(run_id)
-                           and type(job.get("run_attempt")) is int
-                           and job["run_attempt"] == int(attempt)
+                           and ("run_attempt" not in job
+                                or (type(job["run_attempt"]) is int
+                                    and job["run_attempt"] == int(attempt)))
                            and job.get("head_sha") == run["head_sha"], "prepare-job-identity")
             seen.add(job_id)
             jobs.append(job)

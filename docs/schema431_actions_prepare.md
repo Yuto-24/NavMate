@@ -194,6 +194,12 @@ GitHub token、WIFのRepository/Owner ID、workflow_ref、environment、
 [attempt別Jobs API](https://docs.github.com/en/rest/actions/workflow-jobs)を使い、
 欠落・重複・不完全な一覧を成功扱いしない。
 
+Jobs応答の `run_attempt` は[GitHubのjob schema](https://github.com/github/rest-api-description/blob/main/descriptions/api.github.com/api.github.com.2022-11-28.json)
+では省略可能な項目である（2026-11-12確認）。指定attemptのendpointから取得するため、
+jobの当該項目だけは省略を許容する。値があれば整数型と指定attemptとの一致を要求し、
+nullや異なる値は拒否する。元Runの最新attempt、jobのRun ID・source SHA、全件照合、
+`manual-prepare` の一意性と成功確認は引き続き必須とする。
+
 復号後はhandoffのRun/attempt/driver SHA、元planのSHA-256、30分期限を照合する。
 証拠の元バイトと絶対pathを維持し、固定toolingの `publish()` に承認値をそのまま渡す。
 fresh snapshot、prepared検証、feed workflow停止、fresh build・E2E、upload直前検査、
