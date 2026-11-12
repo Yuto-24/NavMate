@@ -464,7 +464,7 @@ def test_cli_has_no_publish_mode_and_errors_do_not_expose_inputs(tmp_path):
 def test_workflow_manual_prepare_is_disjoint_and_only_uploads_ciphertext():
     workflow = (Path(__file__).resolve().parents[2]
                 / ".github/workflows/static-app-release.yml").read_text()
-    manual = workflow.split("\n  manual-prepare:\n", 1)[1]
+    manual = workflow.split("\n  manual-prepare:\n", 1)[1].split("\n  manual-publish:\n", 1)[0]
     condition = " ".join(manual.split("    if: >-\n", 1)[1]
                          .split("\n    runs-on:", 1)[0].split())
     assert condition == (

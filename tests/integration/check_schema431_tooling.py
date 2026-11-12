@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "scripts/static_ops"))
 
 import schema431_bundle as bundle  # noqa: E402
 import schema431_prepare as driver  # noqa: E402
+import schema431_publish as publisher  # noqa: E402
 
 
 def check(root: Path) -> None:
@@ -23,6 +24,8 @@ def check(root: Path) -> None:
     assert Path(app.Operator.reviewed_schema.__code__.co_filename).resolve() == (
         root / "scripts/static_ops/app_release.py").resolve()
     assert Path(app.prepare.__code__.co_filename).resolve() == (
+        root / "scripts/static_ops/app_release.py").resolve()
+    assert Path(app.publish.__code__.co_filename).resolve() == (
         root / "scripts/static_ops/app_release.py").resolve()
     with tempfile.TemporaryDirectory(prefix="schema431-synthetic-") as name:
         temporary = Path(name)
@@ -73,6 +76,8 @@ def check(root: Path) -> None:
         receipt = operator.reviewed_schema(bundle.CANDIDATE, bundle.CURRENT, variables)
         assert receipt["sha256"] == bundle.RECORD_SHA256
         assert len(receipt["evidence"]) == 3
+        publication = publisher.publication_operator(app, root, {})
+        assert publication.reviewed_schema(bundle.CANDIDATE, bundle.CURRENT, variables) == receipt
         for change in ("candidate", "project", "missing-report", "report-hash", "report-identity"):
             candidate, config = bundle.CANDIDATE, dict(variables)
             report_path = bundle.EVIDENCE_ROOT / (bundle.ROLES[0] + ".json")

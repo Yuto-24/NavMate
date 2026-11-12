@@ -1,11 +1,16 @@
-# #431: GitHub Actions で v2.3.1 の手動 prepare を実行する
+# GitHub Actions で v2.3.1 のSchema移行を準備・公開する
 
 `static-app-release` の `operation=prepare-schema431` は、固定した Schema 4→5 移行を
 検証し、定期更新を一時停止して、既存の手動 `prepare` を実行する。
 成功時は plan と後工程に必要な成果物を暗号化して保存する。
 **publish は別途、正確な plan SHA-256 への承認を必要とする。この操作に公開機能はない。**
 
-この文書と実装の追加は、本番停止・prepare の実施記録ではない。
+承認後は別操作の `publish-schema431` で、元のprepare成果物を復元して固定toolingの
+`publish()` を実行できる。WSLにCloudflare/Googleの認証を追加する必要はない。
+prepareの前に、公開用driverのレビュー・merge、既存Pages token、鍵の保持、
+planを非公開で確認できる環境を揃える。plan取得後に公開経路を実装すると30分期限を失う。
+
+この文書と実装の追加は、本番停止・prepare・publishの実施記録ではない。
 実行前に、対象の操作窓と停止・prepare の承認を確認する。
 実行方式と固定条件は [Issue #431](https://github.com/Yuto-24/NavMate/issues/431)、
 移行の検証内容は [Schema 4→5 の記録](forecast_schema_transition.md) を正本とする。
@@ -14,10 +19,10 @@
 
 | 対象 | 条件 |
 | --- | --- |
-| 操作 | `workflow_dispatch`、`main`、`prepare-schema431`、空の `release_id` の組合せだけ |
+| 操作 | `workflow_dispatch`、`main`、空の `release_id`。prepareとpublishは別operation |
 | Google WIF | 既存の Repository/Owner ID、`environment:static-production`、`static-app-release.yml@refs/heads/main` の制限を維持。scope は `firebase.readonly` |
 | GitHub | 既存の `STATIC_APP_RELEASE_GH_TOKEN`。新しい権限は要求しない |
-| Cloudflare | 既存の `STATIC_CLOUDFLARE_READ_TOKEN`。Pages upload token は渡さない |
+| Cloudflare | prepareは既存の `STATIC_CLOUDFLARE_READ_TOKEN`、承認後のpublishは既存の `CLOUDFLARE_PAGES_TOKEN` |
 | current | `03cc463cf09192e1403f839df4165410c5db8d7b`（v2.2.2） |
 | candidate | `c717ac6baaa3d7556120d2a7f6c9435f165f132b`（v2.3.1） |
 | 移行tooling | `64225b82c9b2e978409f0b35490be3c83af3f157` の clean checkout |
@@ -155,12 +160,62 @@ python scripts/static_ops/schema431_bundle.py unpack \
 planのcandidate/current/tooling、設定・Rules/schema receipt、preparedの検証結果、
 plan SHA-256とsummaryの一致を人が確認する。
 承認対象は**確認したplanの正確な64桁SHA-256**。その値を後で再計算して自動承認したことにしない。
-このPRはpublish経路を追加しない。別途承認した後工程でも既存の認証・公開ゲートを満たす必要がある。
+publish用の入力には、その承認済みdigestと元のRun ID・attemptを指定する。
+PRのmergeやReleaseの作成だけでは、そのplanへの公開承認にならない。
 
 `within_plan_window=false`、30分超過、設定・Rules・source・tooling・証拠の変化、
 既存feed鮮度条件の失敗があれば、そのplanは公開に使えない。
 時刻を書き換えず、新しい操作窓でfresh preflightから新規prepare・レビューを行う。
 有効な元証拠のidentityまで変わった場合は転送の作り直しだけでは足りず、証拠の再審査が必要。
+
+## 4. 承認済みplanをActionsで公開する
+
+`static-app-release` の **Run workflow** で次を指定する。入力に非公開証拠や鍵を入れない。
+
+| 項目 | 指定値 |
+| --- | --- |
+| Branch | `main` |
+| `operation` | `publish-schema431` |
+| `release_id` | 空欄 |
+| `prepare_run_id` | 確認したprepareのRun ID |
+| `prepare_run_attempt` | そのprepareのattempt |
+| `reviewed_plan_sha256` | 人が確認し、公開を承認したplanの64桁SHA-256 |
+
+このjobだけが既存の `CLOUDFLARE_PAGES_TOKEN` を受け取る。
+GitHub token、WIFのRepository/Owner ID、workflow_ref、environment、
+`firebase.readonly` scope、共有concurrencyはprepareと同じ境界を維持する。
+`STATIC_SCHEMA431_ARCHIVE_KEY` はprepare時と同じ鍵が必要。公開・記録取得が済むまで削除しない。
+
+公開前に、元Runが同じRepositoryのmainで実行したprepareであること、指定attemptが最新かつ成功し、
+その `manual-prepare` jobも成功していることをAPIで照合する。
+対象名のArtifactが一意で有効なことを確かめ、外側ZIPから期待する暗号文1ファイルだけを取り出す。
+取得中に元Runが再実行された場合、復号やplanの照合に失敗した場合は公開しない。
+[GitHubのArtifact API](https://docs.github.com/en/rest/actions/artifacts)と
+[attempt別Jobs API](https://docs.github.com/en/rest/actions/workflow-jobs)を使い、
+欠落・重複・不完全な一覧を成功扱いしない。
+
+Jobs応答の `run_attempt` は[GitHubのjob schema](https://github.com/github/rest-api-description/blob/main/descriptions/api.github.com/api.github.com.2022-11-28.json)
+では省略可能な項目である（2026-11-12確認）。指定attemptのendpointから取得するため、
+jobの当該項目だけは省略を許容する。値があれば整数型と指定attemptとの一致を要求し、
+nullや異なる値は拒否する。元Runの最新attempt、jobのRun ID・source SHA、全件照合、
+`manual-prepare` の一意性と成功確認は引き続き必須とする。
+
+復号後はhandoffのRun/attempt/driver SHA、元planのSHA-256、30分期限を照合する。
+証拠の元バイトと絶対pathを維持し、固定toolingの `publish()` に承認値をそのまま渡す。
+fresh snapshot、prepared検証、feed workflow停止、fresh build・E2E、upload直前検査、
+canonical照合、承認SHA切替、workflow復帰は既存処理が行う。
+Rules/indexesの書換え、別候補への公開、automation=trueへの変更は許可しない。
+
+成功しても **automationはfalseのまま**。元planがfalseの状態で作られているためであり、
+公開後の本番受入と定期更新の再開判断は別工程になる。
+summaryの `PUBLISHED` とArtifact upload成功を確認し、
+`schema431-publish-<Run ID>-<attempt>` の暗号化記録を取得する。
+同じ `unpack` コマンドで、新規private storeへ復元できる。
+記録には元prepare成果物と `publish-status.json` が入り、fresh checkout・cache・生ログは含まれない。
+
+部分失敗をそのまま繰り返さないため、publish jobの **Re-runは拒否する**。
+失敗時は下記のremote stateを確認する。期限切れや状態の変化を、digestの再計算や時刻の編集で回避しない。
+公開後は同一originで既存Project・保存内容・同期などの受入を行い、確認後に再開を個別に承認する。
 
 ## 失敗時の状態と復旧
 
@@ -186,9 +241,11 @@ status自体を更新できない場合、summaryは途中の状態のまま残�
 canonical、Pages、Rules、設定を読み直す。currentと承認SHAの一致を確認してから、
 別途承認された再開か、新規prepareを選ぶ。
 既存の[失敗段階別の手順](static_operations.md#wsl-からのアプリ更新-prepare--publish)に従い、
-この経路からworkflow enable/disable、承認SHA変更、Rules書換え、Pages deployは行わない。
+prepareから公開操作へ自動で進めない。publishの失敗後も、自動rollbackや無条件の再開は行わない。
+publishのsummaryにはautomation/workflow/production/approved_shaの変更状態が出る。
+`UNKNOWN` は要求の結果を確定できていない状態であり、変更されていないことを意味しない。
 
-取得確認後、不要になった転送Secretを削除する。GitHub Secret自体に自動失効はなく、
+公開と必要な記録の取得確認後、不要になった転送Secretを削除する。GitHub Secret自体に自動失効はなく、
 24時間制限はdriverが検証する転送の期限である。
 
 ```sh
@@ -204,6 +261,8 @@ SecretやArtifactの削除は、既に取得したコピーや鍵を失効させ
 
 provider mockで停止前後の障害、自己Runと他Runの識別、欠落・改変証拠、容量、
 暗号文の認証失敗、privateな復旧記録、誤公開経路を検証する。
+publish側では取得元のRun/attempt/job、Artifactの一意性と外側ZIP、承認digest、期限、
+公開の各段階の失敗、再実行拒否、公開後もautomation=falseを維持することを確認する。
 CIでは実際の固定tooling checkoutと実Git sourceを使い、synthetic recordの転送後に
 その `reviewed_schema()` が受理し、不正identity・欠落・改変を拒否することを確認する。
 これは本番のprivate record、WIF、実build、Artifact保存の運用受入を代替しない。
