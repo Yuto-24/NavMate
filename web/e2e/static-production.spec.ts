@@ -17,7 +17,13 @@ test("production artifact shows storage limits and uses no Service Worker", asyn
   await enterImportWorkflow(page);
   await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
   await openInformation(page);
-  await expect(page.getByText(/容量不足による自動削除/)).toBeVisible();
+  const storage = page.getByRole("dialog", { name: "お知らせ", exact: true }).getByRole("region", {
+    name: process.env.VITE_DEV_SHARED_PROJECTS === "1" ? "端末内に保存" : "保存と同期",
+    exact: true,
+  });
+  const warning = storage.getByText(/データ削除.*容量不足.*プライベートブラウズ.*失われる/);
+  await expect(warning).toBeVisible();
+  await expect(warning).toContainText(/ブラウザに保存されます/);
   expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
   expect(api).toEqual([]);
   if (process.env.VITE_DEV_SHARED_PROJECTS === "1") {
