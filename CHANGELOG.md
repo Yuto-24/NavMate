@@ -2,6 +2,20 @@
 
 NavMate のRelease履歴です。公開日時はGitHub Releaseを正本とします。
 
+## 2.3.2
+
+### 利用者向け
+
+#### 変更
+- 機能・操作方法はv2.3.1と同じです。
+
+### 開発者向け
+
+- [PR #435 保存案内の静的公開E2E修正](https://github.com/Yuto-24/NavMate/pull/435)：現在の保存案内に合わせて検査し、通常CIでも同じ検査を実行します。
+- [PR #432 Actionsでの手動prepare](https://github.com/Yuto-24/NavMate/pull/432)、[PR #433 承認済みplanの手動公開](https://github.com/Yuto-24/NavMate/pull/433)、[PR #434 暗号化した失敗診断](https://github.com/Yuto-24/NavMate/pull/434)を含みます。既存の認証・公開ゲートを維持します。
+- [PR #428 変更影響に応じたCI選択](https://github.com/Yuto-24/NavMate/pull/428)、[PR #429 本番状態の読取照合](https://github.com/Yuto-24/NavMate/pull/429)、[PR #430 既存WIF認証への接続](https://github.com/Yuto-24/NavMate/pull/430)を含みます。
+- v2.3.1からアプリ本体、Project schema、保存・同期処理、Firestore Rules・indexes、依存関係に変更はありません。本番公開には、新候補に対する移行証拠の再審査と手動prepareが必要です。
+
 ## 2.3.1
 
 ### 利用者向け

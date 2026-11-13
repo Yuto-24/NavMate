@@ -32,6 +32,21 @@ Changes to required fields, definitions, enums, defaults or any other contract f
 Both clients retain IndexedDB version 2. This is **not** the version-1 writer fence in
 [the reference snapshot transition](schema_transition.md).
 
+## v2.3.2候補の再審査に使う差分確認
+
+2026-11-13、旧候補 `c717ac6baaa3d7556120d2a7f6c9435f165f132b` と
+[#435マージ後のmain](https://github.com/Yuto-24/NavMate/commit/753b6ea42b4444aefe9543e3ece276727dc71a33)を比較した。
+アプリ本体、保存・同期処理、schema、data、依存関係、Rules・indexesに差分はない。
+固定tooling `64225b82c9b2e978409f0b35490be3c83af3f157` の公開・build処理にも変更はない。
+v2.3.2の準備ではVERSIONと更新履歴が変わるため、成果物のbytesが同一とは扱わない。
+
+この確認は既存の互換性検証結果を再利用する際の根拠になるが、新候補の承認証拠そのものではない。
+最終候補SHAと成功したCIを確定後、同じ範囲の差分を再確認し、3件の元報告を根拠として
+新候補への適用を独立レビューする。元のrecord・報告は上書きせず、新しいidentityを持つ別記録を作る。
+新記録と3報告が実際の固定 `reviewed_schema()` に受理されてから元バイトhashを固定し、
+Actions側のcandidate、Release/tag、候補CI、証拠hash・pathをそのidentityに揃える。
+旧v2.3.1用readbackの `MATCH` は新候補の照合結果には使わず、prepare前の本番照合を行う。
+
 ## Accepted writer behavior
 
 On 2026-11-10 the Issue owner explicitly accepted the existing own-device Latest
