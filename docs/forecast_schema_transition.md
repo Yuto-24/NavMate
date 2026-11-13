@@ -47,6 +47,38 @@ v2.3.2の準備ではVERSIONと更新履歴が変わるため、成果物のbyte
 Actions側のcandidate、Release/tag、候補CI、証拠hash・pathをそのidentityに揃える。
 旧v2.3.1用readbackの `MATCH` は新候補の照合結果には使わず、prepare前の本番照合を行う。
 
+最終v2.3.2候補は `f1a5ef49eeab41744635232cddd51c2257871aed`。
+2026-11-13にAstraとSolがこのcommitを旧候補と再比較し、上記の等価性を確認した。
+再適用の対象は `old_to_new`、`old_writer_coexistence`、`storage_sync_roundtrip` の既存観測。
+新候補で実験を再実行したという意味ではなく、元報告にある限界と自端末Latest置換の了承範囲を引き継ぐ。
+
+`scripts/static_ops/schema431_reapply232.py` は、この一組だけを扱うWSL用helper。
+旧recordの固定hash、3報告のhashとidentity、全source差分、Release/tag、候補CIを確認する。
+公開設定は既存のGitHub認証でRepositoryと3 environmentの完全な一覧から読み取り、
+旧recordのdigestと固定validatorで照合する。取得した設定やprovider応答は表示しない。
+旧記録が固定toolingの `reviewed_schema()` に受理された後、新しい非公開ディレクトリへ別記録を作る。
+新報告には元報告の内容とraw hash、元identity、今回の適用レビューを残す。
+新しい4ファイルも同じvalidatorに受理された場合だけ、新recordのhashを表示する。
+
+helperはActions側のpinやSecretを変更しない。新hashの取得後にdriverの固定値を更新してレビューし、
+既存packで転送容量48,000バイトを検証する。旧転送が収まったことは、新報告の容量保証にはならない。
+実際の新記録の受理、driver更新、freshな本番照合、prepare/publishの完了は別途確認する。
+
+実行にはPython 3.12と固定toolingのPython依存、Git、既存の `gh` 認証が必要。
+Node.js、Docker、Cloudflare/Google認証は使わない。helperのレビュー済みcommitをcheckoutし、
+同じRepositoryの別worktreeをtooling `64225b82c9b2e978409f0b35490be3c83af3f157` に固定して渡す。
+tooling側でもv2.3.1/v2.3.2 tagと候補commitを参照できる必要がある。
+
+```sh
+# WSL。helperのcheckoutから、固定toolingのclean checkoutを指定する。
+python scripts/static_ops/schema431_reapply232.py --tooling "$reviewed_tooling"
+```
+
+出力先は `/home/yuto/autonavlog-releases/schema4-5-v2.3.2-20261113`（新規0700、4ファイル0600）。
+既存ディレクトリは上書きしない。成功時の `ACCEPTED` と `record_sha256` だけを共有し、
+元・新記録の内容や設定一覧をチャット／PRへ貼らない。`BLOCKED` の場合は表示されたstageを確認し、
+hash、identity、候補、toolingを変更して通過させない。
+
 ## Accepted writer behavior
 
 On 2026-11-10 the Issue owner explicitly accepted the existing own-device Latest

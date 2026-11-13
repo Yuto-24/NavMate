@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts/static_ops"))
 import schema431_bundle as bundle  # noqa: E402
 import schema431_prepare as driver  # noqa: E402
 import schema431_publish as publisher  # noqa: E402
+import schema431_reapply232 as reapply  # noqa: E402
 
 
 def check(root: Path) -> None:
@@ -78,6 +79,21 @@ def check(root: Path) -> None:
         assert len(receipt["evidence"]) == 3
         publication = publisher.publication_operator(app, root, {})
         assert publication.reviewed_schema(bundle.CANDIDATE, bundle.CURRENT, variables) == receipt
+        # Exercise the separate source-equivalence application with the actual
+        # fixed validator and real old/new Git objects, without provider calls.
+        reapply.PREVIOUS_ROOT = bundle.EVIDENCE_ROOT
+        reapply.DESTINATION = temporary / "reapplied-evidence"
+        reapply.PREVIOUS_RECORD_SHA256 = bundle.RECORD_SHA256
+        base_operator = app.Operator(root)
+        source_review = reapply.check_sources(base_operator)
+        original, reports = reapply.original_evidence()
+        before = {path.name: path.read_bytes() for path in bundle.EVIDENCE_ROOT.iterdir()}
+        reapplied_hash = reapply.write_reapplication(base_operator, variables, original,
+                                                     reports, source_review)
+        assert reapplied_hash == bundle.sha256(
+            (reapply.DESTINATION / bundle.RECORD_NAME).read_bytes())
+        assert before == {path.name: path.read_bytes()
+                          for path in bundle.EVIDENCE_ROOT.iterdir()}
         for change in ("candidate", "project", "missing-report", "report-hash", "report-identity"):
             candidate, config = bundle.CANDIDATE, dict(variables)
             report_path = bundle.EVIDENCE_ROOT / (bundle.ROLES[0] + ".json")
@@ -108,6 +124,7 @@ def check(root: Path) -> None:
             report_path.write_bytes(original_report)
     print(json.dumps({"status": "OK", "tooling_sha": bundle.TOOLING,
                       "synthetic_transport_and_pinned_validator": "PASS",
+                      "synthetic_reapplication_and_pinned_validator": "PASS",
                       "provider_operations": 0}))
 
 

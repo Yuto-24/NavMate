@@ -4,7 +4,7 @@ Read [the workflow](README.md) before adding or applying lessons. Search by the 
 
 ## Existing canonical sources
 - [Agent workflow](../agent_workflow.md)
-- [Forecast schema 4 → 5 transition](../forecast_schema_transition.md): Issue #423。旧版生成データ、旧タブとの共存、同一端末 Latest 置換の了承範囲、手動公開の証拠と制約。v2.3.2候補の再審査に使う差分確認と、元報告を再利用する際の条件。
+- [Forecast schema 4 → 5 transition](../forecast_schema_transition.md): Issue #423。旧版生成データ、旧タブとの共存、同一端末 Latest 置換の了承範囲、手動公開の証拠と制約。最終v2.3.2候補の差分確認と、元報告を保持して別記録へ再適用する条件・WSL helper。
 - [Existing evidence](../evidence/)
 - [App publication audit](../app_publication_audit.md): prepare/publish重複、排他、部分失敗、診断境界。2026-11-08のコード・実行証拠に基づく判断と未実装の後続案。
 - [Schema #431 Actions prepare/publish](../schema431_actions_prepare.md): 固定toolingを維持した証拠転送、自己Runの識別、planへの個別承認と暗号化記録。30分期限内に公開へ進めるよう、公開経路を先に準備する。2026-11-13に確認した診断欠落、保存案内テストの文言不一致と、修正後も固定候補の再審査が必要な理由。実運用は別途承認・受入が必要。
