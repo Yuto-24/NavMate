@@ -151,8 +151,8 @@ def test_source_review_rejects_unreviewed_difference(difference):
         reapply.check_sources(SimpleNamespace(git=git))
 
 
-@pytest.fixture
-def tagged_sources(tmp_path, monkeypatch):
+@pytest.fixture(params=("lightweight", "annotated"))
+def tagged_sources(tmp_path, monkeypatch, request):
     root = tmp_path / "checkout"
     root.mkdir()
     operator = app.Operator(root)
@@ -163,7 +163,8 @@ def tagged_sources(tmp_path, monkeypatch):
         (root / "VERSION").write_text(version + "\n")
         operator.git("add", "VERSION")
         operator.git("commit", "--quiet", "-m", version)
-        operator.git("tag", "v" + version)
+        annotation = ("-a", "-m", version) if request.param == "annotated" else ()
+        operator.git("tag", *annotation, "v" + version)
         monkeypatch.setattr(reapply, pin, operator.git("rev-parse", "HEAD"))
     (root / "tooling-fixture").touch()
     operator.git("add", "tooling-fixture")

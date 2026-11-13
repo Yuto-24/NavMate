@@ -184,11 +184,14 @@ the record's tooling identity and does not resume automation after publication.
 1. Copy [the failing template](forecast_schema_transition.example.json) outside the
    checkout only if new evidence is needed. For v2.3.2, use the accepted separate
    `SCHEMA_RECORD` pinned to current v2.2.2 and candidate v2.3.2; verify those two
-   identities against the fresh prepare snapshot. Keep historical records unchanged.
-   Supply the reviewed, clean tooling SHA, verified Firebase project and the digest of
+   identities against the fresh prepare snapshot. Keep all four accepted files and
+   historical records unchanged; skip the report creation and hash-setting in step 2.
+   Only when new evidence is needed, supply the reviewed, clean tooling SHA, verified
+   Firebase project and the digest of
    the complete `app_release.public_configuration(variables)` inventory. Do not copy
    credentials or publish a private configuration inventory in the PR.
-2. Retain the validation artifacts and independent review of the exact candidate,
+2. **Only when new evidence is needed**, retain the validation artifacts and independent
+   review of the exact candidate,
    current application and tooling. For each check, create a JSON evidence report:
    `identity` is an exact copy of **all** transition-record fields except `checks`;
    `check` is the check name; `result`, `reviewed_by`, and `summary` exactly match that
