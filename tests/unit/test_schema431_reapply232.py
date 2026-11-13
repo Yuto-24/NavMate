@@ -125,9 +125,12 @@ def test_expanded_report_limit_is_checked_before_writing(evidence, monkeypatch):
     assert not reapply.DESTINATION.exists()
 
 
-@pytest.mark.parametrize("difference", ["runtime", "version", "tag", "tooling"])
+@pytest.mark.parametrize("difference", ["runtime", "version", "tooling"])
 def test_source_review_rejects_unreviewed_difference(difference):
+    fetched = None
+
     def git(*args):
+        nonlocal fetched
         if args == ("rev-parse", "HEAD"):
             return "0" * 40 if difference == "tooling" else reapply.TOOLING
         if args[0] == "diff":
@@ -136,13 +139,66 @@ def test_source_review_rejects_unreviewed_difference(difference):
         if args[0] == "show":
             return "0.0.0" if difference == "version" else (
                 "2.3.1" if args[1].startswith(reapply.PREVIOUS) else "2.3.2")
-        if args[1].startswith("v"):
-            return "0" * 40 if difference == "tag" else (
-                reapply.PREVIOUS if args[1].startswith("v2.3.1") else reapply.CANDIDATE)
+        if args[0] == "fetch":
+            fetched = reapply.PREVIOUS if args[2].endswith("v2.3.1") else reapply.CANDIDATE
+            return ""
+        if args == ("rev-parse", "FETCH_HEAD^{commit}"):
+            assert fetched is not None
+            return fetched
         return "tree"
 
     with pytest.raises(bundle.InvalidBundle):
         reapply.check_sources(SimpleNamespace(git=git))
+
+
+@pytest.fixture
+def tagged_sources(tmp_path, monkeypatch):
+    root = tmp_path / "checkout"
+    root.mkdir()
+    operator = app.Operator(root)
+    operator.git("init", "--quiet")
+    operator.git("config", "user.name", "schema431 test")
+    operator.git("config", "user.email", "schema431@example.test")
+    for version, pin in (("2.3.1", "PREVIOUS"), ("2.3.2", "CANDIDATE")):
+        (root / "VERSION").write_text(version + "\n")
+        operator.git("add", "VERSION")
+        operator.git("commit", "--quiet", "-m", version)
+        operator.git("tag", "v" + version)
+        monkeypatch.setattr(reapply, pin, operator.git("rev-parse", "HEAD"))
+    (root / "tooling-fixture").touch()
+    operator.git("add", "tooling-fixture")
+    operator.git("commit", "--quiet", "-m", "tooling")
+    monkeypatch.setattr(reapply, "TOOLING", operator.git("rev-parse", "HEAD"))
+    monkeypatch.setattr(reapply, "CHANGED_PATHS", ("VERSION",))
+    origin = tmp_path / "origin.git"
+    operator.git("clone", "--bare", "--quiet", str(root), str(origin))
+    operator.git("remote", "add", "origin", str(origin))
+    return operator, app.Operator(origin)
+
+
+def test_source_review_accepts_matching_remote_tags(tagged_sources):
+    operator, _ = tagged_sources
+    reviewed = reapply.check_sources(operator)
+    assert reviewed["previous_sha"] == reapply.PREVIOUS
+    assert reviewed["candidate_sha"] == reapply.CANDIDATE
+    assert reviewed["changed_paths"] == ["VERSION"]
+
+
+@pytest.mark.parametrize("tag,pin", [("v2.3.1", "PREVIOUS"), ("v2.3.2", "CANDIDATE")])
+def test_stale_matching_local_tag_cannot_hide_changed_remote(tagged_sources, tag, pin):
+    operator, origin = tagged_sources
+    origin.git("update-ref", "refs/tags/" + tag, reapply.TOOLING)
+    assert operator.git("rev-parse", tag + "^{commit}") == getattr(reapply, pin)
+    with pytest.raises(bundle.InvalidBundle, match="release-source-identity"):
+        reapply.check_sources(operator)
+
+
+def test_failed_remote_fetch_does_not_fall_back_to_local_tag(tagged_sources):
+    operator, origin = tagged_sources
+    origin.git("update-ref", "-d", "refs/tags/v2.3.2")
+    assert operator.git("rev-parse", "v2.3.2^{commit}") == reapply.CANDIDATE
+    with pytest.raises(app.Blocked):
+        reapply.check_sources(operator)
 
 
 @pytest.mark.parametrize("field,value", [("head_sha", reapply.PREVIOUS),

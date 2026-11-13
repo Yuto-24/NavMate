@@ -235,7 +235,8 @@ def test_transport_failures_before_any_provider_work(transport, change, monkeypa
 
 
 @pytest.mark.parametrize("path", ["../outside.json", "/tmp/outside.json",
-                                  "SCHEMA_RECORD.json", "a/../b.json", "a\\b.json"])
+    "/home/yuto/autonavlog-releases/schema4-5-v2.3.1-20261111/old_to_new.json",
+    "SCHEMA_RECORD.json", "a/../b.json", "a\\b.json"])
 def test_evidence_cannot_escape_known_directory(transport, path):
     _, _, _, _, files = transport
     record = json.loads(files[bundle.RECORD_NAME])
@@ -258,10 +259,11 @@ def simulated(tmp_path, monkeypatch, context):
     op = driver.manual_operator(app, tmp_path, env)
     state = {"automation": "true", "fail": None, "calls": [], "snapshots": 0}
     def gh(self, endpoint, method="GET", body=None):
-        if endpoint == "releases/tags/v2.3.1":
-            return {"tag_name": "v2.3.1", "draft": False, "prerelease": False,
-                    "published_at": "2026-11-10T00:00:00Z"}
+        if endpoint == "releases/tags/v2.3.2":
+            return {"tag_name": "v2.3.2", "draft": False, "prerelease": False,
+                    "published_at": "2026-11-13T07:09:12Z"}
         if endpoint.startswith("actions/runs/"):
+            assert endpoint == "actions/runs/43383649255"
             return {"head_sha": bundle.CANDIDATE, "status": "completed", "conclusion": "success",
                     "path": ".github/workflows/test.yml", "repository": {"id": driver.REPO_ID}}
         assert endpoint == "actions/variables/STATIC_AUTOMATION_ENABLED"
@@ -279,8 +281,8 @@ def simulated(tmp_path, monkeypatch, context):
         if args == ("rev-parse", "FETCH_HEAD^{commit}"):
             return "f" * 40 if state["fail"] == "candidate" else bundle.CANDIDATE
         if args[0] == "show":
-            return "2.3.1"
-        assert args[0] == "fetch"
+            return "2.3.2"
+        assert args == ("fetch", "origin", "refs/tags/v2.3.2")
         return ""
     def compatibility(self, *args):
         state["calls"].append("reviewed-schema-and-live-rules")
@@ -631,10 +633,26 @@ def test_finalization_faults_preserve_output_and_cleanup(
     assert ordinary_file.stat().st_mode & 0o777 == 0o644
 
 
-def test_original_record_hash_and_tooling_cannot_be_overridden_by_cli():
+def test_release_identity_and_record_hash_are_pinned():
+    assert bundle.CURRENT == "03cc463cf09192e1403f839df4165410c5db8d7b"
+    assert bundle.CANDIDATE == "f1a5ef49eeab41744635232cddd51c2257871aed"
+    assert driver.CANDIDATE_CI == 43383649255
     assert bundle.RECORD_SHA256 == (
-        "d384f6619038a2b55a30abf6b08ecd88d9d7aede5292963414fd52d433f9be4d")
+        "c8db8b709497e4071d937fba768c89e48c0d7712f0a4a87bfe88f661d72889ba")
+    assert bundle.EVIDENCE_ROOT == Path(
+        "/home/yuto/autonavlog-releases/schema4-5-v2.3.2-20261113")
     assert bundle.TOOLING == "64225b82c9b2e978409f0b35490be3c83af3f157"
+
+
+def test_previous_candidate_identity_is_rejected_even_with_matching_hash(transport, monkeypatch):
+    _, _, _, _, files = transport
+    record = json.loads(files[bundle.RECORD_NAME])
+    record["sha"] = "c717ac6baaa3d7556120d2a7f6c9435f165f132b"
+    raw = json.dumps(record).encode()
+    monkeypatch.setattr(bundle, "RECORD_SHA256", bundle.sha256(raw))
+    reports = {role: files[role + ".json"] for role in bundle.ROLES}
+    with pytest.raises(bundle.InvalidBundle, match="record-identity"):
+        bundle.evidence_files(raw, reports)
 
 
 def test_root_owned_build_cleanup_preserves_a_fixed_scope(tmp_path, monkeypatch):

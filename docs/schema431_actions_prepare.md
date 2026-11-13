@@ -1,4 +1,4 @@
-# GitHub Actions で v2.3.1 のSchema移行を準備・公開する
+# GitHub Actions で v2.3.2 のSchema移行を準備・公開する
 
 `static-app-release` の `operation=prepare-schema431` は、固定した Schema 4→5 移行を
 検証し、定期更新を一時停止して、既存の手動 `prepare` を実行する。
@@ -14,6 +14,9 @@ planを非公開で確認できる環境を揃える。plan取得後に公開経
 実行前に、対象の操作窓と停止・prepare の承認を確認する。
 実行方式と固定条件は [Issue #431](https://github.com/Yuto-24/NavMate/issues/431)、
 移行の検証内容は [Schema 4→5 の記録](forecast_schema_transition.md) を正本とする。
+当初の#431はv2.3.1が対象だったが、保存案内テストの修正を含むv2.3.2へ候補を進めた。
+以下は[#437の再審査](https://github.com/Yuto-24/NavMate/pull/437)で受理された別記録の固定値。
+旧v2.3.1の記録・Artifact・readback結果を、新候補の証拠としてそのまま使わない。
 
 ## 維持する境界
 
@@ -24,9 +27,9 @@ planを非公開で確認できる環境を揃える。plan取得後に公開経
 | GitHub | 既存の `STATIC_APP_RELEASE_GH_TOKEN`。新しい権限は要求しない |
 | Cloudflare | prepareは既存の `STATIC_CLOUDFLARE_READ_TOKEN`、承認後のpublishは既存の `CLOUDFLARE_PAGES_TOKEN` |
 | current | `03cc463cf09192e1403f839df4165410c5db8d7b`（v2.2.2） |
-| candidate | `c717ac6baaa3d7556120d2a7f6c9435f165f132b`（v2.3.1） |
+| candidate | `f1a5ef49eeab41744635232cddd51c2257871aed`（v2.3.2） |
 | 移行tooling | `64225b82c9b2e978409f0b35490be3c83af3f157` の clean checkout |
-| `SCHEMA_RECORD` の元バイトSHA-256 | `d384f6619038a2b55a30abf6b08ecd88d9d7aede5292963414fd52d433f9be4d` |
+| `SCHEMA_RECORD` の元バイトSHA-256 | `c8db8b709497e4071d937fba768c89e48c0d7712f0a4a87bfe88f661d72889ba` |
 
 main 上のdriverは、別checkoutの固定toolingをimportして使う。
 `reviewed_schema()`、互換性検査、snapshot、隔離build・E2E、plan生成は固定toolingの実装を使い、
@@ -37,17 +40,19 @@ main 上のdriverは、別checkoutの固定toolingをimportして使う。
 
 WSLにある次のファイルを使う。記録の再作成や整形はしない。
 
-- `/home/yuto/autonavlog-releases/schema4-5-v2.3.1-20261111/SCHEMA_RECORD.json`
+- `/home/yuto/autonavlog-releases/schema4-5-v2.3.2-20261113/SCHEMA_RECORD.json`
 - その記録が参照する `old_to_new`、`old_writer_coexistence`、`storage_sync_roundtrip` の3報告
 
 このPRを含むレビュー済みcheckoutから、既存のPython環境で実行する。
 packはPython標準ライブラリだけを使い、Node.jsやCloudflare/Google認証は不要。
+受理済みの新4ファイルを使い、reapply helperは再実行しない。
+旧転送のSecretは新pinでは通らないため、新しくpackした組で2つとも更新する。
 
 ```sh
 umask 077
 transfer_dir="/home/yuto/autonavlog-releases/schema431-transfer-$(date -u +%Y%m%dT%H%M%SZ)"
 python scripts/static_ops/schema431_bundle.py pack \
-  --schema-record /home/yuto/autonavlog-releases/schema4-5-v2.3.1-20261111/SCHEMA_RECORD.json \
+  --schema-record /home/yuto/autonavlog-releases/schema4-5-v2.3.2-20261113/SCHEMA_RECORD.json \
   --output "$transfer_dir"
 ```
 
@@ -111,7 +116,7 @@ running/queued/waiting等、重複、一覧欠落・変化は拒否する。別R
 
 1. Secret、鍵の組合せと期限、元証拠、固定tooling、runner条件を検証する。
    受け取ったSecretと鍵はprovider/producerの子プロセスへ引き継がない。
-2. 固定v2.3.1のRelease/tag/VERSIONと、既存の[候補CI](https://github.com/Yuto-24/NavMate/actions/runs/42821632575)
+2. 固定v2.3.2のRelease/tag/VERSIONと、既存の[候補CI](https://github.com/Yuto-24/NavMate/actions/runs/43383649255)
    の成功を再確認する。canonical/approved/config、environmentのshadowing、Pages全inventory、
    稼働Rules、workflowのactive/idle、現在のautomationを読み取る。
    3報告を含む元証拠を固定toolingの `reviewed_schema()` で実際に受理できることも必須。
@@ -141,6 +146,8 @@ Actionsのsummaryには処理段階、停止状態、暗号化保存とuploadの
 保存・失効の挙動は[GitHub公式のArtifact仕様](https://docs.github.com/en/actions/tutorials/store-and-share-data)に従う。
 
 WSLで、pack時に保持した `archive.key` と同じ鍵を使う。
+旧v2.3.1のArtifactを調べる場合は、その実行の旧driverと旧鍵を使う。
+新driverの固定値や新しい鍵で旧記録を読み替えない。
 復号には既存の `PyJWT[crypto]` 依存関係に含まれる `cryptography` を使う。
 [AESGCM](https://cryptography.io/en/latest/hazmat/primitives/aead/#cryptography.hazmat.primitives.ciphers.aead.AESGCM)
 の認証に失敗した暗号文は展開しない。

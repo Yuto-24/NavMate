@@ -72,7 +72,8 @@ def check_sources(operator) -> dict:
     bundle.require(changed == sorted(CHANGED_PATHS), "unreviewed-source-difference")
     for tag, sha, version in (("v2.3.1", PREVIOUS, "2.3.1"),
                               ("v2.3.2", CANDIDATE, "2.3.2")):
-        bundle.require(operator.git("rev-parse", f"{tag}^{{commit}}") == sha
+        operator.git("fetch", "origin", f"refs/tags/{tag}")
+        bundle.require(operator.git("rev-parse", "FETCH_HEAD^{commit}") == sha
                        and operator.git("show", sha + ":VERSION") == version,
                        "release-source-identity")
     return {

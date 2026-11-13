@@ -11,7 +11,8 @@ cannot be combined with a Rules transition.
 | --- | --- |
 | Current v2.2.2 | `03cc463cf09192e1403f839df4165410c5db8d7b` |
 | Historical candidate v2.3.0 | `1a4cc915d1a871d9044942078d00aea90e37d340` |
-| Current readback candidate v2.3.1 | `c717ac6baaa3d7556120d2a7f6c9435f165f132b` |
+| Historical readback candidate v2.3.1 | `c717ac6baaa3d7556120d2a7f6c9435f165f132b` |
+| Current prepare candidate v2.3.2 | `f1a5ef49eeab41744635232cddd51c2257871aed` |
 | Before Project schema blob | `b3bdd7e593eb9a7c6257994762934c35cfdda430` |
 | After Project schema blob | `d19086279b8f903d0c6209ab9e5065974af5d294` |
 | Candidate Local repository blob | `5b6178c23ed9788f08b465d9003088e4ad9e2978` |
@@ -20,7 +21,7 @@ cannot be combined with a Rules transition.
 [Automatic publication run 42778669318](https://github.com/Yuto-24/NavMate/actions/runs/42778669318/job/129703114029)
 selected the historical v2.2.2 → v2.3.0 identities and stopped at the compatibility
 gate on 2026-11-10. They are historical publication evidence, not evidence of the
-current v2.3.1 candidate or a fresh production observation. A direct
+current v2.3.2 candidate or a fresh production observation. A direct
 canonical `release.json` read from the implementation environment returned HTTP 403;
 current canonical/approved alignment, Pages inventory, live Rules and complete public
 configuration must be refreshed with existing authorized access before prepare.
@@ -54,23 +55,36 @@ Actions側のcandidate、Release/tag、候補CI、証拠hash・pathをそのiden
 
 `scripts/static_ops/schema431_reapply232.py` は、この一組だけを扱うWSL用helper。
 旧recordの固定hash、3報告のhashとidentity、全source差分、Release/tag、候補CIを確認する。
+各tagをoriginからfetchし、その直後の `FETCH_HEAD^{commit}` と固定SHAを比較する。
+ローカルのtagだけでは、remote tagが変わった場合に検出できないため。
 公開設定は既存のGitHub認証でRepositoryと3 environmentの完全な一覧から読み取り、
 旧recordのdigestと固定validatorで照合する。取得した設定やprovider応答は表示しない。
 旧記録が固定toolingの `reviewed_schema()` に受理された後、新しい非公開ディレクトリへ別記録を作る。
 新報告には元報告の内容とraw hash、元identity、今回の適用レビューを残す。
 新しい4ファイルも同じvalidatorに受理された場合だけ、新recordのhashを表示する。
 
-helperはActions側のpinやSecretを変更しない。新hashの取得後にdriverの固定値を更新してレビューし、
-既存packで転送容量48,000バイトを検証する。旧転送が収まったことは、新報告の容量保証にはならない。
-実際の新記録の受理、driver更新、freshな本番照合、prepare/publishの完了は別途確認する。
+2026-11-13、利用者のWSLでレビュー済みhelper `65711d8998c70a463d347a5865ceae661fdc924d` を実行し、
+`ACCEPTED` と新recordのhashが返ったとの報告を受領した。実行前に両tagをoriginから明示fetchしており、
+その後のremote照合でも上記SHAと一致した。新hashは[Actions側の固定値](schema431_actions_prepare.md#維持する境界)へ反映する。
+受理済みの新記録は再生成・上書きしない。この実装環境ではprivateな4ファイル自体は読んでいない。
+
+候補CI [43383649255](https://github.com/Yuto-24/NavMate/actions/runs/43383649255) はattempt 2で成功した。
+初回の2件のWebKit失敗は、対象動作の前の起動・入力準備で発生していた。根本原因の解決までは
+確認できておらず、同一候補の再実行が成功したという観測にとどめる。
+[失敗位置と再実行の根拠](https://github.com/Yuto-24/NavMate/pull/437#issuecomment-6847188359)を参照。
+
+helperはActions側のpinやSecretを変更しない。新記録は更新後のpackで元バイトhash・identityと
+転送容量48,000バイトを確認する。旧転送が収まったことは、新報告の容量保証にはならない。
+freshな本番照合、隔離build・static E2E、prepare/publishとその承認は後続工程に残る。
 
 実行にはPython 3.12と固定toolingのPython依存、Git、既存の `gh` 認証が必要。
 Node.js、Docker、Cloudflare/Google認証は使わない。helperのレビュー済みcommitをcheckoutし、
 同じRepositoryの別worktreeをtooling `64225b82c9b2e978409f0b35490be3c83af3f157` に固定して渡す。
-tooling側でもv2.3.1/v2.3.2 tagと候補commitを参照できる必要がある。
+tooling側で両候補commitを参照でき、originのv2.3.1/v2.3.2 tagをfetchできる必要がある。
 
 ```sh
-# WSL。helperのcheckoutから、固定toolingのclean checkoutを指定する。
+# WSL。未作成の場合だけ実行する。受理済みの新記録がある場合はpackへ進む。
+# helperのcheckoutから、固定toolingのclean checkoutを指定する。
 python scripts/static_ops/schema431_reapply232.py --tooling "$reviewed_tooling"
 ```
 
@@ -149,16 +163,18 @@ The readback checks the fixed **v2.3.1 candidate** (`c717ac6baaa3d7556120d2a7f6c
 against live canonical, Pages inventory and Rules. It does not validate the historical
 v2.3.0 candidate identity. For v2.3.0, use the previously recorded release/tag,
 source/blob identities and tests above; do not infer a v2.3.0 PASS from v2.3.1 readback.
-For the intended v2.3.1 transition, confirm the readback candidate SHA against the
-v2.3.1 Release/tag and the separately reviewed private `SCHEMA_RECORD` identity.
+It also does not validate the new v2.3.2 candidate. The v2.3.2 Actions prepare path
+checks its own pinned Release/tag, CI and new private record, then performs a fresh
+production snapshot before any pause or build. Do not use the old readback's `MATCH`
+as that candidate's observation.
 The observation is neither a schema-record re-review nor authorization to stop
 schedules, prepare or publish. Recheck production immediately before any separately
 approved manual operation.
 
 ## Private evidence and operation window
 
-For the fixed v2.3.1 transition in #431, the
-[Actions prepare/publish procedure](schema431_actions_prepare.md) transfers the existing
+For the fixed v2.3.2 transition following #431, the
+[Actions prepare/publish procedure](schema431_actions_prepare.md) transfers the newly reviewed
 record and three reports through private environment secrets, runs this exact reviewed
 tooling under the existing WIF workflow, and retains only an encrypted plan/result.
 The separate `publish-schema431` operation restores that exact prepare artifact and
@@ -166,9 +182,9 @@ calls the same fixed tooling after explicit approval of its plan digest. It pres
 the record's tooling identity and does not resume automation after publication.
 
 1. Copy [the failing template](forecast_schema_transition.example.json) outside the
-   checkout only if new evidence is needed. For v2.3.1, use the reviewed private
-   `SCHEMA_RECORD` pinned to current v2.2.2 and candidate v2.3.1; verify those two
-   identities against fresh readback. Do not substitute the historical v2.3.0 candidate.
+   checkout only if new evidence is needed. For v2.3.2, use the accepted separate
+   `SCHEMA_RECORD` pinned to current v2.2.2 and candidate v2.3.2; verify those two
+   identities against the fresh prepare snapshot. Keep historical records unchanged.
    Supply the reviewed, clean tooling SHA, verified Firebase project and the digest of
    the complete `app_release.public_configuration(variables)` inventory. Do not copy
    credentials or publish a private configuration inventory in the PR.
@@ -191,7 +207,7 @@ the record's tooling identity and does not resume automation after publication.
 
 ```sh
 scripts/static_ops/app_release.sh prepare \
-  --sha c717ac6baaa3d7556120d2a7f6c9435f165f132b \
+  --sha f1a5ef49eeab41744635232cddd51c2257871aed \
   --current-sha 03cc463cf09192e1403f839df4165410c5db8d7b \
   --store "$STORE" --schema-transition "$SCHEMA_RECORD"
 ```

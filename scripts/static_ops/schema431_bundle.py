@@ -22,10 +22,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 
 CURRENT = "03cc463cf09192e1403f839df4165410c5db8d7b"
-CANDIDATE = "c717ac6baaa3d7556120d2a7f6c9435f165f132b"
+CANDIDATE = "f1a5ef49eeab41744635232cddd51c2257871aed"
 TOOLING = "64225b82c9b2e978409f0b35490be3c83af3f157"
-RECORD_SHA256 = "d384f6619038a2b55a30abf6b08ecd88d9d7aede5292963414fd52d433f9be4d"
-EVIDENCE_ROOT = Path("/home/yuto/autonavlog-releases/schema4-5-v2.3.1-20261111")
+RECORD_SHA256 = "c8db8b709497e4071d937fba768c89e48c0d7712f0a4a87bfe88f661d72889ba"
+EVIDENCE_ROOT = Path("/home/yuto/autonavlog-releases/schema4-5-v2.3.2-20261113")
 RECORD_NAME = "SCHEMA_RECORD.json"
 ROLES = ("old_to_new", "old_writer_coexistence", "storage_sync_roundtrip")
 MAX_SECRET = 48_000  # Below GitHub's 48 KiB per-secret limit, including encoding.
