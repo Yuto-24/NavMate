@@ -138,6 +138,13 @@ running/queued/waiting等、重複、一覧欠落・変化は拒否する。別R
 公開設定をfalseと偽って読み替える処理ではない。
 実prepareでは、固定toolingが要求する `STATIC_AUTOMATION_ENABLED=false` をそのまま検証する。
 
+build呼出し中だけumaskを022にする。固定toolingが作るbuild先の親は、runner所有で
+group/otherの権限を持たない実ディレクトリであることを先に確認する。
+private storeとbuild先自体は、既存どおり0700で作る。
+これにより、Docker内のrootがコピーした公開用assetをrunnerが読み取れる。
+固定toolingのbuild・E2E・成果物検査はそのまま実行し、成功・例外のどちらでも元のumaskへ戻す。
+publishのfresh buildも同じ処理を継承する。証拠・鍵・journal・plan・暗号文の非公開保存は維持する。
+
 ## 3. planを非公開で確認する
 
 Actionsのsummaryには処理段階、停止状態、暗号化保存とuploadの結果、成功時のplan SHA-256だけが出る。
@@ -326,3 +333,23 @@ build後のsnapshot照合を含むため、この段階名だけでE2E失敗と�
 この修正は固定候補 `c717ac6b` には入らないため、mainの更新後に同じprepareを再実行しても解決しない。
 候補内のテストを実行時に書き換えたり省略したりせず、新候補の決定と移行証拠の再審査を先に行う。
 旧tagや元証拠のidentityを書き換えて修正を取り込まない。
+
+### 2026-11-13に確認したcheckoutとDockerコピーの権限不整合
+
+[Run 43444033782](https://github.com/Yuto-24/NavMate/actions/runs/43444033782)は、
+隔離build・テストコマンドの終了後、`seal_build()`から呼ぶ`check_static()`の
+`Path.read_bytes()`で`PermissionError`になった。暗号化記録の保存・cleanupは成功したが、
+planは生成されなかった。診断には対象ファイル名がないため、その実行で最初に失敗した
+ファイル自体は未特定である。
+
+再現では、driverのumask 077を継承したGit checkoutが`web/static/404.html`と`_headers`を
+0600で作り、候補の`build-static.mjs`にあるNodeの`copyFileSync()`もそのmodeを保持した。
+Docker内ではコピー先の所有者がrootになるため、ホストのrunnerは読めない。
+既存のhandoffはfreshnessの追記に必要なファイル・ディレクトリだけ所有者を変更する。
+従来のDocker回帰テストは最初から0644のassetを生成しており、checkout由来の0600を検出できなかった。
+
+対処は、privateな親ディレクトリを確認したうえで、固定buildを呼ぶ間だけumaskを022にすること。
+候補・tooling・移行証拠のidentity、buildと検証の内容は変更しない。
+回帰テストでは実Git checkoutと候補のコピー処理を使い、従来条件での読取失敗と、
+prepare・publish両adapterでの非root読取・成果物検証を確認する。
+これは固定toolingの全文置換や、検証前の再帰的なchmod/chownを許可する一般ルールではない。

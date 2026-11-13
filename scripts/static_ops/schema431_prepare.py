@@ -158,6 +158,19 @@ def manual_operator(app, root: Path, env: dict):
                         == bundle.RECORD_SHA256, "Original schema record changed")
             return super().reviewed_schema(sha, current, variables)
 
+        def build(self, sha, snapshot, destination):
+            # Git checkout modes survive the container's static asset copies.
+            # Keep the parent private while allowing the nonroot host to read
+            # root-owned outputs from the unchanged reviewed build and tests.
+            info = destination.parent.lstat()
+            app.require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
+                        and info.st_mode & 0o077 == 0, "Private build parent required")
+            previous_umask = os.umask(0o022)
+            try:
+                return super().build(sha, snapshot, destination)
+            finally:
+                os.umask(previous_umask)
+
         def snapshot(self, sha, current, *, paused=False):
             app.require(sha == bundle.CANDIDATE and current == bundle.CURRENT
                         and self.git("rev-parse", "HEAD") == bundle.TOOLING and not paused,

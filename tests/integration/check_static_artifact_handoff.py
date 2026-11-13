@@ -10,18 +10,25 @@ import tempfile
 from datetime import UTC, datetime, timedelta
 from itertools import product
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from scripts.static_ops import freshness, publication_gate  # noqa: E402
+from scripts.static_ops import (  # noqa: E402
+    freshness,
+    publication_gate,
+    schema431_bundle,
+    schema431_prepare,
+    schema431_publish,
+)
 
 
 def record(raw):
     return {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
 
 
-def seed(dist, existing_hint):
+def seed(dist, existing_hint, copy_static=False):
     """Create realistic 0755/0644 build outputs as Docker's default root user."""
     assert os.geteuid() == 0
     os.umask(0o022)
@@ -47,6 +54,13 @@ def seed(dist, existing_hint):
         path = dist / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(raw)
+    if copy_static:
+        # Run the candidate build's actual mode-preserving copies as container root.
+        copies = [line for line in (ROOT / "web/scripts/build-static.mjs").read_text().splitlines()
+                  if line.startswith('copyFileSync("static/')]
+        assert len(copies) == 2
+        subprocess.run(["node", "-e", "const {copyFileSync}=require('node:fs');\n"
+                        + "\n".join(copies)], cwd=dist.parent, check=True)
     (dist / "release.json").write_text(json.dumps({
         "commit": "a" * 40, "dirty": False, "version": "1.0.0", "pyodideVersion": "0.27.7",
         "files": {name: record(raw) for name, raw in files.items()},
@@ -130,8 +144,99 @@ def check_handoff(image):
                                 "import shutil; shutil.rmtree('/app/web')"], check=True)
 
 
+def check_schema431_checkout(image):
+    """Reproduce private checkout -> root copy -> nonroot validation, with no providers."""
+    assert os.geteuid() != 0, "The host-side permission check requires a nonroot runner"
+    reviewed = ROOT.parent / "reviewed-schema431"
+    assert subprocess.check_output(["git", "-C", str(reviewed), "rev-parse", "HEAD"],
+                                   text=True).strip() == schema431_bundle.TOOLING
+    script = (reviewed / "scripts/static_ops/build_app_release.sh").read_text()
+    handoff = script[script.index("# Only the hint directory/inventory"):]
+
+    class CheckoutBuild:
+        def __init__(self, root, **kwargs):
+            self.root = root
+
+        def build(self, sha, expected, destination):
+            destination.mkdir(mode=0o700)
+            app = destination / "app"
+            subprocess.run(["git", "clone", "--quiet", "--no-hardlinks", "--no-checkout",
+                            str(self.root), str(app)], check=True)
+            subprocess.run(["git", "checkout", "--quiet", "--detach", "HEAD"],
+                           cwd=app, check=True)
+            mounts = ["--mount", f"type=bind,source={app},target=/app",
+                      "--mount", f"type=bind,source={ROOT},target=/tooling,readonly"]
+            subprocess.run(["docker", "run", "--rm", *mounts, image, "python",
+                            "/tooling/tests/integration/check_static_artifact_handoff.py",
+                            "--seed", "0", "1"], check=True)
+            subprocess.run(["docker", "run", "--rm", *mounts,
+                            "--env", f"ARTIFACT_UID={os.getuid()}",
+                            "--env", f"ARTIFACT_GID={os.getgid()}",
+                            image, "sh", "-eu", "-c", handoff], check=True)
+            publication_gate.artifact(app, expected)
+            freshness.write(app / "web/dist-static")
+            return publication_gate.artifact(app, expected)
+
+    def require(condition, message):
+        assert condition, message
+
+    tooling = SimpleNamespace(Operator=CheckoutBuild, require=require)
+    factories = (("unadapted", None), ("prepare", schema431_prepare.manual_operator),
+                 ("publish", schema431_publish.publication_operator))
+    for kind, factory in factories:
+        with tempfile.TemporaryDirectory(prefix="schema431-checkout-") as temporary:
+            private = Path(temporary)
+            source = private / "source"
+            (source / "web/static").mkdir(parents=True)
+            (source / "web/static/404.html").write_bytes(b"missing")
+            (source / "web/static/_headers").write_bytes(b"headers")
+            subprocess.run(["git", "init", "--quiet", str(source)], check=True)
+            subprocess.run(["git", "add", "."], cwd=source, check=True)
+            subprocess.run(["git", "-c", "user.name=Fixture", "-c",
+                            "user.email=fixture@example.invalid", "commit", "--quiet",
+                            "-m", "Synthetic static assets"], cwd=source, check=True)
+            operator = factory(tooling, source, {}) if factory else CheckoutBuild(source)
+            destination = private / ("fresh" if kind == "publish" else "prepared")
+            asset = destination / "app/web/dist-static/404.html"
+            previous = os.umask(0o077)
+            try:
+                expected = {"commit": "a" * 40, "configuration": None}
+                if factory is None:
+                    try:
+                        operator.build("a" * 40, expected, destination)
+                    except PermissionError as error:
+                        assert error.filename == str(asset)
+                    else:
+                        raise AssertionError("Private checkout regression was not reproduced")
+                else:
+                    result = operator.build("a" * 40, expected, destination)
+                    assert result["commit"] == expected["commit"]
+                assert asset.stat().st_uid == 0
+                assert stat.S_IMODE(asset.stat().st_mode) == (0o644 if factory else 0o600)
+                assert stat.S_IMODE(private.stat().st_mode) == 0o700
+                assert stat.S_IMODE(destination.stat().st_mode) == 0o700
+                after = private / "after-build"
+                after.touch()
+                assert stat.S_IMODE(after.stat().st_mode) == 0o600
+                print(json.dumps({"status": "OK", "schema431_handoff": kind,
+                                  "root_copy_mode": oct(stat.S_IMODE(asset.stat().st_mode)),
+                                  "nonroot_artifact_check": "PASS" if factory else "DENIED"}))
+            finally:
+                os.umask(previous)
+                # Delete only this test's disposable root-owned build output.
+                if (destination / "app/web/dist-static").exists():
+                    subprocess.run(["docker", "run", "--rm", "--mount",
+                                    f"type=bind,source={destination / 'app'},target=/app",
+                                    image, "python", "-c",
+                                    "import shutil; shutil.rmtree('/app/web/dist-static')"],
+                                   check=True)
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--seed":
-        seed(Path("/app/web/dist-static"), bool(int(sys.argv[2])))
+        seed(Path("/app/web/dist-static"), bool(int(sys.argv[2])),
+             bool(int(sys.argv[3])) if len(sys.argv) > 3 else False)
     else:
-        check_handoff(sys.argv[1] if len(sys.argv) > 1 else "autonavlog-static-build")
+        image = sys.argv[1] if len(sys.argv) > 1 else "autonavlog-static-build"
+        check_handoff(image)
+        check_schema431_checkout(image)
