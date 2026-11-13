@@ -120,7 +120,8 @@ running/queued/waiting等、重複、一覧欠落・変化は拒否する。別R
 4. 停止後snapshotで、automation以外に変化がないことを確認する。
    schema付きの通常Operatorで既存 `prepare()` を呼び、隔離build、E2E、成果物検査、再照合を行う。
 5. plan、journal、元証拠、`prepared/upload`、`prepared/feed-report.json`をAES-256-GCMで
-   暗号化して保存する。candidate checkout、node_modules、cache、資格情報、生ログは含めない。
+   暗号化して保存する。candidate checkout、node_modules、cache、資格情報、生ログ全体は含めない。
+   失敗時の限定したbuild出力は、下記の暗号化journal内にだけ記録する。
    通常終了時はrunner上のこの実行が作った平文を削除する。
 
 固定buildは一部の生成物をroot所有のまま残すため、runner権限で削除できない場合がある。
@@ -211,7 +212,7 @@ Rules/indexesの書換え、別候補への公開、automation=trueへの変更�
 summaryの `PUBLISHED` とArtifact upload成功を確認し、
 `schema431-publish-<Run ID>-<attempt>` の暗号化記録を取得する。
 同じ `unpack` コマンドで、新規private storeへ復元できる。
-記録には元prepare成果物と `publish-status.json` が入り、fresh checkout・cache・生ログは含まれない。
+記録には元prepare成果物と `publish-status.json` が入り、fresh checkout・cache・生ログ全体は含まれない。
 
 部分失敗をそのまま繰り返さないため、publish jobの **Re-runは拒否する**。
 失敗時は下記のremote stateを確認する。期限切れや状態の変化を、digestの再計算や時刻の編集で回避しない。
@@ -232,7 +233,14 @@ summaryの `PUBLISHED` とArtifact upload成功を確認し、
 | timeout・cancel・runner消失 | 最後のjournal/statusは途中経過。Artifactを取得できない場合もある。必ずremote stateを読み直す |
 
 停止試行後の失敗では、可能な場合にjournalと元証拠だけの暗号化した復旧記録を保存する。
-未検証の途中buildや生ログは保存しない。
+未検証の途中build、provider応答、生ログ全体は保存しない。
+失敗した処理の種類と位置は、非公開journalの `failure` に記録する。
+固定toolingのMSM生成・Docker image build・隔離build/test・static検査が非ゼロ終了した場合は、
+終了コードとstdout/stderrの末尾各16 KiBも記録する。既知の資格情報は切詰め前に除去し、
+argv・環境変数・stdinは保存しない。これらの詳細は公開summaryには出さない。
+記録は既存の暗号化bundle内に入り、鍵・転送形式・復号手順は変わらない。
+timeoutやプロセス起動失敗では出力を取得できない場合がある。診断の取得・保存に失敗しても、
+元の失敗状態、暗号化記録の保存、後始末を継続する。
 handoffやstatusの書込みに失敗しても、作成済み暗号文のupload条件の通知と平文のcleanupを試行する。
 status自体を更新できない場合、summaryは途中の状態のまま残りうる。jobの失敗を無視せず、remote stateを確認する。
 強制終了時の平文はephemeralなGitHub-hosted runnerの破棄に依存し、保存完了を保証しない。
@@ -279,3 +287,17 @@ Docker内のrootが作るファイルを、ホストのrunnerユーザーが読�
 このdriverでは処理中だけ077を使い、正常終了・失敗・初期化例外のいずれでも元のumaskへ戻す。
 回帰テストでは、private成果物が0600を維持することと、処理後の通常ファイルが呼出し元の
 権限設定で作成されることを確認する。CI側でcoverageの権限を変更する回避策は追加していない。
+
+### 2026-11-13のprepare失敗で確認した診断の欠落
+
+[Run 43351930429](https://github.com/Yuto-24/NavMate/actions/runs/43351930429)は、
+automationの停止確認後に `build-test` で失敗した。暗号化記録のuploadとcleanupは成功したが、
+planは生成されていない。`build-test` はMSM生成、Docker build、隔離テスト、成果物検査、
+build後のsnapshot照合を含むため、この段階名だけでE2E失敗とは判断できない。
+
+当時のdriverは例外の詳細を保存せず、固定toolingの `command()` も非ゼロ終了時の出力を返さない。
+そのため、当該RunのArtifactを復号しても失敗コマンドやstderrは復元できない。
+今回の変更では、固定toolingのコードや実行条件を変えず、例外tracebackに残ったその関数の
+`CompletedProcess` だけを読み取る。対象は固定したbuildコマンドに限定する。
+この診断追加は過去の出力を復元せず、実際のbuild失敗を直したことも意味しない。
+原因の特定には、新しいprepareで取得した証拠が必要となる。
