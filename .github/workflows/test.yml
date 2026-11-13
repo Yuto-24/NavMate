@@ -314,6 +314,7 @@ jobs:
           # Independent runners retain the existing per-file order and worker counts.
           if [ "${{ matrix.suite }}" = local ]; then
             npm --prefix web run test:local -- --workers=2
+            AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4174 npm --prefix web run test:static -- --grep 'production artifact shows storage limits and uses no Service Worker'
             exit 0
           fi
           if [ "${{ matrix.suite }}" = focused-ux ] || [ "${{ matrix.suite }}" = clipboard ]; then
@@ -342,6 +343,7 @@ jobs:
           name: local-browser-${{ matrix.suite }}-failure
           path: |
             /tmp/autonavlog-issue117-playwright
+            /tmp/autonavlog-static-browser
             /tmp/autonavlog-navlog-scroll-browser
             /tmp/autonavlog-issue122-browser
             /tmp/autonavlog-taf-playwright
