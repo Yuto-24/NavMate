@@ -535,6 +535,50 @@ def test_runner_retains_encrypted_recovery_and_removes_plaintext(
     assert capsys.readouterr() == ("", "")
 
 
+@pytest.mark.parametrize("diagnostic_fault", [None, "extraction", "write"])
+def test_command_failure_details_survive_only_in_encrypted_recovery(
+        runner_environment, transport, tmp_path, monkeypatch, capsys, diagnostic_fault):
+    env, state, _ = runner_environment
+    _, packed, _, _, _ = transport
+    calls = []
+    args = ["docker", "build", "-f", "scripts/static_ops/Dockerfile.build", "-t",
+            "autonavlog-static-release:" + bundle.TOOLING, "."]
+    def build(self, sha, snapshot, destination):
+        app.command(args, cwd=tmp_path)
+    def run(actual, **kwargs):
+        calls.append(actual)
+        return subprocess.CompletedProcess(actual, 9, "PRIVATE-BUILD-DETAIL",
+                                           "PRIVATE-ERROR SECRET-TOKEN-SENTINEL")
+    monkeypatch.setattr(app.Operator, "build", build)
+    monkeypatch.setattr(app.subprocess, "run", run)
+    if diagnostic_fault == "extraction":
+        monkeypatch.setattr(driver.diagnostics, "private_tail", lambda *a, **kw: 1 / 0)
+    elif diagnostic_fault == "write":
+        original_save = app.Journal.save
+        def save(journal):
+            if "failure" in journal.value:
+                raise OSError("Synthetic diagnostic write failure")
+            original_save(journal)
+        monkeypatch.setattr(app.Journal, "save", save)
+    assert driver.run(tmp_path) == 1
+    store, output, status = driver.locations(env)
+    assert calls == [args] and state["automation"] == "false"
+    assert not store.exists() and not bundle.EVIDENCE_ROOT.exists()
+    assert "PRIVATE" not in status.read_text() and b"PRIVATE" not in output.read_bytes()
+    restored = tmp_path / "recovery"
+    result = bundle.unseal(output, packed / "archive.key", restored)
+    assert not result["prepared"] and result["plan_sha256"] is None
+    recovered = json.loads((restored / "prepare-status.json").read_text())
+    assert recovered["status"] == "BLOCKED" and recovered["stage"] == "build-test"
+    if diagnostic_fault is None:
+        assert recovered["failure"]["command"]["returncode"] == 9
+        assert recovered["failure"]["command"]["stdout"]["tail"] == "PRIVATE-BUILD-DETAIL"
+        assert recovered["failure"]["command"]["stderr"]["tail"] == "PRIVATE-ERROR [REDACTED]"
+    else:
+        assert "failure" not in recovered
+    assert capsys.readouterr() == ("", "")
+
+
 @pytest.mark.parametrize("failure", ["locations", "initial-status"])
 def test_run_restores_creation_permissions_after_initialization_exception(
         runner_environment, tmp_path, monkeypatch, failure):

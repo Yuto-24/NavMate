@@ -1,7 +1,8 @@
 """Private, bounded transport for the one reviewed #431 preparation.
 
 No provider calls. Original evidence and plan bytes are never rewritten. The
-encrypted result deliberately excludes the candidate checkout, caches and logs.
+encrypted result excludes candidate checkouts, caches and complete logs. Only
+bounded failure details may be retained inside the encrypted private journal.
 """
 
 from __future__ import annotations

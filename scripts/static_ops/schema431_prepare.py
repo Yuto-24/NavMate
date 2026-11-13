@@ -20,8 +20,10 @@ from pathlib import Path
 
 if __package__:
     from . import schema431_bundle as bundle
+    from . import schema431_diagnostics as diagnostics
 else:
     import schema431_bundle as bundle
+    import schema431_diagnostics as diagnostics
 
 REPO = "Yuto-24/NavMate"
 WORKFLOW = ".github/workflows/static-app-release.yml"
@@ -328,9 +330,10 @@ def _run_private(root: Path) -> int:
         plan = execute(app, operator, store, journal)
         plan_digest = bundle.sha256((store / "plan.json").read_bytes())
         success = True
-    except Exception:
+    except Exception as error:
         if journal is not None:
             journal.finish(False)
+            diagnostics.record_failure(app, error, root.resolve(), journal, env)
     finally:
         try:
             if journal is not None and evidence is not None and key is not None:

@@ -270,9 +270,10 @@ def _run_private(root: Path) -> int:
         journal.save()
         execute(app, operator, restored, inputs["reviewed_plan_sha256"], journal)
         success = True
-    except Exception:
+    except Exception as error:
         if journal is not None:
             journal.finish(False)
+            prepare.diagnostics.record_failure(app, error, root.resolve(), journal, env)
     finally:
         try:
             if journal is not None and evidence is not None:
