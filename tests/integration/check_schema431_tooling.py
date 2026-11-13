@@ -1,7 +1,8 @@
 """Exercise the unchanged pinned validator with synthetic evidence and real Git sources.
 
-This is not the private production record or permission to prepare. No provider
-authentication or API calls, scheduler mutations, builds or publication occur.
+This is not the private production record or permission to prepare. Source checks
+fetch the public release tags. No provider authentication or API calls, scheduler
+mutations, builds or publication occur.
 """
 
 import argparse
@@ -17,6 +18,7 @@ sys.path.insert(0, str(ROOT / "scripts/static_ops"))
 import schema431_bundle as bundle  # noqa: E402
 import schema431_prepare as driver  # noqa: E402
 import schema431_publish as publisher  # noqa: E402
+import schema431_reapply232 as reapply  # noqa: E402
 
 
 def check(root: Path) -> None:
@@ -37,15 +39,15 @@ def check(root: Path) -> None:
         variables["VITE_FIREBASE_PROJECT_ID"] = "synthetic-project"
         record = {
             "schema_version": 1, "kind": "forecast-model-selection",
-            "sha": bundle.CANDIDATE, "current_sha": bundle.CURRENT,
+            "sha": reapply.PREVIOUS, "current_sha": bundle.CURRENT,
             "tooling_sha": bundle.TOOLING, "project": variables["VITE_FIREBASE_PROJECT_ID"],
             "origin": app.gate.ORIGIN,
             "configuration_digest": app.fingerprint(app.public_configuration(variables)),
             "direction": "old-to-new", "recovery": "forward-fix; preserve Project data",
             "database_version": 2, "latest_policy": "replace-own-device-latest-on-open",
             "before_blob": operator.source_digest(bundle.CURRENT, app.COMPATIBILITY[2]),
-            "after_blob": operator.source_digest(bundle.CANDIDATE, app.COMPATIBILITY[2]),
-            "writer_blob": operator.source_digest(bundle.CANDIDATE,
+            "after_blob": operator.source_digest(reapply.PREVIOUS, app.COMPATIBILITY[2]),
+            "writer_blob": operator.source_digest(reapply.PREVIOUS,
                                                    "web/src/localProjectRepository.ts"),
             "checks": {},
         }
@@ -64,9 +66,25 @@ def check(root: Path) -> None:
             }
         record_path = source / bundle.RECORD_NAME
         app.write_json(record_path, record)
+        # Keep the old-candidate fixture separate from the new driver identity.
+        # The actual fixed validator must accept both sides of reapplication.
+        reapply.PREVIOUS_ROOT = source
+        reapply.DESTINATION = temporary / "reapplied-evidence"
+        reapply.PREVIOUS_RECORD_SHA256 = bundle.sha256(record_path.read_bytes())
+        base_operator = app.Operator(root)
+        source_review = reapply.check_sources(base_operator)
+        original, reports = reapply.original_evidence()
+        before = {path.name: path.read_bytes() for path in source.iterdir()}
+        reapplied_hash = reapply.write_reapplication(base_operator, variables, original,
+                                                     reports, source_review)
+        record_path = reapply.DESTINATION / bundle.RECORD_NAME
+        assert reapplied_hash == bundle.sha256(record_path.read_bytes())
+        assert before == {path.name: path.read_bytes() for path in source.iterdir()}
+        record = json.loads(record_path.read_bytes())
+        assert record["sha"] == bundle.CANDIDATE == reapply.CANDIDATE
         # Only this isolated fixture changes the expected raw hash; the workflow
         # has no CLI/env/input override and still requires the real reviewed hash.
-        bundle.RECORD_SHA256 = bundle.sha256(record_path.read_bytes())
+        bundle.RECORD_SHA256 = reapplied_hash
         packed = temporary / "packed"
         bundle.pack(record_path, packed)
         files = bundle.open_secret((packed / "evidence.secret").read_text(),
@@ -108,6 +126,7 @@ def check(root: Path) -> None:
             report_path.write_bytes(original_report)
     print(json.dumps({"status": "OK", "tooling_sha": bundle.TOOLING,
                       "synthetic_transport_and_pinned_validator": "PASS",
+                      "synthetic_reapplication_and_pinned_validator": "PASS",
                       "provider_operations": 0}))
 
 

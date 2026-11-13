@@ -28,7 +28,7 @@ else:
 REPO = "Yuto-24/NavMate"
 WORKFLOW = ".github/workflows/static-app-release.yml"
 REPO_ID, OWNER_ID = 1314030412, 65487096
-CANDIDATE_CI = 42821632575
+CANDIDATE_CI = 43383649255
 OPERATION = "prepare-schema431"
 
 
@@ -183,13 +183,13 @@ def before_pause(app, operator):
 
 
 def check_candidate(app, operator):
-    selected = operator.gh("releases/tags/v2.3.1")
-    app.require(selected.get("tag_name") == "v2.3.1" and selected.get("draft") is False
+    selected = operator.gh("releases/tags/v2.3.2")
+    app.require(selected.get("tag_name") == "v2.3.2" and selected.get("draft") is False
                 and selected.get("prerelease") is False and selected.get("published_at"),
-                "Existing stable v2.3.1 Release required")
-    operator.git("fetch", "origin", "refs/tags/v2.3.1")
+                "Existing stable v2.3.2 Release required")
+    operator.git("fetch", "origin", "refs/tags/v2.3.2")
     app.require(operator.git("rev-parse", "FETCH_HEAD^{commit}") == bundle.CANDIDATE
-                and operator.git("show", bundle.CANDIDATE + ":VERSION") == "2.3.1",
+                and operator.git("show", bundle.CANDIDATE + ":VERSION") == "2.3.2",
                 "Pinned candidate tag or VERSION changed")
     run = operator.gh("actions/runs/" + str(CANDIDATE_CI))
     app.require(run.get("head_sha") == bundle.CANDIDATE and run.get("status") == "completed"
