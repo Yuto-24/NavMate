@@ -76,6 +76,22 @@ the source for their deeper contracts. A green emulated run is engine evidence,
 not a physical-device pass. The `local-browser` CI job runs this suite against
 its built Local static files before the separate TAF fixture build.
 
+### Observation: startup after reload (2026-11-14)
+
+In [PR #438 CI attempt 2](https://github.com/Yuto-24/NavMate/actions/runs/43549362851/attempts/2),
+the iPhone WebKit lifecycle test reached the default 30-second result assertion
+timeout while the page still displayed its startup screen. The trace showed
+about 14 seconds for the reloaded Pyodide stdlib download and 19.8 seconds for
+WASM; dependency loading began about 22.9 seconds after reload and had not
+finished when the assertion expired. No console error was recorded.
+
+The initial navigation already waits up to 120 seconds for application readiness.
+Reload and a new tab now use that same bounded wait before the unchanged saved
+result and Project assertions. This is evidence of a missing startup wait in
+this test, not proof that every slow startup will recover or a general reason
+to extend assertion timeouts. Startup performance remains a separate concern
+under [#422](https://github.com/Yuto-24/NavMate/issues/422).
+
 ## Local run (2026-09-26)
 
 Source was `8635fbd2f3772218bb6bc14ea56efd3e6a7997fe` with the #122 test/docs

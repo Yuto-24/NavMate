@@ -19,6 +19,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from scripts.static_ops import app_release as app
 from scripts.static_ops import schema431_bundle as bundle
 from scripts.static_ops import schema431_prepare as driver
+from scripts.static_ops import schema431_publish as publisher
 
 
 @pytest.fixture
@@ -168,6 +169,70 @@ def test_no_other_mutation_even_when_pause_is_authorized(idle_operator, endpoint
         op.upload(None)
     with pytest.raises(app.Blocked):
         op.set_workflow(True)
+
+
+@pytest.mark.parametrize("factory", [driver.manual_operator, publisher.publication_operator])
+@pytest.mark.parametrize("failure", [False, True])
+def test_build_handoff_permissions_preserve_private_store_and_restore_umask(
+        tmp_path, monkeypatch, factory, failure):
+    store = tmp_path / "private"
+    store.mkdir(mode=0o700)
+    destination = store / "prepared"
+    expected = {"commit": bundle.CANDIDATE}
+    calls = []
+
+    def build(self, sha, snapshot, target):
+        calls.append((sha, snapshot, target))
+        target.mkdir(mode=0o700)
+        public_asset = target / "asset"
+        public_asset.write_bytes(b"public artifact")
+        assert public_asset.stat().st_mode & 0o777 == 0o644
+        app.write_json(target / "feed-report.json", {"private": "receipt"})
+        assert (target / "feed-report.json").stat().st_mode & 0o777 == 0o600
+        if failure:
+            raise app.Blocked("Synthetic build failure")
+        return expected
+
+    monkeypatch.setattr(app.Operator, "build", build)
+    operator = factory(app, tmp_path, {})
+    previous = os.umask(0o077)
+    try:
+        if failure:
+            with pytest.raises(app.Blocked, match="Synthetic build failure"):
+                operator.build(bundle.CANDIDATE, expected, destination)
+        else:
+            assert operator.build(bundle.CANDIDATE, expected, destination) is expected
+        private_file = store / "after-build"
+        private_file.touch()
+        assert private_file.stat().st_mode & 0o777 == 0o600
+    finally:
+        os.umask(previous)
+    assert calls == [(bundle.CANDIDATE, expected, destination)]
+    assert store.stat().st_mode & 0o777 == 0o700
+    assert destination.stat().st_mode & 0o777 == 0o700
+
+
+@pytest.mark.parametrize("failure", ["shared", "symlink", "file"])
+def test_build_rejects_a_nonprivate_parent_before_delegating(tmp_path, monkeypatch, failure):
+    parent = tmp_path / "private"
+    parent.mkdir(mode=0o700)
+    if failure == "shared":
+        parent.chmod(0o755)
+    elif failure == "symlink":
+        link = tmp_path / "link"
+        link.symlink_to(parent, target_is_directory=True)
+        parent = link
+    else:
+        parent = tmp_path / "file"
+        parent.touch()
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Build started without a private parent")
+
+    monkeypatch.setattr(app.Operator, "build", forbidden)
+    operator = driver.manual_operator(app, tmp_path, {})
+    with pytest.raises(app.Blocked, match="Private build parent required"):
+        operator.build(bundle.CANDIDATE, {}, parent / "prepared")
 
 
 @pytest.fixture
