@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -39,6 +40,8 @@ def seed(dist, existing_hint, copy_static=False):
     files = {"index.html": b"app", "404.html": b"missing", "_headers": b"headers",
              "local/core.whl": b"wheel", "local/data.zip": b"data",
              f"weather/msm/{digest}.npz": payload}
+    if copy_static:
+        files["apple-touch-icon.png"] = b"icon"
     files["local/manifest.json"] = json.dumps({
         "version": "1.0.0", "pyodideVersion": "0.27.7", "wheels": ["core.whl"],
         "data": "data.zip", "sha256": {"core.whl": record(b"wheel")["sha256"],
@@ -51,15 +54,28 @@ def seed(dist, existing_hint, copy_static=False):
                     "run": run.strftime("%Y%m%d%H%M%S")}],
     }).encode()
     for name, raw in files.items():
+        if copy_static and name in {"404.html", "_headers", "apple-touch-icon.png"}:
+            continue
         path = dist / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(raw)
     if copy_static:
-        # Run the candidate build's actual mode-preserving copies as container root.
+        # prepare_local copies modes, but not ownership, before Vite copies the files.
+        public_target = dist.parent / "public-local"
+        prepare_source = (ROOT / "scripts/prepare_local.py").read_text()
+        assert ('shutil.copytree(root / "web/public", public_target, dirs_exist_ok=True)'
+                in prepare_source)
+        shutil.copytree(dist.parent / "public", public_target, dirs_exist_ok=True)
+        assert (public_target / "apple-touch-icon.png").stat().st_uid == 0
+        assert stat.S_IMODE((public_target / "apple-touch-icon.png").stat().st_mode) == (
+            stat.S_IMODE((dist.parent / "public/apple-touch-icon.png").stat().st_mode))
+        # Vite uses copyFileSync for public files; it also preserves their ownership.
         copies = [line for line in (ROOT / "web/scripts/build-static.mjs").read_text().splitlines()
                   if line.startswith('copyFileSync("static/')]
         assert len(copies) == 2
         subprocess.run(["node", "-e", "const {copyFileSync}=require('node:fs');\n"
+                        + 'copyFileSync("public-local/apple-touch-icon.png",'
+                          ' "dist-static/apple-touch-icon.png");\n'
                         + "\n".join(copies)], cwd=dist.parent, check=True)
     (dist / "release.json").write_text(json.dumps({
         "commit": "a" * 40, "dirty": False, "version": "1.0.0", "pyodideVersion": "0.27.7",
@@ -164,11 +180,21 @@ def check_schema431_checkout(image):
                             str(self.root), str(app)], check=True)
             subprocess.run(["git", "checkout", "--quiet", "--detach", "HEAD"],
                            cwd=app, check=True)
+            mask = os.umask(0o077)
+            os.umask(mask)
+            source_mode = 0o666 & ~mask
+            for name in ("public/apple-touch-icon.png", "static/404.html", "static/_headers"):
+                assert stat.S_IMODE((app / "web" / name).stat().st_mode) == source_mode
             mounts = ["--mount", f"type=bind,source={app},target=/app",
                       "--mount", f"type=bind,source={ROOT},target=/tooling,readonly"]
             subprocess.run(["docker", "run", "--rm", *mounts, image, "python",
                             "/tooling/tests/integration/check_static_artifact_handoff.py",
                             "--seed", "0", "1"], check=True)
+            public_asset = app / "web/dist-static/apple-touch-icon.png"
+            assert public_asset.stat().st_uid == 0
+            assert stat.S_IMODE(public_asset.stat().st_mode) == source_mode
+            # Direct Node copies retain the host owner and are not the failing path.
+            assert (app / "web/dist-static/404.html").stat().st_uid == os.getuid()
             subprocess.run(["docker", "run", "--rm", *mounts,
                             "--env", f"ARTIFACT_UID={os.getuid()}",
                             "--env", f"ARTIFACT_GID={os.getgid()}",
@@ -190,6 +216,8 @@ def check_schema431_checkout(image):
             (source / "web/static").mkdir(parents=True)
             (source / "web/static/404.html").write_bytes(b"missing")
             (source / "web/static/_headers").write_bytes(b"headers")
+            (source / "web/public").mkdir()
+            (source / "web/public/apple-touch-icon.png").write_bytes(b"icon")
             subprocess.run(["git", "init", "--quiet", str(source)], check=True)
             subprocess.run(["git", "add", "."], cwd=source, check=True)
             subprocess.run(["git", "-c", "user.name=Fixture", "-c",
@@ -197,7 +225,7 @@ def check_schema431_checkout(image):
                             "-m", "Synthetic static assets"], cwd=source, check=True)
             operator = factory(tooling, source, {}) if factory else CheckoutBuild(source)
             destination = private / ("fresh" if kind == "publish" else "prepared")
-            asset = destination / "app/web/dist-static/404.html"
+            asset = destination / "app/web/dist-static/apple-touch-icon.png"
             previous = os.umask(0o077)
             try:
                 expected = {"commit": "a" * 40, "configuration": None}
@@ -228,7 +256,8 @@ def check_schema431_checkout(image):
                     subprocess.run(["docker", "run", "--rm", "--mount",
                                     f"type=bind,source={destination / 'app'},target=/app",
                                     image, "python", "-c",
-                                    "import shutil; shutil.rmtree('/app/web/dist-static')"],
+                                    "import shutil; shutil.rmtree('/app/web/dist-static'); "
+                                    "shutil.rmtree('/app/web/public-local')"],
                                    check=True)
 
 

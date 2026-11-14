@@ -342,9 +342,14 @@ build後のsnapshot照合を含むため、この段階名だけでE2E失敗と�
 planは生成されなかった。診断には対象ファイル名がないため、その実行で最初に失敗した
 ファイル自体は未特定である。
 
-再現では、driverのumask 077を継承したGit checkoutが`web/static/404.html`と`_headers`を
-0600で作り、候補の`build-static.mjs`にあるNodeの`copyFileSync()`もそのmodeを保持した。
-Docker内ではコピー先の所有者がrootになるため、ホストのrunnerは読めない。
+driverのumask 077を継承したGit checkoutは、公開用assetを0600で作る。
+候補の`prepare_local.py`は`web/public`を`shutil.copytree()`でコピーするため、
+Docker内のroot所有のコピーにも0600が引き継がれる。Viteの`copyFileSync()`は
+そのmodeと所有者を保持し、ホストのrunnerは読めない。
+当初のテストは`web/static/404.html`と`_headers`の直接コピーだけを再現していた。
+Nodeはコピー元のrunner所有も保持するため、この2ファイルだけでは読取失敗にならず、
+[CI 43448777492](https://github.com/Yuto-24/NavMate/actions/runs/43448777492)で再現不足が判明した。
+回帰テストにはPythonによる公開assetの中間コピーを含め、各段階の所有者とmodeを確認する。
 既存のhandoffはfreshnessの追記に必要なファイル・ディレクトリだけ所有者を変更する。
 従来のDocker回帰テストは最初から0644のassetを生成しており、checkout由来の0600を検出できなかった。
 
