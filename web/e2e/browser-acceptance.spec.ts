@@ -53,10 +53,13 @@ test("Static Local workflow saves and restores a calculated Project across lifec
   const savedId = await page.getByLabel("保存済み", { exact: true }).inputValue();
   expect(savedId).not.toBe("");
   await page.reload();
+  // Reload initializes Pyodide again; use the initial startup budget before checking recovery.
+  await enterImportWorkflow(page);
   await expect(page.locator(".nav-log-table")).toHaveText(initialResult, { useInnerText: true });
 
   const other = await context.newPage();
   await other.goto("/");
+  await enterImportWorkflow(other);
   await expect(other.getByLabel("保存済み", { exact: true }).locator(`option[value="${savedId}"]`)).toHaveCount(1);
   await openProjectMenu(other);
   await other.getByLabel("保存済み", { exact: true }).selectOption(savedId);
