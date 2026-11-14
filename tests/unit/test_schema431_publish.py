@@ -452,8 +452,10 @@ def test_real_publish_flow_keeps_recovery_private_and_never_resumes(
 
 
 @pytest.mark.parametrize("publication_failure", [None, "upload"])
+@pytest.mark.parametrize("status_failure", [None, "stage", "finish", "public-status"])
 def test_archive_failure_retains_actual_publication_state_without_prepared_bytes(
-        runner, approved_plan, publication_context, tmp_path, monkeypatch, publication_failure):
+        runner, approved_plan, publication_context, tmp_path, monkeypatch,
+        publication_failure, status_failure):
     env, operator, outputs, reviewed = runner
     operator.fail = publication_failure
     original_seal = bundle.seal
@@ -462,6 +464,23 @@ def test_archive_failure_retains_actual_publication_state_without_prepared_bytes
             raise bundle.InvalidBundle("archive-capacity")
         return original_seal(*args, **kwargs)
     monkeypatch.setattr(bundle, "seal", seal)
+    original_json, original_status = app.write_json, prepare.public_status
+    archive_writes = 0
+    def write_json(path, value):
+        nonlocal archive_writes
+        if path.name == "publish-status.json" and value.get("stage") == "archive":
+            archive_writes += 1
+            if ((status_failure == "stage" and archive_writes == 1)
+                    or (status_failure == "finish" and archive_writes == 2)):
+                raise OSError("PRIVATE journal error")
+        original_json(path, value)
+    def public_status(path, value):
+        if (status_failure == "public-status" and value.get("stage") == "archive"
+                and "cleanup" not in value):
+            raise OSError("PRIVATE public status error")
+        original_status(path, value)
+    monkeypatch.setattr(app, "write_json", write_json)
+    monkeypatch.setattr(prepare, "public_status", public_status)
     assert driver.run(tmp_path) == 1
     private, encrypted, status_path = prepare.locations(env)
     status = json.loads(status_path.read_text())
@@ -480,6 +499,8 @@ def test_archive_failure_retains_actual_publication_state_without_prepared_bytes
     saved = json.loads((recovery / "publish-status.json").read_text())
     assert saved["authorization"]["reviewed_plan_sha256"] == reviewed
     assert saved["archive_failure"]["exception_type"] == "InvalidBundle"
+    if status_failure:
+        assert saved["archive_status_failure"]["exception_type"] == "OSError"
     if publication_failure:
         assert "failure" in saved
     assert "SECRET" not in status_path.read_text() and "PRIVATE" not in status_path.read_text()

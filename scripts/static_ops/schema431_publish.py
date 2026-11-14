@@ -288,11 +288,19 @@ def _run_private(root: Path) -> int:
                     archive_ready = True
                 except Exception as error:
                     success = False
-                    archive_errors["archive_error"] = prepare.diagnostics.archive_error_code(error)
+                    archive_errors.update(
+                        stage="archive",
+                        archive_error=prepare.diagnostics.archive_error_code(error))
                     prepare.diagnostics.record_failure(app, error, root.resolve(), journal, env,
                                                        entry="archive_failure")
-                    journal.stage("archive")
-                    journal.finish(False)
+                    for update in (lambda: journal.stage("archive"),
+                                   lambda: journal.finish(False)):
+                        try:
+                            update()
+                        except Exception as status_error:
+                            prepare.diagnostics.record_failure(
+                                app, status_error, root.resolve(), journal, env,
+                                entry="archive_status_failure")
                     # Keep the actual publication outcome and mutation journal,
                     # but never restore this reduced archive as a prepared plan.
                     handoff.update(prepared=False, plan_sha256=None, prepared_at=None)

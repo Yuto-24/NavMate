@@ -263,9 +263,11 @@ timeoutやプロセス起動失敗では出力を取得できない場合があ�
 完成成果物を含む暗号化保存に失敗した場合は、証拠・journal・handoffだけの小さい暗号文を試す。
 この記録は`prepared=false`、plan digestなしで、planとprepared成果物を含まない。
 元の処理失敗と保存失敗は別々にjournalへ残し、公開summaryには許可した固定コードだけを出す。
+状態記録の書込みが失敗しても、handoffの無効化と診断保存を続行する。
 診断の暗号化も失敗した場合は`archive_recovery_error`を記録する。
 publish後の保存失敗では、実際の公開結果と変更状態を記録に保持する。`BLOCKED`だけから
 本番未変更とは判断しない。暗号文は一時ファイルへの書込み完了後に確定し、既存結果を上書きしない。
+確定後に一時ファイルを削除できなくても、暗号文の保存結果は変えない。
 handoffやstatusの書込みに失敗しても、作成済み暗号文のupload条件の通知と平文のcleanupを試行する。
 status自体を更新できない場合、summaryは途中の状態のまま残りうる。jobの失敗を無視せず、remote stateを確認する。
 強制終了時の平文はephemeralなGitHub-hosted runnerの破棄に依存し、保存完了を保証しない。

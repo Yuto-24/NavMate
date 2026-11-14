@@ -364,11 +364,17 @@ def _run_private(root: Path) -> int:
                 except Exception as error:
                     had_prepared = success
                     success = False
-                    archive_errors["archive_error"] = diagnostics.archive_error_code(error)
+                    archive_errors.update(stage="archive",
+                                          archive_error=diagnostics.archive_error_code(error))
                     diagnostics.record_failure(app, error, root.resolve(), journal, env,
                                                entry="archive_failure")
-                    journal.stage("archive")
-                    journal.finish(False)
+                    for update in (lambda: journal.stage("archive"),
+                                   lambda: journal.finish(False)):
+                        try:
+                            update()
+                        except Exception as status_error:
+                            diagnostics.record_failure(app, status_error, root.resolve(),
+                                                       journal, env, entry="archive_status_failure")
                     if had_prepared:
                         # A diagnostic-only archive cannot authorize publication.
                         handoff.update(prepared=False, plan_sha256=None, prepared_at=None)

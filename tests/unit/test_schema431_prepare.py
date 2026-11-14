@@ -555,6 +555,38 @@ def test_archive_commit_is_atomic_and_preserves_existing_results(
     assert not list(tmp_path.glob("atomic.aesgcm.*"))
 
 
+@pytest.mark.parametrize("commit_fails", [False, True])
+def test_archive_temp_cleanup_does_not_change_commit_result(
+        transport, simulated, tmp_path, monkeypatch, commit_fails):
+    _, _, _, key, files = transport
+    op, _, store, journal, _ = simulated
+    driver.execute(app, op, store, journal)
+    app.write_json(store / "handoff.json", {})
+    output = tmp_path / "cleanup.aesgcm"
+    original_unlink = Path.unlink
+    def unlink(path, *args, **kwargs):
+        if path.name.startswith(output.name + "."):
+            raise OSError("PRIVATE cleanup error")
+        return original_unlink(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "unlink", unlink)
+    if commit_fails:
+        def fail_commit(*args):
+            raise OSError("PRIVATE commit error")
+        monkeypatch.setattr(bundle.os, "link", fail_commit)
+        with pytest.raises(OSError, match="PRIVATE commit error"):
+            bundle.seal(store, files, key, output, success=True)
+        assert not output.exists()
+    else:
+        digest = bundle.seal(store, files, key, output, success=True)
+        assert digest == bundle.sha256(output.read_bytes())
+        assert output.stat().st_mode & 0o777 == 0o600
+    temporary, = tmp_path.glob("cleanup.aesgcm.*")
+    assert temporary.read_bytes().startswith(bundle.MAGIC)
+    assert temporary.stat().st_mode & 0o777 == 0o600
+    if not commit_fails:
+        assert temporary.samefile(output)
+
+
 def test_authenticated_archive_still_rejects_traversal(archive, tmp_path):
     output, key_path, _, _ = archive
     key = bundle.key_bytes(key_path.read_text())
@@ -656,8 +688,9 @@ def test_runner_retains_encrypted_recovery_and_removes_plaintext(
     assert capsys.readouterr() == ("", "")
 
 
+@pytest.mark.parametrize("status_failure", [None, "stage", "finish", "public-status"])
 def test_full_archive_capacity_failure_retains_only_encrypted_diagnostics(
-        runner_environment, transport, tmp_path, monkeypatch, capsys):
+        runner_environment, transport, tmp_path, monkeypatch, capsys, status_failure):
     env, state, outputs = runner_environment
     _, packed, _, _, _ = transport
     original_build = app.Operator.build
@@ -667,6 +700,23 @@ def test_full_archive_capacity_failure_retains_only_encrypted_diagnostics(
             bundle.write_private(destination / "upload" / name, b"x" * (40 * 1024))
     monkeypatch.setattr(app.Operator, "build", build)
     monkeypatch.setattr(bundle, "MAX_PAYLOAD", 64 * 1024)
+    original_json, original_status = app.write_json, driver.public_status
+    archive_writes = 0
+    def write_json(path, value):
+        nonlocal archive_writes
+        if path.name == "prepare-status.json" and value.get("stage") == "archive":
+            archive_writes += 1
+            if ((status_failure == "stage" and archive_writes == 1)
+                    or (status_failure == "finish" and archive_writes == 2)):
+                raise OSError("PRIVATE journal error")
+        original_json(path, value)
+    def public_status(path, value):
+        if (status_failure == "public-status" and value.get("stage") == "archive"
+                and "cleanup" not in value):
+            raise OSError("PRIVATE public status error")
+        original_status(path, value)
+    monkeypatch.setattr(app, "write_json", write_json)
+    monkeypatch.setattr(driver, "public_status", public_status)
     assert driver.run(tmp_path) == 1
     store, output, status_path = driver.locations(env)
     status = json.loads(status_path.read_text())
@@ -682,6 +732,8 @@ def test_full_archive_capacity_failure_retains_only_encrypted_diagnostics(
     assert not (restored / "plan.json").exists() and not (restored / "prepared").exists()
     saved = json.loads((restored / "prepare-status.json").read_text())
     assert saved["archive_failure"]["exception_type"] == "InvalidBundle"
+    if status_failure:
+        assert saved["archive_status_failure"]["exception_type"] == "OSError"
     assert saved["status"] == "BLOCKED"
     assert "PRIVATE" not in status_path.read_text() and b"PRIVATE" not in output.read_bytes()
     assert capsys.readouterr() == ("", "")

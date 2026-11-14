@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import hashlib
 import io
 import json
@@ -242,7 +243,8 @@ def seal(store: Path, evidence: dict[str, bytes], key: bytes, output: Path,
             stream.write(encrypted)
         os.link(temporary, output)
     finally:
-        Path(temporary).unlink()
+        with contextlib.suppress(OSError):
+            Path(temporary).unlink()
     return sha256(encrypted)
 
 
