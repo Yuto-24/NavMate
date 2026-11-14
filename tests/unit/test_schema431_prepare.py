@@ -460,6 +460,36 @@ def test_encrypted_handoff_is_reusable_without_rewriting_plan_or_evidence(archiv
     assert destination.stat().st_mode & 0o077 == 0
 
 
+def test_production_sized_archive_roundtrip(transport, simulated, tmp_path):
+    _, packed, _, key, files = transport
+    op, _, store, journal, _ = simulated
+    driver.execute(app, op, store, journal)
+    plan = (store / "plan.json").read_bytes()
+    app.write_json(store / "handoff.json", {
+        "sha": bundle.CANDIDATE, "current_sha": bundle.CURRENT,
+        "tooling_sha": bundle.TOOLING, "prepared": True,
+        "plan_sha256": bundle.sha256(plan),
+    })
+    # The real retained feed already exceeds 240 MiB. Incompressible synthetic
+    # files also cross the old 256 MiB ciphertext limit without provider data.
+    block = os.urandom(1024 * 1024)
+    for index in range(14):
+        with (store / "prepared/upload" / f"asset-{index}").open("wb") as stream:
+            for _ in range(24):
+                stream.write(block)
+    output = tmp_path / "large.aesgcm"
+    bundle.seal(store, files, key, output, success=True)
+    assert 256 * 1024 * 1024 < output.stat().st_size <= bundle.MAX_ARCHIVE
+    restored = tmp_path / "large-restored"
+    assert bundle.unseal(output, packed / "archive.key", restored)["prepared"]
+    assert (restored / "plan.json").read_bytes() == plan
+    for index in range(14):
+        with (restored / "prepared/upload" / f"asset-{index}").open("rb") as stream:
+            for _ in range(24):
+                assert stream.read(len(block)) == block
+            assert stream.read(1) == b""
+
+
 @pytest.mark.parametrize("change", ["ciphertext", "key"])
 def test_failed_authentication_writes_no_plaintext(archive, tmp_path, change):
     output, key, _, _ = archive
@@ -490,15 +520,39 @@ def test_archive_capacity_and_symlink_boundaries(transport, simulated, tmp_path,
     driver.execute(app, op, store, journal)
     bundle.write_private(store / "handoff.json", b"{}")
     output = tmp_path / "limited.aesgcm"
+    payload_limit = bundle.MAX_PAYLOAD
     monkeypatch.setattr(bundle, "MAX_PAYLOAD", 100)
     with pytest.raises(bundle.InvalidBundle, match="archive-capacity"):
         bundle.seal(store, files, key, output, success=True)
     assert not output.exists()
-    monkeypatch.setattr(bundle, "MAX_PAYLOAD", 240 * 1024 * 1024)
+    monkeypatch.setattr(bundle, "MAX_PAYLOAD", payload_limit)
     (store / "prepared/upload/escape").symlink_to(tmp_path)
     with pytest.raises(bundle.InvalidBundle, match="symlink"):
         bundle.seal(store, files, key, output, success=True)
     assert not output.exists()
+
+
+def test_archive_commit_is_atomic_and_preserves_existing_results(
+        transport, simulated, tmp_path, monkeypatch):
+    _, _, _, key, files = transport
+    op, _, store, journal, _ = simulated
+    driver.execute(app, op, store, journal)
+    app.write_json(store / "handoff.json", {})
+    output = tmp_path / "atomic.aesgcm"
+    original_link = os.link
+    def fail_commit(*args):
+        raise OSError("PRIVATE output failure")
+    monkeypatch.setattr(bundle.os, "link", fail_commit)
+    with pytest.raises(OSError, match="PRIVATE"):
+        bundle.seal(store, files, key, output, success=True)
+    assert not output.exists() and not list(tmp_path.glob("atomic.aesgcm.*"))
+    monkeypatch.setattr(bundle.os, "link", original_link)
+    bundle.seal(store, files, key, output, success=True)
+    original = output.read_bytes()
+    with pytest.raises(FileExistsError):
+        bundle.seal(store, files, key, output, success=True)
+    assert output.read_bytes() == original
+    assert not list(tmp_path.glob("atomic.aesgcm.*"))
 
 
 def test_authenticated_archive_still_rejects_traversal(archive, tmp_path):
@@ -600,6 +654,61 @@ def test_runner_retains_encrypted_recovery_and_removes_plaintext(
     if failure in ("pause-response", "build"):
         assert state["automation"] == "false"
     assert capsys.readouterr() == ("", "")
+
+
+def test_full_archive_capacity_failure_retains_only_encrypted_diagnostics(
+        runner_environment, transport, tmp_path, monkeypatch, capsys):
+    env, state, outputs = runner_environment
+    _, packed, _, _, _ = transport
+    original_build = app.Operator.build
+    def build(self, sha, snapshot, destination):
+        original_build(self, sha, snapshot, destination)
+        for name in ("first", "second"):
+            bundle.write_private(destination / "upload" / name, b"x" * (40 * 1024))
+    monkeypatch.setattr(app.Operator, "build", build)
+    monkeypatch.setattr(bundle, "MAX_PAYLOAD", 64 * 1024)
+    assert driver.run(tmp_path) == 1
+    store, output, status_path = driver.locations(env)
+    status = json.loads(status_path.read_text())
+    assert status["status"] == "BLOCKED" and status["stage"] == "archive"
+    assert status["archive_error"] == "archive-capacity"
+    assert status["archive_ready"] and status["plan_sha256"] is None
+    assert outputs.read_text() == "archive_ready=true\n"
+    assert not store.exists() and not bundle.EVIDENCE_ROOT.exists()
+    assert state["automation"] == "false"
+    restored = tmp_path / "recovery"
+    handoff = bundle.unseal(output, packed / "archive.key", restored)
+    assert not handoff["prepared"] and handoff["plan_sha256"] is None
+    assert not (restored / "plan.json").exists() and not (restored / "prepared").exists()
+    saved = json.loads((restored / "prepare-status.json").read_text())
+    assert saved["archive_failure"]["exception_type"] == "InvalidBundle"
+    assert saved["status"] == "BLOCKED"
+    assert "PRIVATE" not in status_path.read_text() and b"PRIVATE" not in output.read_bytes()
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("build_failed", [False, True])
+def test_unrecoverable_archive_failure_stays_blocked_and_cleans(
+        runner_environment, tmp_path, monkeypatch, build_failed):
+    env, state, outputs = runner_environment
+    state["fail"] = "build" if build_failed else None
+    calls = []
+    def seal(*args, **kwargs):
+        calls.append(kwargs["success"])
+        raise OSError("PRIVATE archive failure")
+    monkeypatch.setattr(bundle, "seal", seal)
+    assert driver.run(tmp_path) == 1
+    store, output, status_path = driver.locations(env)
+    status = json.loads(status_path.read_text())
+    assert calls == ([False] if build_failed else [True, False])
+    assert status["status"] == "BLOCKED" and status["stage"] == "archive"
+    assert status["archive_error"] == "archive-failed"
+    if not build_failed:
+        assert status["archive_recovery_error"] == "archive-failed"
+    assert not status["archive_ready"] and status["plan_sha256"] is None
+    assert status["cleanup"] == "COMPLETE" and "PRIVATE" not in status_path.read_text()
+    assert not store.exists() and not output.exists() and not bundle.EVIDENCE_ROOT.exists()
+    assert outputs.read_text() == "archive_ready=false\n"
 
 
 @pytest.mark.parametrize("diagnostic_fault", [None, "extraction", "write"])

@@ -201,3 +201,28 @@ def test_diagnostics_cannot_break_the_existing_failure_journal(journal, monkeypa
         monkeypatch.setattr(bundle, "MAX_RECORD", len(original))
     diagnostics.record_failure(app, failure.value, app.ROOT, journal, {})
     assert journal.path.read_bytes() == original and "failure" not in journal.value
+
+
+@pytest.mark.parametrize("error,expected", [
+    (bundle.InvalidBundle("archive-capacity"), "archive-capacity"),
+    (bundle.InvalidBundle("upload-symlink"), "upload-symlink"),
+    (bundle.InvalidBundle("PRIVATE arbitrary text"), "archive-failed"),
+    (OSError("archive-capacity"), "archive-failed"),
+    (PermissionError("PRIVATE path"), "archive-failed"),
+])
+def test_public_archive_errors_are_fixed_codes_only(error, expected):
+    assert diagnostics.archive_error_code(error) == expected
+
+
+def test_archive_diagnostics_preserve_original_failure(journal):
+    original = {"exception_type": "Blocked", "stage": "build-test"}
+    journal.value["failure"] = original
+    journal.save()
+    with pytest.raises(OSError) as error:
+        raise OSError("PRIVATE archive path")
+    diagnostics.record_failure(app, error.value, app.ROOT, journal, {}, entry="archive_failure")
+    saved = json.loads(journal.path.read_text())
+    assert saved["failure"] == original
+    assert saved["archive_failure"]["exception_type"] == "OSError"
+    assert saved["archive_failure"]["stage"] == "build-test"
+    assert "PRIVATE" not in json.dumps(saved)

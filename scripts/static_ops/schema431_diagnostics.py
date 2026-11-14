@@ -65,7 +65,18 @@ def private_tail(value: object, env: dict, limit: int = OUTPUT_LIMIT) -> dict:
             "truncated": len(encoded) > limit}
 
 
-def record_failure(app, error: Exception, root: Path, journal, env: dict) -> None:
+def archive_error_code(error: Exception) -> str:
+    """Only literal bundle codes, never arbitrary exception text, may be public."""
+    if type(error) is bundle.InvalidBundle and str(error) in {
+        "archive-capacity", "file-type-or-size", "file-changed-or-too-large",
+        "upload-directory", "upload-symlink",
+    }:
+        return str(error)
+    return "archive-failed"
+
+
+def record_failure(app, error: Exception, root: Path, journal, env: dict,
+                   *, entry: str = "failure") -> None:
     """Add private diagnostics; collection failures cannot change the original outcome.
 
     command() already captured its child's result. Its exception traceback retains
@@ -73,7 +84,8 @@ def record_failure(app, error: Exception, root: Path, journal, env: dict) -> Non
     Read that one trusted frame, never replace command()/subprocess or replay it.
     """
     try:
-        details = {"exception_type": type(error).__name__, "stack": []}
+        details = {"exception_type": type(error).__name__,
+                   "stage": journal.value["stage"], "stack": []}
         # Blocked has a fixed-message contract. Native exceptions can contain
         # provider responses, so retain their type/location without their message.
         if type(error) is app.Blocked:
@@ -102,7 +114,7 @@ def record_failure(app, error: Exception, root: Path, journal, env: dict) -> Non
                         command["result"] = "spawn-error"
                     details["command"] = command
             traceback = traceback.tb_next
-        candidate = {**journal.value, "failure": details}
+        candidate = {**journal.value, entry: details}
         # The existing encrypted journal has a fixed byte budget. Diagnostics
         # must not turn an otherwise recoverable failure into an archive failure.
         if len(json.dumps(candidate, indent=2, sort_keys=True).encode()) + 1 > bundle.MAX_RECORD:
@@ -112,15 +124,15 @@ def record_failure(app, error: Exception, root: Path, journal, env: dict) -> Non
             details["output_omitted"] = "journal-size-limit"
         if len(json.dumps(candidate, indent=2, sort_keys=True).encode()) + 1 > bundle.MAX_RECORD:
             return
-        previous = journal.value.get("failure")
-        journal.value["failure"] = details
+        previous = journal.value.get(entry)
+        journal.value[entry] = details
         try:
             journal.save()
         except Exception:
             if previous is None:
-                journal.value.pop("failure", None)
+                journal.value.pop(entry, None)
             else:
-                journal.value["failure"] = previous
+                journal.value[entry] = previous
     except Exception:
         # The established BLOCKED, archive and cleanup paths remain authoritative.
         return

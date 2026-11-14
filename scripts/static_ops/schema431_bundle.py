@@ -16,6 +16,7 @@ import os
 import shutil
 import stat
 import sys
+import tempfile
 import zipfile
 import zlib
 from datetime import UTC, datetime, timedelta
@@ -32,8 +33,8 @@ MAX_SECRET = 48_000  # Below GitHub's 48 KiB per-secret limit, including encodin
 MAX_ENVELOPE = 36 * 1024 * 1024
 MAX_RECORD = 1024 * 1024
 MAX_REPORT = 8 * 1024 * 1024
-MAX_PAYLOAD = 240 * 1024 * 1024
-MAX_ARCHIVE = 256 * 1024 * 1024
+MAX_PAYLOAD = 480 * 1024 * 1024
+MAX_ARCHIVE = 512 * 1024 * 1024
 MAX_FILES = 25_000
 MAGIC = b"NavMate-schema431-AES256GCM-v1\0"
 
@@ -231,7 +232,17 @@ def seal(store: Path, evidence: dict[str, bytes], key: bytes, output: Path,
     require(buffer.tell() + len(MAGIC) + 28 <= MAX_ARCHIVE, "archive-capacity")
     nonce = os.urandom(12)
     encrypted = MAGIC + nonce + AESGCM(key).encrypt(nonce, buffer.getvalue(), MAGIC)
-    write_private(output, encrypted)
+    # A failed write must not leave a partial final archive that blocks recovery.
+    # Hard-linking the completed file is atomic and cannot overwrite an existing
+    # result; both paths are on the same filesystem.
+    output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=output.name + ".", dir=output.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(encrypted)
+        os.link(temporary, output)
+    finally:
+        Path(temporary).unlink()
     return sha256(encrypted)
 
 

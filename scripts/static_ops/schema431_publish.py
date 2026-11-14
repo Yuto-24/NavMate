@@ -236,6 +236,7 @@ def _run_private(root: Path) -> int:
                                        "archive_ready": False})
     created_store, reserved_evidence = False, False
     success, archive_ready = False, False
+    archive_errors = {}
     journal, evidence, handoff = None, None, None
     restored = store / "plan"
     try:
@@ -285,8 +286,24 @@ def _run_private(root: Path) -> int:
                     # Prepared bytes are unchanged; fresh build/caches/logs are excluded.
                     bundle.seal(restored, evidence, key, output, success=True, publication=True)
                     archive_ready = True
-                except Exception:
+                except Exception as error:
                     success = False
+                    archive_errors["archive_error"] = prepare.diagnostics.archive_error_code(error)
+                    prepare.diagnostics.record_failure(app, error, root.resolve(), journal, env,
+                                                       entry="archive_failure")
+                    journal.stage("archive")
+                    journal.finish(False)
+                    # Keep the actual publication outcome and mutation journal,
+                    # but never restore this reduced archive as a prepared plan.
+                    handoff.update(prepared=False, plan_sha256=None, prepared_at=None)
+                    app.write_json(restored / "handoff.json", handoff)
+                    try:
+                        bundle.seal(restored, evidence, key, output, success=False,
+                                    publication=True)
+                        archive_ready = True
+                    except Exception as recovery_error:
+                        archive_errors["archive_recovery_error"] = (
+                            prepare.diagnostics.archive_error_code(recovery_error))
         finally:
             try:
                 with Path(env["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
@@ -304,6 +321,7 @@ def _run_private(root: Path) -> int:
                     except Exception:
                         cleanup_ok = False
                 status = json.loads(status_path.read_text())
+                status.update(archive_errors)
                 status.update(archive_ready=archive_ready,
                               cleanup="COMPLETE" if cleanup_ok else "FAILED")
                 if not success or not archive_ready or not cleanup_ok:
