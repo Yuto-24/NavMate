@@ -318,6 +318,7 @@ def _run_private(root: Path) -> int:
     created_store, created_evidence = False, False
     success, archive_ready = False, False
     plan_digest = None
+    archive_errors = {}
     try:
         scope(env, json.loads(Path(env["GITHUB_EVENT_PATH"]).read_text()))
         checked_checkout(Path(__file__).resolve().parents[2], env["GITHUB_SHA"])
@@ -360,8 +361,30 @@ def _run_private(root: Path) -> int:
                 try:
                     bundle.seal(store, evidence, key, output, success=success)
                     archive_ready = True
-                except Exception:
+                except Exception as error:
+                    had_prepared = success
                     success = False
+                    archive_errors.update(stage="archive",
+                                          archive_error=diagnostics.archive_error_code(error))
+                    diagnostics.record_failure(app, error, root.resolve(), journal, env,
+                                               entry="archive_failure")
+                    for update in (lambda: journal.stage("archive"),
+                                   lambda: journal.finish(False)):
+                        try:
+                            update()
+                        except Exception as status_error:
+                            diagnostics.record_failure(app, status_error, root.resolve(),
+                                                       journal, env, entry="archive_status_failure")
+                    if had_prepared:
+                        # A diagnostic-only archive cannot authorize publication.
+                        handoff.update(prepared=False, plan_sha256=None, prepared_at=None)
+                        app.write_json(store / "handoff.json", handoff)
+                        try:
+                            bundle.seal(store, evidence, key, output, success=False)
+                            archive_ready = True
+                        except Exception as recovery_error:
+                            archive_errors["archive_recovery_error"] = (
+                                diagnostics.archive_error_code(recovery_error))
         finally:
             # Even a handoff/status write failure must reach output and cleanup.
             # Actions can upload the encrypted result after a failed step, too.
@@ -381,6 +404,7 @@ def _run_private(root: Path) -> int:
                     except Exception:
                         cleanup_ok = False
                 status = json.loads(status_path.read_text())
+                status.update(archive_errors)
                 if journal is not None:
                     prepared = success and archive_ready
                     status.update(status="PREPARED" if prepared else "BLOCKED",

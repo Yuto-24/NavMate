@@ -88,15 +88,19 @@ Environment Secretの設定方法と48 KiB制限は
 | --- | --- |
 | 転送Secret | エンコード後48,000バイト。展開後JSONは36 MiB、記録本体1 MiB、報告は各8 MiBまで |
 | 転送の有効期間 | packから24時間。期限切れは停止前に拒否。同じ元証拠から新しい転送を作り直す |
-| 暗号化成果物 | 1実行につき最大256 MiB、格納ファイルの合計は240 MiB・25,000件まで |
+| 暗号化成果物 | 1実行につき最大512 MiB、格納ファイルの合計は480 MiB・25,000件まで |
 | Actions Artifact | 暗号文だけを1日保持。通常Artifactを秘密保管先とは扱わない |
 | plan | 既存どおりprepare終了時刻から30分。Artifactの保持期限とは別 |
 
 実行前に既存の[plan/limits・共有容量確認](static_operations.md#quota-evidence-and-monitoring)
-を行い、最大256 MiBのArtifactを保持できる余裕を確認する。
+を行い、prepareとpublishそれぞれ最大512 MiBのArtifactを保持できる余裕を確認する。
 コードの容量制限はGitHub側の利用可能残量を保証しない。
 上限超過や保存失敗を平文Artifactで回避しない。
 Secretが収まらない場合は停止前の不足条件として扱い、証拠を削ったりhashだけに置き換えたりしない。
+
+ActionsとWSLの復号には、上記の容量上限を持つレビュー済みdriverを使う。
+旧driverは256 MiBを超える暗号文を拒否する。既存転送が24時間の有効期間内なら、
+同じSecretと鍵を使える。元証拠と暗号形式は共通である。
 
 ## 2. mainから明示的に実行する
 
@@ -243,6 +247,7 @@ summaryの `PUBLISHED` とArtifact upload成功を確認し、
 | `automation=UNKNOWN` | 停止を試行したが結果を確定できない。Repository Variableをread-backし、再開を推測しない |
 | `automation=CONFIRMED` | falseへの変更とread-backを確認済み。後続失敗でも停止を維持 |
 | 暗号化またはArtifact upload失敗 | planの取得成功とは扱わない。平文の退避はしない。残る停止状態を確認し、新規prepareまたは復旧を選ぶ |
+| `stage=archive` | 暗号化保存で失敗。`archive_error`は固定の診断コード。診断だけの暗号文を保存できても`BLOCKED`を維持 |
 | `cleanup=FAILED` | 暗号文は取得可能な場合があるが、runnerの後始末は完了していない。停止を維持し、runner終了とremote stateを確認 |
 | timeout・cancel・runner消失 | 最後のjournal/statusは途中経過。Artifactを取得できない場合もある。必ずremote stateを読み直す |
 
@@ -255,6 +260,14 @@ argv・環境変数・stdinは保存しない。これらの詳細は公開summa
 記録は既存の暗号化bundle内に入り、鍵・転送形式・復号手順は変わらない。
 timeoutやプロセス起動失敗では出力を取得できない場合がある。診断の取得・保存に失敗しても、
 元の失敗状態、暗号化記録の保存、後始末を継続する。
+完成成果物を含む暗号化保存に失敗した場合は、証拠・journal・handoffだけの小さい暗号文を試す。
+この記録は`prepared=false`、plan digestなしで、planとprepared成果物を含まない。
+元の処理失敗と保存失敗は別々にjournalへ残し、公開summaryには許可した固定コードだけを出す。
+状態記録の書込みが失敗しても、handoffの無効化と診断保存を続行する。
+診断の暗号化も失敗した場合は`archive_recovery_error`を記録する。
+publish後の保存失敗では、実際の公開結果と変更状態を記録に保持する。`BLOCKED`だけから
+本番未変更とは判断しない。暗号文は一時ファイルへの書込み完了後に確定し、既存結果を上書きしない。
+確定後に一時ファイルを削除できなくても、暗号文の保存結果は変えない。
 handoffやstatusの書込みに失敗しても、作成済み暗号文のupload条件の通知と平文のcleanupを試行する。
 status自体を更新できない場合、summaryは途中の状態のまま残りうる。jobの失敗を無視せず、remote stateを確認する。
 強制終了時の平文はephemeralなGitHub-hosted runnerの破棄に依存し、保存完了を保証しない。
@@ -358,3 +371,23 @@ Nodeはコピー元のrunner所有も保持するため、この2ファイルだ
 回帰テストでは実Git checkoutと候補のコピー処理を使い、従来条件での読取失敗と、
 prepare・publish両adapterでの非root読取・成果物検証を確認する。
 これは固定toolingの全文置換や、検証前の再帰的なchmod/chownを許可する一般ルールではない。
+
+### 2026-11-14に確認した保持feedと暗号化転送上限の不整合
+
+[Run 43564781932](https://github.com/Yuto-24/NavMate/actions/runs/43564781932)は
+`stage=build-test`、`archive_status=FAILED`で停止し、Artifactを保存できなかった。
+当時は暗号化保存の例外を記録せず、成功したprepareの後もstageが`build-test`のままだった。
+したがって、このRunのbuild・E2E成否と、実際に返された保存例外は確定できない。
+
+同日の[本番release inventory](https://navmate.yuto24.com/release.json)は183ファイル、
+合計332,950,019バイトだった。[MSM catalog](https://navmate.yuto24.com/weather/msm/catalog.json)の
+35 assetだけで301,086,239バイトあり、すべて固定producerの7日保持範囲内だった。
+新規生成で置き換わり得る最大3 Runについて、最大サイズの3 assetを差し引いても
+260,150,268バイトが残る。気象データだけで旧240 MiB上限を超え、静的アプリや証拠を含む
+正当な完成成果物を転送できないことを確認した。
+
+転送の展開後上限を480 MiB、暗号文上限を512 MiBに変更する。固定producerの保持内容、
+候補、移行証拠、公開検証を維持し、新上限の超過時も停止する。実行前のActions容量確認は必要である。
+回帰テストでは336 MiBの圧縮されにくい合成データを使い、旧暗号文上限も超える成果物の
+暗号化・復号・元バイト一致を確認する。容量超過や保存障害では、診断だけの暗号文を保存し、
+公開可能なplanとして扱わないことも検証する。この観測を、他の転送上限を一律に増やす規則にはしない。

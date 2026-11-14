@@ -451,6 +451,61 @@ def test_real_publish_flow_keeps_recovery_private_and_never_resumes(
     assert ordinary.stat().st_mode & 0o777 == 0o644
 
 
+@pytest.mark.parametrize("publication_failure", [None, "upload"])
+@pytest.mark.parametrize("status_failure", [None, "stage", "finish", "public-status"])
+def test_archive_failure_retains_actual_publication_state_without_prepared_bytes(
+        runner, approved_plan, publication_context, tmp_path, monkeypatch,
+        publication_failure, status_failure):
+    env, operator, outputs, reviewed = runner
+    operator.fail = publication_failure
+    original_seal = bundle.seal
+    def seal(*args, **kwargs):
+        if kwargs["success"]:
+            raise bundle.InvalidBundle("archive-capacity")
+        return original_seal(*args, **kwargs)
+    monkeypatch.setattr(bundle, "seal", seal)
+    original_json, original_status = app.write_json, prepare.public_status
+    archive_writes = 0
+    def write_json(path, value):
+        nonlocal archive_writes
+        if path.name == "publish-status.json" and value.get("stage") == "archive":
+            archive_writes += 1
+            if ((status_failure == "stage" and archive_writes == 1)
+                    or (status_failure == "finish" and archive_writes == 2)):
+                raise OSError("PRIVATE journal error")
+        original_json(path, value)
+    def public_status(path, value):
+        if (status_failure == "public-status" and value.get("stage") == "archive"
+                and "cleanup" not in value):
+            raise OSError("PRIVATE public status error")
+        original_status(path, value)
+    monkeypatch.setattr(app, "write_json", write_json)
+    monkeypatch.setattr(prepare, "public_status", public_status)
+    assert driver.run(tmp_path) == 1
+    private, encrypted, status_path = prepare.locations(env)
+    status = json.loads(status_path.read_text())
+    assert status["status"] == "BLOCKED" and status["stage"] == "archive"
+    assert status["archive_error"] == "archive-capacity" and status["archive_ready"]
+    assert status["changes"]["production"] == (
+        "CONFIRMED" if publication_failure is None else "UNKNOWN")
+    assert outputs.read_text() == "archive_ready=true\n" and not private.exists()
+    assert "resume" not in operator.calls
+    recovery = tmp_path / "recovery"
+    key_path = approved_plan[5]
+    handoff = bundle.unseal(encrypted, key_path, recovery)
+    assert not handoff["prepared"] and handoff["plan_sha256"] is None
+    assert handoff["publication"]["succeeded"] == (publication_failure is None)
+    assert not (recovery / "plan.json").exists() and not (recovery / "prepared").exists()
+    saved = json.loads((recovery / "publish-status.json").read_text())
+    assert saved["authorization"]["reviewed_plan_sha256"] == reviewed
+    assert saved["archive_failure"]["exception_type"] == "InvalidBundle"
+    if status_failure:
+        assert saved["archive_status_failure"]["exception_type"] == "OSError"
+    if publication_failure:
+        assert "failure" in saved
+    assert "SECRET" not in status_path.read_text() and "PRIVATE" not in status_path.read_text()
+
+
 @pytest.mark.parametrize("failure", ["digest", "snapshot", "prepared-bytes"])
 def test_original_publish_gates_still_block_before_mutation(runner, tmp_path, monkeypatch, failure):
     env, operator, _, _ = runner
