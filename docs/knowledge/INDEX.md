@@ -5,6 +5,7 @@ Read [the workflow](README.md) before adding or applying lessons. Search by the 
 ## Existing canonical sources
 - [Agent workflow](../agent_workflow.md)
 - [Forecast schema 4 → 5 transition](../forecast_schema_transition.md): Issue #423。旧版生成データ、旧タブとの共存、同一端末 Latest 置換の了承範囲、手動公開の証拠と制約。最終v2.3.2候補への適用審査、元報告を保持するWSL helper、remote tag照合、受理済み記録を再生成しない運用。
+- [Releaseの期限・受渡し・再実行の知見](../schema431_actions_prepare.md#操作窓を始める前の確認): planとprepared feedの別々の30分条件、取得・レビューの事前準備、v2.3.2の公開結果と検証限界。2026-11-15、tooling `64225b82` / driver `2394d59d`で確認。未実装の改善はリンク先Issueへ。
 - [Existing evidence](../evidence/)
 - [Static browser acceptance](../static_web_browser_acceptance.md#observation-startup-after-reload-2026-11-14): PR #438のiPhone WebKit traceで確認した、reload後のPyodide初期化と結果検証の待機上限の不一致。起動待ちと保存結果の完全一致検証を分ける。起動性能の改善は#422。
 - [App publication audit](../app_publication_audit.md): prepare/publish重複、排他、部分失敗、診断境界。2026-11-08のコード・実行証拠に基づく判断と未実装の後続案。
