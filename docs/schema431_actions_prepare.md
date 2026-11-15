@@ -10,13 +10,17 @@
 prepareの前に、公開用driverのレビュー・merge、既存Pages token、鍵の保持、
 planを非公開で確認できる環境を揃える。plan取得後に公開経路を実装すると30分期限を失う。
 
-この文書と実装の追加は、本番停止・prepare・publishの実施記録ではない。
+本手順の追加自体は、本番停止・prepare・publishの実施を意味しない。
 実行前に、対象の操作窓と停止・prepare の承認を確認する。
 実行方式と固定条件は [Issue #431](https://github.com/Yuto-24/NavMate/issues/431)、
 移行の検証内容は [Schema 4→5 の記録](forecast_schema_transition.md) を正本とする。
 当初の#431はv2.3.1が対象だったが、保存案内テストの修正を含むv2.3.2へ候補を進めた。
 以下は[#437の再審査](https://github.com/Yuto-24/NavMate/pull/437)で受理された別記録の固定値。
 旧v2.3.1の記録・Artifact・readback結果を、新候補の証拠としてそのまま使わない。
+
+2026-11-15（JST）にv2.3.2の公開を完了した。[実行結果と次回への知見](#2026-11-15の公開結果と次回への知見)を参照。
+以下のcurrent/candidate/toolingはその移行専用の固定値であり、次のReleaseへそのまま流用しない。
+公開済みという過去の観測は、次回の本番snapshot・互換性確認・承認を代替しない。
 
 ## 維持する境界
 
@@ -35,6 +39,42 @@ main 上のdriverは、別checkoutの固定toolingをimportして使う。
 `reviewed_schema()`、互換性検査、snapshot、隔離build・E2E、plan生成は固定toolingの実装を使い、
 移行記録のtooling SHAを書き換えない。新しいdriverのSHAは暗号化したhandoff記録に残る。
 通常の自動Release、`replay-release`、`readback` の条件は変更しない。
+
+## 操作窓を始める前の確認
+
+取得・レビューの待ち時間も公開期限を消費する。停止やprepareを始める前に、次を揃える。
+
+1. 候補・tooling・移行証拠と既存CIを照合し、公開経路、必要な承認、既存認証、鍵の保持先、
+   復号環境、レビュー担当を確認する。期限付きplanを作ってから公開経路を実装しない。
+2. 保持feedを含む実容量と暗号化・展開後の各上限、Artifactの利用可能容量を確認する。
+   小さいfixtureの成功を本番容量の保証にしない。既存の容量・権限回帰テストを再利用する。
+3. 本番モードに合ったテスト期待値、Git checkoutからDocker内コピーまでの所有者・mode、
+   失敗診断の保存経路を確認する。これらの既知修正を再実装したり、同じ全体検証を理由なく繰り返したりしない。
+4. 受入確認では現在のUIヘルパーを使う。保存一覧を開く操作は
+   [openProjectMenu](../web/e2e/helpers/header.ts)を確認し、旧UIの操作を記憶だけで再現しない。
+   実行時の許可された範囲に合わせ、合成データと実アカウント・実機の検証結果を区別する。
+
+### planとprepared catalogの期限は別に確認する
+
+[publish](../scripts/static_ops/app_release.py)はplanの時刻を検査した後、fresh buildより前に
+prepared成果物を[validate_feed](../scripts/static_ops/validate_feed.py)で再検証する。
+このため、planが有効でもprepared catalogが古ければ、新しいfeedを作る工程まで進めない。
+
+| 対象 | 現行実装の条件 | 計時の起点 |
+| --- | --- | --- |
+| plan | 作成から30分以内 | `plan.prepared_at`（prepare終了時） |
+| prepared catalog | 生成から30分以内 | `catalog.generated_at`（build・E2E完了前） |
+| catalogの配信寿命 | 生成から6時間、検証時に残存2時間以上 | `generated_at` / `expires_at` |
+
+時刻による公開前の上限は、`plan.prepared_at + 30分` と `catalog.generated_at + 30分` の早い方。
+これは公開可能性の十分条件ではない。未来時刻、coverage、保持Run、改変、設定・Rules・schema・sourceの
+変化なども既存の検査に従う。6時間の配信寿命を公開前30分条件の代わりにしない。
+
+prepare成功後、元のplanとcatalogから両期限・現在時刻を同じtimezoneで確認する。
+取得・復号・レビュー・publish起動・preflightまでの余裕を見込み、dispatch受付だけで期限通過を保証しない。
+期限を過ぎた場合は時刻やdigestを書き換えず、状態を読み直して新しいprepareとレビューへ戻る。
+自動再試行・承認・監視の許可をこの手順から推定せず、既存の操作権限と待機条件に従う。
+次回は使用するtoolingの実装とこの表が一致することも確認する。
 
 ## 1. 非公開証拠を転送用Secretにまとめる
 
@@ -391,3 +431,44 @@ prepare・publish両adapterでの非root読取・成果物検証を確認する�
 回帰テストでは336 MiBの圧縮されにくい合成データを使い、旧暗号文上限も超える成果物の
 暗号化・復号・元バイト一致を確認する。容量超過や保存障害では、診断だけの暗号文を保存し、
 公開可能なplanとして扱わないことも検証する。この観測を、他の転送上限を一律に増やす規則にはしない。
+
+## 2026-11-15の公開結果と次回への知見
+
+v2.3.2（`f1a5ef49eeab41744635232cddd51c2257871aed`）の本番公開は完了した。
+直前の失敗はprepared catalogの30分条件によるもので、新しいprepareと期限内のpublishで解消した。
+この最終操作では公開コードや検査条件を変更していない。
+
+以下の失敗位置・時刻・mutation状態は、operatorが復号した非公開plan・journal・catalogから確認した要約。
+公開Actionsログだけで非公開記録の全文を再検証できるという意味ではない。鍵・接続設定一覧・生の証拠は記載しない。
+
+| 観測 | 根拠・意味 |
+| --- | --- |
+| 直前のpublishがpreflightで停止 | [実行43611049696](https://github.com/Yuto-24/NavMate/actions/runs/43611049696)。`validate_feed.py`の鮮度条件で失敗し、production / approved SHA / automation / workflowはすべて`UNCHANGED` |
+| planとfeedの残り時間が異なった | 2026-11-15 JSTでcatalog生成00:01:56、plan作成00:10:22、publishの検証は00:37頃。planは30分以内でもcatalogは約35分経過 |
+| 新しいprepareが成功 | [実行43612102980](https://github.com/Yuto-24/NavMate/actions/runs/43612102980)。00:47:56〜00:58:05 JST、10分09秒 |
+| 新しいpublishが成功 | [実行43613428915](https://github.com/Yuto-24/NavMate/actions/runs/43613428915)。01:02:45〜01:13:18 JST、10分33秒。公開照合と承認SHA更新を完了 |
+
+両workflowの経過時間は合計20分42秒。セットアップ・暗号化保存等を含み、buildとE2Eだけの時間ではない。
+工程別の内訳や削減可能時間は未計測であり、publish全体を省略可能な重複とは扱わない。
+[既存の公開工程の棚卸し](app_publication_audit.md)の再build判断を引き継ぐ。
+
+暗号化成果物は約350 MBだった。取得・復号・レビューも期限を消費する。
+この操作では整合性を確認した範囲取得の並列化を使ったが、汎用的な速度改善は未計測で、
+リポジトリの正式な取得機能として実装済みではない。
+初回の公開後確認では旧UIの操作で非表示の保存一覧を120秒待った。
+現在のプロジェクトメニューを開く手順で確認でき、データ消失ではなくテスト手順の不一致だった。
+
+公開後は実originのブラウザテスト3件、実MSM計算・保存・reload、38 NPZのbytes/hashを確認した。
+NPZ検証は30秒で終わらなかった2回と分け、3回目の単一試行で全件が成功した。
+最大300秒・試行ごと30秒の制限を維持し、途中の成功を合算していない。取得時間の変動原因は未特定。
+専用profileの旧v2.2.2合成ProjectとLast Calculationは、新版での再起動・reload後も保持された。
+実ブラウザのTAF取得はHTTP 200。気象自動更新は再開・read-back済みで、一時Secretは記録取得後に削除した。
+実アカウントのGoogle同期と実機Safariは未検証であり、全利用者・全端末の受入完了とはしない。
+
+CodeRabbit免除と包括的な公開指示はこの操作だけのユーザー判断だった。
+正確なplanは担当エージェントとGPT-6 Astraが確認したもので、ユーザーが未提示のdigestを自ら確認したとは扱っていない。
+次回のレビュー・公開・再開の承認条件を、この一回の例外で変更しない。
+
+未実装の期限表示、小さなレビュー／診断記録、工程別計測と短縮案の評価は
+[#440 手動公開の期限管理・レビュー用記録・工程計測](https://github.com/Yuto-24/NavMate/issues/440)で扱う。build-once採用や期限延長を決定したものではない。
+過去の診断不足・文言期待値・権限・容量の修正は、上の各失敗記録を参照し、未修正の課題と混同しない。
