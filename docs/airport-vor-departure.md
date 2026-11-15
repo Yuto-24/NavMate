@@ -38,9 +38,16 @@ version 3〜7のProjectは従来どおり読み込み、VOR未選択として扱
 採用する。TCとWCAは従来のWGS84経路・風計算を維持する。詳細は
 [計算規約](calculation_rules.md)を参照。任意のVOR/DME列の選局は影響しない。
 
-偏差値と出典は`AIRPORT_VOR_DECLINATIONS`に記録し、既存の
-`web/src/data/vorStations.json`との一致をテストする。座標の出典と偏差の出典の
-改訂日は異なる場合があるため、それぞれの出典を保持する。13局は既存データの転記であり、最新AIPの再調査ではない。
+公示偏差と出典の手で保守する原本は
+`src/autonavlog/nav/data/vor_stations.json`だけとする。WebはこのJSONを直接importし、
+Pythonはwheelに同梱した同じJSONを`importlib.resources`で読む。
+Dockerのfrontend buildもこの原本を入力とする。Local/Pyodideのwheelには通常の
+package dataとして含めるため、別の転記・生成手順は不要。
+
+`stations`は従来のVOR/DME一覧、`departure_only_stations`は一覧に出さない出発専用局。
+OYEは後者で管理する。Python側の検索表は実行時にこの原本から組み立てる。
+座標の出典と偏差の出典の改訂日は異なる場合があるため、それぞれの出典を保持する。
+今回の一本化では既存13局とOYEの採用値・出典を変えない。最新AIPの再調査ではない。
 既存VOR/DME一覧にないOYEは、保存済み`RJOB__AD2_20260806.pdf`のp.7、
 AD 2.19（ページ有効日2025-03-20）で`VOR (8°W/2016) OYE`、
 座標`344501.38N/1335006.20E`を2026-11-15に確認した。

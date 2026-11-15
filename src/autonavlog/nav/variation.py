@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from importlib.resources import files
 from math import isfinite
 from typing import Any
 
-from autonavlog.domain.airport_vor import AIRPORT_VOR_DECLINATIONS, AIRPORT_VORS
+from autonavlog.domain.airport_vor import AIRPORT_VORS
 from autonavlog.domain.planning import DepartureVorSelection
 
 VARIATION_LATITUDE_THRESHOLD_DEG = 32.0
@@ -47,11 +49,21 @@ def variation_for_departure_latitude(latitude_deg: float) -> VariationDecision:
 
 VOR_VARIATION_RULE_VERSION = "DEPARTURE_VOR_DECLINATION_V1"
 
+# The same canonical resource is imported directly by web/src/vorRadial.ts.
+_vor_data = json.loads(files("autonavlog.nav").joinpath("data/vor_stations.json").read_text())
+VOR_DECLINATIONS: dict[str, tuple[float, str]] = {
+    station["identifier"]: (
+        station["variation_west_deg"],
+        f"AIP {station['variation_source']}; {station['source_file']} p.{station['source_page']}",
+    )
+    for station in (*_vor_data["stations"], *_vor_data["departure_only_stations"])
+}
+
 
 def variation_for_departure_vor(selection: DepartureVorSelection) -> VariationDecision:
     """Resolve the station reference without falling back to latitude bands."""
     station = AIRPORT_VORS.get(selection.airport_id)
-    record = AIRPORT_VOR_DECLINATIONS.get(selection.identifier)
+    record = VOR_DECLINATIONS.get(selection.identifier)
     if (
         station is None
         or record is None

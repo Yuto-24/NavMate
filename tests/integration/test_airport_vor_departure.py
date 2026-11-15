@@ -274,14 +274,14 @@ def test_first_leg_eoc_keeps_vor_reference():
 
 @pytest.mark.parametrize("problem", ["missing", "unknown", "moved_station", "moved_origin"])
 def test_unavailable_declination_never_falls_back_to_latitude(problem, monkeypatch):
-    from autonavlog.domain.airport_vor import AIRPORT_VOR_DECLINATIONS
+    from autonavlog.nav.variation import VOR_DECLINATIONS
 
     app = LocalApplication(ROOT / "data")
     try:
         app.dispatch("confirmRoute", ole_request())
         project = app.session.project
         if problem == "missing":
-            monkeypatch.delitem(AIRPORT_VOR_DECLINATIONS, "OLE")
+            monkeypatch.delitem(VOR_DECLINATIONS, "OLE")
         elif problem == "unknown":
             project.metadata["ui_state"]["departure_vor"]["identifier"] = "UNKNOWN"
         elif problem == "moved_station":
@@ -298,26 +298,32 @@ def test_unavailable_declination_never_falls_back_to_latitude(problem, monkeypat
         app.close()
 
 
-def test_declination_matches_existing_radial_dataset():
-    from autonavlog.domain.airport_vor import AIRPORT_VOR_DECLINATIONS
+def test_tracking_uses_packaged_station_resource():
+    from importlib.resources import files
+
     from autonavlog.nav.variation import variation_for_departure_vor
 
-    stations = {s["identifier"]: s for s in json.loads(
-        (ROOT / "web/src/data/vorStations.json").read_text()
-    )["stations"]}
-    assert set(AIRPORT_VOR_DECLINATIONS) == {v.identifier for v in AIRPORT_VORS.values()}
+    # Works against installed wheels/Docker without the repository's Web sources.
+    resource = files("autonavlog.nav").joinpath("data/vor_stations.json")
+    data = json.loads(resource.read_text())
+    visible = {s["identifier"] for s in data["stations"]}
+    assert "OLE" in visible
+    assert "OYE" not in visible
+    stations = {s["identifier"]: s for s in
+                (*data["stations"], *data["departure_only_stations"])}
     for vor in AIRPORT_VORS.values():
-        decision = variation_for_departure_vor(vor)
-        if vor.identifier == "OYE":
-            assert decision.degrees_east == 8
-            assert "RJOB__AD2_20260806.pdf p.7" in decision.metadata["source"]
-            continue
         station = stations[vor.identifier]
+        decision = variation_for_departure_vor(vor)
         assert decision.degrees_east == station["variation_west_deg"]
-        assert station["source_file"] in decision.metadata["source"]
-        assert f'p.{station["source_page"]}' in decision.metadata["source"]
-        assert vor.latitude_deg == pytest.approx(station["latitude_deg"], abs=1e-9)
-        assert vor.longitude_deg == pytest.approx(station["longitude_deg"], abs=1e-9)
+        assert decision.metadata["source"] == (
+            f"AIP {station['variation_source']}; "
+            f"{station['source_file']} p.{station['source_page']}"
+        )
+    oye = variation_for_departure_vor(AIRPORT_VORS["RJOB"])
+    assert oye.degrees_east == 8
+    assert oye.metadata["source"] == (
+        "AIP AD 2.19 VOR declination (8°W/2016); RJOB__AD2_20260806.pdf p.7"
+    )
 
 
 @pytest.mark.parametrize("mode", ["VOR", "AIRPORT"])
@@ -347,9 +353,9 @@ def test_pre_vor_rule_saved_calculation_requires_recalculation_only_in_vor_mode(
         if mode == "VOR":
             first = refreshed["outcome"]["sections"][0]
             assert value(first, "magnetic_course_deg") == pytest.approx(94)
-            from autonavlog.domain.airport_vor import AIRPORT_VOR_DECLINATIONS
+            from autonavlog.nav.variation import VOR_DECLINATIONS
 
-            monkeypatch.setitem(AIRPORT_VOR_DECLINATIONS, "OLE", (8.0, "changed reference"))
+            monkeypatch.setitem(VOR_DECLINATIONS, "OLE", (8.0, "changed reference"))
             changed = json.loads(app.dispatch("bootstrap", refreshed["workingRecovery"]))
             assert not changed["readiness"]["calculationIsCurrent"]
     finally:

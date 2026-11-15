@@ -104,3 +104,16 @@ test("SUC radial and distance match independent WGS84 inverses to TO", () => {
   expect(formatVorRadialDistance(station, shimizuVor.latitude_deg, shimizuVor.longitude_deg)).toBe("— / 0.0");
   expect(formatVorRadialDistance(station, null, null)).toBe("— / —");
 });
+
+test("shared station resource keeps OLE CRS/provenance and excludes departure-only OYE", () => {
+  expect(VOR_STATIONS.some(station => station.identifier === "OYE")).toBe(false);
+  const ole = VOR_STATIONS.find(station => station.identifier === "OLE")!;
+  expect(ole).toMatchObject({
+    variation_west_deg: 7,
+    variation_source: "AD 2.19 VOR declination",
+    source_file: "RJFU__20260709.pdf",
+    source_page: 11,
+  });
+  expect(formatVorRadialDistance(ole, 32.945035196803204, 130.9068944601255))
+    .toBe("094 / 50.0");
+});

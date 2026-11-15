@@ -43,6 +43,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 autonavlog = [
   "py.typed",
+  "nav/data/*.json",
   "web/static/*",
   "web/static/assets/*",
 ]

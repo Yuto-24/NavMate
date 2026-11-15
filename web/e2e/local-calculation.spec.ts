@@ -568,6 +568,14 @@ test("#414 OLE first-leg CRS remains 094 when VOR/DME columns select another sta
   const count = await page.evaluate(() => (window as any).localCalculationCount);
   await page.getByLabel("VOR基準局", { exact: true }).selectOption("OLE");
   await expect(row.locator(".vor-reference-cell")).toHaveText("094 / 50.0");
+  await expect(page.getByLabel("VOR基準局", { exact: true }).locator('option[value="OYE"]'))
+    .toHaveCount(0);
+  const source = await page.evaluate(() => {
+    const states = (window as any).localStates;
+    const state = [...states].reverse().find(state => state.outcome?.sections?.length);
+    return state.outcome.sections[0].variation_deg_east.automatic_metadata.source;
+  });
+  expect(source).toBe("AIP AD 2.19 VOR declination; RJFU__20260709.pdf p.11");
   await page.getByLabel("VOR基準局", { exact: true }).selectOption("MZE");
   await expect(row.locator(".vor-reference-cell")).not.toHaveText("094 / 50.0");
   await expect(row.locator("td").nth(mcIndex)).toHaveText("094");
