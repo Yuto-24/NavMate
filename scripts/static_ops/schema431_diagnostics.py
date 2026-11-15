@@ -69,7 +69,7 @@ def archive_error_code(error: Exception) -> str:
     """Only literal bundle codes, never arbitrary exception text, may be public."""
     if type(error) is bundle.InvalidBundle and str(error) in {
         "archive-capacity", "file-type-or-size", "file-changed-or-too-large",
-        "upload-directory", "upload-symlink",
+        "upload-directory", "upload-symlink", "archive-timing-save",
     }:
         return str(error)
     return "archive-failed"

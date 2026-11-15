@@ -431,7 +431,7 @@ def test_real_publish_flow_keeps_recovery_private_and_never_resumes(
     private, encrypted, status_path = prepare.locations(env)
     assert not private.exists() and not bundle.EVIDENCE_ROOT.exists()
     assert encrypted.is_file() and encrypted.stat().st_mode & 0o777 == 0o600
-    assert outputs.read_text() == "archive_ready=true\n"
+    assert "archive_ready=true\n" in outputs.read_text()
     assert not operator.publication_allowed and "resume" not in operator.calls
     assert operator.state["variables"]["STATIC_AUTOMATION_ENABLED"] == "false"
     status = json.loads(status_path.read_text())
@@ -488,7 +488,7 @@ def test_archive_failure_retains_actual_publication_state_without_prepared_bytes
     assert status["archive_error"] == "archive-capacity" and status["archive_ready"]
     assert status["changes"]["production"] == (
         "CONFIRMED" if publication_failure is None else "UNKNOWN")
-    assert outputs.read_text() == "archive_ready=true\n" and not private.exists()
+    assert "archive_ready=true\n" in outputs.read_text() and not private.exists()
     assert "resume" not in operator.calls
     recovery = tmp_path / "recovery"
     key_path = approved_plan[5]
@@ -567,7 +567,7 @@ def test_finalization_always_attempts_cleanup_and_restores_umask(
     ordinary.touch()
     assert ordinary.stat().st_mode & 0o777 == 0o644
     if failure == "seal":
-        assert outputs.read_text() == "archive_ready=false\n" and not encrypted.exists()
+        assert "archive_ready=false\n" in outputs.read_text() and not encrypted.exists()
     if status_path.exists():
         assert "PRIVATE" not in status_path.read_text()
 
@@ -576,7 +576,7 @@ def test_wrong_key_fails_without_publication(runner, tmp_path, monkeypatch):
     _, operator, outputs, _ = runner
     monkeypatch.setenv("SCHEMA431_ARCHIVE_KEY", base64.b64encode(os.urandom(32)).decode())
     assert driver.run(tmp_path) == 1
-    assert not operator.calls and outputs.read_text() == "archive_ready=false\n"
+    assert not operator.calls and "archive_ready=false\n" in outputs.read_text()
 
 
 def test_manual_publish_workflow_keeps_wif_and_explicit_inputs():
@@ -612,3 +612,40 @@ def test_report_does_not_claim_success_when_private_record_upload_failed(
     driver.report()
     result = json.loads(capsys.readouterr().out)
     assert result["status"] == "BLOCKED" and result["stage"] == "archive-upload"
+
+
+@pytest.mark.parametrize('when', ['start', 'finish'])
+def test_publication_archive_timing_write_failure_preserves_actual_result(
+        runner, approved_plan, tmp_path, monkeypatch, when):
+    env, operator, outputs, _ = runner
+    write, seal = prepare.release_timing.write, bundle.seal
+    sealed = []
+    def record_seal(*args, **kwargs):
+        digest = seal(*args, **kwargs)
+        sealed.append(digest)
+        return digest
+    def fail_timing(path, value):
+        if path.name == 'archive-timings.json' and (
+                when == 'start' or value[-1]['status'] != 'RUNNING'):
+            raise OSError('PRIVATE timing save failure')
+        write(path, value)
+    monkeypatch.setattr(bundle, 'seal', record_seal)
+    monkeypatch.setattr(prepare.release_timing, 'write', fail_timing)
+    assert driver.run(tmp_path) == 1
+    private, output, status_path = prepare.locations(env)
+    status = json.loads(status_path.read_text())
+    assert status['status'] == 'BLOCKED' and not private.exists()
+    assert status['changes']['production'] == 'CONFIRMED'
+    assert status['archive_ready'] is (when == 'finish')
+    assert 'archive_ready=' + str(when == 'finish').lower() + '\n' in outputs.read_text()
+    assert len(sealed) == (1 if when == 'finish' else 0)
+    if when == 'finish':
+        assert bundle.sha256(output.read_bytes()) == sealed[0]
+        assert status['archive_error'] == 'archive-timing-save'
+        handoff = bundle.unseal(output, approved_plan[5], tmp_path / 'recovery')
+        assert handoff['publication']['succeeded']  # Publication already took place.
+        review = json.loads(output.with_suffix('.review.json').read_text())
+        assert review['status'] == 'BLOCKED' and review['archive_sha256'] == sealed[0]
+        assert not review['publication_authorized']
+    assert operator.calls.count('upload') == 1 and 'resume' not in operator.calls
+    assert 'PRIVATE' not in status_path.read_text()

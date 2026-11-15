@@ -198,6 +198,8 @@ def quiet_journal(app, store: Path, status_path: Path):
             })
 
         def finish(self, success):
+            if hasattr(self, "end_stage"):
+                self.end_stage(success)
             self.value["status"] = "PUBLISHED" if success else "BLOCKED"
             self.value["required_action"] = (
                 "Production acceptance and separately approved automation resume required"
@@ -239,6 +241,7 @@ def _run_private(root: Path) -> int:
     archive_errors = {}
     journal, evidence, handoff = None, None, None
     restored = store / "plan"
+    transfer_timings = []
     try:
         inputs = scope(env, json.loads(Path(env["GITHUB_EVENT_PATH"]).read_text()))
         prepare.checked_checkout(Path(__file__).resolve().parents[2], env["GITHUB_SHA"])
@@ -251,13 +254,17 @@ def _run_private(root: Path) -> int:
         operator = publication_operator(app, root.resolve(), env)
         store.mkdir(mode=0o700, exist_ok=False)
         created_store = True
-        archive, source = download(operator, inputs, store)
+        def save_transfer():
+            prepare.release_timing.write(store / "transfer-timings.json", transfer_timings)
+        with prepare.release_timing.measure(transfer_timings, save_transfer, 'artifact-download'):
+            archive, source = download(operator, inputs, store)
         key_path = store / "archive.key"
         bundle.write_private(key_path, encoded_key.encode("ascii"))
         bundle.require(not bundle.EVIDENCE_ROOT.exists() and not bundle.EVIDENCE_ROOT.is_symlink(),
                        "evidence-already-exists")
         reserved_evidence = True
-        handoff = bundle.unseal(archive, key_path, restored)
+        with prepare.release_timing.measure(transfer_timings, save_transfer, 'artifact-decrypt'):
+            handoff = bundle.unseal(archive, key_path, restored)
         validate_handoff(restored, handoff, inputs, source)
         record = bundle.read_file(bundle.EVIDENCE_ROOT / bundle.RECORD_NAME, bundle.MAX_RECORD,
                                   private=True)
@@ -265,6 +272,7 @@ def _run_private(root: Path) -> int:
             role: bundle.read_file(bundle.EVIDENCE_ROOT / name, bundle.MAX_REPORT, private=True)
             for role, name in bundle.report_names(json.loads(record)).items()})
         journal = quiet_journal(app, restored, status_path)
+        journal.value.setdefault("timings", []).extend(transfer_timings)
         journal.value["authorization"] = {"reviewed_plan_sha256": inputs["reviewed_plan_sha256"],
                                           "prepare_run_id": inputs["prepare_run_id"],
                                           "prepare_run_attempt": inputs["prepare_run_attempt"]}
@@ -284,8 +292,10 @@ def _run_private(root: Path) -> int:
                 app.write_json(restored / "handoff.json", handoff)
                 try:
                     # Prepared bytes are unchanged; fresh build/caches/logs are excluded.
-                    bundle.seal(restored, evidence, key, output, success=True, publication=True)
+                    timing_saved = prepare.encrypted_save(
+                        restored, journal, evidence, key, output, success=True, publication=True)
                     archive_ready = True
+                    bundle.require(timing_saved, "archive-timing-save")
                 except Exception as error:
                     success = False
                     archive_errors.update(
@@ -301,21 +311,30 @@ def _run_private(root: Path) -> int:
                             prepare.diagnostics.record_failure(
                                 app, status_error, root.resolve(), journal, env,
                                 entry="archive_status_failure")
-                    # Keep the actual publication outcome and mutation journal,
-                    # but never restore this reduced archive as a prepared plan.
-                    handoff.update(prepared=False, plan_sha256=None, prepared_at=None)
-                    app.write_json(restored / "handoff.json", handoff)
-                    try:
-                        bundle.seal(restored, evidence, key, output, success=False,
-                                    publication=True)
-                        archive_ready = True
-                    except Exception as recovery_error:
-                        archive_errors["archive_recovery_error"] = (
-                            prepare.diagnostics.archive_error_code(recovery_error))
+                    if not archive_ready:
+                        # Keep the actual publication outcome and mutation journal,
+                        # but never restore this reduced archive as a prepared plan.
+                        handoff.update(prepared=False, plan_sha256=None, prepared_at=None)
+                        app.write_json(restored / "handoff.json", handoff)
+                        try:
+                            timing_saved = prepare.encrypted_save(
+                                restored, journal, evidence, key, output,
+                                success=False, publication=True)
+                            archive_ready = True
+                            bundle.require(timing_saved, "archive-timing-save")
+                        except Exception as recovery_error:
+                            archive_errors["archive_recovery_error"] = (
+                                prepare.diagnostics.archive_error_code(recovery_error))
         finally:
             try:
                 with Path(env["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
                     stream.write("archive_ready=" + str(archive_ready).lower() + "\n")
+                    review_ready = prepare.review_result(
+                        restored, journal, output, status_path, env, archive_ready,
+                        mode="publish", transfer_timings=transfer_timings)
+                    stream.write("review_ready=" + str(review_ready).lower() + "\n")
+                    if not review_ready:
+                        success = False
             finally:
                 cleanup_ok = True
                 if reserved_evidence and bundle.EVIDENCE_ROOT.exists():
@@ -342,9 +361,12 @@ def report() -> None:
     _, _, status_path = prepare.locations(dict(os.environ))
     status = (json.loads(status_path.read_text()) if status_path.is_file()
               else {"status": "NOT_STARTED"})
+    status["review_upload"] = os.environ.get("REVIEW_UPLOAD_OUTCOME", "unknown")
     status["archive_upload"] = os.environ.get("ARCHIVE_UPLOAD_OUTCOME", "unknown")
-    if status.get("status") == "PUBLISHED" and status["archive_upload"] != "success":
+    if status.get("status") == "PUBLISHED" and (status["archive_upload"] != "success"
+                                               or status["review_upload"] != "success"):
         status.update(status="BLOCKED", stage="archive-upload")
+    status["workflow_measurement"] = prepare.release_timing.workflow_report(dict(os.environ))
     print(json.dumps(status, sort_keys=True))
 
 

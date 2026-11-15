@@ -26,7 +26,12 @@ def install_script(kind):
     source = (ROOT / (".github/workflows/static-production.yml" if kind == "weather" else
                       "scripts/static_ops/build_app_release.sh")).read_text()
     # Run the actual candidate-install preamble without build/network operations.
-    return source[source.index("set -- vendor/"):source.index("npm --prefix web ci")]
+    end = source.rfind("\n", 0, source.index("npm --prefix web ci"))
+    preamble = source[source.index("set -- vendor/"):end]
+    # Keep the real install argv; timing and its Docker handoff have separate tests.
+    if kind == "release":
+        preamble = 'phase() { shift; "$@"; }\n' + preamble
+    return preamble
 
 
 @pytest.mark.parametrize("kind", ["weather", "release"])

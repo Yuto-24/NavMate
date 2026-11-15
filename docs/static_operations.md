@@ -503,6 +503,53 @@ Its timestamps are historical evidence, not current publication authorization.
   allowlist through artifact rollback. Returning users to pages.dev is an origin/data
   cutover, not a same-origin rollback; use the separate cutover recovery procedure.
 
+## 手動Releaseの確認記録と時間予算
+
+共通 `app_release.py` は、privateなstoreに `prepare-review.json` / `publish-review.json` を
+保存し、標準出力にはそのSHA-256と状態、plan digestだけを出す。planとjournal全文は
+非公開のまま扱う。この機能は通常の手動Releaseにも使え、#431の固定値には依存しない。
+
+確認記録の容量は最大64 KiB。公開を許す項目は、固定enumの状態・工程名、Run/attemptと
+元prepareのRun/attempt、plan/release/feed report/catalog/暗号文のSHA-256、UTC時刻、
+経過秒、2つの期限、未確認状態だけである。接続設定一覧、Rules/schema receipt、鍵、
+Secret、例外本文、provider応答、コマンド出力は含めない。未知の工程名や不正な数値は拒否する。
+ローカル実行はRun/attemptがnullであり、plan digestで作業を識別する。
+
+1. 操作窓の前に認証・レビュー担当・復号環境・公開driverを準備する。
+2. prepare後、確認記録のdigestを同じ実行の標準出力／Actions summaryで確認する。
+   Actionsは既存GitHub認証で対象Runを開き、attemptとworkflow/jobの結果を照合する。
+   `release-review-RUN-ATTEMPT` Artifactを先に取得する。保持期間は1日であり、
+   鮮度期限とは別。通常Artifactとsummaryは秘密保管先として扱わない。
+3. 以下のread-onlyコマンドでdigestとRun/attemptを照合し、現在時刻で残り時間を再計算する。
+   ローカル実行では `--run-id` / `--attempt` を省く。確認記録のhashは信頼する同じ実行の
+   出力から取り、取得ファイルのhashをその場で承認済み値として採用しない。
+
+```sh
+python scripts/static_ops/release_review.py \
+  --review /private/download/prepare-review.json \
+  --sha256 EXPECTED_REVIEW_SHA256 --run-id RUN_ID --attempt ATTEMPT
+```
+
+`plan.prepared_at + 30分`、`catalog.generated_at + 30分`、早い方までの残り秒を表示する。
+ちょうど30分は既存判定どおり範囲内。未来時刻は有効扱いしない。不正時刻は拒否する。
+両期限内でもcoverage、保持Run、改変、設定・Rules・schema・source等の検査があり、
+**公開可能性の十分条件ではない**。`publication_authorized` は常にfalseである。
+
+4. 元の非公開planと実成果物を取得・復号し、従来のレビューを行う。確認記録だけで承認しない。
+   同じコマンドへ `--store /private/original-store` を追加すると、元planとcatalog等のdigestを
+   再照合できる。#431では `--archive /private/download/result.aesgcm` も追加し、
+   小さな記録と元暗号文を照合する。AES-GCM認証とpublish時の実成果物検証は維持する。
+5. 取得・復号・レビューの実測時間に、dispatch後のqueue、runner setup、成果物取得、
+   publish preflightまでの時間と未計測区間を加味する。残り時間と比較し、必要な余裕を
+   根拠なく「何分あれば安全」と固定しない。dispatch受付はpreflight通過を保証しない。
+   時間不足なら元時刻を書き換えず、別途許可された新規prepareとレビューへ戻る。
+
+欠落・digest不一致・別Run/attempt混入・保存/upload失敗は成功と扱わない。
+暗号化保存に失敗して小さな診断だけ残った場合も公開承認には使えない。
+強制終了等で記録がない区間は未観測。公開・再開・再試行を自動実行しない。
+ローカル記録は既存のprivate store内で保持し、操作後の削除は既存の保存方針・承認に従う。
+工程の範囲と短縮案の採否は[工程計測の評価](app_publication_audit.md#issue-440-共通公開処理の期限表示と工程計測)を参照。
+
 ## WSL からのアプリ更新: prepare / publish
 
 v2.3.2の固定Schema移行をGitHub Actionsでprepare・個別承認後にpublishする場合は、
@@ -538,7 +585,8 @@ Python 3.12 の既存 `.[test]` と vendored MSM library、Node 24、Docker、Gi
 `STATIC_GOOGLE_ACCESS_TOKEN`（対象 Firebase Rules の既存読み取り権限）を安全な環境経由で渡す。
 値をコマンド、ログ、PR に貼らない。スクリプトは login、token 作成、権限追加をしない。
 読み取りが拒否された場合も新規認証で迂回せず停止する。候補の build は Docker 内で実行し、
-公開 VITE 設定と app/feed 以外に provider token、tooling、Docker socket を渡さない。
+公開 VITE 設定、app/feed、読み取り専用の計測helperと専用metrics directoryだけを渡す。
+provider token、tooling checkout全体、Docker socket は渡さない。
 
 ```sh
 # WSL: review/merge 済み tooling commit の clean checkout で実行。

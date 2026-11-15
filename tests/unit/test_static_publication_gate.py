@@ -116,6 +116,7 @@ def fixture_artifact(app, canonical):
     digest = hashlib.sha256(payload).hexdigest()
     files[f"weather/msm/{digest}.npz"] = payload
     files["weather/msm/catalog.json"] = json.dumps({
+        "generated_at": datetime.now(UTC).isoformat(),
         "expires_at": (datetime.now(UTC) + timedelta(hours=5)).isoformat(),
         "assets": [{"file": digest + ".npz", "bytes": len(payload), "sha256": digest}],
     }).encode()

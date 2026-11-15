@@ -14,6 +14,8 @@ import os
 import re
 import subprocess
 import sys
+import time
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.error import HTTPError
@@ -22,7 +24,13 @@ from urllib.request import Request, build_opener
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
-from scripts.static_ops import freshness, pages_target, probe_providers  # noqa: E402
+from scripts.static_ops import (  # noqa: E402
+    freshness,
+    pages_target,
+    probe_providers,
+    release_review,
+    release_timing,
+)
 from scripts.static_ops import publication_gate as gate  # noqa: E402
 from scripts.static_ops.operations import (  # noqa: E402
     NoRedirect,
@@ -218,14 +226,36 @@ class Journal:
             },
             "events": [],
         }
+        self.value["timings"] = []
+        self._stage_started = time.monotonic()
+        self.value["timings"].append({"phase": "preflight", "status": "RUNNING",
+                                      "started_at": release_timing.stamp()})
+        self._stage_row = self.value["timings"][-1]
         self.save()
 
     def save(self) -> None:
         write_json(self.path, self.value)
 
+    def end_stage(self, success: bool, *, interrupted: bool = False) -> None:
+        if self._stage_row["status"] != "RUNNING":
+            return
+        state = "INTERRUPTED" if interrupted else "OK" if success else "BLOCKED"
+        self._stage_row.update(status=state,
+                               finished_at=release_timing.stamp(),
+                               seconds=round(time.monotonic() - self._stage_started, 3))
+
     def stage(self, name: str) -> None:
+        require(name in release_timing.PHASES, "Unknown release stage")
+        self.end_stage(True)
         self.value["stage"] = name
+        self._stage_started = time.monotonic()
+        self._stage_row = {"phase": name, "status": "RUNNING",
+                           "started_at": release_timing.stamp()}
+        self.value["timings"].append(self._stage_row)
         self.save()
+
+    def measure(self, name: str):
+        return release_timing.measure(self.value["timings"], self.save, name)
 
     def mutation(self, name: str, action) -> None:
         self.value["changes"][name] = "UNKNOWN"
@@ -238,7 +268,8 @@ class Journal:
         self.value["events"][-1]["state"] = "CONFIRMED"
         self.save()
 
-    def finish(self, success: bool) -> None:
+    def finish(self, success: bool, *, interrupted: bool = False) -> None:
+        self.end_stage(success, interrupted=interrupted)
         self.value["status"] = "OK" if success else "BLOCKED"
         self.value["required_action"] = (
             ("Publish under stable-release policy" if self.value.get("authorization")
@@ -254,7 +285,18 @@ class Journal:
             "restart after failure was attempted."
         )
         self.save()
-        print(json.dumps(self.value, indent=2))
+        # Full journal (receipts, configuration, provider details) stays private.
+        try:
+            review = release_review.create(self.path.parent, self.value)
+            review_path = self.path.parent / (self.value["mode"] + "-review.json")
+            review_digest = release_review.save(review_path, review)
+            require(not success or review["status"] == "OK", "Review evidence unavailable")
+            print(json.dumps({"status": self.value["status"], "review_sha256": review_digest,
+                              "plan_sha256": (review.get("evidence") or {}).get("plan_sha256")}))
+        except Exception:
+            self.value["status"] = "BLOCKED"
+            self.save()
+            raise Blocked("Review record could not be saved") from None
 
 
 class Operator:
@@ -267,6 +309,10 @@ class Operator:
         self.rules_receipt: dict | None = None
         self.env = dict(os.environ)
         self.wrangler = root / "services/taf-proxy/node_modules/.bin/wrangler"
+
+    def measure(self, phase: str):
+        journal = getattr(self, "journal", None)
+        return journal.measure(phase) if journal is not None else nullcontext()
 
     def git(self, *args: str) -> str:
         return command(["git", *args], cwd=self.root).strip()
@@ -860,34 +906,39 @@ class Operator:
         command(["git", "clone", "--no-hardlinks", "--no-checkout", str(self.root), str(app)])
         command(["git", "checkout", "--detach", sha], cwd=app)
         gate.static_sources(app)
-        restore(gate.ORIGIN, feed, datetime.now(UTC))
+        with self.measure("msm-restore"):
+            restore(gate.ORIGIN, feed, datetime.now(UTC))
         # App upgrades may reacquire the same Run. The producer actually decodes it;
         # validate_feed rejects retained-only timestamp renewal. MSM-only refresh is unchanged.
-        report = json.loads(
-            command(
-                [
-                    sys.executable,
-                    str(self.root / "scripts/prepare_msm_feed.py"),
-                    "--output",
-                    str(feed),
-                    "--cache",
-                    str(destination / "cache"),
-                    "--hours",
-                    str(PUBLICATION_GENERATION_HOURS),
-                    "--full-run",
-                ],
-                timeout=1800,
+        with self.measure("msm-acquisition"):
+            report = json.loads(
+                command(
+                    [
+                        sys.executable,
+                        str(self.root / "scripts/prepare_msm_feed.py"),
+                        "--output",
+                        str(feed),
+                        "--cache",
+                        str(destination / "cache"),
+                        "--hours",
+                        str(PUBLICATION_GENERATION_HOURS),
+                        "--full-run",
+                    ],
+                    timeout=1800,
+                )
             )
-        )
         write_json(destination / "feed-report.json", report)
         validate_feed(feed, report, datetime.now(UTC))
         image = "autonavlog-static-release:" + snapshot["tooling_sha"]
-        command(
-            ["docker", "build", "-f", "scripts/static_ops/Dockerfile.build", "-t", image, "."],
-            cwd=self.root,
-            timeout=1800,
-        )
+        with self.measure("container-image"):
+            command(
+                ["docker", "build", "-f", "scripts/static_ops/Dockerfile.build", "-t", image, "."],
+                cwd=self.root,
+                timeout=1800,
+            )
         config = public_configuration(snapshot["variables"])
+        metrics = destination / "metrics"
+        metrics.mkdir(mode=0o700)
         args = [
             "docker",
             "run",
@@ -897,6 +948,11 @@ class Operator:
             f"type=bind,source={app},target=/app",
             "--mount",
             f"type=bind,source={feed},target=/feed,readonly",
+            "--mount",
+            f"type=bind,source={metrics},target=/release-metrics",
+            "--mount",
+            f"type=bind,source={self.root / 'scripts/static_ops/release_timing.py'},"
+            "target=/release_timing.py,readonly",
         ]
         for name in gate.CONFIGURATION:
             args += ["--env", name]
@@ -919,12 +975,22 @@ class Operator:
             key: self.env[key] for key in ("PATH", "HOME", "DOCKER_HOST") if key in self.env
         }
         build_env.update(config)
-        command(
-            args,
-            env=build_env,
-            input_text=(self.root / "scripts/static_ops/build_app_release.sh").read_text(),
-            timeout=2700,
-        )
+        try:
+            command(
+                args,
+                env=build_env,
+                input_text=(self.root / "scripts/static_ops/build_app_release.sh").read_text(),
+                timeout=2700,
+            )
+        finally:
+            # Metrics are advisory container input, never a public raw-file upload.
+            path = metrics / "build.json"
+            journal = getattr(self, "journal", None)
+            if journal is not None and path.is_file():
+                require(not path.is_symlink() and path.stat().st_size <= 65536,
+                        "Invalid build timing file")
+                journal.value["timings"].extend(release_timing.bounded(json.loads(path.read_text())))
+                journal.save()
         expected = {"commit": sha, "configuration": config}
         candidate = self.seal_build(app, expected)
         require(candidate["version"] == snapshot["version"], "Candidate version mismatch")
@@ -959,7 +1025,9 @@ class Operator:
     def prepare_upload(self, destination: Path, sha: str, snapshot: dict) -> dict:
         self.validate_build(destination, sha, snapshot)
         # Locked trusted CLI installation; never candidate node_modules or Wrangler config.
-        command(["npm", "--prefix", "services/taf-proxy", "ci", "--ignore-scripts"], cwd=self.root)
+        with self.measure("upload-dependencies"):
+            command(["npm", "--prefix", "services/taf-proxy", "ci", "--ignore-scripts"],
+                    cwd=self.root)
         env = {
             key: self.env[key]
             for key in ("PATH", "HOME", "CLOUDFLARE_API_TOKEN")
@@ -1067,6 +1135,7 @@ def unchanged(before: dict, after: dict, *, paused: bool = False, deployment: bo
 
 
 def prepare(operator: Operator, sha: str, current: str, store: Path, journal: Journal) -> dict:
+    operator.journal = journal
     snapshot = operator.snapshot(sha, current)
     journal.value["rules_receipt"] = snapshot.get("rules_receipt")
     journal.value["schema_receipt"] = snapshot.get("schema_receipt")
@@ -1079,6 +1148,7 @@ def prepare(operator: Operator, sha: str, current: str, store: Path, journal: Jo
         "sha": sha,
         "current_sha": current,
         "prepared_at": datetime.now(UTC).isoformat(),
+        "origin": release_review.identity(os.environ),
         "snapshot": snapshot,
         "release_digest": digest((store / "prepared/upload/dist-static/release.json").read_bytes()),
         "feed_report_digest": digest((store / "prepared/feed-report.json").read_bytes()),
@@ -1104,6 +1174,7 @@ def publish(
         <= datetime.now(UTC),
         "Prepare is stale or in the future; prepare again",
     )
+    operator.journal = journal
     snapshot = operator.snapshot(sha, current)
     journal.value["rules_receipt"] = snapshot.get("rules_receipt")
     journal.value["schema_receipt"] = snapshot.get("schema_receipt")
@@ -1151,7 +1222,8 @@ def publish(
     journal.stage("resume")
     expected["STATIC_APPROVED_SHA"] = sha
     require(operator.variables() == expected, "Approved/configuration update mismatch")
-    operator.verify(store / "fresh", sha, paused)
+    with journal.measure("canonical-after-approval"):
+        operator.verify(store / "fresh", sha, paused)
     journal.mutation("workflow", lambda: operator.set_workflow(True))
     if snapshot["variables"]["STATIC_AUTOMATION_ENABLED"] == "true":
         journal.mutation(
@@ -1216,6 +1288,7 @@ def main() -> int:
         )
         journal = Journal(report, args.mode, args.sha)
         success = False
+        interrupted = False
         try:
             operator = Operator(rules_transition=args.rules_transition,
                                 schema_transition=args.schema_transition)
@@ -1234,13 +1307,14 @@ def main() -> int:
             success = True
         except Blocked as error:
             journal.value["reason"] = str(error)
-        except (Exception, KeyboardInterrupt):
+        except (Exception, KeyboardInterrupt) as error:
+            interrupted = isinstance(error, KeyboardInterrupt)
             # Native failures may contain credentials; emit only a fixed diagnostic.
             journal.value["reason"] = (
                 "Provider/validation failure or interruption; native details withheld"
             )
         finally:
-            journal.finish(success)
+            journal.finish(success, interrupted=interrupted)
         return 0 if success else 1
 
 

@@ -19,9 +19,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 if __package__:
+    from . import release_review, release_timing
     from . import schema431_bundle as bundle
     from . import schema431_diagnostics as diagnostics
 else:
+    import release_review
+    import release_timing
     import schema431_bundle as bundle
     import schema431_diagnostics as diagnostics
 
@@ -233,6 +236,8 @@ def quiet_journal(app, store: Path, status_path: Path):
             })
 
         def finish(self, success):
+            if hasattr(self, "end_stage"):
+                self.end_stage(success)
             # Pinned Journal.finish prints private receipts. Retain the same
             # journal locally, but never send its body to Actions logs/summary.
             self.value["status"] = "OK" if success else "BLOCKED"
@@ -294,6 +299,49 @@ def cleanup_store(store: Path, env: dict) -> None:
         subprocess.run(["sudo", "-n", "rm", "-rf", "--", str(store)], cwd="/",
                        env={"PATH": os.defpath}, capture_output=True, check=True, timeout=120)
     bundle.require(not store.exists() and not store.is_symlink(), "cleanup-incomplete")
+
+
+def review_result(store, journal, output, status_path, env, archive_ready,
+                  *, mode="prepare", transfer_timings=None) -> bool:
+    """Save a separate small observation before cleanup, even when encryption failed."""
+    status = json.loads(status_path.read_text())
+    ready = False
+    try:
+        record = journal.value if journal is not None else {
+            'mode': mode, 'status': 'BLOCKED', 'stage': 'preflight',
+            'timings': transfer_timings or [],
+        }
+        value = release_review.create(store, record, env=env,
+                                      archive=output if archive_ready else None)
+        if not archive_ready:
+            value['status'] = 'BLOCKED'
+        if value['evidence_status'] == 'UNAVAILABLE' and record['status'] in ('OK', 'PUBLISHED'):
+            raise ValueError('Prepared evidence unavailable')
+        path = output.with_suffix('.review.json')
+        status['review_sha256'] = release_review.save(path, value)
+        ready = True
+    except Exception:
+        status['review_sha256'] = None
+    status['review_status'] = 'READY' if ready else 'FAILED'
+    public_status(status_path, status)
+    return ready
+
+
+def encrypted_save(store, journal, evidence, key, output, **kwargs) -> bool:
+    """Return whether timing persisted; a completed archive must remain recoverable."""
+    rows = journal.value.setdefault('timings', [])
+    def save():
+        release_timing.write(store / 'archive-timings.json', rows)
+    sealed = False
+    try:
+        with release_timing.measure(rows, save, 'encrypted-save'):
+            bundle.seal(store, evidence, key, output, **kwargs)
+            sealed = True
+    except Exception:
+        if not sealed:
+            raise
+        return False  # Only the post-seal timing write failed; never seal this path again.
+    return True
 
 
 def run(root: Path) -> int:
@@ -359,8 +407,10 @@ def _run_private(root: Path) -> int:
                            "prepared_at": plan["prepared_at"] if success else None}
                 app.write_json(store / "handoff.json", handoff)
                 try:
-                    bundle.seal(store, evidence, key, output, success=success)
+                    timing_saved = encrypted_save(
+                        store, journal, evidence, key, output, success=success)
                     archive_ready = True
+                    bundle.require(timing_saved, "archive-timing-save")
                 except Exception as error:
                     had_prepared = success
                     success = False
@@ -375,13 +425,15 @@ def _run_private(root: Path) -> int:
                         except Exception as status_error:
                             diagnostics.record_failure(app, status_error, root.resolve(),
                                                        journal, env, entry="archive_status_failure")
-                    if had_prepared:
+                    if had_prepared and not archive_ready:
                         # A diagnostic-only archive cannot authorize publication.
                         handoff.update(prepared=False, plan_sha256=None, prepared_at=None)
                         app.write_json(store / "handoff.json", handoff)
                         try:
-                            bundle.seal(store, evidence, key, output, success=False)
+                            timing_saved = encrypted_save(
+                                store, journal, evidence, key, output, success=False)
                             archive_ready = True
+                            bundle.require(timing_saved, "archive-timing-save")
                         except Exception as recovery_error:
                             archive_errors["archive_recovery_error"] = (
                                 diagnostics.archive_error_code(recovery_error))
@@ -391,6 +443,11 @@ def _run_private(root: Path) -> int:
             try:
                 with Path(env["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
                     stream.write("archive_ready=" + str(archive_ready).lower() + "\n")
+                    review_ready = review_result(
+                        store, journal, output, status_path, env, archive_ready)
+                    stream.write("review_ready=" + str(review_ready).lower() + "\n")
+                    if not review_ready:
+                        success = False
             finally:
                 cleanup_ok = True
                 if created_evidence:
@@ -425,11 +482,14 @@ def report() -> None:
         status = json.loads(status_path.read_text())
     else:
         status = {"status": "NOT_STARTED", "automation": "UNCHANGED"}
+    status["review_upload"] = os.environ.get("REVIEW_UPLOAD_OUTCOME", "unknown")
     status["archive_upload"] = os.environ.get("ARCHIVE_UPLOAD_OUTCOME", "unknown")
-    if status.get("status") == "PREPARED" and status["archive_upload"] != "success":
+    if status.get("status") == "PREPARED" and (status["archive_upload"] != "success"
+                                              or status["review_upload"] != "success"):
         status.update(status="BLOCKED", stage="archive-upload")
     # Only the bounded status file is eligible for public display. Provider errors,
     # schema records, journals, plan bodies and configuration never enter it.
+    status["workflow_measurement"] = release_timing.workflow_report(dict(os.environ))
     print(json.dumps(status, sort_keys=True))
 
 

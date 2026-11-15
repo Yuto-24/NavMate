@@ -372,7 +372,12 @@ def simulated(tmp_path, monkeypatch, context):
         state["calls"].append("build")
         if state["fail"] == "build":
             raise app.Blocked("Private build error")
-        bundle.write_private(destination / "upload/dist-static/release.json", b'{"test":true}')
+        catalog = json.dumps({"generated_at": datetime.now(UTC).isoformat()}).encode()
+        bundle.write_private(destination / "upload/dist-static/weather/msm/catalog.json", catalog)
+        release = {"files": {"weather/msm/catalog.json": {
+            "bytes": len(catalog), "sha256": bundle.sha256(catalog)}}}
+        bundle.write_private(destination / "upload/dist-static/release.json",
+                             json.dumps(release).encode())
         bundle.write_private(destination / "feed-report.json", b'{"test":true}')
     monkeypatch.setattr(app.Operator, "gh", gh)
     monkeypatch.setattr(app.Operator, "git", git)
@@ -678,7 +683,7 @@ def test_runner_retains_encrypted_recovery_and_removes_plaintext(
     status = json.loads(status_path.read_text())
     assert status["archive_ready"] and "PRIVATE" not in status_path.read_text()
     assert "SECRET-TOKEN" not in output.read_bytes().decode("latin-1")
-    assert outputs.read_text() == "archive_ready=true\n"
+    assert "archive_ready=true\n" in outputs.read_text()
     assert output.stat().st_mode & 0o777 == 0o600
     ordinary_file = tmp_path / "subsequent-coverage"
     ordinary_file.touch()
@@ -723,7 +728,7 @@ def test_full_archive_capacity_failure_retains_only_encrypted_diagnostics(
     assert status["status"] == "BLOCKED" and status["stage"] == "archive"
     assert status["archive_error"] == "archive-capacity"
     assert status["archive_ready"] and status["plan_sha256"] is None
-    assert outputs.read_text() == "archive_ready=true\n"
+    assert "archive_ready=true\n" in outputs.read_text()
     assert not store.exists() and not bundle.EVIDENCE_ROOT.exists()
     assert state["automation"] == "false"
     restored = tmp_path / "recovery"
@@ -760,7 +765,7 @@ def test_unrecoverable_archive_failure_stays_blocked_and_cleans(
     assert not status["archive_ready"] and status["plan_sha256"] is None
     assert status["cleanup"] == "COMPLETE" and "PRIVATE" not in status_path.read_text()
     assert not store.exists() and not output.exists() and not bundle.EVIDENCE_ROOT.exists()
-    assert outputs.read_text() == "archive_ready=false\n"
+    assert "archive_ready=false\n" in outputs.read_text()
 
 
 @pytest.mark.parametrize("diagnostic_fault", [None, "extraction", "write"])
@@ -850,8 +855,8 @@ def test_finalization_faults_preserve_output_and_cleanup(
             driver.run(tmp_path)
     assert not store.exists() and not bundle.EVIDENCE_ROOT.exists()
     assert output.exists() == (failure == "sealed-status")
-    assert outputs.read_text() == (
-        "archive_ready=true\n" if failure == "sealed-status" else "archive_ready=false\n")
+    expected = "archive_ready=true\n" if failure == "sealed-status" else "archive_ready=false\n"
+    assert expected in outputs.read_text()
     if failure != "sealed-status":
         assert json.loads(status_path.read_text())["status"] == "BLOCKED"
     ordinary_file = tmp_path / "subsequent-coverage"
@@ -926,14 +931,14 @@ def test_archive_output_is_recorded_before_cleanup_even_when_cleanup_fails(
         runner_environment, tmp_path, monkeypatch, cleanup_failure):
     env, _, outputs = runner_environment
     def cleanup(store, actual_env):
-        assert outputs.read_text() == "archive_ready=true\n"
+        assert "archive_ready=true\n" in outputs.read_text()
         if cleanup_failure:
             raise PermissionError("Synthetic ordinary and privileged cleanup failure")
         driver.shutil.rmtree(store)
     monkeypatch.setattr(driver, "cleanup_store", cleanup)
     assert driver.run(tmp_path) == int(cleanup_failure)
     _, output, status_path = driver.locations(env)
-    assert output.exists() and outputs.read_text() == "archive_ready=true\n"
+    assert output.exists() and "archive_ready=true\n" in outputs.read_text()
     status = json.loads(status_path.read_text())
     assert status["cleanup"] == ("FAILED" if cleanup_failure else "COMPLETE")
     assert status["archive_ready"] is True
@@ -955,3 +960,85 @@ def test_tooling_checkout_is_rejected_before_import(tmp_path, monkeypatch, failu
         "Unverified code must not be imported"))
     with pytest.raises(bundle.InvalidBundle):
         driver.load_tooling(tmp_path)
+
+
+def test_small_review_save_failure_keeps_encrypted_handoff_and_blocks(
+        runner_environment, tmp_path, monkeypatch):
+    env, _, outputs = runner_environment
+    def fail(*args):
+        raise OSError('PRIVATE review storage failure')
+    monkeypatch.setattr(driver.release_review, 'save', fail)
+    assert driver.run(tmp_path) == 1
+    private, encrypted, status_path = driver.locations(env)
+    assert encrypted.exists() and not private.exists()
+    assert 'archive_ready=true\n' in outputs.read_text()
+    assert 'review_ready=false\n' in outputs.read_text()
+    status = json.loads(status_path.read_text())
+    assert status['status'] == 'BLOCKED' and status['review_status'] == 'FAILED'
+    assert 'PRIVATE' not in status_path.read_text()
+
+
+def test_small_review_is_available_even_when_archive_cannot_be_saved(
+        runner_environment, tmp_path, monkeypatch):
+    env, _, outputs = runner_environment
+    def fail(*args, **kwargs):
+        raise OSError('PRIVATE archive failure')
+    monkeypatch.setattr(bundle, 'seal', fail)
+    assert driver.run(tmp_path) == 1
+    _, archive, status_path = driver.locations(env)
+    status = json.loads(status_path.read_text())
+    path = archive.with_suffix('.review.json')
+    value = driver.release_review.load(path, status['review_sha256'],
+                                       env['GITHUB_RUN_ID'], env['GITHUB_RUN_ATTEMPT'])
+    assert value['status'] == 'BLOCKED' and value['archive_sha256'] is None
+    assert value['publication_authorized'] is False
+    assert 'PRIVATE' not in path.read_text()
+    assert 'review_ready=true\n' in outputs.read_text()
+
+
+@pytest.mark.parametrize('outcome', ['failure', 'cancelled', 'skipped', ''])
+def test_missing_or_failed_small_review_upload_is_not_prepared(
+        runner_environment, tmp_path, monkeypatch, capsys, outcome):
+    env, _, _ = runner_environment
+    assert driver.run(tmp_path) == 0
+    monkeypatch.setenv('ARCHIVE_UPLOAD_OUTCOME', 'success')
+    monkeypatch.setenv('REVIEW_UPLOAD_OUTCOME', outcome)
+    monkeypatch.setattr(driver.release_timing, 'workflow_report',
+                        lambda _: {'status': 'UNAVAILABLE'})
+    driver.report()
+    assert json.loads(capsys.readouterr().out)['status'] == 'BLOCKED'
+
+
+@pytest.mark.parametrize('when', ['start', 'finish'])
+def test_archive_timing_write_failure_preserves_completed_ciphertext(
+        runner_environment, transport, tmp_path, monkeypatch, when):
+    env, _, outputs = runner_environment
+    write, seal = driver.release_timing.write, bundle.seal
+    sealed = []
+    def record_seal(*args, **kwargs):
+        digest = seal(*args, **kwargs)
+        sealed.append(digest)
+        return digest
+    def fail_timing(path, value):
+        if path.name == 'archive-timings.json' and (
+                when == 'start' or value[-1]['status'] != 'RUNNING'):
+            raise OSError('PRIVATE timing save failure')
+        write(path, value)
+    monkeypatch.setattr(bundle, 'seal', record_seal)
+    monkeypatch.setattr(driver.release_timing, 'write', fail_timing)
+    assert driver.run(tmp_path) == 1
+    private, output, status_path = driver.locations(env)
+    status = json.loads(status_path.read_text())
+    assert status['status'] == 'BLOCKED' and not private.exists()
+    assert status['archive_ready'] is (when == 'finish')
+    assert 'archive_ready=' + str(when == 'finish').lower() + '\n' in outputs.read_text()
+    assert len(sealed) == (1 if when == 'finish' else 0)
+    if when == 'finish':
+        assert bundle.sha256(output.read_bytes()) == sealed[0]
+        assert status['archive_error'] == 'archive-timing-save'
+        handoff = bundle.unseal(output, transport[1] / 'archive.key', tmp_path / 'recovery')
+        assert handoff['prepared']  # Original authenticated bytes are preserved for recovery.
+        review = json.loads(output.with_suffix('.review.json').read_text())
+        assert review['status'] == 'BLOCKED' and review['archive_sha256'] == sealed[0]
+        assert not review['publication_authorized']
+    assert 'PRIVATE' not in status_path.read_text()
