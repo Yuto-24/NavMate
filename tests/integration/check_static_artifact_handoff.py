@@ -160,6 +160,35 @@ def check_handoff(image):
                                 "import shutil; shutil.rmtree('/app/web')"], check=True)
 
 
+def check_release_timings(image):
+    """Exercise the actual shell wrapper as root, then read its safe metrics as the runner."""
+    assert os.geteuid() != 0
+    script = (ROOT / "scripts/static_ops/build_app_release.sh").read_text()
+    wrapper = script[script.index("phase() {"):script.index("git config --global")]
+    for returncode in (0, 7):
+        with tempfile.TemporaryDirectory(prefix="release-timing-handoff-") as temporary:
+            metrics = Path(temporary)
+            result = subprocess.run([
+                "docker", "run", "--rm", "--network", "none",
+                "--mount", f"type=bind,source={metrics},target=/release-metrics",
+                "--mount", f"type=bind,source={ROOT / 'scripts/static_ops/release_timing.py'},"
+                "target=/release_timing.py,readonly",
+                "--env", f"ARTIFACT_UID={os.getuid()}",
+                "--env", f"ARTIFACT_GID={os.getgid()}",
+                image, "sh", "-eu", "-c", wrapper
+                + f"phase static-build python -c 'raise SystemExit({returncode})'",
+            ], check=False)
+            assert result.returncode == (1 if returncode else 0)
+            path = metrics / "build.json"
+            assert path.stat().st_uid == os.getuid()
+            assert stat.S_IMODE(path.stat().st_mode) == 0o600
+            rows = json.loads(path.read_text())
+            assert rows[0]["status"] == ("BLOCKED" if returncode else "OK")
+            assert rows[0]["seconds"] >= 0
+            print(json.dumps({"status": "OK", "timing_handoff_returncode": returncode,
+                              "runner_readable": True}))
+
+
 def check_schema431_checkout(image):
     """Reproduce private checkout -> root copy -> nonroot validation, with no providers."""
     assert os.geteuid() != 0, "The host-side permission check requires a nonroot runner"
@@ -267,5 +296,6 @@ if __name__ == "__main__":
              bool(int(sys.argv[3])) if len(sys.argv) > 3 else False)
     else:
         image = sys.argv[1] if len(sys.argv) > 1 else "autonavlog-static-build"
+        check_release_timings(image)
         check_handoff(image)
         check_schema431_checkout(image)

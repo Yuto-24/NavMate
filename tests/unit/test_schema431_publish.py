@@ -431,7 +431,7 @@ def test_real_publish_flow_keeps_recovery_private_and_never_resumes(
     private, encrypted, status_path = prepare.locations(env)
     assert not private.exists() and not bundle.EVIDENCE_ROOT.exists()
     assert encrypted.is_file() and encrypted.stat().st_mode & 0o777 == 0o600
-    assert outputs.read_text() == "archive_ready=true\n"
+    assert "archive_ready=true\n" in outputs.read_text()
     assert not operator.publication_allowed and "resume" not in operator.calls
     assert operator.state["variables"]["STATIC_AUTOMATION_ENABLED"] == "false"
     status = json.loads(status_path.read_text())
@@ -488,7 +488,7 @@ def test_archive_failure_retains_actual_publication_state_without_prepared_bytes
     assert status["archive_error"] == "archive-capacity" and status["archive_ready"]
     assert status["changes"]["production"] == (
         "CONFIRMED" if publication_failure is None else "UNKNOWN")
-    assert outputs.read_text() == "archive_ready=true\n" and not private.exists()
+    assert "archive_ready=true\n" in outputs.read_text() and not private.exists()
     assert "resume" not in operator.calls
     recovery = tmp_path / "recovery"
     key_path = approved_plan[5]
@@ -567,7 +567,7 @@ def test_finalization_always_attempts_cleanup_and_restores_umask(
     ordinary.touch()
     assert ordinary.stat().st_mode & 0o777 == 0o644
     if failure == "seal":
-        assert outputs.read_text() == "archive_ready=false\n" and not encrypted.exists()
+        assert "archive_ready=false\n" in outputs.read_text() and not encrypted.exists()
     if status_path.exists():
         assert "PRIVATE" not in status_path.read_text()
 
@@ -576,7 +576,7 @@ def test_wrong_key_fails_without_publication(runner, tmp_path, monkeypatch):
     _, operator, outputs, _ = runner
     monkeypatch.setenv("SCHEMA431_ARCHIVE_KEY", base64.b64encode(os.urandom(32)).decode())
     assert driver.run(tmp_path) == 1
-    assert not operator.calls and outputs.read_text() == "archive_ready=false\n"
+    assert not operator.calls and "archive_ready=false\n" in outputs.read_text()
 
 
 def test_manual_publish_workflow_keeps_wif_and_explicit_inputs():

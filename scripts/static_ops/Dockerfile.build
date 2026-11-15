@@ -1,5 +1,6 @@
-# Candidate code runs here with only app (RW) and feed (RO) mounts. No tooling,
-# runner metadata files, output commands, Docker socket or provider credentials.
+# Candidate code receives app (RW), feed (RO), a read-only timing helper and a
+# dedicated metrics directory. No full tooling checkout, runner metadata files,
+# output commands, Docker socket or provider credentials.
 FROM node:24-bookworm-slim AS node
 FROM python:3.12-slim-bookworm
 COPY --from=node /usr/local/bin/node /usr/local/bin/node

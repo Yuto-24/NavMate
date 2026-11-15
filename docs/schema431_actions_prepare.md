@@ -191,7 +191,15 @@ publishのfresh buildも同じ処理を継承する。証拠・鍵・journal・p
 
 ## 3. planを非公開で確認する
 
-Actionsのsummaryには処理段階、停止状態、暗号化保存とuploadの結果、成功時のplan SHA-256だけが出る。
+新しいdriverでは、[共通の確認記録と時間予算](static_operations.md#手動releaseの確認記録と時間予算)
+に従って `release-review-<Run ID>-<attempt>` Artifactを先に確認できる。
+ファイル名は `schema431-result-RUN-ATTEMPT.review.json`。64 KiB以下で、暗号文のSHA-256と
+plan/catalogの期限を含む。固定tooling内の工程時間は未計測とし、driverの暗号化保存、
+publish側の取得・復号、workflowの依存導入・uploadだけを追加計測する。
+固定toolingと元証拠のidentityは変更しない。
+
+Actionsのsummaryには処理段階、停止状態、暗号化保存と各uploadの結果、確認記録のSHA-256、
+成功時のplan SHA-256、allowlist化したworkflow工程時間が出る。
 `PREPARED`だけでなくArtifact uploadの成功も確認する。
 `schema431-<Run ID>-<attempt>` Artifactから `.aesgcm` ファイルを取得する。
 保存・失効の挙動は[GitHub公式のArtifact仕様](https://docs.github.com/en/actions/tutorials/store-and-share-data)に従う。

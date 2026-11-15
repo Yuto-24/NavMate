@@ -111,8 +111,20 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
           STATIC_GOOGLE_ACCESS_TOKEN: ${{ steps.rules-publish.outputs.access_token }}
         run: python3 scripts/static_ops/release_automation.py publish
+      - name: Retain bounded common release observations
+        id: review
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/app-release-${{ github.run_id }}-${{ github.run_attempt }}/*-review.json
+          if-no-files-found: warn
+          retention-days: 1
       - name: Record bounded publication status without private evidence
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_UPLOAD_OUTCOME: ${{ steps.review.outcome }}
         run: python3 scripts/static_ops/release_automation.py report >> "$GITHUB_STEP_SUMMARY"
 
   # WIF provider accepts ONLY this workflow_ref + environment:static-production.
@@ -213,6 +225,16 @@ jobs:
           SCHEMA431_EVIDENCE: ${{ secrets.STATIC_SCHEMA431_EVIDENCE }}
           SCHEMA431_ARCHIVE_KEY: ${{ secrets.STATIC_SCHEMA431_ARCHIVE_KEY }}
         run: python driver/scripts/static_ops/schema431_prepare.py run --tooling "$GITHUB_WORKSPACE/tooling"
+      - name: Retain the small preparation observation first
+        id: review
+        if: always() && steps.prepare.outputs.review_ready == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/schema431-result-${{ github.run_id }}-${{ github.run_attempt }}.review.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
       - name: Retain only the authenticated encrypted result
         id: archive
         if: always() && steps.prepare.outputs.archive_ready == 'true'
@@ -226,6 +248,8 @@ jobs:
       - name: Record bounded preparation and archive status
         if: always()
         env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_UPLOAD_OUTCOME: ${{ steps.review.outcome }}
           ARCHIVE_UPLOAD_OUTCOME: ${{ steps.archive.outcome }}
         run: python driver/scripts/static_ops/schema431_prepare.py report >> "$GITHUB_STEP_SUMMARY"
 
@@ -286,6 +310,16 @@ jobs:
           STATIC_GOOGLE_ACCESS_TOKEN: ${{ steps.rules-manual-publish.outputs.access_token }}
           SCHEMA431_ARCHIVE_KEY: ${{ secrets.STATIC_SCHEMA431_ARCHIVE_KEY }}
         run: python driver/scripts/static_ops/schema431_publish.py run --tooling "$GITHUB_WORKSPACE/tooling"
+      - name: Retain the small publication observation first
+        id: review
+        if: always() && steps.publish-plan.outputs.review_ready == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/schema431-result-${{ github.run_id }}-${{ github.run_attempt }}.review.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
       - name: Retain only the authenticated encrypted publication record
         id: archive
         if: always() && steps.publish-plan.outputs.archive_ready == 'true'
@@ -299,5 +333,7 @@ jobs:
       - name: Record bounded publication and archive status
         if: always()
         env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_UPLOAD_OUTCOME: ${{ steps.review.outcome }}
           ARCHIVE_UPLOAD_OUTCOME: ${{ steps.archive.outcome }}
         run: python driver/scripts/static_ops/schema431_publish.py report >> "$GITHUB_STEP_SUMMARY"

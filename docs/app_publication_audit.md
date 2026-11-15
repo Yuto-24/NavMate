@@ -229,3 +229,54 @@ sanitized artifactはrun画面またはActions artifacts APIから取得する�
 
 source固定、予報鮮度・整合性、canonical照合、Rules/schema互換性、無料枠の条件は維持する。
 この調査結果を根拠に既存gateを削除・緩和せず、merge・本番公開・停止復旧はそれぞれの承認と証拠で判断する。
+
+## Issue #440: 共通公開処理の期限表示と工程計測
+
+2026-11-15の実装では、共通の `app_release.py` と `build_app_release.sh` に
+工程計測と小さな確認記録を追加した。上記の2026-11-08の「未計測」は当時の観測であり、
+新しいtoolingの機能とは区別する。公開判定、fresh build、停止・再開の順序は維持する。
+使い方と認証・保持・承認の境界は
+[手動Releaseの確認記録](static_operations.md#手動releaseの確認記録と時間予算)を正本とする。
+
+### 計測の範囲
+
+| 記録 | 区間・結果 | 限界 |
+| --- | --- | --- |
+| 共通journalの `timings` | preflight、build-test、pause、quiescence、pre-upload、Pages upload、canonical照合、承認後canonical再照合など | 親工程は子工程を含む。合計して二重計上しない |
+| 共通buildの子工程 | MSM復元、MSM取得・decode、Docker image、pip/npm/Chromium導入、source検証、static build、artifact tests、E2E | container由来の値はallowlistで整形した参考計測。artifactの完全性や検証成功を代替しない |
+| #431 driverの追加計測 | 暗号化保存、publish側の成果物取得・復号 | 固定toolingのbuild内部は未計測のまま。固定SHAやbuildを差し替えない |
+| workflowの最終summary | 依存導入と、暗号化Artifact／小さな確認記録それぞれのupload | 当該Run/attemptのjobs APIを1回読む。取得不能・未完了・skipは成功や0秒にしない |
+| operator記録 | 人による取得・復号・レビュー・承認・dispatchの開始終了 | 自動計測外。UTC時刻と対象Run/attempt・plan digestを非公開の作業記録へ残す |
+
+UTCの開始・終了とmonotonic clockの経過秒を記録する。外側workflowの時刻はGitHubの
+秒単位時刻を使う。失敗は `BLOCKED`、捕捉できる中断は `INTERRUPTED`、強制終了で
+完了記録がない区間は `RUNNING` のまま残す。`RUNNING` は成功を意味しない。
+runner消失でファイル自体を回収できない場合は未観測とする。
+小さなArtifact自身のupload時間は、そのArtifactの内容には含められないため最終summaryに残す。
+
+### 既存Runの測定と採否
+
+2026-11-15、GitHub jobs APIから既存成功Runのstep開始・終了を読み取り、差を計算した。
+新しいコードによる本番prepare/publishや、故障注入は実施していない。
+
+| 区間 | [prepare 43612102980](https://github.com/Yuto-24/NavMate/actions/runs/43612102980) | [publish 43613428915](https://github.com/Yuto-24/NavMate/actions/runs/43613428915) |
+| --- | --- | --- |
+| 対象job全体 | 604秒 | 626秒 |
+| runner上の固定tooling依存導入 | 22秒 | 19秒 |
+| driver実行（暗号化保存等を含む） | 570秒 | 594秒 |
+| 暗号化Artifact upload | 2秒 | 4秒 |
+
+Issueのworkflow全体609秒／633秒とは計測境界が異なる。driver内部のMSM・build・E2E・
+暗号化の内訳やoperatorの取得時間は、これらの過去Runのstep時刻だけでは分からない。
+約20分をそのまま削減可能時間とは扱わない。
+
+- **採用：小さな確認記録の先行取得。** 共通のローカル出力と#431の別Artifactにより、
+  最大64 KiBの期限・診断を先に確認できる。約350 MBの暗号文を期限確認のためだけに
+  取得する必要を減らす。元planと実成果物のレビュー・公開前検証は引き続き必要。
+  operator側の短縮秒数は未計測であり、期限内公開を保証しない。
+- **保留：upload最適化。** 上記uploadは2秒／4秒。容量や失敗率への効果を別に確認せず、
+  upload高速化を主な時間短縮策とはしない。
+- **保留：build-once・成果物再利用。** 内訳とprepared/freshの同一性の証拠が不足し、
+  同じSHAでもfeed・時刻・外部状態が変わる。Issueの対象外であり実装しない。
+- **保留：依存cache変更。** 既存Runのrunner依存導入は22秒／19秒だが、container内部とは別。
+  新計測で冷温差・失敗例と効果を確認してから、再現性を保てる範囲を別途判断する。

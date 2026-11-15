@@ -164,8 +164,8 @@ def execute(operator: ActionsOperator, sha: str, current: str, store: Path,
             else:
                 app.publish(operator, sha, current, store,
                             app.digest((store / "plan.json").read_bytes()), journal)
-        except BaseException:
-            journal.finish(False)
+        except BaseException as error:
+            journal.finish(False, interrupted=isinstance(error, (KeyboardInterrupt, SystemExit)))
             raise
         journal.finish(True)
 
@@ -173,12 +173,20 @@ def execute(operator: ActionsOperator, sha: str, current: str, store: Path,
 def main() -> int:
     if sys.argv[1:] == ["report"]:
         store = release_store()
+        workflow_measurement = app.release_timing.workflow_report(dict(os.environ))
         for mode in ("prepare", "publish"):
             path = store / (mode + "-status.json")
             if path.exists():
                 value = json.loads(path.read_text())
                 summary = {key: value.get(key) for key in
-                           ("mode", "sha", "status", "stage", "changes", "reason")}
+                           ("mode", "sha", "status", "stage", "changes")}
+                review = store / (mode + "-review.json")
+                summary['review_sha256'] = (app.release_review.file_hash(review)
+                                            if review.is_file() else None)
+                summary['workflow_measurement'] = workflow_measurement
+                summary['review_upload'] = os.environ.get('REVIEW_UPLOAD_OUTCOME', 'unknown')
+                if summary['status'] == 'OK' and summary['review_upload'] != 'success':
+                    summary.update(operation_status='OK', status='BLOCKED', stage='review-upload')
                 print(json.dumps(summary))
         return 0
     app.require(len(sys.argv) == 2 and sys.argv[1] in ("prepare", "publish"),
