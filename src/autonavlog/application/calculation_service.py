@@ -57,7 +57,7 @@ from autonavlog.nav.geodesy import (
     geodesic_leg,
 )
 from autonavlog.nav.rounding_mode import wind_direction_for_calculation
-from autonavlog.nav.variation import variation_for_departure_latitude
+from autonavlog.nav.variation import variation_for_departure_latitude, variation_for_departure_vor
 from autonavlog.nav.wind_triangle import WindTriangleError, solve_wind_triangle
 from autonavlog.performance.climb import ClimbCalculator, ClimbPerformanceError
 from autonavlog.performance.cruise import (
@@ -2723,6 +2723,10 @@ class CalculationService:
             if descent_source_environment is None
             else descent_source_environment.geometry.section
         )
+        raw_ui_state = project.metadata.get("ui_state")
+        departure_vor = (
+            None if raw_ui_state is None else load_persisted_ui_state(raw_ui_state).departure_vor
+        )
         for segment in segmentation.segments:
             environment = environments[segment.source_index]
             geometry = environment.geometry
@@ -2780,14 +2784,27 @@ class CalculationService:
             )
             adopted_distance = distance_value.adopted()
             try:
-                variation_decision = variation_for_departure_latitude(geometry.start.latitude_deg)
+                if departure_vor is not None and segment.source_index == 0:
+                    origin_gap = geodesic_leg(
+                        departure_vor.latitude_deg,
+                        departure_vor.longitude_deg,
+                        geometry.start.latitude_deg,
+                        geometry.start.longitude_deg,
+                    ).distance_nm
+                    if origin_gap > 1e-6:
+                        raise ValueError("first physical leg must start at the departure VOR")
+                variation_decision = (
+                    variation_for_departure_vor(departure_vor)
+                    if departure_vor is not None and segment.source_index == 0
+                    else variation_for_departure_latitude(geometry.start.latitude_deg)
+                )
             except (TypeError, ValueError) as error:
                 variation_decision = None
                 issues.append(
                     Issue(
                         code="VARIATION_UNAVAILABLE",
                         severity=IssueSeverity.BLOCKER,
-                        message="Leg出発点の緯度から偏差を自動判定できません。",
+                        message="Legの磁気偏差を確認できません。出発位置の設定を確認してください。",
                         section_id=section.id,
                         metadata={
                             "departure_latitude_deg": geometry.start.latitude_deg,
