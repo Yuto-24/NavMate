@@ -539,3 +539,38 @@ for (const width of [1100, 1440]) {
     expect(apiRequests).toEqual([]);
   });
 }
+
+test("#414 OLE first-leg CRS remains 094 when VOR/DME columns select another station", async ({ page }) => {
+  await page.goto("/");
+  await enterImportWorkflow(page);
+  const kml = `<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark>
+    <name>OLE CRS</name><LineString><coordinates>
+    129.9136111111,32.9169444444,0
+    130.9068944601255,32.945035196803204,0
+    131.7372222222,33.4794444444,0
+    </coordinates></LineString></Placemark></Document></kml>`;
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "ole-crs.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(kml),
+  });
+  await confirmImportedDraft(page);
+  await page.getByRole("checkbox", { name: "VOR Tracking Mode", exact: true }).check();
+  await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
+  await page.getByLabel("気象モード").selectOption("FTD");
+  await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+  const table = page.locator(".nav-log-table");
+  await expect(table).toBeVisible();
+  const row = page.locator(".nav-leg-heading-row").first();
+  const mcIndex = await table.locator("thead tr").last().locator("th").evaluateAll(cells =>
+    cells.findIndex(cell => cell.textContent?.trim() === "MC"));
+  expect(mcIndex).toBeGreaterThanOrEqual(0);
+  await expect(row.locator("td").nth(mcIndex)).toHaveText("094");
+  const before = await row.innerText();
+  const count = await page.evaluate(() => (window as any).localCalculationCount);
+  await page.getByLabel("VOR基準局", { exact: true }).selectOption("OLE");
+  await expect(row.locator(".vor-reference-cell")).toHaveText("094 / 50.0");
+  await page.getByLabel("VOR基準局", { exact: true }).selectOption("MZE");
+  await expect(row.locator(".vor-reference-cell")).not.toHaveText("094 / 50.0");
+  await expect(row.locator("td").nth(mcIndex)).toHaveText("094");
+  expect(await page.evaluate(() => (window as any).localCalculationCount)).toBe(count);
+  expect(before).toContain("094");
+});
