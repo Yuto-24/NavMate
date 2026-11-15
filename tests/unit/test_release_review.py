@@ -341,8 +341,9 @@ def test_common_automation_captured_interrupt_retains_interrupt_kind(tmp_path, m
 
 
 @pytest.mark.parametrize("outcome", ["failure", "cancelled", "skipped", "unknown", "success"])
+@pytest.mark.parametrize("review_present", [False, True])
 def test_common_report_keeps_delivery_failure_separate_from_publication(
-    tmp_path, monkeypatch, capsys, outcome
+    tmp_path, monkeypatch, capsys, outcome, review_present
 ):
     from scripts.static_ops import release_automation as automation
 
@@ -357,13 +358,19 @@ def test_common_report_keeps_delivery_failure_separate_from_publication(
             "reason": "SECRET",
         },
     )
+    # A different mode can upload successfully while this mode is missing.
+    (tmp_path / "prepare-review.json").write_text("{}")
+    if review_present:
+        (tmp_path / "publish-review.json").write_text("{}")
     monkeypatch.setattr(automation, "release_store", lambda: tmp_path)
     monkeypatch.setenv("REVIEW_UPLOAD_OUTCOME", outcome)
     monkeypatch.setattr(sys, "argv", ["release_automation.py", "report"])
     monkeypatch.setattr(timing, "workflow_report", lambda _: {"status": "UNAVAILABLE"})
     assert automation.main() == 0
     value = json.loads(capsys.readouterr().out)
-    assert value["status"] == ("OK" if outcome == "success" else "BLOCKED")
+    assert value["status"] == ("OK" if outcome == "success" and review_present else "BLOCKED")
+    if value["status"] == "BLOCKED":
+        assert value["stage"] == "review-upload" and value["operation_status"] == "OK"
     assert value["changes"]["production"] == "CONFIRMED"
     assert value["review_upload"] == outcome
     assert "SECRET" not in json.dumps(value)

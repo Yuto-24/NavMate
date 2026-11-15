@@ -185,7 +185,8 @@ def main() -> int:
                                             if review.is_file() else None)
                 summary['workflow_measurement'] = workflow_measurement
                 summary['review_upload'] = os.environ.get('REVIEW_UPLOAD_OUTCOME', 'unknown')
-                if summary['status'] == 'OK' and summary['review_upload'] != 'success':
+                if summary['status'] == 'OK' and (summary['review_upload'] != 'success'
+                                                   or summary['review_sha256'] is None):
                     summary.update(operation_status='OK', status='BLOCKED', stage='review-upload')
                 print(json.dumps(summary))
         return 0

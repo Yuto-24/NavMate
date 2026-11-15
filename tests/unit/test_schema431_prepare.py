@@ -1007,3 +1007,38 @@ def test_missing_or_failed_small_review_upload_is_not_prepared(
                         lambda _: {'status': 'UNAVAILABLE'})
     driver.report()
     assert json.loads(capsys.readouterr().out)['status'] == 'BLOCKED'
+
+
+@pytest.mark.parametrize('when', ['start', 'finish'])
+def test_archive_timing_write_failure_preserves_completed_ciphertext(
+        runner_environment, transport, tmp_path, monkeypatch, when):
+    env, _, outputs = runner_environment
+    write, seal = driver.release_timing.write, bundle.seal
+    sealed = []
+    def record_seal(*args, **kwargs):
+        digest = seal(*args, **kwargs)
+        sealed.append(digest)
+        return digest
+    def fail_timing(path, value):
+        if path.name == 'archive-timings.json' and (
+                when == 'start' or value[-1]['status'] != 'RUNNING'):
+            raise OSError('PRIVATE timing save failure')
+        write(path, value)
+    monkeypatch.setattr(bundle, 'seal', record_seal)
+    monkeypatch.setattr(driver.release_timing, 'write', fail_timing)
+    assert driver.run(tmp_path) == 1
+    private, output, status_path = driver.locations(env)
+    status = json.loads(status_path.read_text())
+    assert status['status'] == 'BLOCKED' and not private.exists()
+    assert status['archive_ready'] is (when == 'finish')
+    assert 'archive_ready=' + str(when == 'finish').lower() + '\n' in outputs.read_text()
+    assert len(sealed) == (1 if when == 'finish' else 0)
+    if when == 'finish':
+        assert bundle.sha256(output.read_bytes()) == sealed[0]
+        assert status['archive_error'] == 'archive-timing-save'
+        handoff = bundle.unseal(output, transport[1] / 'archive.key', tmp_path / 'recovery')
+        assert handoff['prepared']  # Original authenticated bytes are preserved for recovery.
+        review = json.loads(output.with_suffix('.review.json').read_text())
+        assert review['status'] == 'BLOCKED' and review['archive_sha256'] == sealed[0]
+        assert not review['publication_authorized']
+    assert 'PRIVATE' not in status_path.read_text()

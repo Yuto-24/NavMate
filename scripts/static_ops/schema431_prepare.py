@@ -327,12 +327,21 @@ def review_result(store, journal, output, status_path, env, archive_ready,
     return ready
 
 
-def encrypted_save(store, journal, evidence, key, output, **kwargs):
+def encrypted_save(store, journal, evidence, key, output, **kwargs) -> bool:
+    """Return whether timing persisted; a completed archive must remain recoverable."""
     rows = journal.value.setdefault('timings', [])
     def save():
         release_timing.write(store / 'archive-timings.json', rows)
-    with release_timing.measure(rows, save, 'encrypted-save'):
-        return bundle.seal(store, evidence, key, output, **kwargs)
+    sealed = False
+    try:
+        with release_timing.measure(rows, save, 'encrypted-save'):
+            bundle.seal(store, evidence, key, output, **kwargs)
+            sealed = True
+    except Exception:
+        if not sealed:
+            raise
+        return False  # Only the post-seal timing write failed; never seal this path again.
+    return True
 
 
 def run(root: Path) -> int:
@@ -398,8 +407,10 @@ def _run_private(root: Path) -> int:
                            "prepared_at": plan["prepared_at"] if success else None}
                 app.write_json(store / "handoff.json", handoff)
                 try:
-                    encrypted_save(store, journal, evidence, key, output, success=success)
+                    timing_saved = encrypted_save(
+                        store, journal, evidence, key, output, success=success)
                     archive_ready = True
+                    bundle.require(timing_saved, "archive-timing-save")
                 except Exception as error:
                     had_prepared = success
                     success = False
@@ -414,13 +425,15 @@ def _run_private(root: Path) -> int:
                         except Exception as status_error:
                             diagnostics.record_failure(app, status_error, root.resolve(),
                                                        journal, env, entry="archive_status_failure")
-                    if had_prepared:
+                    if had_prepared and not archive_ready:
                         # A diagnostic-only archive cannot authorize publication.
                         handoff.update(prepared=False, plan_sha256=None, prepared_at=None)
                         app.write_json(store / "handoff.json", handoff)
                         try:
-                            encrypted_save(store, journal, evidence, key, output, success=False)
+                            timing_saved = encrypted_save(
+                                store, journal, evidence, key, output, success=False)
                             archive_ready = True
+                            bundle.require(timing_saved, "archive-timing-save")
                         except Exception as recovery_error:
                             archive_errors["archive_recovery_error"] = (
                                 diagnostics.archive_error_code(recovery_error))

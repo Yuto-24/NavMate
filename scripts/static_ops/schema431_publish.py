@@ -292,9 +292,10 @@ def _run_private(root: Path) -> int:
                 app.write_json(restored / "handoff.json", handoff)
                 try:
                     # Prepared bytes are unchanged; fresh build/caches/logs are excluded.
-                    prepare.encrypted_save(restored, journal, evidence, key, output,
-                                           success=True, publication=True)
+                    timing_saved = prepare.encrypted_save(
+                        restored, journal, evidence, key, output, success=True, publication=True)
                     archive_ready = True
+                    bundle.require(timing_saved, "archive-timing-save")
                 except Exception as error:
                     success = False
                     archive_errors.update(
@@ -310,17 +311,20 @@ def _run_private(root: Path) -> int:
                             prepare.diagnostics.record_failure(
                                 app, status_error, root.resolve(), journal, env,
                                 entry="archive_status_failure")
-                    # Keep the actual publication outcome and mutation journal,
-                    # but never restore this reduced archive as a prepared plan.
-                    handoff.update(prepared=False, plan_sha256=None, prepared_at=None)
-                    app.write_json(restored / "handoff.json", handoff)
-                    try:
-                        prepare.encrypted_save(restored, journal, evidence, key, output,
-                                               success=False, publication=True)
-                        archive_ready = True
-                    except Exception as recovery_error:
-                        archive_errors["archive_recovery_error"] = (
-                            prepare.diagnostics.archive_error_code(recovery_error))
+                    if not archive_ready:
+                        # Keep the actual publication outcome and mutation journal,
+                        # but never restore this reduced archive as a prepared plan.
+                        handoff.update(prepared=False, plan_sha256=None, prepared_at=None)
+                        app.write_json(restored / "handoff.json", handoff)
+                        try:
+                            timing_saved = prepare.encrypted_save(
+                                restored, journal, evidence, key, output,
+                                success=False, publication=True)
+                            archive_ready = True
+                            bundle.require(timing_saved, "archive-timing-save")
+                        except Exception as recovery_error:
+                            archive_errors["archive_recovery_error"] = (
+                                prepare.diagnostics.archive_error_code(recovery_error))
         finally:
             try:
                 with Path(env["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
