@@ -18,9 +18,10 @@ Read [the workflow](README.md) before adding or applying lessons. Search by the 
 
 ## Reusable entries
 
-No new lessons have been extracted by this setup. Add an entry only when supported by actual evidence.
+Entries below preserve scoped observations, not repository-wide rules.
 
 | ID / entry | Trigger and scope | Status | Last verified / evidence |
 | --- | --- | --- | --- |
+| [MSM-VERIFY-BUDGET](entries/msm-verification-budget.md) | 全件検証が30秒ごとに再開する／保持payloadの整合性エラー | provisional | 2026-11-17、Run 43893765453と対象回帰テスト。本番未検証 |
 
 Use [TEMPLATE.md](TEMPLATE.md); keep details in their canonical document and link here. Do not turn this index into a transcript or broad file inventory.
