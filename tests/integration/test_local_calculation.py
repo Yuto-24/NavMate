@@ -998,7 +998,13 @@ def test_forecast_refresh_failure_retains_last_good_and_never_reports_success(
     with monkeypatch.context() as patch:
         patch.setattr(provider, target, fail)
         failed = json.loads(local.dispatch("calculate"))
-    assert any(issue["severity"] == "BLOCKER" for issue in failed["outcome"]["issues"])
+    assert any(issue["severity"] == "BLOCKER" for issue in failed["readiness"]["issues"])
+    assert any(issue["severity"] == "BLOCKER"
+               for issue in failed["workingRecovery"]["outcome"]["issues"])
+    assert failed["outcome"]["sections"] == first["outcome"]["sections"]
+    assert failed["destinationWind"] == first["destinationWind"]
+    assert failed["verticalProfile"] == first["verticalProfile"]
+    assert failed["verticalProfileStale"] is True
     assert failed["workingRecovery"]["last_calculation"] == last
     assert local.app.forecast_refresh_requested(local.session, local.session.project)
 

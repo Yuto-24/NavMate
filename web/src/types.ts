@@ -620,6 +620,8 @@ export interface WorkingRecovery {
 }
 
 export interface WebState {
+  verticalProfile?: VerticalProfile | null;
+  verticalProfileStale?: boolean;
   roundingMode?: boolean;
   storageWarning?: string;
   workingRecovery?: WorkingRecovery;
@@ -634,4 +636,20 @@ export interface WebState {
   outcome: CalculationOutcome | null;
   destinationWind: DestinationWindForecast | null;
   readiness: ReadinessState;
+}
+
+// Derived from calculation-time Project + Last Calculation; not a storage schema.
+export interface ProfilePoint {
+  latitude_deg: number;
+  longitude_deg: number;
+  altitude_ft_msl: number;
+  elapsed_seconds: number;
+  distance_nm: number;
+}
+export interface VerticalProfile {
+  project_name: string;
+  departure_time: string;
+  segments: { section_id: string; sequence: number; phase: string; points: ProfilePoint[] }[];
+  markers: { name: string; kind: string; point: ProfilePoint;
+    reference_latitude_deg: number | null; reference_longitude_deg: number | null }[];
 }

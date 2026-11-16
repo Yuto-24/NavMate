@@ -44,6 +44,39 @@ This is a result document, not a Project backup or a second Repository schema.
 It does not trigger calculation, checkpoint, revision or durable Project writes.
 The existing Session lifecycle may still save its ephemeral working snapshot.
 
+3D KML uses `project_vertical_profile` in
+`src/autonavlog/application/vertical_profile.py`, shared with the future #55
+time/altitude chart. The facade derives it exclusively from `last_calculation.project`
+and `last_calculation.outcome`; it is not persisted as a new schema. The KML
+serializer accepts only that projection and a stale flag, and saves through
+`platform.files.save`. Editing or a failed recalculation leaves this projection's
+source unchanged. A new successful calculation replaces it. Missing legacy
+geometry or descent metadata disables KML export and asks for recalculation.
+When an effective BLOCKER prevents a new Last Calculation, the displayed NAV LOG,
+JSON and destination wind retain the same last successful snapshot as KML.
+The current readiness status and failed-attempt diagnostics remain in readiness
+and working recovery; an initial failure without a last success keeps its prior
+failure display behavior.
+
+The projection preserves calculation-zone time, distance, geometry and phase.
+Climb uses the saved departure elevation and the first CLIMB target, interpolated
+over its calculated elapsed time. Ordinary Leg altitude transitions use saved
+elapsed time without restarting at Check Point splits. Descent uses the existing
+metadata reader, inserts level-off, and retains the saved deceleration duration
+(including zero). TO retains the calculated visual-arrival altitude; export does
+not invent a landing descent. Dedicated RJFM return geometry stays on its saved
+physical route and operational time; the exporter does not add a route extension.
+
+RCA/EOC and Check Point abeam positions use the saved calculation boundaries.
+Ground Check Points are separate from altitude-bearing route points, including
+VREP. Their ExtendedData describes the abeam time/altitude/distance. Geodesic
+sampling at intervals no greater than 1 NM prevents long absolute line chords
+from cutting through the globe; it does not replace adopted zone distances.
+The serializer converts feet MSL to meters and uses KML `absolute` altitude mode,
+following the [Google KML reference](https://developers.google.com/kml/documentation/kmlreference#linestring).
+Browser download/XML regression is automated; actual Google Earth rendering
+requires a separate acceptance check.
+
 Browser save uses a Blob URL and the standard anchor download attribute; it cleans
 up the element immediately and revokes the URL after the browser can consume it.
 Success means the download was initiated, not that the user accepted a save dialog

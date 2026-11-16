@@ -1203,6 +1203,7 @@ async def test_uncalculated_project_update_restores_draft_without_checkpoint(
 @pytest.mark.anyio
 async def test_ftd_calculation_and_last_good_restore_without_cookie_or_server_session(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage_root = tmp_path / "storage"
     config = WebRuntimeConfig(
@@ -1236,6 +1237,7 @@ async def test_ftd_calculation_and_last_good_restore_without_cookie_or_server_se
         state = confirmed.json()
         assert state["project"]["weather_mode"] == "FTD"
         assert state["project"]["ftd_weather"]["wind_at_5000_ft"]["speed_kt"] == 20
+        assert state["verticalProfile"] is None
 
         calculated = await _calculate(client)
         assert calculated["project"]["selected_forecast_run_id"] == "ftd-fixed-v1"
@@ -1254,6 +1256,16 @@ async def test_ftd_calculation_and_last_good_restore_without_cookie_or_server_se
         assert any(item.get("provider") == "ftd_fixed" for item in automatic_metadata)
         project_id = calculated["project"]["id"]
         assert calculated["outcome"] is not None
+        profile = calculated["verticalProfile"]
+        assert profile is not None
+        assert calculated["verticalProfileStale"] is False
+        assert {segment["phase"] for segment in profile["segments"]} >= {
+            "CLIMB", "CRUISE", "DESCENT",
+        }
+        assert {marker["kind"] for marker in profile["markers"]} >= {"RCA", "EOC", "LEVEL_OFF"}
+        assert profile["segments"][-1]["points"][-1]["elapsed_seconds"] == pytest.approx(
+            calculated["outcome"]["sections"][-1]["cumulative_ete_seconds"]["automatic_value"]
+        )
 
     async with httpx.AsyncClient(transport=transport, base_url="https://test") as fresh:
         restored = (await fresh.post("/api/session")).json()["state"]
@@ -1261,6 +1273,7 @@ async def test_ftd_calculation_and_last_good_restore_without_cookie_or_server_se
         assert restored["outcome"]["project_id"] == project_id
         assert restored["destinationWind"]["reason_code"] == "FTD_MODE_NO_TAF"
         assert restored["readiness"]["calculationIsCurrent"] is True
+        assert restored["verticalProfile"] == profile
 
     restarted = create_app(config)
     restarted_transport = httpx.ASGITransport(app=restarted)
@@ -1274,12 +1287,64 @@ async def test_ftd_calculation_and_last_good_restore_without_cookie_or_server_se
         assert restored["project"]["id"] == project_id
         assert restored["outcome"]["project_id"] == project_id
         assert restored["readiness"]["calculationIsCurrent"] is True
+        assert restored["verticalProfile"] == profile
+
+        edited = await after_restart.put(
+            "/api/project", json=_update_payload(restored["project"], fuel_gal=75),
+        )
+        assert edited.status_code == 200, edited.text
+        assert edited.json()["verticalProfile"] == profile
+        assert edited.json()["verticalProfileStale"] is True
+        with monkeypatch.context() as patch:
+            def fail_calculation(*args, **kwargs):
+                raise RuntimeError("profile failure regression")
+            patch.setattr(restarted.state.web_application, "_calculate_outcome", fail_calculation)
+            with pytest.raises(RuntimeError, match="profile failure regression"):
+                await after_restart.post(
+                    "/api/project/recalculate",
+                    json=_update_payload(edited.json()["project"], fuel_gal=74),
+                )
+        assert (await after_restart.get("/api/state")).json()["verticalProfile"] == profile
+
+        # A returned BLOCKER, unlike an exception, used to replace the displayed
+        # outcome while Last Calculation remained unchanged. Keep diagnostics,
+        # but align displayed NAV LOG/JSON, destination wind and KML with A.
+        from autonavlog.domain.calculation import CalculationOutcome, Issue
+
+        blocked = CalculationOutcome.model_validate_json(json.dumps(calculated["outcome"]))
+        blocked.sections[0].planned_altitude_ft_msl.automatic_value = 9999
+        blocked.issues.append(Issue(
+            code="WIND_TRIANGLE_FAILED", severity="BLOCKER", message="Injected failed calculation",
+        ))
+        with monkeypatch.context() as patch:
+            patch.setattr(restarted.state.web_application, "_calculate_outcome",
+                          lambda *args, **kwargs: (blocked, None))
+            failed_response = await after_restart.post(
+                "/api/project/recalculate",
+                json=_update_payload(edited.json()["project"], fuel_gal=74),
+            )
+        assert failed_response.status_code == 200, failed_response.text
+        failed = failed_response.json()
+        assert failed["outcome"]["sections"] == calculated["outcome"]["sections"]
+        assert failed["destinationWind"] == calculated["destinationWind"]
+        assert failed["verticalProfile"] == profile
+        assert failed["verticalProfileStale"] is True
+        assert any(issue["code"] == "WIND_TRIANGLE_FAILED" and issue["severity"] == "BLOCKER"
+                   for issue in failed["readiness"]["issues"])
+        recovered = await after_restart.post(
+            "/api/application-session", json=failed["workingRecovery"],
+        )
+        assert recovered.status_code == 200, recovered.text
+        recovered_state = recovered.json()["state"]
+        assert recovered_state["outcome"]["sections"] == calculated["outcome"]["sections"]
+        assert recovered_state["verticalProfile"] == profile
 
         reset = await after_restart.delete("/api/session")
         assert reset.status_code == 204, reset.text
         blank = (await after_restart.post("/api/session")).json()["state"]
         assert blank["project"] is None
         assert blank["outcome"] is None
+        assert blank["verticalProfile"] is None
         assert [item["id"] for item in blank["savedProjects"]] == [project_id]
 
 

@@ -225,7 +225,7 @@ test("download and Clipboard export the displayed result, survive denial, and re
       return {
         boxes: [".nav-log-summary", ".nav-log-scroll", ".fuel-plan-section", ".navlog-export-actions"].map(rect),
         section: rect(".nav-log-section"),
-        buttons: [1, 2].map(index => rect(`.navlog-export-actions button:nth-child(${index})`)),
+        buttons: [1, 2, 3].map(index => rect(`.navlog-export-actions button:nth-child(${index})`)),
       };
     });
     for (let i = 1; i < boxes.length; i++) {
@@ -233,13 +233,15 @@ test("download and Clipboard export the displayed result, survive denial, and re
     }
     expect(boxes[3]!.y - section.y - section.height).toBeGreaterThanOrEqual(16);
     const actions = content.locator(".navlog-export-actions");
-    await expect(actions.locator("button")).toHaveCount(2);
+    await expect(actions.locator("button")).toHaveCount(3);
     expect(await actions.evaluate(element => getComputedStyle(element).gap)).toBe("8px");
     expect(await actions.evaluate(element => element.closest(".nav-log-scroll"))).toBeNull();
     expect(buttons[0]!.x).toBe(boxes[0]!.x);
     expect(boxes[3]!.width - 32).toBe(boxes[0]!.width);
     if (width === 390) expect(buttons[1]!.y).toBeGreaterThanOrEqual(buttons[0]!.y + buttons[0]!.height + 8);
     else expect(buttons[1]!.y).toBe(buttons[0]!.y);
+    expect(buttons[2]!.y).toBeGreaterThanOrEqual(buttons[1]!.y);
+    expect(buttons[2]!.x + buttons[2]!.width).toBeLessThanOrEqual(width);
     const scroll = content.locator(".nav-log-scroll");
     await scroll.evaluate(element => { element.scrollLeft = element.scrollWidth; });
     if (width <= 1440) expect(await scroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
@@ -250,8 +252,36 @@ test("download and Clipboard export the displayed result, survive denial, and re
     await page.screenshot({ path: test.info().outputPath(`navlog-export-${width}.png`) });
   }
   const original = (await snapshot(page)).working;
+  const downloadKml = async () => {
+    const pending = page.waitForEvent("download");
+    await page.getByRole("button", { name: "3D KMLをダウンロード", exact: true }).click();
+    const downloaded = await pending;
+    expect(downloaded.suggestedFilename()).toBe("navmate-flight-path.kml");
+    return readFileSync((await downloaded.path())!, "utf8");
+  };
+  const initialKml = await downloadKml();
+  const inspectKml = (text: string) => page.evaluate(text => {
+    const doc = new DOMParser().parseFromString(text, "application/xml");
+    return { errors: doc.querySelectorAll("parsererror").length,
+      paths: Array.from(doc.querySelectorAll("LineString")).map(line => ({
+        mode: line.querySelector("altitudeMode")!.textContent,
+        coordinates: line.querySelector("coordinates")!.textContent,
+      })),
+      names: Array.from(doc.querySelectorAll("Placemark > name")).map(name => name.textContent),
+    };
+  }, text);
+  const originalKml = await inspectKml(initialKml);
+  expect(originalKml.errors).toBe(0);
+  expect(originalKml.paths.length).toBe(original.outcome.sections.length);
+  expect(originalKml.paths.every(path => path.mode === "absolute")).toBe(true);
+  expect(originalKml.names).toEqual(expect.arrayContaining(["CLIMB", "CRUISE", "DESCENT", "RCA", "EOC"]));
+  expect(initialKml).not.toContain("再計算前の結果を出力します。");
   // Uncalculated planning edits must not relabel or recalculate the exported result.
   await page.getByLabel("TGL", { exact: true }).fill("2");
+  await expect(page.locator("#kml-export-notice")).toContainText("再計算前の結果を出力します。");
+  const staleKml = await downloadKml();
+  expect(staleKml).toContain("再計算前の結果を出力します。");
+  expect(await inspectKml(staleKml)).toEqual(originalKml);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "NAV LOG JSONをダウンロード" }).click();
   const file = await download;
@@ -302,6 +332,11 @@ test("download and Clipboard export the displayed result, survive denial, and re
   // A pending autosave may update readiness status after the TGL edit; export must retain the calculation content.
   const currentOutcome = (await snapshot(page)).working.outcome;
   expect({ ...currentOutcome, status: null }).toEqual({ ...original.outcome, status: null });
+  await context.setOffline(false);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "3D KMLをダウンロード", exact: true })).toBeEnabled();
+  await expect(page.locator("#kml-export-notice")).toContainText("再計算前の結果を出力します。");
+  expect(await inspectKml(await downloadKml())).toEqual(originalKml);
 });
 
 test("source links open without an opener and cannot unlock a pending save", async ({ page, context }) => {

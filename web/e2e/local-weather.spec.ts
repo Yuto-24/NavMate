@@ -398,8 +398,12 @@ test("portable source-value failure checks both MSM Runs and preserves saved NAV
   context.on("request", r => { if (r.url().includes("/weather/") && r.url().endsWith(".npz")) payloads.push(r.url()); });
   await context.route("**/weather/gsm/**", route => { throw new Error(`Error-driven GSM fallback: ${route.request().url()}`); });
   await page.getByRole("button", { name: "NAV LOGを再計算", exact: true }).click();
-  await expect.poll(async () => (await state(page))?.outcome?.issues.map((i: any) => i.code))
+  await expect.poll(async () => (await state(page))?.readiness.issues.map((i: any) => i.code))
     .toContain("FORECAST_PREPARE_FAILED");
+  const failed = await state(page);
+  expect(failed.workingRecovery.outcome.issues.map((i: any) => i.code)).toContain("FORECAST_PREPARE_FAILED");
+  expect(failed.outcome.sections).toEqual(previous.outcome.sections);
+  expect(failed.verticalProfileStale).toBe(true);
   expect(payloads).toHaveLength(2);
   expect((await record(page)).lastCalculation).toEqual(previous);
   await expect(page.locator(".nav-log-table")).toBeVisible();

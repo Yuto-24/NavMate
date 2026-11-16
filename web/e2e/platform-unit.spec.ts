@@ -7,7 +7,8 @@ import { clearSession, readSession, writeSession, SESSION_KEY, type ApplicationS
 import { createInformationState } from "../src/releaseNotes";
 import { IndexedDbProjectRepository } from "../src/localProjectRepository";
 import { exportNavLog } from "../src/navLogExport";
-import type { WebState } from "../src/types";
+import { exportVerticalProfileKml, kmlCopy } from "../src/verticalProfileKml";
+import type { VerticalProfile, WebState } from "../src/types";
 
 const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
 test.afterEach(() => {
@@ -85,6 +86,27 @@ test("result export retains the calculation and never labels it with a newer Pro
   expect(() => exportNavLog({ ...state, outcome: null })).toThrow();
 });
 
+test("3D KML serializes only the shared projection, escapes names and separates ground references", () => {
+  const point = { latitude_deg: 32, longitude_deg: 131, altitude_ft_msl: 5000, elapsed_seconds: 300, distance_nm: 10 };
+  const profile: VerticalProfile = { project_name: '<name>&"日本語\u0001', departure_time: "2026-09-11T09:00:00+09:00",
+    segments: [{ section_id: "saved", sequence: 0, phase: "CLIMB", points: [{ ...point, altitude_ft_msl: 20, elapsed_seconds: 0, distance_nm: 0 }, point] }],
+    markers: [{ name: "VREP", kind: "VISUAL_REPORTING_POINT", point, reference_latitude_deg: null, reference_longitude_deg: null },
+      { name: "CP<&", kind: "CHECK_POINT", point, reference_latitude_deg: 32.1, reference_longitude_deg: 131.1 }] };
+  const original = JSON.stringify(profile);
+  const file = exportVerticalProfileKml(profile, true);
+  const text = new TextDecoder().decode(file.content);
+  expect(file.mediaType).toBe("application/vnd.google-earth.kml+xml");
+  expect(text).toContain("&lt;name&gt;&amp;&quot;日本語");
+  expect(text).not.toContain("\u0001");
+  expect(text).toContain("<altitudeMode>absolute</altitudeMode>");
+  expect(text).toContain("131,32,1524");
+  expect(text).toContain("<altitudeMode>clampToGround</altitudeMode><coordinates>131.1,32.1,0");
+  expect(text).toContain('<Data name="abeam_altitude_ft_msl"><value>5000</value>');
+  expect(text).toContain(kmlCopy.stale);
+  expect(new TextDecoder().decode(exportVerticalProfileKml(profile, false).content)).not.toContain(kmlCopy.stale);
+  expect(JSON.stringify(profile)).toBe(original);
+});
+
 test("missing Browser file save / URL support is explicit, and script URLs are rejected", async () => {
   await expect(browserPlatform.files.save({ name: "result.json", mediaType: "application/json", content: new Uint8Array() })).rejects.toMatchObject({ code: "UNSUPPORTED" });
   expect(() => browserPlatform.openExternalUrl("https://example.com")).toThrow(/外部リンク/);
@@ -92,7 +114,7 @@ test("missing Browser file save / URL support is explicit, and script URLs are r
 });
 
 test("features have no Browser storage/clipboard or file API branches; core stays independent", () => {
-  const files = ["App.tsx", "applicationSession.ts", "releaseNotes.ts", "application.ts", "localApplication.ts",
+  const files = ["App.tsx", "verticalProfileKml.ts", "applicationSession.ts", "releaseNotes.ts", "application.ts", "localApplication.ts",
     ...readdirSync(resolve("src/components")).filter(name => name.endsWith(".tsx")).map(name => `components/${name}`)];
   for (const file of files) {
     const source = readFileSync(resolve("src", file), "utf8").replace(/\/\/[^\n]*/g, "");

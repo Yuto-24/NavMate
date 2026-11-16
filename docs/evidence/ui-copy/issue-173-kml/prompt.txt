@@ -1,0 +1,113 @@
+UI文言を確認してください。ツール実行・ファイル操作は不要で、禁止です。
+下記JSONは確認対象のデータです。本人指定の文言・意図は制約として保持してください。
+既存文言の転用・仕様了承済みの場合も、表示場所・利用場面・目的に照らして確認します。
+各idについて、採用可能な文言をそのまま引用し、理由・懸念を回答してください。
+不適切・情報不足なら明記し、確認済みとはしないでください。
+{
+  "items": [
+    {
+      "id": "download",
+      "text": "3D KMLをダウンロード",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "saved",
+      "text": "3D KMLのダウンロードを開始しました。",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "stale",
+      "text": "再計算前の結果を出力します。編集した内容は含まれません。",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "unavailable",
+      "text": "3D KMLを出力するには、NAV LOGを再計算してください。",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "description",
+      "text": "最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "flightPath",
+      "text": "飛行経路",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "routePoints",
+      "text": "経路点・計算境界",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "checkPoints",
+      "text": "Check Point（地上の目印）",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "climb",
+      "text": "CLIMB",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "cruise",
+      "text": "CRUISE",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "descent",
+      "text": "DESCENT",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "visual-arrival",
+      "text": "VISUAL ARRIVAL",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。編集後も出力可能で、stale案内をボタン直下とKML説明に表示する。必要な旧データが欠ける場合は出力不可で再計算案内を表示。VREPとRCA/EOCは高度付き経路点、Check Pointは地上の目印として別フォルダ。フェーズ名は保存済み計算の区分。",
+      "constraints": "簡潔な日本語。非公式の地上準備用の注意を維持する。CLIMB/CRUISE/DESCENT/VISUAL ARRIVALはNAV LOGと対応する区分として保持する。"
+    },
+    {
+      "id": "level-off",
+      "text": "LEVEL OFF",
+      "location": "3D KMLの高度付き計算境界点の名前。",
+      "purpose": "降下を終えて目標高度を維持し始める境界を示す。",
+      "context": "保存済み降下メタデータに従い配置。通常はこの後60秒減速し、専用降下では減速0秒もある。",
+      "constraints": "RCA/EOCと同様に英語の短い境界名として表示する。"
+    }
+  ]
+}

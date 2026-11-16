@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from math import cos, radians
 from secrets import compare_digest, token_urlsafe
@@ -45,6 +45,7 @@ from autonavlog.application.rjfm_inbound_plan import (
     TARGET_ALTITUDE_FT_MSL as RJFM_INBOUND_TARGET_ALTITUDE_FT_MSL,
 )
 from autonavlog.application.rjfm_inbound_service import build_rjfm_inbound_guidance
+from autonavlog.application.vertical_profile import project_vertical_profile
 from autonavlog.domain.airport_vor import AIRPORT_VORS
 from autonavlog.domain.calculation import CalculationOutcome, Issue
 from autonavlog.domain.enums import (
@@ -1784,12 +1785,27 @@ class AutoNavLogWebApplication:
         project_payload = (
             None if session.project is None else session.project.model_dump(mode="json")
         )
+        last = session.last_calculation
+        if session.project is None or (last is not None and last.project.id != session.project.id):
+            last = None
+        # Keep failed-attempt diagnostics in readiness/recovery, but display the
+        # same last successful numbers and wind that the profile export uses.
+        show_last = last is not None and evaluation is not None and any(
+            item.effective_severity == IssueSeverity.BLOCKER for item in evaluation.effective_issues
+        )
+        displayed_outcome = (
+            last.outcome.model_copy(update={"status": evaluation.status})
+            if show_last and last is not None and evaluation is not None else session.outcome
+        )
+        displayed_wind = (
+            last.destination_wind if show_last and last is not None else session.destination_wind
+        )
         presented_outcome = (
             None
             if evaluation is None
             else self._outcome_for_presentation(
                 session.project,
-                session.outcome,
+                displayed_outcome,
                 evaluation,
             )
         )
@@ -1798,13 +1814,32 @@ class AutoNavLogWebApplication:
         )
         destination_wind_payload = (
             None
-            if session.destination_wind is None
-            else session.destination_wind.model_dump(mode="json")
+            if displayed_wind is None
+            else displayed_wind.model_dump(mode="json")
         )
         candidates = self._candidate_payload(session.import_result)
         summaries = self._owned_project_summaries(session)
         check_point_planning = self._check_point_planning(session.project)
+        vertical_profile = None
+        vertical_profile_stale = True
+        if last is not None and session.project is not None:
+            try:
+                vertical_profile = asdict(project_vertical_profile(last.project, last.outcome))
+            except ValueError:
+                # Older snapshots can lack geometry/profile metadata. Keep the
+                # saved result intact and ask for recalculation before 3D export.
+                pass
+            vertical_profile_stale = not (
+                not show_last and evaluation is not None and evaluation.calculation_is_current
+                and self.project_service.ui_state(session.project).calculated_against_fingerprint
+                == last.calculation_fingerprint
+                and session.project.name == last.project.name
+                and [(node.id, node.name) for node in session.project.ordered_nodes()]
+                == [(node.id, node.name) for node in last.project.ordered_nodes()]
+            )
         return {
+            "verticalProfile": vertical_profile,
+            "verticalProfileStale": vertical_profile_stale,
             "roundingMode": session.rounding_mode,
             "workingRecovery": WorkingRecovery(
                 version=1,
