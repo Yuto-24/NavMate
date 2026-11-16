@@ -122,3 +122,23 @@ Ruleset再取得とmainの適用rulesで反映を確認し、既存ルール・c
 
 変更後Hosted計測と新構成のmain成功は未確認。上記main成功はPR #428の回帰保証であり、
 今回の分割の成功とは扱わない。
+
+
+### 分割の初回Hosted実行で見つかった準備依存
+
+[PR #448の初回Run](https://github.com/Yuto-24/NavMate/actions/runs/43910324293)では
+Local全分割は成功し、最長は6分32秒だった。ただし同期と共有開発が失敗したため、
+全体12分42秒を性能達成の証拠にはしない。
+
+- [iPad同期の第2分割](https://github.com/Yuto-24/NavMate/actions/runs/43910324293/job/133450333102)は、
+  先頭のcomponent検証で動的に挿入したdialogが失われた。traceで同じHTMLの再読込と
+  クリック対象のdetachを確認した。通常Appとcomponentを同じページへ載せていたfixtureを、
+  既存componentを静的importする専用HTMLへ分離した。resolve/import・Draft guardの4ケースと
+  元のassertionを維持する。iPhoneの同じ失敗にも適用する。
+- [共有開発runner](https://github.com/Yuto-24/NavMate/actions/runs/43910324293/job/133450333114)は
+  `generated/releaseNotes.json`がなく起動できなかった。以前は先行する同期テストのpretestが
+  生成していたため、共有開発テストにも同じpretestを明示した。
+
+ローカルでiPadの失敗ケース単独と、関連4ケース×3deviceを再検証して成功。
+共有開発も生成JSONを退避した状態から、専用Auth/Firestore emulatorで全6件が成功した。
+失敗を避けるためのretry追加、待機上限延長、assertion削除は行っていない。
