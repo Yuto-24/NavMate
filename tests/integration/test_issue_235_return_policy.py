@@ -122,6 +122,13 @@ def test_return_completion_geometry_descent_and_restore(
             profile_descent[-1]["points"][-1]["elapsed_seconds"]
             - profile_descent[0]["points"][0]["elapsed_seconds"]
         ) == pytest.approx(360 if rate == 500 else 180)
+        visual_arrival = [s for s in profile["segments"] if s["phase"] == "VISUAL_ARRIVAL"]
+        assert visual_arrival[0]["points"][0] == profile_descent[-1]["points"][-1]
+        assert visual_arrival[-1]["points"][-1]["altitude_ft_msl"] == pytest.approx(
+            calculated["project"]["metadata"]["ui_state"][
+                "reference_data_snapshot"
+            ]["destination_airport"]["elevation_ft_msl"]
+        )
         if via_arita and explicit_umk:
             assert (
                 calculated["project"]["metadata"]["ui_state"]["arrival_plan"][

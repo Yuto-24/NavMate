@@ -2027,8 +2027,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
                 { success: kmlCopy.saved },
               )}>{kmlCopy.download}</button>
           </div>
-          <p id="kml-export-notice">{!state.verticalProfile ? kmlCopy.unavailable
-            : (state.verticalProfileStale || !calculationInputsAreLocallyCurrent) ? kmlCopy.stale : kmlCopy.description}</p>
+          <p id="kml-export-notice" role="status">{!state.verticalProfile ? kmlCopy.unavailable
+            : (state.verticalProfileStale || !calculationInputsAreLocallyCurrent) ? kmlCopy.stale : null}</p>
         </div>
       )}
       {currentRjfmInboundGuidance && (

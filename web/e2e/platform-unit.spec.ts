@@ -96,15 +96,18 @@ test("3D KML serializes only the shared projection, escapes names and separates 
   const file = exportVerticalProfileKml(profile, true);
   const text = new TextDecoder().decode(file.content);
   expect(file.mediaType).toBe("application/vnd.google-earth.kml+xml");
+  expect(file.name).toBe('_name_&_日本語_.kml');
   expect(text).toContain("&lt;name&gt;&amp;&quot;日本語");
   expect(text).not.toContain("\u0001");
-  expect(text).toContain("<altitudeMode>absolute</altitudeMode>");
+  expect(text).toContain("<LineString><extrude>1</extrude><altitudeMode>absolute</altitudeMode>");
   expect(text).toContain("131,32,1524");
   expect(text).toContain("<altitudeMode>clampToGround</altitudeMode><coordinates>131.1,32.1,0");
   expect(text).toContain('<Data name="abeam_altitude_ft_msl"><value>5000</value>');
   expect(text).toContain(kmlCopy.stale);
   expect(new TextDecoder().decode(exportVerticalProfileKml(profile, false).content)).not.toContain(kmlCopy.stale);
   expect(JSON.stringify(profile)).toBe(original);
+  expect(exportVerticalProfileKml({ ...profile, project_name: "宮崎航法" }, false).name).toBe("宮崎航法.kml");
+  expect(new TextDecoder().decode(exportVerticalProfileKml(profile, false).content)).not.toContain("<description>");
 });
 
 test("missing Browser file save / URL support is explicit, and script URLs are rejected", async () => {

@@ -254,17 +254,19 @@ test("download and Clipboard export the displayed result, survive denial, and re
   const original = (await snapshot(page)).working;
   const downloadKml = async () => {
     const pending = page.waitForEvent("download");
-    await page.getByRole("button", { name: "3D KMLをダウンロード", exact: true }).click();
+    await page.getByRole("button", { name: "Google Earth 用にエクスポート", exact: true }).click();
     const downloaded = await pending;
-    expect(downloaded.suggestedFilename()).toBe("navmate-flight-path.kml");
+    expect(downloaded.suggestedFilename()).toBe(`${original.last_calculation.project.name}.kml`);
     return readFileSync((await downloaded.path())!, "utf8");
   };
+  await expect(page.locator("#kml-export-notice")).toBeEmpty();
   const initialKml = await downloadKml();
   const inspectKml = (text: string) => page.evaluate(text => {
     const doc = new DOMParser().parseFromString(text, "application/xml");
     return { errors: doc.querySelectorAll("parsererror").length,
       paths: Array.from(doc.querySelectorAll("LineString")).map(line => ({
         mode: line.querySelector("altitudeMode")!.textContent,
+        extrude: line.querySelector("extrude")!.textContent,
         coordinates: line.querySelector("coordinates")!.textContent,
       })),
       names: Array.from(doc.querySelectorAll("Placemark > name")).map(name => name.textContent),
@@ -273,7 +275,7 @@ test("download and Clipboard export the displayed result, survive denial, and re
   const originalKml = await inspectKml(initialKml);
   expect(originalKml.errors).toBe(0);
   expect(originalKml.paths.length).toBe(original.outcome.sections.length);
-  expect(originalKml.paths.every(path => path.mode === "absolute")).toBe(true);
+  expect(originalKml.paths.every(path => path.mode === "absolute" && path.extrude === "1")).toBe(true);
   expect(originalKml.names).toEqual(expect.arrayContaining(["CLIMB", "CRUISE", "DESCENT", "RCA", "EOC"]));
   expect(initialKml).not.toContain("再計算前の結果を出力します。");
   // Uncalculated planning edits must not relabel or recalculate the exported result.
@@ -334,7 +336,7 @@ test("download and Clipboard export the displayed result, survive denial, and re
   expect({ ...currentOutcome, status: null }).toEqual({ ...original.outcome, status: null });
   await context.setOffline(false);
   await page.reload();
-  await expect(page.getByRole("button", { name: "3D KMLをダウンロード", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Google Earth 用にエクスポート", exact: true })).toBeEnabled();
   await expect(page.locator("#kml-export-notice")).toContainText("再計算前の結果を出力します。");
   expect(await inspectKml(await downloadKml())).toEqual(originalKml);
 });

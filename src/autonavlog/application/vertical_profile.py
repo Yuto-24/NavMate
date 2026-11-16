@@ -120,7 +120,9 @@ def _number(value: object) -> float:
 def _group_key(zone: SectionResult) -> tuple[FlightPhase, str]:
     # CP/physical-leg splits must not restart climb/descent or a Leg altitude ramp.
     return zone.phase, (
-        "" if zone.phase in {FlightPhase.CLIMB, FlightPhase.DESCENT}
+        "" if zone.phase in {
+            FlightPhase.CLIMB, FlightPhase.DESCENT, FlightPhase.VISUAL_ARRIVAL,
+        }
         else str(zone.section_id)
     )
 
@@ -129,9 +131,12 @@ def project_vertical_profile(project: Project, outcome: CalculationOutcome) -> V
     """Project calculation-time inputs/results, never a working Project or live data.
 
     Shared by KML and the future time/altitude chart. Times, distances, phase
-    boundaries and geometry come from non-overlapping calculation zones. Climb
-    and ordinary Leg altitude ramps are linear in saved elapsed time; descent
-    follows its saved vertical/deceleration metadata. No performance solver runs.
+    boundaries and geometry come from non-overlapping calculation zones. Initial
+    climb and EOC descent retain their saved timing. Enroute altitude changes
+    start at the Leg's origin at 900 fpm up / 500 fpm down, then level off; these
+    are display rates, not new performance calculations. Visual arrival joins
+    the VREP altitude to the saved destination elevation linearly by distance.
+    No performance solver runs.
     Missing legacy data raises ValueError instead of inventing a flight path.
     """
     if project.id != outcome.project_id or not outcome.sections or not outcome.converged:
@@ -150,14 +155,16 @@ def project_vertical_profile(project: Project, outcome: CalculationOutcome) -> V
     markers: list[ProfileMarker] = []
     elapsed = distance = 0.0
     groups = [list(group) for _, group in groupby(zones, _group_key)]
-    for group_index, group in enumerate(groups):
+    for group in groups:
         phase = group[0].phase
         start_time, start_altitude = elapsed, altitude
+        start_distance = distance
         end_time = _number(group[-1].cumulative_ete_seconds.adopted())
         duration = end_time - start_time
         if duration <= 0:
             raise ValueError("Non-positive profile duration")
         descent = None
+        transition_seconds = duration
         target = _number(group[-1].planned_altitude_ft_msl.adopted())
         if phase == FlightPhase.CLIMB:
             # The first CLIMB input owns the one climb plan, even across Legs.
@@ -170,13 +177,26 @@ def project_vertical_profile(project: Project, outcome: CalculationOutcome) -> V
             target = descent.target_altitude_ft_msl
             if segments and abs(altitude - start_altitude) > 1e-6:
                 raise ValueError("Discontinuous saved descent profile")
-        elif group_index + 1 < len(groups):
-            following = groups[group_index + 1][0]
-            if following.phase == FlightPhase.DESCENT:
-                following_descent = descent_profile_from_metadata(following.performance_metadata)
-                if following_descent is None:
-                    raise ValueError("Missing saved descent profile")
-                target = following_descent.cruise_altitude_ft_msl
+        elif phase == FlightPhase.CRUISE:
+            rate_fpm = 900 if target > start_altitude else 500
+            transition_seconds = abs(target - start_altitude) / rate_fpm * 60
+        elif phase == FlightPhase.VISUAL_ARRIVAL:
+            snapshot = load_persisted_ui_state(
+                project.metadata.get("ui_state"),
+            ).reference_data_snapshot
+            if (snapshot is None
+                    or snapshot.destination_airport.id != project.destination_airport_id):
+                raise ValueError("Missing calculation-time destination elevation")
+            target = _number(snapshot.destination_airport.elevation_ft_msl)
+            arrival_distance = _number(group[-1].cumulative_distance_nm.adopted()) - start_distance
+            if arrival_distance <= 0:
+                raise ValueError("Non-positive visual arrival distance")
+
+        level_time = None
+        if descent is not None:
+            level_time = start_time + descent.vertical_duration_seconds
+        elif phase == FlightPhase.CRUISE and transition_seconds > 0:
+            level_time = start_time + transition_seconds
 
         for zone in group:
             zone_end_time = _number(zone.cumulative_ete_seconds.adopted())
@@ -198,7 +218,6 @@ def project_vertical_profile(project: Project, outcome: CalculationOutcome) -> V
             # legs do not cut beneath the globe; do not alter adopted distance.
             steps = max(1, ceil(geometry.distance_nm))
             fractions = {index / steps for index in range(steps + 1)}
-            level_time = None if descent is None else start_time + descent.vertical_duration_seconds
             if level_time is not None and elapsed < level_time < zone_end_time:
                 fractions.add((level_time - elapsed) / seconds)
             points: list[ProfilePoint] = []
@@ -211,8 +230,13 @@ def project_vertical_profile(project: Project, outcome: CalculationOutcome) -> V
                                     geometry.distance_nm * fraction)
                 )
                 height = (
+                    start_altitude + (target - start_altitude)
+                    * (distance + length * fraction - start_distance) / arrival_distance
+                    if phase == FlightPhase.VISUAL_ARRIVAL else
                     descent.altitude_at_elapsed(time - start_time) if descent is not None
-                    else start_altitude + (target - start_altitude) * (time - start_time) / duration
+                    else target if transition_seconds == 0
+                    else start_altitude + (target - start_altitude)
+                    * min((time - start_time) / transition_seconds, 1.0)
                 )
                 point = ProfilePoint(lat, lon, height, time, distance + length * fraction)
                 points.append(point)

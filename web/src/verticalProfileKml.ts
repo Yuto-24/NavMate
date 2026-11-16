@@ -2,11 +2,10 @@ import type { PlatformFile } from "./platform";
 import type { ProfilePoint, VerticalProfile } from "./types";
 
 export const kmlCopy = {
-  download: "3D KMLをダウンロード",
-  saved: "3D KMLのダウンロードを開始しました。",
+  download: "Google Earth 用にエクスポート",
+  saved: "KMLファイルのダウンロードを開始しました。",
   stale: "再計算前の結果を出力します。編集した内容は含まれません。",
-  unavailable: "3D KMLを出力するには、NAV LOGを再計算してください。",
-  description: "最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。",
+  unavailable: "Google Earth 用に出力するには、NAV LOGを再計算してください。",
   flightPath: "飛行経路",
   routePoints: "経路点・計算境界",
   checkPoints: "Check Point（地上の目印）",
@@ -27,7 +26,7 @@ const data = (values: Record<string, string | number>) => `<ExtendedData>${Objec
 export function exportVerticalProfileKml(profile: VerticalProfile, stale: boolean): PlatformFile {
   const path = profile.segments.map(segment => `<Placemark><name>${xml(kmlCopy.phases[segment.phase as keyof typeof kmlCopy.phases] ?? segment.phase)}</name><styleUrl>#flight</styleUrl>${data({
     section_id: segment.section_id, sequence: segment.sequence, phase: segment.phase,
-  })}<LineString><altitudeMode>absolute</altitudeMode><coordinates>${segment.points.map(coordinates).join(" ")}</coordinates></LineString></Placemark>`).join("");
+  })}<LineString><extrude>1</extrude><altitudeMode>absolute</altitudeMode><coordinates>${segment.points.map(coordinates).join(" ")}</coordinates></LineString></Placemark>`).join("");
   const markers = (checkPoints: boolean) => profile.markers.filter(marker => (marker.kind === "CHECK_POINT") === checkPoints)
     .map(marker => `<Placemark><name>${xml(marker.name)}</name><styleUrl>#${checkPoints ? "reference" : "boundary"}</styleUrl>${data({
       kind: marker.kind, [checkPoints ? "abeam_altitude_ft_msl" : "altitude_ft_msl"]: marker.point.altitude_ft_msl,
@@ -38,8 +37,8 @@ export function exportVerticalProfileKml(profile: VerticalProfile, stale: boolea
       : coordinates(marker.point)}</coordinates></Point></Placemark>`).join("");
   const content = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document>
-<name>${xml(profile.project_name)}</name><description>${xml(kmlCopy.description + (stale ? " " + kmlCopy.stale : ""))}</description>
-<Style id="flight"><LineStyle><color>ffff8000</color><width>4</width></LineStyle></Style>
+<name>${xml(profile.project_name)}</name>${stale ? `<description>${xml(kmlCopy.stale)}</description>` : ""}
+<Style id="flight"><LineStyle><color>ffff8000</color><width>4</width></LineStyle><PolyStyle><color>4dff8000</color><outline>0</outline></PolyStyle></Style>
 <Style id="boundary"><IconStyle><color>ff00ffff</color><scale>0.7</scale></IconStyle></Style>
 <Style id="reference"><IconStyle><color>ff00ff00</color><scale>0.7</scale></IconStyle></Style>
 ${data({ departure_time: profile.departure_time, stale: String(stale) })}
@@ -47,6 +46,7 @@ ${data({ departure_time: profile.departure_time, stale: String(stale) })}
 <Folder><name>${xml(kmlCopy.routePoints)}</name>${markers(false)}</Folder>
 <Folder><name>${xml(kmlCopy.checkPoints)}</name>${markers(true)}</Folder>
 </Document></kml>\n`;
-  return { name: "navmate-flight-path.kml", mediaType: "application/vnd.google-earth.kml+xml",
+  const name = profile.project_name.replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, "_").trim().replace(/[. ]+$/, "") || "NavMate";
+  return { name: `${name}.kml`, mediaType: "application/vnd.google-earth.kml+xml",
     content: new TextEncoder().encode(content) };
 }
