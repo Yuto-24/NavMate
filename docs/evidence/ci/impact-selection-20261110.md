@@ -78,5 +78,47 @@ pip install は16〜34秒だった。OS/browser の追加導入 step はない�
 共有開発検証の分離。採用する場合は全件の exact-once 分配と Hosted 時間を検証する。
 今回の証拠だけで worker 数増加や重要なテストの削除を正当化しない。
 
-通常変更を選択した Hosted Run、必須チェックの登録、新構成での main run は引き続き未確認。
-この全 suite run をそれらの代替証拠にしない。
+この時点では通常変更の Hosted Run、必須チェックの登録、新構成の main run は未確認だった。
+その後の再確認は下記に記す。
+
+
+## 2026-11-17: 残る律速の確認と分割
+
+PR #428 の分類・公式コンテナ・集約を維持し、ブラウザ本体の直列時間を短縮する。
+計測は Jobs API の `started_at` / `completed_at` と、同じ job のログを使用した。
+
+| 観測 | 結果 | 全体 | 最長 job / 主な工程 |
+| --- | --- | --- | --- |
+| [PR #444 VOR計算変更](https://github.com/Yuto-24/NavMate/actions/runs/43699315391) | 成功 | 20分43秒 | Local 19分36秒、iPad sync 12分17秒 |
+| [main `7213effa`](https://github.com/Yuto-24/NavMate/actions/runs/43715640669) | 全20 job成功 | 16分15秒 | Local 15分42秒、回帰本体12分29秒、backup 1分35秒 |
+| [PR #447 KML変更](https://github.com/Yuto-24/NavMate/actions/runs/43903340197) | 失敗 | 14分58秒 | Chromium sync 14分09秒。失敗を性能達成の証拠にはしない |
+
+PR #444 は通常の航法計算変更で、テストや共有JSONも含むため現行判定で全 suite を選ぶ。
+CIだけを変更したPRの代替ではなく、実際の通常変更のベースラインとして扱う。
+いずれも初回attemptのRun開始から最終job完了までの観測で、平均値や純粋なCPU時間ではない。
+
+main のコンテナ初期化は22〜35秒で、OS/browser追加導入はない。PR #428 の対策は維持する。
+同期本体はiPad 10分29秒、Chromium 6分22秒に加えて共有開発2分26秒。
+Local acceptance は認証3分45秒に続けてscroll・acceptance・TAF 4分34秒を実行していた。
+
+今回の変更ではLocalをファイル単位で4分割し、同期の各deviceをテスト単位で2分割する。
+認証と共有開発も別runnerへ分離する。同期はrunnerごとに1 workerと専用emulatorを使用する。
+既存のLocal 70件（Legacy専用1件skipを含む）、同期54件、Rules 4件、storage-upgrade 32件、
+migration 6件を収集して、Localと同期の分割前後が漏れ・重複なく一致することを検証する。
+
+[Playwrightの公式仕様](https://playwright.dev/docs/test-sharding)どおり、Localはファイルを分割せず、
+1ファイルの同期は`--fully-parallel`で個別テストを分配する。同期テストは各テストでbrowser contextと
+アカウントを作成し、共有のbeforeAll/afterAllを持たない。runner内の同時実行は増やさない。
+テスト件数による標準分割なので時間の均等化は保証しない。runner数増加によるqueueと、
+image・npm・pip・Firebaseの外部取得は引き続き計測対象とする。
+
+2026-11-17に有効なbranch rulesとRuleset `20705217`を再取得し、required status checksが
+未設定であることを確認した。従来branch protection APIは`Branch not protected`（404）。
+既存の削除・force push禁止、Code Quality、Copilot review、PR会話解決を維持したまま、
+GitHub Actions（integration ID `15368`）の`ci-required`を必須チェックへ追加した。
+Ruleset再取得とmainの適用rulesで反映を確認し、既存ルール・conditions・bypass actorsの保持を照合した。
+`strict_required_status_checks_policy=false`とし、新たなbase最新化条件は追加していない。
+この設定変更はコード外の実施済み操作であり、PRのマージは実施していない。
+
+変更後Hosted計測と新構成のmain成功は未確認。上記main成功はPR #428の回帰保証であり、
+今回の分割の成功とは扱わない。

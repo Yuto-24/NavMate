@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { identities, verify } from './check-account-sync-partition.mjs';
+import { identities, verify, verifyMatrix } from './check-account-sync-partition.mjs';
 
 test('partition requires every original test exactly once', () => {
   verify(['a', 'b'], [['b'], ['a']]);
@@ -16,4 +16,14 @@ test('collection includes nested suites and distinct projects and rejects errors
   assert.notEqual(...identities(report));
   assert.throws(() => identities({ suites: [], errors: [] }));
   assert.throws(() => identities({ suites: [], errors: [{ message: 'failed' }] }));
+});
+
+test('matrix cannot exclude a collected shard or add duplicate executions', () => {
+  const expected = ['suite: [chromium]', 'shard: [1, 2]'];
+  const block = lines => `      matrix:\n${lines.map(line => `        ${line}`).join('\n')}\n    steps:`;
+  verifyMatrix(block(expected), expected);
+  assert.throws(() => verifyMatrix(block(['suite: [chromium]', 'shard: [1]']), expected));
+  assert.throws(() => verifyMatrix(block([...expected, 'exclude:', '- {shard: 2}']), expected));
+  assert.throws(() => verifyMatrix(block([...expected, 'include:', '- {shard: 3}']), expected));
+  assert.throws(() => verifyMatrix('', expected));
 });
