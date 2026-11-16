@@ -303,12 +303,7 @@ test("anonymous Latest collision is durable and blocks editing until named save"
 });
 
 for (const operation of ["resolve", "import"] as const) test("post-" + operation + " refresh failure remains visible without Undo", async ({ page }) => {
-  await page.goto("/e2e/auth-harness/index.html");
-  await page.evaluate(async operation => {
-    const modulePath = "/e2e/auth-harness/sync-control.tsx";
-    const { mount } = await import(/* @vite-ignore */ modulePath);
-    mount(operation);
-  }, operation);
+  await page.goto(`/e2e/auth-harness/sync-control.html?operation=${operation}`);
   if (operation === "resolve") await page.getByRole("button", { name: "同期先の内容を採用", exact: true }).click();
   else await page.getByRole("button", { name: "破棄", exact: true }).click();
   await expect(page.locator(".account-sync-dialog")).not.toBeVisible();
@@ -318,12 +313,7 @@ for (const operation of ["resolve", "import"] as const) test("post-" + operation
 
 
 for (const operation of ["resolve", "import"] as const) test("draft guard precedes sync " + operation, async ({ page }) => {
-  await page.goto("/e2e/auth-harness/index.html");
-  await page.evaluate(async operation => {
-    const modulePath = "/e2e/auth-harness/sync-control.tsx";
-    const { mount } = await import(/* @vite-ignore */ modulePath);
-    mount(operation, true);
-  }, operation);
+  await page.goto(`/e2e/auth-harness/sync-control.html?operation=${operation}&guard=1`);
   const action = page.getByRole("button", { name: operation === "resolve" ? "同期先の内容を採用" : "破棄", exact: true });
   page.once("dialog", dialog => dialog.dismiss());
   await action.click();
