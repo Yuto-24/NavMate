@@ -2,6 +2,28 @@
 
 NavMate のRelease履歴です。公開日時はGitHub Releaseを正本とします。
 
+## 2.4.0
+
+### 利用者向け
+
+#### 追加
+- 計算済みの経路を、高度情報付きのKMLとしてGoogle Earthへエクスポートできるようにしました。出力には最後に成功した計算結果を使います。
+
+#### 改善
+- VOR Tracking Modeの第1レグで、出発VORの公示偏差に基づくCRSをMCとして使用するようにしました。MHとWCAの関係は維持します。
+
+#### 修正
+- 再計算に失敗した場合、NAV LOGとエクスポートする計算結果が直前の正常な計算に対応するよう修正しました。
+
+### 開発者向け
+
+- [PR #447 Google Earth向けKML出力](https://github.com/Yuto-24/NavMate/pull/447)：計算時点の高度プロファイルをKMLに出力し、未計算の編集を混入させないようにしました。RCA・EOC・LEVEL OFF・VREPと到着空港標高を反映します。
+- [PR #444 VOR公示偏差の共通化](https://github.com/Yuto-24/NavMate/pull/444)：Python/Webの参照データを統一し、VOR Trackingの第1 LegのMCに出発局の公示偏差を適用します。既存の保存schemaは維持します。
+- [PR #450 MSM公開後検証の修正](https://github.com/Yuto-24/NavMate/pull/450)：全件検証の時間配分を修正し、復元不一致の診断を追加しました。不一致の根本原因解消を保証するものではありません。
+- [PR #448 CIの分割](https://github.com/Yuto-24/NavMate/pull/448)：Local・同期ブラウザ回帰を分割し、従来の必須チェックを維持しながらPR CIを短縮しました。
+- [PR #446 手動Releaseの期限と診断記録](https://github.com/Yuto-24/NavMate/pull/446)：plan/catalog期限の確認、レビュー用記録と工程計測を追加しました。公開ゲートや個別承認条件は変更しません。
+- このリリースはv2.3.2以降のmain変更を含みます。Firestore Rules、indexes、Project schemaや本番運用への適合性は公開前に別途確認します。
+
 ## 2.3.2
 
 ### 利用者向け
