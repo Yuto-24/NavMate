@@ -33,9 +33,12 @@ def wait_for_candidate(
     while (remaining := deadline - time.monotonic()) > 0:
         attempt += 1
         try:
-            # A process timeout also bounds slow response bodies, unlike socket timeouts.
+            # A complete pass downloads every retained payload. Do not discard its
+            # progress on the short metadata-only poll budget. The outer deadline
+            # still bounds slow bodies; fetch() retains its socket timeout.
+            budget = remaining if verify_payloads else min(attempt_timeout, remaining)
             result = subprocess.run(
-                command, capture_output=True, text=True, timeout=min(attempt_timeout, remaining)
+                command, capture_output=True, text=True, timeout=budget
             )
         except subprocess.TimeoutExpired as error:
             reason = "attempt timed out"
@@ -74,7 +77,10 @@ def main() -> None:
     parser.add_argument("--verify-payloads", action="store_true")
     parser.add_argument("--timeout-seconds", type=float, default=300)
     parser.add_argument("--interval-seconds", type=float, default=10)
-    parser.add_argument("--attempt-timeout-seconds", type=float, default=30)
+    parser.add_argument(
+        "--attempt-timeout-seconds", type=float, default=30,
+        help="Per-attempt limit for metadata-only checks; full payload checks use the total budget",
+    )
     args = parser.parse_args()
     wait_for_candidate(
         args.candidate,

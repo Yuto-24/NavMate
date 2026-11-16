@@ -310,8 +310,24 @@ def restore(origin: str, target: Path, now: datetime) -> dict:
         ):
             continue
         data = fetch(base + asset["file"])
-        if len(data) != asset["bytes"] or hashlib.sha256(data).hexdigest() != asset["sha256"]:
-            raise ValueError("Retained payload integrity failure")
+        observed_hash = hashlib.sha256(data).hexdigest()
+        if len(data) != asset["bytes"] or observed_hash != asset["sha256"]:
+            expected_hash = asset["sha256"]
+            evidence = {
+                "target": "weather/msm/" + asset["file"],
+                "run": asset["run"] if re.fullmatch(r"[0-9]{14}", asset["run"]) else "invalid",
+                "expected": {
+                    "bytes": asset["bytes"] if type(asset["bytes"]) is int else "invalid",
+                    "sha256": (
+                        expected_hash if isinstance(expected_hash, str)
+                        and re.fullmatch(r"[a-f0-9]{64}", expected_hash) else "invalid"
+                    ),
+                },
+                "observed": {"bytes": len(data), "sha256": observed_hash},
+            }
+            raise VerificationError(
+                f"Retained payload integrity failure: {json.dumps(evidence, sort_keys=True)}"
+            )
         (target / asset["file"]).write_bytes(data)
         retained.append(asset)
     catalog["assets"] = retained
