@@ -23,7 +23,7 @@ PR headと一致することを確認し、第1親（実際に検証したbase�
 Web は画面と共有状態の依存が広いため、保存・NAV LOG・認証・同期の全マトリクスを維持します。
 Python はブラウザの計算エンジンと配信ツールにも組み込まれるため、golden / regression を
 含む pytest 全体と、それらの利用側の検証を維持します。独立したサービスの実装だけを
-限定選択します。テスト内の assertion、grep、project、worker 数、pytest の分配は変更しません。
+限定選択します。テスト内の assertion、grep、project、pytest の分配は維持します。ブラウザの分割方法は後述します。
 
 複合変更は選択の和集合です。PR の共通祖先から head までを Git で比較し、rename は削除と
 追加の両方を評価します。ファイル件数上限はありません。未知パス、空差分、判定エラー、
@@ -35,7 +35,9 @@ Python はブラウザの計算エンジンと配信ツールにも組み込ま�
 success、非選択 suite の skipped を照合し、失敗・キャンセル・必須 suite の skip は失敗にします。
 既存チェック名は維持し、summary は実行成功と意図的 skip を区別します。
 GitHub 上でマージを制限するには `ci-required` を必須チェックに登録する必要があります。
-2026-11-10 の調査時点では既存 Ruleset に required status checks はなく、設定変更は未実施です。
+2026-11-17 に有効な Ruleset `20705217` へ `ci-required` を登録し、main の適用ルールで確認しました。
+発行元は GitHub Actions（integration ID `15368`）に限定しています。既存ルールとbypass設定は維持し、
+新たな「baseの最新化必須」は追加していません。従来branch protection APIは `Branch not protected`（404）でした。
 実測と残る受入条件は [Issue #421 の証跡](evidence/ci/impact-selection-20261110.md) を参照してください。
 
 判定・集約をアプリ依存なしで検証するコマンド:
@@ -310,27 +312,28 @@ IndexedDB Project / Last Calculation保持を確認する。通常の`test:local
 `local-browser-tests`と`account-sync-tests`は`ubuntu-24.04`を明示し、`ubuntu-latest`のOS移行で
 Playwrightの依存導入が急に変わらないようにする。`local-browser-tests`の25分上限、認証・Local保存・
 計算・NAV LOG・ブラウザ受入・TAFの検証と、`account-sync-tests`の20分上限、Firestore Rules・同期・
-移行の検証は維持する。Local runnerはChromium / WebKitを導入する。Account Syncは担当projectのengineだけを導入し、
-Chromium群はChromium、iPad/iPhone群はWebKit、storage-upgradeとmigrationを含むcontracts群は両方を導入する。キャンセル時はcheck annotationと
-失敗stepを確認する。ブラウザ依存のdownloadでtimeoutした場合、後続のテストは未実行であり、
-テスト失敗やconcurrencyによる中止とは区別する。
+移行の検証は維持する。両jobはブラウザ入り公式コンテナを使用し、runnerごとのbrowser/OS追加導入は行わない。
+キャンセル時はcheck annotationと失敗stepを確認する。imageや依存の取得でtimeoutした場合、
+後続のテストは未実行であり、テスト失敗やconcurrencyによる中止とは区別する。
 
-### Local browser worker count
+### Browser worker count
 
-`local-browser-tests`のLocal regression、NAV LOG scroll、browser acceptance、focused UX、Clipboardは、CIの起動引数で
-`--workers=2`を指定する。`local`、`acceptance`、`focused-ux`、`clipboard`の4 suiteを別runnerで実行し、
-`acceptance`内では認証→NAV LOG scroll→browser acceptance→TAFの順序を保つ。
-同じファイル内のテスト順序は保つ。
-`fullyParallel`、retry、timeout、assertion、選択するテスト、失敗時のtrace/artifactは変更しない。
+現行の分割と保証は[Independent CI shards](#independent-ci-shards)を参照する。
+Local regression、NAV LOG scroll、browser acceptance、focused UX、ClipboardはCI引数で
+`--workers=2`を指定し、ファイル内順序を保つ。認証は専用runner、acceptanceは
+NAV LOG scroll→browser acceptance→TAFの順序で実行する。
 認証、TAF、Firestore Rules、storage-upgrade、migrationは従来のworker設定を保つ。
-`account-sync-tests`内の`test:sync`だけは、[同条件の比較結果](evidence/ci/account-sync-workers-20261101.md)に基づきCI引数で`--workers=2`を指定する。
-同期はChromium / iPad WebKit / iPhone WebKitを別runner・別emulatorで実行する。
-Firestore Rules→storage-upgrade→migrationは別のcontracts runnerで全対象を順番に実行する。
-各suite内の順序・テスト範囲は保ち、ランダムsubjectとcontextによる分離も維持する。
-`account-sync`集約checkは4群の成功と、全同期テストのexact-once project分配を検証する。
-失敗・skip・cancelした群や未知projectの欠落を成功扱いにしない。
-[依存関係と計測方針](evidence/ci/account-sync-project-shards-20261101.md)を参照。
-ローカルのPlaywright configの既定値も1 workerのままとする。
+
+同期の各deviceは2分割し、CIでは`--fully-parallel --workers=1 --shard=N/2`を使用する。
+各runnerのemulatorは独立し、ランダムsubjectとcontextによる分離も維持する。
+Firestore Rules→storage-upgrade→migrationはcontracts runnerで全対象を順番に実行する。
+共有開発は別runnerで、起動前にrelease notesを生成する。
+`web`でLocalと同期のexact-once分配を検査し、各集約checkは全matrix entryの成功を要求する。
+失敗・skip・cancelした群を成功扱いにしない。retry、timeout、既存assertionは維持する。
+ローカルのPlaywright configの既定値は1 workerのままとする。
+
+旧構成の比較は[同期worker計測](evidence/ci/account-sync-workers-20261101.md)と
+[project分割](evidence/ci/account-sync-project-shards-20261101.md)に残す。
 
 `#350` ARITA回帰の初回NAV LOG表示待ちは、[Issue #408のtrace調査](evidence/ci/arita-calculation-wait-20261109.md)
 に基づき60秒とする。共通expectの30秒、テスト全体の120秒、retryなしは維持する。
@@ -407,13 +410,27 @@ GitHub側ではsetup-pythonのrestoreとpost saveを含めて測る。上記ロ�
 
 ### Independent CI shards
 
-`local-browser-tests` uses four ordinary GitHub-hosted runners: `local` runs the Local
-regression selection; `acceptance` runs auth, scroll, every browser/device acceptance
-project, and TAF; `focused-ux` and `clipboard` run their respective Playwright configurations.
-Each runner owns its server and build directory; the TAF-specific rebuild cannot change
-other suites’ artifacts. Local regression, scroll, browser acceptance, focused UX, and
-Clipboard use `--workers=2`; auth and TAF retain their existing worker settings.
-The `local-browser` aggregate retains the existing check name and fails unless every suite succeeds.
+`local-browser-tests` runs the existing Local regression selection on four runners using
+Playwright's file-level `--shard=N/4`. Tests within a file remain ordered, and each runner
+keeps `--workers=2`. New selected tests are assigned by Playwright, without a file allowlist.
+Terrain, static storage notice and forecast-backup tests run once, on Local shard 1.
+Auth has its own runner; `acceptance` retains scroll, all browser/device acceptance projects
+and TAF. `focused-ux` and `clipboard` keep their existing configurations and two workers.
+Each runner owns its server and build directory, including the TAF-specific rebuild.
+
+Account Sync retains Chromium, iPad WebKit and iPhone WebKit. Each project uses two isolated
+runners with `--fully-parallel --workers=1 --shard=N/2`: individual tests are distributed,
+but each runner executes sequentially with its own Firestore emulator. The existing tests
+use fresh browser contexts and unique account IDs, with no shared before/after-all state.
+Rules, storage upgrade and migration stay together in `contracts`; shared development runs
+once in its own Auth/Firestore emulator runner. No assertion or device project is removed.
+Local developer commands without a shard keep their previous behavior.
+
+The `web` job compares real Playwright collection before and after sharding: Local's existing
+npm grep selection and all sync projects must each occur exactly once. It also checks the
+workflow matrices. The `local-browser` and `account-sync` aggregate names are unchanged and
+fail unless every matrix entry succeeds. `ci-required` still requires every selected suite,
+including `web`; moving collection checks there avoids an npm install after sync finishes.
 
 `pytest-tests` uses two independent Docker test-stage runners. The existing lint, typing,
 release/data/schema validation and package build remain in `run_ci_checks.sh` on both shards.
@@ -431,7 +448,7 @@ make either aggregate green. PR selection is applied to complete suites as descr
 This reduces elapsed time by using more simultaneous standard runners, not by reducing test
 coverage. Queue time, cold dependency downloads, and runner variation can still exceed ten
 minutes. Account Sync runs in separate project and contracts runners as described above.
-The complete workflow combines all three partitions; use hosted timings to assess the ten-minute target. Timing evidence
+The complete workflow combines all three partitions; use hosted timings to assess Issue #421’s five-minute performance goal. Timing evidence
 and the refresh procedure are in [the shard evidence](evidence/ci/independent-shards-20261101.md).
 
 ### Playwright の準備

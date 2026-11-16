@@ -78,5 +78,107 @@ pip install は16〜34秒だった。OS/browser の追加導入 step はない�
 共有開発検証の分離。採用する場合は全件の exact-once 分配と Hosted 時間を検証する。
 今回の証拠だけで worker 数増加や重要なテストの削除を正当化しない。
 
-通常変更を選択した Hosted Run、必須チェックの登録、新構成での main run は引き続き未確認。
-この全 suite run をそれらの代替証拠にしない。
+この時点では通常変更の Hosted Run、必須チェックの登録、新構成の main run は未確認だった。
+その後の再確認は下記に記す。
+
+
+## 2026-11-17: 残る律速の確認と分割
+
+PR #428 の分類・公式コンテナ・集約を維持し、ブラウザ本体の直列時間を短縮する。
+計測は Jobs API の `started_at` / `completed_at` と、同じ job のログを使用した。
+
+| 観測 | 結果 | 全体 | 最長 job / 主な工程 |
+| --- | --- | --- | --- |
+| [PR #444 VOR計算変更](https://github.com/Yuto-24/NavMate/actions/runs/43699315391) | 成功 | 20分43秒 | Local 19分36秒、iPad sync 12分17秒 |
+| [main `7213effa`](https://github.com/Yuto-24/NavMate/actions/runs/43715640669) | 全20 job成功 | 16分15秒 | Local 15分42秒、回帰本体12分29秒、backup 1分35秒 |
+| [PR #447 KML変更](https://github.com/Yuto-24/NavMate/actions/runs/43903340197) | 失敗 | 14分58秒 | Chromium sync 14分09秒。失敗を性能達成の証拠にはしない |
+
+PR #444 は通常の航法計算変更で、テストや共有JSONも含むため現行判定で全 suite を選ぶ。
+CIだけを変更したPRの代替ではなく、実際の通常変更のベースラインとして扱う。
+いずれも初回attemptのRun開始から最終job完了までの観測で、平均値や純粋なCPU時間ではない。
+
+main のコンテナ初期化は22〜35秒で、OS/browser追加導入はない。PR #428 の対策は維持する。
+同期本体はiPad 10分29秒、Chromium 6分22秒に加えて共有開発2分26秒。
+Local acceptance は認証3分45秒に続けてscroll・acceptance・TAF 4分34秒を実行していた。
+
+今回の変更ではLocalをファイル単位で4分割し、同期の各deviceをテスト単位で2分割する。
+認証と共有開発も別runnerへ分離する。同期はrunnerごとに1 workerと専用emulatorを使用する。
+既存のLocal 70件（Legacy専用1件skipを含む）、同期54件、Rules 4件、storage-upgrade 32件、
+migration 6件を収集して、Localと同期の分割前後が漏れ・重複なく一致することを検証する。
+
+[Playwrightの公式仕様](https://playwright.dev/docs/test-sharding)どおり、Localはファイルを分割せず、
+1ファイルの同期は`--fully-parallel`で個別テストを分配する。同期テストは各テストでbrowser contextと
+アカウントを作成し、共有のbeforeAll/afterAllを持たない。runner内の同時実行は増やさない。
+テスト件数による標準分割なので時間の均等化は保証しない。runner数増加によるqueueと、
+image・npm・pip・Firebaseの外部取得は引き続き計測対象とする。
+
+2026-11-17に有効なbranch rulesとRuleset `20705217`を再取得し、required status checksが
+未設定であることを確認した。従来branch protection APIは`Branch not protected`（404）。
+既存の削除・force push禁止、Code Quality、Copilot review、PR会話解決を維持したまま、
+GitHub Actions（integration ID `15368`）の`ci-required`を必須チェックへ追加した。
+Ruleset再取得とmainの適用rulesで反映を確認し、既存ルール・conditions・bypass actorsの保持を照合した。
+`strict_required_status_checks_policy=false`とし、新たなbase最新化条件は追加していない。
+この設定変更はコード外の実施済み操作であり、PRのマージは実施していない。
+
+上記main成功はPR #428の回帰保証であり、今回の分割の成功とは扱わない。
+変更後のHosted計測は下記に記す。今回の構成でのmain成功は、承認されたマージ後に確認する。
+
+
+### 分割の初回Hosted実行で見つかった準備依存
+
+[PR #448の初回Run](https://github.com/Yuto-24/NavMate/actions/runs/43910324293)では
+Local全分割は成功し、最長は6分32秒だった。ただし同期と共有開発が失敗したため、
+全体12分42秒を性能達成の証拠にはしない。
+
+- [iPad同期の第2分割](https://github.com/Yuto-24/NavMate/actions/runs/43910324293/job/133450333102)は、
+  先頭のcomponent検証で動的に挿入したdialogが失われた。traceで同じHTMLの再読込と
+  クリック対象のdetachを確認した。通常Appとcomponentを同じページへ載せていたfixtureを、
+  既存componentを静的importする専用HTMLへ分離した。resolve/import・Draft guardの4ケースと
+  元のassertionを維持する。iPhoneの同じ失敗にも適用する。
+- [共有開発runner](https://github.com/Yuto-24/NavMate/actions/runs/43910324293/job/133450333114)は
+  `generated/releaseNotes.json`がなく起動できなかった。以前は先行する同期テストのpretestが
+  生成していたため、共有開発テストにも同じpretestを明示した。
+
+ローカルでiPadの失敗ケース単独と、関連4ケース×3deviceを再検証して成功。
+共有開発も生成JSONを退避した状態から、専用Auth/Firestore emulatorで全6件が成功した。
+失敗を避けるためのretry追加、待機上限延長、assertion削除は行っていない。
+
+
+### 成功した通常PRの前後比較
+
+[計測用draft PR #449](https://github.com/Yuto-24/NavMate/pull/449)は、マージ済みの
+PR #444 VOR計算変更を一時baseへ再現したもの。元base `9871a328` / head `4b1e0bc8`の差分と、
+再現base `5cffa103` / head `f6341dfe`のmerge-base差分はbyte-for-byte一致を確認した。
+CI構成と上記fixture修正を双方のbase/headに同じように適用したため、分類入力には元PRの
+通常変更20ファイルだけが渡る。テスト・共有JSON等を含む航法計算変更なので全suiteが選ばれた。
+製品コードと既存assertionは比較元と同じで、新しい製品変更を導入していない。
+
+[変更後Run 43914098159](https://github.com/Yuto-24/NavMate/actions/runs/43914098159)は
+全28 job成功、Run開始からci-required完了まで11分05秒。最初のjob開始まで20秒を含む。
+base/head更新でcancelされた別Runや、fixture準備に失敗した初回Runは性能達成に算入しない。
+
+| 必須検証 | 変更前 PR #444 | 変更後の同一通常差分 |
+| --- | ---: | ---: |
+| 全体（queue・集約込み） | 20分43秒 | 11分05秒 |
+| Localの最長runner | 19分36秒 | 7分57秒 |
+| 同期deviceの最長runner | 12分17秒 | 7分43秒 |
+| Pythonの最長runner | 9分10秒 | 10分10秒 |
+
+全体は観測値で9分38秒短縮したが、**5分目標は未達**。Pythonの第2分割が律速で、
+Docker build 1分22秒、検査本体8分41秒を要した。Pythonの実行構成は今回変更していない。
+数値golden・計算・保存の保証を削らず、次の候補は現行テストのファイル別時間の再収集と
+分配weightの更新、必要なら既存の全件・coverage集約を維持したPython shard追加とする。
+Localにはbackup込みの分割と長いmap/weatherファイル、同期にはテスト件数分配による時間の偏りが残る。
+
+Playwright image初期化は21〜38秒で、OS/browser追加導入はない。npm・pip・Firebase・image取得、
+runner性能とqueueのばらつきは残る。一部は実装PRのCIと同時実行しており、平均値や単一要因の
+短縮率ではない。job数は20から28へ増え、準備処理の重複と同時実行枠を使うトレードオフがある。
+
+実装PR #448の[Run 43914399276](https://github.com/Yuto-24/NavMate/actions/runs/43914399276)
+（`b137fcc1`）も全28 job成功、8分57秒。これはCI変更を含む全検証であり、通常変更の代表測定には
+上記PR #449を用いる。mainでの成功とマージは未実施。
+
+CodeRabbitは`b137fcc1`を初回レビューして承認し、worker数・認証の配置・分配検査の配置に関する
+旧文書の不一致1件を指摘した。現行コードを正本に該当節を修正した。旧browser追加導入の説明も
+公式コンテナ利用と不一致だったため修正した。後続の文書変更は独立diffレビューで確認し、
+機能を変えない計測記録の追記だけを理由とした追加レビューは依頼しない。
