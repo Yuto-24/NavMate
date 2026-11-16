@@ -113,6 +113,22 @@ def test_return_completion_geometry_descent_and_restore(
             issue["code"] for issue in calculated["outcome"]["issues"]
         }
         outcome = CalculationOutcome.model_validate_json(json.dumps(calculated["outcome"]))
+        profile = calculated["verticalProfile"]
+        assert profile is not None
+        profile_descent = [s for s in profile["segments"] if s["phase"] == "DESCENT"]
+        assert profile_descent[0]["points"][0]["altitude_ft_msl"] == 4500
+        assert profile_descent[-1]["points"][-1]["altitude_ft_msl"] == pytest.approx(1500)
+        assert (
+            profile_descent[-1]["points"][-1]["elapsed_seconds"]
+            - profile_descent[0]["points"][0]["elapsed_seconds"]
+        ) == pytest.approx(360 if rate == 500 else 180)
+        visual_arrival = [s for s in profile["segments"] if s["phase"] == "VISUAL_ARRIVAL"]
+        assert visual_arrival[0]["points"][0] == profile_descent[-1]["points"][-1]
+        assert visual_arrival[-1]["points"][-1]["altitude_ft_msl"] == pytest.approx(
+            calculated["project"]["metadata"]["ui_state"][
+                "reference_data_snapshot"
+            ]["destination_airport"]["elevation_ft_msl"]
+        )
         if via_arita and explicit_umk:
             assert (
                 calculated["project"]["metadata"]["ui_state"]["arrival_plan"][
@@ -175,6 +191,7 @@ def test_return_completion_geometry_descent_and_restore(
         assert restored["readiness"]["calculationIsCurrent"]
         assert restored["project"]["route_nodes"] == calculated["project"]["route_nodes"]
         assert restored["outcome"] == calculated["outcome"]
+        assert restored["verticalProfile"] == profile
         local.dispatch("updateProject", {**update, "total_usable_fuel_gal": 89})
         recalculated = json.loads(local.dispatch("calculate"))
         assert recalculated["readiness"]["calculationIsCurrent"]

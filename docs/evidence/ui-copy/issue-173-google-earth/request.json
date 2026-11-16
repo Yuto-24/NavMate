@@ -1,0 +1,172 @@
+{
+  "items": [
+    {
+      "id": "download",
+      "text": "Google Earth 用にエクスポート",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "saved",
+      "text": "KMLファイルのダウンロードを開始しました。",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "stale",
+      "text": "再計算前の結果を出力します。編集した内容は含まれません。",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "unavailable",
+      "text": "Google Earth 用に出力するには、NAV LOGを再計算してください。",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "flightPath",
+      "text": "飛行経路",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "routePoints",
+      "text": "経路点・計算境界",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "checkPoints",
+      "text": "Check Point（地上の目印）",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "climb",
+      "text": "CLIMB",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "cruise",
+      "text": "CRUISE",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "descent",
+      "text": "DESCENT",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "visual-arrival",
+      "text": "VISUAL ARRIVAL",
+      "location": "NAV LOG末尾の出力ボタン・案内、または保存した3D KMLの説明・フォルダ・区間名。",
+      "purpose": "最後に成功した計算結果の出力であること、現在の編集内容との差、飛行経路と地上の目印の違いを伝える。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "web/src/verticalProfileKml.ts",
+        "start": "export const kmlCopy = {",
+        "end": "} as const;",
+        "expected": "export const kmlCopy = {\n  download: \"Google Earth 用にエクスポート\",\n  saved: \"KMLファイルのダウンロードを開始しました。\",\n  stale: \"再計算前の結果を出力します。編集した内容は含まれません。\",\n  unavailable: \"Google Earth 用に出力するには、NAV LOGを再計算してください。\",\n  flightPath: \"飛行経路\",\n  routePoints: \"経路点・計算境界\",\n  checkPoints: \"Check Point（地上の目印）\",\n  phases: { CLIMB: \"CLIMB\", CRUISE: \"CRUISE\", DESCENT: \"DESCENT\", VISUAL_ARRIVAL: \"VISUAL ARRIVAL\" },\n} as const;"
+      }
+    },
+    {
+      "id": "level-off",
+      "text": "LEVEL OFF",
+      "location": "3D KMLの高度付き計算境界点の名前。",
+      "purpose": "降下を終えて目標高度を維持し始める境界を示す。",
+      "context": "出力元は計算時点ProjectとLast Calculation。本人の希望で通常時の「最後に成功した計算結果の高度付き経路です。非公式の地上準備用です。」という説明を画面とKMLから削除する。既存のアプリ全体の用途注意は変更しない。通常時はボタンのみ。編集後はボタン直下のrole=status領域とKML内descriptionにstale案内を表示。出力に必要な情報が欠ける旧結果は再計算案内を表示してボタン無効。ブラウザ保存はダウンロード開始まで。KML Pathは地面に延長する。変針点通過後の高度変更と目標高度到達後のLEVEL OFFを共通projectionで表す。",
+      "constraints": "ボタンは本人指定「Google Earth 用にエクスポート」をそのまま優先。通常時の削除した説明を復活させない。保存完了やGoogle Earthの自動起動を約束しない。stale案内と未計算の編集内容を出力しない旨は維持。フェーズ名と境界名はNAV LOGとの対応を維持する。各idの採用文言を逐語引用して確認する。",
+      "source": {
+        "path": "src/autonavlog/application/vertical_profile.py",
+        "start": "                        markers.append(ProfileMarker(\"LEVEL OFF\", \"LEVEL_OFF\", point))",
+        "end": "                        markers.append(ProfileMarker(\"LEVEL OFF\", \"LEVEL_OFF\", point))",
+        "expected": "                        markers.append(ProfileMarker(\"LEVEL OFF\", \"LEVEL_OFF\", point))"
+      }
+    }
+  ]
+}

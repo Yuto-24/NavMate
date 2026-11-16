@@ -15,6 +15,7 @@ import { routeImportInput } from "./fileInput";
 import { PlatformError, type PlatformCapabilities, type FileContentSource } from "./platform";
 import type { FileInputProps } from "./BrowserFileInput";
 import { exportNavLog } from "./navLogExport";
+import { exportVerticalProfileKml, kmlCopy } from "./verticalProfileKml";
 import {
   candidateFromKey,
   departureAirportForCandidate,
@@ -2019,7 +2020,15 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
               () => platform.clipboard.writeText(new TextDecoder().decode(exportNavLog(state).content)),
               { success: "NAV LOG JSONをコピーしました。" },
             )}>NAV LOG JSONをコピー</button>
+            <button className="secondary-button" disabled={busy || !state.verticalProfile}
+              aria-describedby="kml-export-notice" onClick={() => void runTask(
+                () => platform.files.save(exportVerticalProfileKml(state.verticalProfile!,
+                  Boolean(state.verticalProfileStale) || !calculationInputsAreLocallyCurrent)),
+                { success: kmlCopy.saved },
+              )}>{kmlCopy.download}</button>
           </div>
+          <p id="kml-export-notice" role="status">{!state.verticalProfile ? kmlCopy.unavailable
+            : (state.verticalProfileStale || !calculationInputsAreLocallyCurrent) ? kmlCopy.stale : null}</p>
         </div>
       )}
       {currentRjfmInboundGuidance && (

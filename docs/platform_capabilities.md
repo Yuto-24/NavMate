@@ -44,6 +44,55 @@ This is a result document, not a Project backup or a second Repository schema.
 It does not trigger calculation, checkpoint, revision or durable Project writes.
 The existing Session lifecycle may still save its ephemeral working snapshot.
 
+3D KML uses `project_vertical_profile` in
+`src/autonavlog/application/vertical_profile.py`, shared with the future #55
+time/altitude chart. The facade derives it exclusively from `last_calculation.project`
+and `last_calculation.outcome`; it is not persisted as a new schema. The KML
+serializer accepts only that projection and a stale flag, and saves through
+`platform.files.save` as `<calculation-time Project name>.kml` (characters invalid
+in filenames are replaced). The action is labelled "Google Earth 用にエクスポート".
+Normal results have no explanatory paragraph; stale/unavailable results retain
+their status notice. Editing or a failed recalculation leaves this projection's
+source unchanged. A new successful calculation replaces it. Missing legacy
+geometry or descent metadata disables KML export and asks for recalculation.
+When an effective BLOCKER prevents a new Last Calculation, the displayed NAV LOG,
+JSON flight values and destination wind retain the same last successful snapshot
+as KML. `outcome.issues` retains the current attempt's diagnostics, also available
+in readiness and working recovery. Corrective RJFM guidance is taken from the
+current attempt, with the existing freshness and reference checks still applied;
+it does not replace the saved flight path. An initial failure without a last
+success keeps its prior failure display behavior.
+
+The projection preserves calculation-zone time, distance, geometry and phase.
+Climb uses the saved departure elevation and the first CLIMB target, interpolated
+over its calculated elapsed time. Ordinary CRUISE Leg altitude transitions start
+after the turn at the Leg's origin, at 900 fpm up / 500 fpm down, and remain level
+after reaching the target. These user-selected drawing rates are independent of
+the EOC descent-rate setting and do not change NAV LOG time, distance or fuel.
+Transitions use saved elapsed time without restarting at Check Point splits;
+short Legs retain the reached altitude rather than forcing the target early.
+The preceding Leg is not retargeted to anticipate a following altitude or EOC.
+Descent uses the existing
+metadata reader, inserts level-off, and retains the saved deceleration duration
+(including zero). Visual arrival descends from the VREP altitude to the saved
+destination Field Elevation, interpolated by distance so Check Point splits and
+different zone speeds do not bend the slope. This drawing uses the calculation-time
+airport snapshot and preserves NAV LOG timing, fuel and the VISUAL_ARRIVAL phase;
+missing destination elevation disables export instead of using a live master.
+Dedicated RJFM return geometry stays on its saved
+physical route and operational time; the exporter does not add a route extension.
+
+RCA/EOC and Check Point abeam positions use the saved calculation boundaries.
+Ground Check Points are separate from altitude-bearing route points, including
+VREP. Their ExtendedData describes the abeam time/altitude/distance. Geodesic
+sampling at intervals no greater than 1 NM prevents long absolute line chords
+from cutting through the globe; it does not replace adopted zone distances.
+The serializer converts feet MSL to meters and uses KML `absolute` altitude mode
+with `extrude=1` to extend the Flight Path to the ground,
+following the [Google KML reference](https://developers.google.com/kml/documentation/kmlreference#linestring).
+Browser download/XML regression is automated; actual Google Earth rendering
+requires a separate acceptance check.
+
 Browser save uses a Blob URL and the standard anchor download attribute; it cleans
 up the element immediately and revokes the URL after the browser can consume it.
 Success means the download was initiated, not that the user accepted a save dialog
