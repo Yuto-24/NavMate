@@ -1001,8 +1001,10 @@ def test_forecast_refresh_failure_retains_last_good_and_never_reports_success(
     assert any(issue["severity"] == "BLOCKER" for issue in failed["readiness"]["issues"])
     assert any(issue["severity"] == "BLOCKER"
                for issue in failed["workingRecovery"]["outcome"]["issues"])
+    assert failed["outcome"]["issues"] == failed["workingRecovery"]["outcome"]["issues"]
     assert failed["outcome"]["sections"] == first["outcome"]["sections"]
     assert failed["destinationWind"] == first["destinationWind"]
+    assert first["verticalProfile"] is not None
     assert failed["verticalProfile"] == first["verticalProfile"]
     assert failed["verticalProfileStale"] is True
     assert failed["workingRecovery"]["last_calculation"] == last

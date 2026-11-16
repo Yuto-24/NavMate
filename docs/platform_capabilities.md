@@ -53,10 +53,12 @@ serializer accepts only that projection and a stale flag, and saves through
 source unchanged. A new successful calculation replaces it. Missing legacy
 geometry or descent metadata disables KML export and asks for recalculation.
 When an effective BLOCKER prevents a new Last Calculation, the displayed NAV LOG,
-JSON and destination wind retain the same last successful snapshot as KML.
-The current readiness status and failed-attempt diagnostics remain in readiness
-and working recovery; an initial failure without a last success keeps its prior
-failure display behavior.
+JSON flight values and destination wind retain the same last successful snapshot
+as KML. `outcome.issues` retains the current attempt's diagnostics, also available
+in readiness and working recovery. Corrective RJFM guidance is taken from the
+current attempt, with the existing freshness and reference checks still applied;
+it does not replace the saved flight path. An initial failure without a last
+success keeps its prior failure display behavior.
 
 The projection preserves calculation-zone time, distance, geometry and phase.
 Climb uses the saved departure elevation and the first CLIMB target, interpolated

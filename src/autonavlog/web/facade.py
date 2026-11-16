@@ -1788,13 +1788,23 @@ class AutoNavLogWebApplication:
         last = session.last_calculation
         if session.project is None or (last is not None and last.project.id != session.project.id):
             last = None
-        # Keep failed-attempt diagnostics in readiness/recovery, but display the
-        # same last successful numbers and wind that the profile export uses.
+        # Keep the last successful flight values aligned with KML. Diagnostics
+        # and corrective guidance still belong to the current attempt; guidance
+        # passes through the existing freshness/reference guard below.
         show_last = last is not None and evaluation is not None and any(
             item.effective_severity == IssueSeverity.BLOCKER for item in evaluation.effective_issues
         )
         displayed_outcome = (
-            last.outcome.model_copy(update={"status": evaluation.status})
+            last.outcome.model_copy(update={
+                "status": evaluation.status,
+                "issues": [] if session.outcome is None else session.outcome.issues,
+                "rjfm_departure_guidance": (
+                    None if session.outcome is None else session.outcome.rjfm_departure_guidance
+                ),
+                "rjfm_inbound_guidance": (
+                    None if session.outcome is None else session.outcome.rjfm_inbound_guidance
+                ),
+            })
             if show_last and last is not None and evaluation is not None else session.outcome
         )
         displayed_wind = (

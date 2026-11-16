@@ -1329,6 +1329,11 @@ async def test_ftd_calculation_and_last_good_restore_without_cookie_or_server_se
         assert failed["destinationWind"] == calculated["destinationWind"]
         assert failed["verticalProfile"] == profile
         assert failed["verticalProfileStale"] is True
+        assert failed["outcome"]["issues"] == failed["workingRecovery"]["outcome"]["issues"]
+        assert failed["outcome"]["issues"][-1]["code"] == "WIND_TRIANGLE_FAILED"
+        assert failed["workingRecovery"]["last_calculation"]["outcome"]["issues"] == (
+            calculated["outcome"]["issues"]
+        )
         assert any(issue["code"] == "WIND_TRIANGLE_FAILED" and issue["severity"] == "BLOCKER"
                    for issue in failed["readiness"]["issues"])
         recovered = await after_restart.post(
@@ -1337,6 +1342,7 @@ async def test_ftd_calculation_and_last_good_restore_without_cookie_or_server_se
         assert recovered.status_code == 200, recovered.text
         recovered_state = recovered.json()["state"]
         assert recovered_state["outcome"]["sections"] == calculated["outcome"]["sections"]
+        assert recovered_state["outcome"]["issues"] == failed["outcome"]["issues"]
         assert recovered_state["verticalProfile"] == profile
 
         reset = await after_restart.delete("/api/session")
