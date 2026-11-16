@@ -4,6 +4,7 @@ Read [the workflow](README.md) before adding or applying lessons. Search by the 
 
 ## Existing canonical sources
 - [Agent workflow](../agent_workflow.md)
+- [Local StaticのMSMキャッシュ](../local_static_docker.md#msm取得キャッシュの容量管理): 2026-11-17の1環境で約44 GB。Legacyの20 GiB・7日の整理と#257のWorktree対策は別経路。取得cacheと配信Runの保持を分け、updaterの排他区間で整理する。開発用backup・終了時の資源整理は[Worktree手順](../development_worktrees.md#作業終了時の整理)を参照。
 - [Forecast schema 4 → 5 transition](../forecast_schema_transition.md): Issue #423。旧版生成データ、旧タブとの共存、同一端末 Latest 置換の了承範囲、手動公開の証拠と制約。最終v2.3.2候補への適用審査、元報告を保持するWSL helper、remote tag照合、受理済み記録を再生成しない運用。
 - [Releaseの期限・受渡し・再実行の知見](../schema431_actions_prepare.md#操作窓を始める前の確認): planとprepared feedの別々の30分条件、取得・レビューの事前準備、v2.3.2の公開結果と検証限界。2026-11-15、tooling `64225b82` / driver `2394d59d`で確認。未実装の改善はリンク先Issueへ。
 - [CI変更影響と所要時間](../evidence/ci/impact-selection-20261110.md): Issue #421。PR #428を出発点に、2026-11-17の通常PR・main実測、Localと同期本体の律速を確認。Rulesetにci-requiredを登録し再取得済み。同一通常PR差分のHostedは20分43秒→11分05秒、5分未達の律速はPython。独立runnerの生成物依存とcomponent fixtureのreload依存を修正。main受入は未確認。

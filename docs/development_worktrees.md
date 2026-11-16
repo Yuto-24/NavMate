@@ -89,11 +89,67 @@ docker compose down --remove-orphans
 ## Worktree のクリーンアップ
 
 Codex が Worktree を破棄するときだけ `cleanup_worktree.sh` を使います。
-この script は `.env` が NavMate の Worktree setup で生成されたことと、project/image 名が `autonavlog-wt-<8 hex>` 形式であることを確認してから、その Worktree の container と volume を削除します。Worktree 固有 image も best-effort で削除します。
+先に後述の終了確認を行います。script は `.env` の生成marker、現在のWorktree pathから算出した
+IDとproject/imageの一致、未コミット・未追跡変更がないことを確認します。
+設定がsymlinkの場合やGit状態を読めない場合も削除せず停止します。
+確認後、そのWorktreeのcontainer・volume・専用imageを削除します。
+この検査だけでは、別のCodexタスクやプロセスがその環境を使っていないことは証明できません。
 
 通常の `autonavlog` runtime に対して `docker compose down -v` を実行してはいけません。Worktree の volume 削除は cleanup script に限定します。
 
-Docker daemon が停止している場合、または Compose の削除が失敗した場合は、cleanup は失敗を返し、再試行に必要な `.env` と生成 override を保持します。Docker 復旧後に再実行してください。Codex が失敗した cleanup を自動再試行するとは仮定しません。
+Docker daemonが停止している場合、Composeの削除に失敗した場合、専用imageの残存を確認できない
+場合や削除に失敗した場合は、cleanupは失敗を返し、再試行に必要な `.env` と生成overrideを保持します。
+原因を解消して再実行してください。既にimageがない場合は成功として続行し、使用中のimageは
+強制削除しません。Codexが失敗したcleanupを自動再試行するとは仮定しません。
+Worktreeを移動した場合もpath照合で停止します。元のpathと資源の所有関係を確認し、
+照合を通すためだけに生成IDを書き換えないでください。
+
+## 開発用バックアップの保持条件
+
+開発中の更新前コピーや検証用archiveは、作成前に目的と整理条件を決めます。
+既存のprivateな作業記録、または `.autonavlog-data/operations/<task>/retention.md` に
+次を記録します。実データ、秘密情報、backupそのものをGitへ追加しません。
+
+| 記録するもの | 内容 |
+| --- | --- |
+| 目的・担当 | 対象作業、何を復元するためのbackupか、判断できる担当 |
+| 対象・作成日時 | 元データと保存先の正確なpath、作成日時、コピーした範囲 |
+| 種類 | 開発用の一時backupか、本番・移行・救済用の保護対象か |
+| 整理条件 | どの検証・受入が完了し、どの復元が不要になれば削除できるか |
+| 保持する場合 | 保持理由、次に判断する作業・期限、必要な保管先 |
+
+Gitから戻せるコードや再取得できるMSMキャッシュ、依存packageを、目的なくデータbackupへ
+丸ごと含めないでください。復元に必要な対象へ絞り、必要な本番・移行backupは既存手順に従います。
+更新処理が成功しただけでは、利用者の受入やrollbackの必要性まで完了したとは判断しません。
+
+作業終了時に、この作業で作成した一時backupを記録と照合します。整理条件を満たし、復元不要と
+確認できたものは、確認したpathに限って削除します。保持するものは理由と次の判断時点を残します。
+本番backup、稼働データ、未完了作業、所有者や用途が不明な既存backupは削除しません。
+`.autonavlog-data/backups` や `operations` 全体を、古い・大きいという理由で一括削除しません。
+
+## 作業終了時の整理
+
+PR提出や実装完了の報告前に、この作業で作成・利用したbackup、Worktree、container、image、
+volumeを確認します。実行中のタスク、未完了の検証・レビュー、未コミット変更がある場合は、
+保持対象と理由を報告します。終了確認はcleanup hookの登録や、containerの停止状態で代用しません。
+
+1. Gitの変更とWorktree一覧を確認し、Codexタスク・使用中プロセス・資源の所有関係を照合する。
+   Git管理外のbackupや稼働データも別に確認する。判断できない環境は残す。
+2. 破棄可能な生成Worktreeだけで `bash scripts/codex/cleanup_worktree.sh` を実行する。
+   Dockerが利用できない、削除が失敗した、別タスクが使用中の場合は、設定を残して理由を記録する。
+3. cleanup後に専用container・volume・imageの残存を再確認する。過去のbuildでtagから外れたimageは、
+   作業時に記録したimage IDと全containerの参照を確認できるものだけ個別に整理する。
+   共有imageやbuild cacheを含む `docker system prune` / `docker image prune` / `docker volume prune`
+   は通常の作業終了手順にしない。
+4. GitのWorktree本体を破棄する場合は、未保存作業と実行中タスクがないことを確認してから行う。
+   既に消えたWorktreeの登録は `git worktree prune --dry-run --verbose` で確認し、
+   一時的に外れているmountや後で復帰するpathではないと確認できた場合だけpruneする。
+   `prunable` 表示だけでDocker資源や実データも不要と判断しない。
+5. 開発用backupの整理結果と、保留した資源・理由・再確認時点を作業報告に残す。
+
+使用量は既存の `scripts/codex/worktree_usage.py` と `docker system df` で確認します。
+診断の「回収可能」は削除許可を意味しません。旧Legacy volumeはWorktree cleanupへ含めず、
+[廃止後のVolume整理](server_retirement.md#廃止後のvolume整理)に従います。
 
 ## Codex Actions の例
 

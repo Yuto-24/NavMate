@@ -181,3 +181,28 @@ Docker Composeはlocal/Legacyのサポートruntimeとして維持する。CIの
 現行workflowに旧サーバへの常時deployはない。Python Reference、differential tests、
 Local Calculation regressionは #117/#125 の条件に従って残す。
 不要な実ホスト上の起動unit/prewarm/cronは実inventory取得後に対象を特定し、承認された停止へ含める。
+
+## 廃止後のVolume整理
+
+旧Legacy volumeは、runtimeを止めただけでは削除しません。`autonavlog_autonavlog-data` には
+MSM cache以外にProject・owner・移行状態が含まれ得ます。参照containerが0件でも、
+データの救済やrollbackが不要になった証拠にはなりません。
+
+この手順は、既に廃止判断を終えた個別環境の後片付けにも適用します。実際の本番廃止については
+前述の受入・保持条件を維持し、この節の追加で停止や削除を承認しません。
+
+1. 対象volumeの正確な名前・Compose labels・元の環境を記録する。通常のLocal Static用volumeや
+   現在稼働している主環境、Worktreeのvolumeと混同しない。
+2. Project・owner・移行台帳の移行／救済状況、rollbackの要否、backupの保持条件を確認する。
+   必要なデータは既存のoffline救済手順で退避・検証する。既に復元不要と明示されている
+   個別開発環境では、その判断と対象を記録し、不要な全volume backupを新たに作らない。
+3. 停止中を含むすべてのcontainerのmount、未完了タスク、旧環境を再作成する設定を確認する。
+   利用者や再利用予定が不明なら保留する。再起動で旧cacheを再生成しないことも確認する。
+4. 削除対象と失われるデータを特定し、その対象について削除許可を確認する。
+   実行直前に全containerからの参照を再確認し、そのvolume名だけを `docker volume rm` に渡す。
+   `--force`、一括prune、主環境への `docker compose down -v` は使わない。
+5. 対象が削除されたことと現行環境が維持されていることを確認し、保留対象・理由とともに記録する。
+   移行backupや救済archiveはvolumeと別に保持条件を判断する。
+
+開発用更新前backupの整理は[保持条件](development_worktrees.md#開発用バックアップの保持条件)に従います。
+期間だけで本番backup・救済archiveを自動削除しません。
