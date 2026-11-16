@@ -312,27 +312,28 @@ IndexedDB Project / Last Calculation保持を確認する。通常の`test:local
 `local-browser-tests`と`account-sync-tests`は`ubuntu-24.04`を明示し、`ubuntu-latest`のOS移行で
 Playwrightの依存導入が急に変わらないようにする。`local-browser-tests`の25分上限、認証・Local保存・
 計算・NAV LOG・ブラウザ受入・TAFの検証と、`account-sync-tests`の20分上限、Firestore Rules・同期・
-移行の検証は維持する。Local runnerはChromium / WebKitを導入する。Account Syncは担当projectのengineだけを導入し、
-Chromium群はChromium、iPad/iPhone群はWebKit、storage-upgradeとmigrationを含むcontracts群は両方を導入する。キャンセル時はcheck annotationと
-失敗stepを確認する。ブラウザ依存のdownloadでtimeoutした場合、後続のテストは未実行であり、
-テスト失敗やconcurrencyによる中止とは区別する。
+移行の検証は維持する。両jobはブラウザ入り公式コンテナを使用し、runnerごとのbrowser/OS追加導入は行わない。
+キャンセル時はcheck annotationと失敗stepを確認する。imageや依存の取得でtimeoutした場合、
+後続のテストは未実行であり、テスト失敗やconcurrencyによる中止とは区別する。
 
-### Local browser worker count
+### Browser worker count
 
-`local-browser-tests`のLocal regression、NAV LOG scroll、browser acceptance、focused UX、Clipboardは、CIの起動引数で
-`--workers=2`を指定する。`local`、`acceptance`、`focused-ux`、`clipboard`の4 suiteを別runnerで実行し、
-`acceptance`内では認証→NAV LOG scroll→browser acceptance→TAFの順序を保つ。
-同じファイル内のテスト順序は保つ。
-`fullyParallel`、retry、timeout、assertion、選択するテスト、失敗時のtrace/artifactは変更しない。
+現行の分割と保証は[Independent CI shards](#independent-ci-shards)を参照する。
+Local regression、NAV LOG scroll、browser acceptance、focused UX、ClipboardはCI引数で
+`--workers=2`を指定し、ファイル内順序を保つ。認証は専用runner、acceptanceは
+NAV LOG scroll→browser acceptance→TAFの順序で実行する。
 認証、TAF、Firestore Rules、storage-upgrade、migrationは従来のworker設定を保つ。
-`account-sync-tests`内の`test:sync`だけは、[同条件の比較結果](evidence/ci/account-sync-workers-20261101.md)に基づきCI引数で`--workers=2`を指定する。
-同期はChromium / iPad WebKit / iPhone WebKitを別runner・別emulatorで実行する。
-Firestore Rules→storage-upgrade→migrationは別のcontracts runnerで全対象を順番に実行する。
-各suite内の順序・テスト範囲は保ち、ランダムsubjectとcontextによる分離も維持する。
-`account-sync`集約checkは4群の成功と、全同期テストのexact-once project分配を検証する。
-失敗・skip・cancelした群や未知projectの欠落を成功扱いにしない。
-[依存関係と計測方針](evidence/ci/account-sync-project-shards-20261101.md)を参照。
-ローカルのPlaywright configの既定値も1 workerのままとする。
+
+同期の各deviceは2分割し、CIでは`--fully-parallel --workers=1 --shard=N/2`を使用する。
+各runnerのemulatorは独立し、ランダムsubjectとcontextによる分離も維持する。
+Firestore Rules→storage-upgrade→migrationはcontracts runnerで全対象を順番に実行する。
+共有開発は別runnerで、起動前にrelease notesを生成する。
+`web`でLocalと同期のexact-once分配を検査し、各集約checkは全matrix entryの成功を要求する。
+失敗・skip・cancelした群を成功扱いにしない。retry、timeout、既存assertionは維持する。
+ローカルのPlaywright configの既定値は1 workerのままとする。
+
+旧構成の比較は[同期worker計測](evidence/ci/account-sync-workers-20261101.md)と
+[project分割](evidence/ci/account-sync-project-shards-20261101.md)に残す。
 
 `#350` ARITA回帰の初回NAV LOG表示待ちは、[Issue #408のtrace調査](evidence/ci/arita-calculation-wait-20261109.md)
 に基づき60秒とする。共通expectの30秒、テスト全体の120秒、retryなしは維持する。

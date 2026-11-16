@@ -120,8 +120,8 @@ Ruleset再取得とmainの適用rulesで反映を確認し、既存ルール・c
 `strict_required_status_checks_policy=false`とし、新たなbase最新化条件は追加していない。
 この設定変更はコード外の実施済み操作であり、PRのマージは実施していない。
 
-変更後Hosted計測と新構成のmain成功は未確認。上記main成功はPR #428の回帰保証であり、
-今回の分割の成功とは扱わない。
+上記main成功はPR #428の回帰保証であり、今回の分割の成功とは扱わない。
+変更後のHosted計測は下記に記す。今回の構成でのmain成功は、承認されたマージ後に確認する。
 
 
 ### 分割の初回Hosted実行で見つかった準備依存
@@ -142,3 +142,43 @@ Local全分割は成功し、最長は6分32秒だった。ただし同期と共
 ローカルでiPadの失敗ケース単独と、関連4ケース×3deviceを再検証して成功。
 共有開発も生成JSONを退避した状態から、専用Auth/Firestore emulatorで全6件が成功した。
 失敗を避けるためのretry追加、待機上限延長、assertion削除は行っていない。
+
+
+### 成功した通常PRの前後比較
+
+[計測用draft PR #449](https://github.com/Yuto-24/NavMate/pull/449)は、マージ済みの
+PR #444 VOR計算変更を一時baseへ再現したもの。元base `9871a328` / head `4b1e0bc8`の差分と、
+再現base `5cffa103` / head `f6341dfe`のmerge-base差分はbyte-for-byte一致を確認した。
+CI構成と上記fixture修正を双方のbase/headに同じように適用したため、分類入力には元PRの
+通常変更20ファイルだけが渡る。テスト・共有JSON等を含む航法計算変更なので全suiteが選ばれた。
+製品コードと既存assertionは比較元と同じで、新しい製品変更を導入していない。
+
+[変更後Run 43914098159](https://github.com/Yuto-24/NavMate/actions/runs/43914098159)は
+全28 job成功、Run開始からci-required完了まで11分05秒。最初のjob開始まで20秒を含む。
+base/head更新でcancelされた別Runや、fixture準備に失敗した初回Runは性能達成に算入しない。
+
+| 必須検証 | 変更前 PR #444 | 変更後の同一通常差分 |
+| --- | ---: | ---: |
+| 全体（queue・集約込み） | 20分43秒 | 11分05秒 |
+| Localの最長runner | 19分36秒 | 7分57秒 |
+| 同期deviceの最長runner | 12分17秒 | 7分43秒 |
+| Pythonの最長runner | 9分10秒 | 10分10秒 |
+
+全体は観測値で9分38秒短縮したが、**5分目標は未達**。Pythonの第2分割が律速で、
+Docker build 1分22秒、検査本体8分41秒を要した。Pythonの実行構成は今回変更していない。
+数値golden・計算・保存の保証を削らず、次の候補は現行テストのファイル別時間の再収集と
+分配weightの更新、必要なら既存の全件・coverage集約を維持したPython shard追加とする。
+Localにはbackup込みの分割と長いmap/weatherファイル、同期にはテスト件数分配による時間の偏りが残る。
+
+Playwright image初期化は21〜38秒で、OS/browser追加導入はない。npm・pip・Firebase・image取得、
+runner性能とqueueのばらつきは残る。一部は実装PRのCIと同時実行しており、平均値や単一要因の
+短縮率ではない。job数は20から28へ増え、準備処理の重複と同時実行枠を使うトレードオフがある。
+
+実装PR #448の[Run 43914399276](https://github.com/Yuto-24/NavMate/actions/runs/43914399276)
+（`b137fcc1`）も全28 job成功、8分57秒。これはCI変更を含む全検証であり、通常変更の代表測定には
+上記PR #449を用いる。mainでの成功とマージは未実施。
+
+CodeRabbitは`b137fcc1`を初回レビューして承認し、worker数・認証の配置・分配検査の配置に関する
+旧文書の不一致1件を指摘した。現行コードを正本に該当節を修正した。旧browser追加導入の説明も
+公式コンテナ利用と不一致だったため修正した。後続の文書変更は独立diffレビューで確認し、
+機能を変えない計測記録の追記だけを理由とした追加レビューは依頼しない。
