@@ -27,10 +27,11 @@ export function verify(full, shards) {
   assert.deepEqual(shards.flat().sort(), full, 'project partition omitted or duplicated tests');
 }
 
-function collect(config, project) {
+function collect(config, project, shard) {
   const args = [resolve(web, 'node_modules/@playwright/test/cli.js'), 'test',
     '--config', `playwright.${config}.config.ts`, '--list', '--reporter=json'];
   if (project) args.push('--project', project);
+  if (shard) args.push('--fully-parallel', '--workers=1', `--shard=${shard}/2`);
   return identities(JSON.parse(execFileSync(process.execPath, args,
     { cwd: web, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })));
 }
@@ -38,13 +39,26 @@ function collect(config, project) {
 export function check() {
   const workflow = readFileSync(resolve(web, '../.github/workflows/test.yml'), 'utf8');
   const block = workflow.split('  account-sync-tests:\n')[1]?.split('\n  account-sync:\n')[0];
-  const matrix = block?.match(/suite: \[([^\]]+)\]/)?.[1].split(',').map(value => value.trim());
-  assert.deepEqual(matrix, [...projects, 'contracts'], 'workflow matrix must cover every suite');
+  assert.ok(block.includes('suite: [chromium, ipad-webkit, iphone-webkit]'));
+  assert.ok(block.includes('shard: [1, 2]'));
+  for (const suite of ['contracts', 'dev-shared']) {
+    assert.ok(block.includes(`- {suite: ${suite}, shard: 1}`));
+  }
   const full = collect('sync');
-  verify(full, projects.map(project => collect('sync', project)));
+  verify(full, projects.flatMap(project => [1, 2].map(shard => collect('sync', project, shard))));
+  const localBlock = workflow.split('  local-browser-tests:\n')[1]?.split('\n  local-browser:\n')[0];
+  assert.ok(localBlock.includes('suite: [local, acceptance, focused-ux, clipboard, auth]'));
+  assert.ok(localBlock.includes('shard: [1]'));
+  for (const shard of [2, 3, 4]) assert.ok(localBlock.includes(`- {suite: local, shard: ${shard}}`));
+  const local = shard => identities(JSON.parse(execFileSync('npm', [
+    '--silent', 'run', 'test:local', '--', '--list', '--reporter=json',
+    ...(shard ? [`--shard=${shard}/4`] : []),
+  ], { cwd: web, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })));
+  const localFull = local();
+  verify(localFull, [1, 2, 3, 4].map(local));
   const contracts = Object.fromEntries(['firestore', 'storage-upgrade', 'migration']
     .map(config => [config, collect(config).length]));
-  console.log(JSON.stringify({ sync: full.length, projects, contracts }));
+  console.log(JSON.stringify({ local: localFull.length, sync: full.length, projects, contracts }));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) check();

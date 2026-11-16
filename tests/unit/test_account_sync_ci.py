@@ -67,15 +67,19 @@ def test_failed_rules_stop_remaining_contract_tests(command_runner):
 def test_workflow_requires_every_isolated_runner_and_complete_selection():
     source = (ROOT / ".github/workflows/test.yml").read_text()
     block = source.split("  account-sync-tests:\n")[1].split("  msm-trigger:\n")[0]
-    assert "suite: [chromium, ipad-webkit, iphone-webkit, contracts]" in block
+    assert "suite: [chromium, ipad-webkit, iphone-webkit]" in block
     assert "fail-fast: false" in block
     assert "needs: [release-sources, account-sync-tests]" in block
     assert "if: ${{ always() &&" in block
     assert 'run: test "$RESULT" = success' in block
     assert "emulators:exec --only firestore --project demo-autonavlog-sync" in block
-    assert '"sh scripts/run_account_sync_suite.sh $SUITE"' in block
-    assert "node web/scripts/check-account-sync-partition.mjs" in block
-    assert "name: account-sync-${{ matrix.suite }}-failure" in block
+    assert '"sh scripts/run_account_sync_suite.sh $SUITE $SHARD"' in block
+    web = source.split("  web:\n")[1].split("  taf-proxy:\n")[0]
+    assert "node web/scripts/check-account-sync-partition.mjs" in web
+    assert "shard: [1, 2]" in block
+    assert "- {suite: contracts, shard: 1}" in block
+    assert "- {suite: dev-shared, shard: 1}" in block
+    assert "name: account-sync-${{ matrix.suite }}-${{ matrix.shard }}-failure" in block
 
 
 @pytest.mark.parametrize(
@@ -129,3 +133,36 @@ def test_browser_jobs_use_matching_preinstalled_image():
         assert "playwright install" not in block
         assert "install_account_sync_browsers.sh" not in block
         assert "npm --prefix web ci" in block
+
+
+@pytest.mark.parametrize("project", ["chromium", "ipad-webkit", "iphone-webkit"])
+@pytest.mark.parametrize("shard", ["1/2", "2/2"])
+def test_sync_shards_keep_project_and_one_worker(command_runner, project, shard):
+    result, calls = command_runner([project, shard])
+    assert result.returncode == 0
+    assert calls == [
+        f"--prefix web run test:sync -- --project={project} "
+        f"--fully-parallel --workers=1 --shard={shard}"
+    ]
+
+
+@pytest.mark.parametrize("shard", ["", "0/2", "3/2", "1/3", "1/2; true"])
+def test_invalid_sync_shard_never_runs_tests(command_runner, shard):
+    result, calls = command_runner(["chromium", shard])
+    assert result.returncode == 2
+    assert calls == []
+
+
+def test_local_shards_keep_auxiliary_tests_once_and_auth_separate():
+    source = (ROOT / ".github/workflows/test.yml").read_text()
+    block = source.split("  local-browser-tests:\n")[1].split("  local-browser:\n")[0]
+    assert "suite: [local, acceptance, focused-ux, clipboard, auth]" in block
+    assert "shard: [1]" in block
+    for shard in [2, 3, 4]:
+        assert f"- {{suite: local, shard: {shard}}}" in block
+    assert "npm --prefix web run test:local -- --workers=2 --shard=${{ matrix.shard }}/4" in block
+    assert block.count("if: matrix.suite == 'local' && matrix.shard == 1") == 2
+    assert "if: matrix.suite == 'auth'" in block
+    assert 'if [ "${{ matrix.suite }}" = auth ]; then exit 0; fi' in block
+    assert "if [ '${{ matrix.shard }}' = 1 ]; then" in block
+    assert "name: local-browser-${{ matrix.suite }}-${{ matrix.shard }}-failure" in block
