@@ -7,15 +7,27 @@ from autonavlog.domain.planning import (
     CP_PROJECTION_POLICY_VERSION,
     RJFM_DEPARTURE_RULE_VERSION,
     RJFM_INBOUND_RULE_VERSION,
+    DepartureVorSelection,
     PersistedUiState,
     ReferenceDataSnapshot,
 )
 from autonavlog.domain.project import Project
-from autonavlog.nav.variation import VARIATION_RULE_VERSION
+from autonavlog.nav.variation import (
+    VARIATION_RULE_VERSION,
+    VOR_VARIATION_RULE_VERSION,
+    variation_for_departure_vor,
+)
 from autonavlog.performance.repository import PerformanceRepository
 from autonavlog.weather.ftd_provider import FTD_WEATHER_POLICY_VERSION
 
 from .fingerprints import make_fingerprint
+
+
+def _vor_variation_input(selection: DepartureVorSelection) -> dict[str, object]:
+    try:
+        return variation_for_departure_vor(selection).metadata
+    except ValueError:
+        return {"rule_version": VOR_VARIATION_RULE_VERSION, "unavailable": True}
 
 
 def forecast_selection_fingerprint(project: Project, *, rounding_mode: bool = False) -> str:
@@ -171,7 +183,8 @@ def current_calculation_input_fingerprint(
                 FTD_WEATHER_POLICY_VERSION if project.weather_mode == "FTD" else None
             ),
             # Preserve old AIRPORT-mode fingerprints; adopted VOR provenance is an input.
-            **({"departure_vor": ui_state.departure_vor.model_dump(mode="python")}
+            **({"departure_vor": ui_state.departure_vor.model_dump(mode="python"),
+                "departure_vor_variation": _vor_variation_input(ui_state.departure_vor)}
                if ui_state.departure_vor is not None else {}),
             "route_nodes": route_nodes,
             "sections": sections,

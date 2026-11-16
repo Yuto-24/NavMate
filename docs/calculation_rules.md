@@ -12,8 +12,11 @@ SR22性能値については、Cirrus Design SR22 AFM/POH P/N 13772-006 Revision
 - 表示時は方位1°、距離0.5 NM、時間0.5分、燃料0.1 galへ丸めます。
 - WGS84測地線でLegの距離と初期真方位を求めます。
 - NAV LOG計算では計画MSL高度をPAとして扱い、QNHによるPressure Altitude補正は行いません。
-- Variationは各Physical Legの出発点緯度から自動選択します。32.0°N以上は+8°E、32.0°N未満は+7°Eです。
-- 東偏差を正として`MC = TC + VAR`、右WCAを正として`MH = MC + WCA`とします。
+- 通常のVARは各Physical Legの出発点緯度から自動選択します。32.0°N以上は8°W（加算値+8°）、32.0°N未満は7°W（加算値+7°）です。
+- 西偏差を正として`MC = TC + VAR`、右WCAを正として`MH = MC + WCA`とします。
+- VOR Tracking Modeの第1 Physical Legだけは出発VORの公示DeclinationをVARに使います。RCA・C'k Point・EOCで分割されても同じ偏差と元LegのWGS84初期TCを使い、`MC = TC + VAR`、`MH = MC + WCA`を維持します。WCAはTCと風だけから求めます。第2 Leg以降・Mode OFF・到着処理は従来の緯度別偏差です。
+- 第1 LegのMC/MHは出発VORの磁気基準です。現地の磁気方位計との一致は保証しません。経路上の各点へのVOR Radialは同じ出発点からのWGS84初期方位なので、途中の局所接線方位の変化をMCへ加えません。VOR/DME列の選局はこの基準を変更しません。
+- `variation_deg_east`等の既存フィールド名は保存互換性のため維持しますが、MCに加える値の符号は西正です。
 - NAV LOGへ表示するMHは、同じ行に表示する丸め済みMCとWCAから作り、画面上の算術を一致させます。
 - VFR巡航高度候補の方向判定は、NAV LOGへ表示する1°単位のMCを使用します。359.5°以上は表示360°、判定上は0°側とします。
 

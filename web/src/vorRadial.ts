@@ -1,4 +1,4 @@
-import vorStationData from "./data/vorStations.json" with { type: "json" };
+import vorStationData from "../../src/autonavlog/nav/data/vor_stations.json" with { type: "json" };
 import { roundHalfUp } from "./displayRounding";
 
 const METERS_PER_NM = 1852;

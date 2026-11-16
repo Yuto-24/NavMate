@@ -24,11 +24,13 @@
 
 ## NAV LOGのVOR/DME基準局
 
-`web/src/data/vorStations.json`は、JCAB AIP AD 2 / ENR 4.1から転記した、
+`src/autonavlog/nav/data/vor_stations.json`の`stations`は、JCAB AIP AD 2 / ENR 4.1から転記した、
 RJFM ARPから540 km圏内の基準局データです。既存32局の基準サイクルは2026-08-06です。
 トップレベルの`effective_cycle`はその基準サイクルで、局ごとの`effective_cycle`がある場合は
 その局だけの確認サイクルを示します。NAV LOGの選択欄も選択局のサイクルを表示します。
 各局に元PDF名・1始まりのPDFページ番号・偏差の出典を保持します。
+このJSONをWebとPythonで共用します。`departure_only_stations`のOYEは出発VOR Tracking専用で、
+VOR/DME一覧には含めません。配布と保守の詳細は[出発VORの磁気基準](airport-vor-departure.md#第1-legの磁気基準)を参照してください。
 
 天草（AKE）は同サイクルの`AD2_Combine/RJDA__20251201.pdf`、PDF 6ページの
 RJDA AD2-6 / AD 2.19（ページ適用日2018-01-04）で照合しました。

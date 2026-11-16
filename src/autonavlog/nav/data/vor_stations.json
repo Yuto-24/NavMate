@@ -408,5 +408,14 @@
       "source_file": "RJOY__20260401.pdf",
       "source_page": 9
     }
+  ],
+  "departure_only_stations": [
+    {
+      "identifier": "OYE",
+      "variation_west_deg": 8.0,
+      "variation_source": "AD 2.19 VOR declination (8°W/2016)",
+      "source_file": "RJOB__AD2_20260806.pdf",
+      "source_page": 7
+    }
   ]
 }
