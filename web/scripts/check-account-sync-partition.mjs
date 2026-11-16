@@ -36,20 +36,26 @@ function collect(config, project, shard) {
     { cwd: web, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })));
 }
 
+export function verifyMatrix(block, expected) {
+  const matrix = block?.match(/      matrix:\n([\s\S]*?)\n    steps:/)?.[1];
+  assert.equal(matrix?.split('\n').map(line => line.trim()).join('\n'), expected.join('\n'),
+    'workflow matrix must run every collected shard exactly once');
+}
+
 export function check() {
   const workflow = readFileSync(resolve(web, '../.github/workflows/test.yml'), 'utf8');
   const block = workflow.split('  account-sync-tests:\n')[1]?.split('\n  account-sync:\n')[0];
-  assert.ok(block.includes('suite: [chromium, ipad-webkit, iphone-webkit]'));
-  assert.ok(block.includes('shard: [1, 2]'));
-  for (const suite of ['contracts', 'dev-shared']) {
-    assert.ok(block.includes(`- {suite: ${suite}, shard: 1}`));
-  }
+  verifyMatrix(block, [
+    'suite: [chromium, ipad-webkit, iphone-webkit]', 'shard: [1, 2]', 'include:',
+    '- {suite: contracts, shard: 1}', '- {suite: dev-shared, shard: 1}',
+  ]);
   const full = collect('sync');
   verify(full, projects.flatMap(project => [1, 2].map(shard => collect('sync', project, shard))));
   const localBlock = workflow.split('  local-browser-tests:\n')[1]?.split('\n  local-browser:\n')[0];
-  assert.ok(localBlock.includes('suite: [local, acceptance, focused-ux, clipboard, auth]'));
-  assert.ok(localBlock.includes('shard: [1]'));
-  for (const shard of [2, 3, 4]) assert.ok(localBlock.includes(`- {suite: local, shard: ${shard}}`));
+  verifyMatrix(localBlock, [
+    'suite: [local, acceptance, focused-ux, clipboard, auth]', 'shard: [1]', 'include:',
+    '- {suite: local, shard: 2}', '- {suite: local, shard: 3}', '- {suite: local, shard: 4}',
+  ]);
   const local = shard => identities(JSON.parse(execFileSync('npm', [
     '--silent', 'run', 'test:local', '--', '--list', '--reporter=json',
     ...(shard ? [`--shard=${shard}/4`] : []),
