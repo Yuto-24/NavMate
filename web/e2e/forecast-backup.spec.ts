@@ -140,7 +140,12 @@ test("normal then both paths fail preserves draft and Last Calculation", async (
   await page.getByLabel("ETD JST", { exact: true }).fill("12:01");
   const button = page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ });
   await button.click(); await expect(button).toBeEnabled();
-  await expect(page.getByText(/MSM気象データの取得および予備サーバーでの計算に失敗しました/)).toBeVisible();
+  const failure = /MSM気象データの取得および予備サーバーでの計算に失敗しました/;
+  const toast = page.getByRole("alert").filter({ hasText: failure });
+  await expect(toast).toBeVisible();
+  await expect(toast).not.toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: /^その他/ }).click();
+  await expect(page.locator("#operation-messages").getByText(failure)).toBeVisible();
   expect((await record(page)).lastCalculation).toEqual(before);
   expect((await record(page)).draft.planned_departure_time_jst).toContain("12:01");
   await page.reload(); await expect(page.getByLabel("ETD JST", { exact: true })).toHaveValue("12:01");

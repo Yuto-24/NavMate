@@ -14,6 +14,7 @@
 - 保存済みProject再オープンと破損KMLドロップの4件がChromium/WebKitで成功。破損KMLは実際のエラー本文、`role=alert`、失効後の履歴保持、以前の取込内容の保持まで確認した。
 - Local FTD Golden 1100pxはPython参照比較、丸め、通知失効まで成功。
 - 隔離Composeの決定的fake weatherで、Legacyの境界確認・1100/1440px配置・ETD・500→1000fpm再計算と保存/再読込の3件が成功。移行無効時の既定の`/api/account-link`の404だけは、既存`observeLegacyMigration`の契約に合わせてコンソール検査から区別する。他の404やエラーは許容しない。
+- 予備サーバーを有効にしたLocalビルドと一致する実計算APIで、forecast-backupの全5件が成功。両経路失敗時はlive Toast、5秒後の消去、その他内の履歴を分けて確認し、draftとLast Calculationの保持・再読込の検証も維持した。製品コードや4223の通常プレビューは変更していない。
 - GPT-6 Astraが別コンテキストで読み取り専用レビューを実施し、必須修正なし。テスト実行結果と独立レビューは別の証拠として扱う。
 
 Ubuntu 4223はfixture切替のない通常ビルドで更新した。PC/モバイルの合成経路で、凡例を閉じた空域取得失敗の表示を撮影・目視確認した。マージ・本番公開はしていない。
@@ -28,7 +29,10 @@ Application契約142件、対象Auth 9件、PC/モバイルのCP必須表示・I
 - CI `44054319804` のstale-device logoutは、再読込後に閉じたアカウントダイアログ内の再試行ボタンを待っていた。既存のアカウントを開く操作をテストへ追加した。3機種の実SDK再実行は、Firebase emulatorが `Could not spawn java -version` で起動できず未実行。合成transportの成功で代替しない。
 - 同CIのProject再オープンは `Page.handleJavaScriptDialog: session closed` で終了した。今回のChromium/WebKit再現試験は成功したが、CIの原因を断定せず、無関係な製品コードを変更していない。
 - 先行全Localバッチの上限超過、storage/schema 30/32、実SDK offline/conflict、dev-shared切替の未完了を、今回の対象試験で全体成功に読み替えない。ARITA 1440px初回待機60秒は未変更baselineでも再現したが、他の待機失敗まで同一原因とは判断していない。
-- UI文言は未確認。ユーザーの明示指示によりGeminiへ送信しない。`python3 scripts/ui_copy_review.py check` は `Copy or source context changed: more` で非ゼロ終了する。証跡を成功扱いに更新せず、この制約を開示して通常PRを更新する。
+- UI文言は未確認。ユーザーの明示指示によりGeminiへ送信しない。`python3 scripts/ui_copy_review.py check` は `Copy or source context changed: more` で非ゼロ終了する。全登録ブロックを比較し、`header-218` の `more` / `more-unread` / `more-warning` と `map-paste` の `map-clipboard-paste` の4件に不一致を確認した。他の追跡済み証跡ディレクトリ4件の検査は成功した。
+  - ヘッダーの旧ブロックには操作失敗のアイコンと履歴への読み上げ関連付けがない。完全復元では現在の失敗発見性が失われる。
+  - ペーストの旧ブロックは旧aside内のファイル入力と大きな独立ボタンを含む。現在は承認済みのコンパクトな取込パネルへ移動しており、完全復元はそのUIを戻すことになる。
+  - チェック範囲外への移動だけでは表示文脈の確認にならないため、ソース・証跡・チェックを変更しない。解消には現在の文脈の新しい確認、または上記UXを戻す明示的な判断が必要。地図の出典は合意どおりお知らせの下に保持する。
 - ログアウト未完了のヘッダー表示追加は任意改善として保留した。既存アカウントダイアログでの失敗確認・再試行は保持している。
 
 新HEADのHosted CIはpush後の一度の状態確認を別途記録する。古いCIやレビューを新HEADの成功として扱わない。
