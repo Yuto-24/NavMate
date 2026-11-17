@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { test, expect, type Page } from "@playwright/test";
 import { resolve } from "node:path";
@@ -93,8 +94,7 @@ test("independent desktop and mobile anonymous visitors share Project and NAV LO
       const input = await page.locator(".input-rail").boundingBox();
       const map = await page.locator(".route-workspace").boundingBox();
       const ready = await page.locator(".status-rail").boundingBox();
-      if (width <= 1240) { expect(input!.y + input!.height - 1).toBeLessThanOrEqual(map!.y); expect(map!.y + map!.height - 1).toBeLessThanOrEqual(ready!.y); }
-      else { expect(input!.x).toBeLessThan(map!.x); expect(map!.x).toBeLessThan(ready!.x); }
+      await expectPlanningLayout(page, width);
       expect((await page.locator(".nav-log-scroll").boundingBox())!.y).toBeGreaterThan(ready!.y);
     }
   } finally { await mobile.close(); }

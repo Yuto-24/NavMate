@@ -46,12 +46,16 @@ async function confirm(page: Page, weatherMode: "FORECAST" | "FTD" = "FORECAST")
   await page.getByLabel("気象モード").selectOption(weatherMode);
   await expect(page.getByLabel("RJFM出発Legの計画高度", { exact: true })).toBeVisible();
   for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
-    await page.getByLabel(`${name}出発Legの計画高度`, { exact: true }).fill(altitude);
+    const altitudeInput = page.getByLabel(`${name}出発Legの計画高度`, { exact: true });
+    if (!await altitudeInput.count()) await page.getByLabel(new RegExp(`^${name}出発Leg.*候補$`)).selectOption("custom");
+    await altitudeInput.fill(altitude);
   }
 }
 async function calculate(page: Page) {
   for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
-    await page.getByLabel(`${name}出発Legの計画高度`, { exact: true }).fill(altitude);
+    const altitudeInput = page.getByLabel(`${name}出発Legの計画高度`, { exact: true });
+    if (!await altitudeInput.count()) await page.getByLabel(new RegExp(`^${name}出発Leg.*候補$`)).selectOption("custom");
+    await altitudeInput.fill(altitude);
   }
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();

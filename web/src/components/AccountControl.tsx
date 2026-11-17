@@ -1,3 +1,4 @@
+import { TransientMessage } from "./TransientMessage";
 import { createPortal } from "react-dom";
 import { useState, useSyncExternalStore } from "react";
 import { devSharedMode } from "../executionMode";
@@ -16,7 +17,8 @@ const subscribeConnectivity = (listener: () => void) => {
     window.removeEventListener("offline", listener);
   };
 };
-export function AccountControl({ auth, busy, onBeforeChange, networkAvailability }: {
+export function AccountControl({ auth, busy, onBeforeChange, networkAvailability, syncMessages = [] }: {
+  syncMessages?: string[];
   auth?: AuthProvider; busy: boolean; onBeforeChange?: () => boolean;
   networkAvailability: PlatformCapabilities["networkAvailability"];
 }) {
@@ -49,7 +51,9 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
           : state.account ? <p>ログアウト後も保存データは残ります。同じアカウントでログインすると再び開けます。</p>
           : <p>未ログイン中の保存データは、ログインしたアカウントへ取り込まれます。</p>}
         {!state.available && !state.notice && <p>この環境ではGoogleログインが設定されていません。未ログインのまま利用できます。</p>}
-        {(error || state.notice) && <p role="alert">{error || state.notice}</p>}
+        {error && <p role="alert">{error}</p>}
+        {state.notice && state.notice !== error && <p role="alert">{state.notice}</p>}
+        {syncMessages.map(message => <p role="alert" key={message}>{message}</p>)}
         <button type="button" className="primary-button" disabled={!auth || !state.available || pending || (busy && !state.account && !state.signOutPending)}
           onClick={() => auth && void act((state.account || state.signOutPending || state.deletionPending) ? () => auth.signOut() : () => auth.signIn())}>
           {state.signOutPending ? "ログアウトを再試行" : state.account || state.deletionPending ? "ログアウト" : "Googleでログイン"}
@@ -71,9 +75,5 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
 
 export function AccountNotice({ auth }: { auth?: AuthProvider }) {
   const state = useSyncExternalStore(auth?.subscribe ?? noSubscribe, auth?.getState ?? (() => unavailable));
-  if (!state.notice) return null;
-  return <div className="message-bar message-error" role="alert">
-    <span>{state.notice}</span>
-    {state.signOutPending && auth && <button type="button" onClick={() => { void auth.signOut().catch(() => {}); }}>ログアウトを再試行</button>}
-  </div>;
+  return <TransientMessage message={state.notice} className="account-notification" />;
 }

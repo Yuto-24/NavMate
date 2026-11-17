@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test, chromium, type BrowserContext, type Page } from "@playwright/test";
@@ -308,8 +309,7 @@ test("Account dialog remains compact and workflow regions retain their order", a
     if (width === 390 || width >= 1100) await page.screenshot({ path: `/tmp/issue184-account-${width}.png` });
     const bounds = await page.locator(".input-rail, .route-workspace, .status-rail").evaluateAll(nodes => nodes.map(node => ({ className: node.className, x: node.getBoundingClientRect().x, y: node.getBoundingClientRect().y })));
     expect(bounds).toHaveLength(3);
-    if (width <= 1240) { expect(bounds[0]!.y).toBeLessThan(bounds[1]!.y); expect(bounds[1]!.y).toBeLessThan(bounds[2]!.y); }
-    else { expect(bounds[0]!.x).toBeLessThan(bounds[1]!.x); expect(bounds[1]!.x).toBeLessThan(bounds[2]!.x); }
+    await expectPlanningLayout(page, width);
   }
 });
 
@@ -384,7 +384,9 @@ test("failed persistent logout closes access and offers a visible retry in the n
   expect((await authState(page)).account).toBeNull();
   expect((await authState(page)).signOutPending).toBe(true);
   await page.evaluate(() => (window as any).restoreStorage());
-  await page.getByRole("button", { name: "ログアウトを再試行", exact: true }).click();
+  // #443 retains recovery in the account dialog after the transient notice.
+  await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
+  await page.getByRole("dialog", { name: "アカウント", exact: true }).getByRole("button", { name: "ログアウトを再試行", exact: true }).click();
   await expect.poll(async () => (await authState(page)).signOutPending).toBeUndefined();
   await page.reload();
   await expect.poll(async () => (await authState(page)).account).toBeNull();

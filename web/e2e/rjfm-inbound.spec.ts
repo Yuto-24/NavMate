@@ -113,7 +113,7 @@ test("real RJFO inbound KML keeps physical route and places EOC at UMK", async (
   await page.getByLabel("5,000 ft風向 ° FROM").fill("270");
   await page.getByLabel("5,000 ft風速 kt").fill("30");
 
-  const routeRows = page.locator(".route-table tbody .route-point-row");
+  const routeRows = page.locator(".route-timeline > .timeline-stop");
   await expect(routeRows).toHaveCount(5);
   const confirmed = await readState(page);
   if (!confirmed.project) throw new Error("confirmed project is missing");
@@ -147,7 +147,7 @@ test("real RJFO inbound KML keeps physical route and places EOC at UMK", async (
   await expect(fixedRouteControl).toContainText("RJFM帰路 OMARU→UMKの到達高度");
   await expect(fixedRouteControl.locator("input, select")).toHaveCount(0);
 
-  for (const input of await page.locator(".route-table tbody tr:not(.vrep-row) .table-number-input").all()) {
+  for (const input of await page.locator(".timeline-leg .table-number-input").all()) {
     await input.fill("4500");
   }
   for (const select of await page.locator(".altitude-candidate-select").all()) {

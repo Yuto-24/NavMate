@@ -1,3 +1,5 @@
+import { clickMapCoordinate } from "./helpers/mapCoordinate";
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { selectAirport } from "./helpers/mapCandidates";
@@ -297,28 +299,25 @@ test("restored Check Point and VOR input remains editable; workflow positions ar
   await calculated(page);
   await page.getByLabel("VOR基準局", { exact: true }).selectOption({ index: 2 });
   const vor = await page.getByLabel("VOR基準局", { exact: true }).inputValue();
-  await page.getByRole("button", { name: "チェックポイントを追加", exact: true }).click();
+  await page.getByRole("button", { name: "1番目のLegへ地図からチェックポイントを追加", exact: true }).click();
+    await clickMapCoordinate(page, 32.0, 130.9);
   await page.locator(".checkpoint-form").getByLabel("名称", { exact: true }).fill("未確定地点");
-  await page.locator(".checkpoint-form").getByLabel(/緯度/).fill("999");
+  await expect.poll(async () => (await snapshot(page)).checkPointDraft.name).toBe("未確定地点");
+  const pendingCheckPoint = (await snapshot(page)).checkPointDraft;
   await page.reload();
   await expect(page.locator(".nav-log-table")).toBeVisible();
   await expect(page.getByLabel("VOR基準局", { exact: true })).toHaveValue(vor);
   await expect(page.locator(".checkpoint-form")).toHaveCount(0);
   await page.getByRole("button", { name: "チェックポイントの編集を続ける" }).click();
   await expect(page.locator(".checkpoint-form").getByLabel("名称", { exact: true })).toHaveValue("未確定地点");
-  await expect(page.locator(".checkpoint-form").getByLabel(/緯度/)).toHaveValue("999");
+  expect((await snapshot(page)).checkPointDraft).toEqual(pendingCheckPoint);
+  await expect(page.locator(".checkpoint-form").getByLabel("緯度", { exact: true })).toHaveCount(0);
   for (const width of [1100, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     const boxes = await Promise.all([".input-rail", ".route-workspace", ".status-rail", ".nav-log-scroll"]
       .map(selector => page.locator(selector).boundingBox()));
     expect(boxes.every(Boolean)).toBe(true);
-    if (width <= 1240) {
-      for (let i = 1; i < boxes.length; i++) expect(boxes[i]!.y).toBeGreaterThanOrEqual(boxes[i-1]!.y + boxes[i-1]!.height - 1);
-    } else {
-      expect(boxes[0]!.x + boxes[0]!.width).toBeLessThanOrEqual(boxes[1]!.x + 1);
-      expect(boxes[1]!.x + boxes[1]!.width).toBeLessThanOrEqual(boxes[2]!.x + 1);
-      expect(boxes[3]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0, 3).map(b => b!.y + b!.height)) - 1);
-    }
+    await expectPlanningLayout(page, width);
   }
 });
 
@@ -410,9 +409,8 @@ for (const width of [1100, 1440]) {
     const count = before.mapRouteDraft.length;
     const input = (await page.locator(".input-rail").boundingBox())!;
     const route = (await page.locator(".route-workspace").boundingBox())!;
-    if (width <= 1240) expect(input.y + input.height).toBeLessThanOrEqual(route.y + 2);
-    else expect(input.x + input.width).toBeLessThanOrEqual(route.x + 2);
-    expect((await page.locator(".route-map").boundingBox())!.height).toBeGreaterThan(500);
+    await expectPlanningLayout(page, width);
+    expect((await page.locator(".route-map").boundingBox())!.height).toBeGreaterThanOrEqual(300);
     await expect(page.locator(".nav-log-table")).toBeVisible();
     await expect(page.getByRole("button", { name: "KML/KMZから開始", exact: true })).toHaveCount(0);
     await strip.locator("li").nth(1).getByRole("button").click();

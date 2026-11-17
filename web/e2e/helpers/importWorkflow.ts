@@ -9,7 +9,7 @@ export async function enterImportWorkflow(page: Page) {
 export async function expectImportedDraft(page: Page, candidate = "line:0") {
   const choice = page.getByRole("dialog", { name: "経路選択", exact: true });
   const strip = page.getByRole("list", { name: "経路リスト", exact: true });
-  await expect(choice.or(strip)).toBeVisible();
+  await expect(choice.or(strip.filter({ has: page.locator("li") }))).toBeVisible();
   if (await choice.isVisible()) {
     await choice.getByRole("combobox").selectOption(candidate);
     await choice.getByRole("button", { name: "KMLを取り込む", exact: true }).click();

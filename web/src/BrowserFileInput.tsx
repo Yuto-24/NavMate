@@ -28,7 +28,7 @@ export function BrowserFileInput({ busy, onFile, inputRef }: FileInputProps) {
       onDrop={acceptDrop}
     >
       <FileUp aria-hidden="true" size={26} />
-      <strong>KML / KMZをドロップ</strong>
+      <strong>KML/KMZ をドロップ</strong>
       <span>10 MiB以下</span>
       <label className="file-picker" htmlFor="route-file">
         ファイルを選択

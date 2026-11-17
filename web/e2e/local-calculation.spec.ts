@@ -148,20 +148,11 @@ for (const width of [390, 1100, 1440]) {
     await vorSelect.selectOption("__AUTO__");
     await expect(vorSelect.locator("option:checked")).toHaveText("自動 MZE");
     await expect(vorSelect).toHaveAttribute("title", "AIP 2026-08-06 / 局からTOへのradial・距離");
-    const boxes = await Promise.all(
-      [".input-rail", ".route-workspace", ".status-rail", ".nav-log-scroll"]
-        .map(selector => page.locator(selector).boundingBox()),
-    );
+    const boxes = await Promise.all([".map-frame", ".planning-pane", ".nav-log-scroll"].map(selector => page.locator(selector).boundingBox()));
     expect(boxes.every(Boolean)).toBe(true);
-    if (width <= 1240) {
-      for (let index = 1; index < boxes.length; index++) {
-        expect(boxes[index]!.y).toBeGreaterThanOrEqual(boxes[index - 1]!.y + boxes[index - 1]!.height - 1);
-      }
-    } else {
-      expect(boxes[0]!.x + boxes[0]!.width).toBeLessThanOrEqual(boxes[1]!.x + 1);
-      expect(boxes[1]!.x + boxes[1]!.width).toBeLessThanOrEqual(boxes[2]!.x + 1);
-      expect(boxes[3]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0, 3).map(box => box!.y + box!.height)) - 1);
-    }
+    if(width<=700) expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y+boxes[0]!.height-1);
+    else {expect(boxes[1]!.x).toBeGreaterThanOrEqual(boxes[0]!.x+boxes[0]!.width-1);expect(Math.abs(boxes[0]!.y-boxes[1]!.y)).toBeLessThanOrEqual(1);}
+    expect(boxes[2]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0,2).map(box=>box!.y+box!.height))-1);
     expect(apiRequests).toEqual([]);
     expect(errors).toEqual([]);
     await expect(page.locator("vite-error-overlay")).toHaveCount(0);
@@ -499,11 +490,11 @@ for (const width of [1100, 1440]) {
     await confirmImportedDraft(page);
     const fixed = page.getByLabel("UMK出発Legの固定高度", { exact: true });
     await expect(fixed).toContainText("4,500 - 1,500 ft 固定");
-    const descentRow = fixed.locator("xpath=ancestor::tr");
+    const descentRow = page.locator(".timeline-leg").filter({ has: fixed });
     await expect(descentRow).toContainText("降下（固定）");
     await expect(descentRow.locator("input, select")).toHaveCount(0);
     await page.getByLabel("気象モード").selectOption("FTD");
-    for (const input of await page.locator(".route-leg-row:not(.vrep-row) .table-number-input").all()) {
+    for (const input of await page.locator(".timeline-leg .table-number-input").all()) {
       await input.fill("4500");
       await input.blur();
     }

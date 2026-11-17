@@ -34,7 +34,7 @@ async function importLocalRoute(page: Page) {
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("気象モード").selectOption("FTD");
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
-  await expect(page.getByRole("button", { name: "チェックポイントを追加" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "1番目のLegへ地図からチェックポイントを追加" })).toBeEnabled();
 }
 
 test.beforeEach(async ({ page, context }) => {
@@ -128,7 +128,8 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
     importLocalRoute(page),
     (async () => {
       try {
-        // Observe immediately, allowing the same cold-start budget as import setup.
+        // Expand the new optional legend before asserting its unchanged loading state.
+        await page.getByRole("button", { name: "RJFM空域凡例を表示", exact: true }).click({ timeout: 120_000 });
         await expect(legend).toContainText("空域情報を取得中…", { timeout: 120_000 });
       } finally {
         release();
@@ -153,20 +154,19 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
     await expect(page.locator("vite-error-overlay")).toHaveCount(0);
     await expect(page.locator(".brand-subtitle")).not.toContainText(" / Local");
     await expect(page.locator(".rjfm-airspace-credit")).toHaveText("国土交通省・国土地理院データを加工");
-    const boxes = await page.evaluate(() => [".input-rail", ".route-workspace", ".status-rail"].map(selector => {
+    const boxes = await page.evaluate(() => [".map-frame", ".planning-pane"].map(selector => {
       const r = document.querySelector(selector)!.getBoundingClientRect();
-      return { x: r.x, y: r.y, width: r.width, height: r.height };
+      return { x:r.x,y:r.y,width:r.width,height:r.height };
     }));
-    for (const box of boxes) { expect(box.width).toBeGreaterThan(0); expect(box.height).toBeGreaterThan(0); }
-    for (let index = 1; index < boxes.length; index++) {
-      if (width <= 1240) expect(boxes[index]!.y).toBeGreaterThanOrEqual(boxes[index - 1]!.y + boxes[index - 1]!.height - 1);
-      else expect(boxes[index]!.x).toBeGreaterThanOrEqual(boxes[index - 1]!.x + boxes[index - 1]!.width - 1);
-    }
+    for(const b of boxes) {expect(b.width).toBeGreaterThan(0);expect(b.height).toBeGreaterThan(0);}
+    if(width<=700) expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y+boxes[0]!.height-1);
+    else {expect(boxes[1]!.x).toBeGreaterThanOrEqual(boxes[0]!.x+boxes[0]!.width-1);expect(Math.abs(boxes[0]!.y-boxes[1]!.y)).toBeLessThanOrEqual(1);}
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     await page.locator(".map-frame").screenshot({ path: info.outputPath(`pca-${width}.png`) });
   }
   await page.route("https://maps.gsi.go.jp/xyz/kokuarea_minkankunren/8/221/*.geojson", route => route.abort());
   await page.reload();
+  await page.getByRole("button", { name: "RJFM空域凡例を表示", exact: true }).click({ timeout: 120_000 });
   await expect(legend).toContainText("空域情報を取得できず非表示");
   await expect(page.locator(".rjfm-training-airspace")).toHaveCount(0);
   await expect(boundary).toHaveCount(1);
@@ -249,7 +249,7 @@ test("green theme keeps readable controls, keyboard selection and aviation color
   await dialog.screenshot({ path: info.outputPath("green-account-focus.png") });
   await close.click();
   await primary.click();
-  await expect(page.getByRole("button", { name: "チェックポイントを追加" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "1番目のLegへ地図からチェックポイントを追加" })).toBeEnabled();
   await expect(page.locator(".rjfm-pca-boundary")).toHaveAttribute("stroke", "#a45b13");
   await expect(page.locator(".rjfm-training-airspace-boundary").first()).toHaveAttribute("stroke", "#315caa");
 

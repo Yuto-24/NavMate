@@ -1,3 +1,6 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
+import { zoomMapTo } from "./helpers/mapCandidates";
+import { clickMapCoordinate } from "./helpers/mapCoordinate";
 import { openProjectMenu } from "./helpers/header";
 import { confirmImportedDraft, expectImportedDraft, enterImportWorkflow } from "./helpers/importWorkflow";
 import { observeLegacySession } from "./helpers/legacySession";
@@ -962,9 +965,9 @@ async function calculateNavLog(
   }
 
 
-  await expect(page.locator(".route-table tbody tr.vrep-row")).toHaveCount(1);
-  const altitudeInputs = page.locator(".route-table tbody tr:not(.vrep-row) .table-number-input");
-  const vrepAltitudeInput = page.locator(".route-table tbody tr.vrep-row .table-number-input");
+  await expect(page.locator(".timeline-stop[data-node-role=VISUAL_REPORTING_POINT]")).toHaveCount(1);
+  const altitudeInputs = page.locator(".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input");
+  const vrepAltitudeInput = page.locator(".timeline-stop[data-node-role=VISUAL_REPORTING_POINT] .table-number-input");
   await expect(altitudeInputs.first()).toHaveValue("3000");
   await altitudeInputs.first().fill("");
   await expect(altitudeInputs.first()).toHaveValue("");
@@ -1502,7 +1505,7 @@ test("valid planning drafts autosave before calculation and coalesce rapid edits
   await confirmImportedDraft(page);
 
   const routeAltitudes = page.locator(
-    ".route-table tbody tr:not(.vrep-row) .table-number-input",
+    ".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input",
   );
   await expect(routeAltitudes).toHaveCount(3);
   const requests: Array<Record<string, unknown>> = [];
@@ -1613,7 +1616,7 @@ test("draft autosave failure keeps the local value and a manual save flushes its
   await importKmlCandidate(page);
   await confirmImportedDraft(page);
   const routeAltitudes = page.locator(
-    ".route-table tbody tr:not(.vrep-row) .table-number-input",
+    ".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input",
   );
   await expect(routeAltitudes).toHaveCount(3);
   const altitudeSaved = page.waitForResponse((response) => {
@@ -1677,7 +1680,7 @@ test("manual save flushes a pending destination pattern exactly once before chec
   await confirmImportedDraft(page);
 
   const routeAltitudes = page.locator(
-    ".route-table tbody tr:not(.vrep-row) .table-number-input",
+    ".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input",
   );
   await expect(routeAltitudes).toHaveCount(3);
   const altitudeSaved = page.waitForResponse((response) => {
@@ -1750,7 +1753,7 @@ test("tab-only drafts become shared projects only after explicit save", async ({
   expect(latestState.savedProjects.some(project => project.id === latest.id)).toBe(false);
 
   const routeAltitudes = page.locator(
-    ".route-table tbody tr:not(.vrep-row) .table-number-input",
+    ".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input",
   );
   await expect(routeAltitudes).toHaveCount(3);
   const altitudeSaved = page.waitForResponse((response) => {
@@ -1949,13 +1952,13 @@ test("edited VREP altitude reaches the calculation request and NAV LOG", async (
   await importKmlCandidate(page);
   await confirmImportedDraft(page);
 
-  await expect(page.locator(".route-table tbody tr.vrep-row")).toHaveCount(1);
-  const routeAltitudes = page.locator(".route-table tbody tr:not(.vrep-row) .table-number-input");
+  await expect(page.locator(".timeline-stop[data-node-role=VISUAL_REPORTING_POINT]")).toHaveCount(1);
+  const routeAltitudes = page.locator(".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input");
   await expect(routeAltitudes).toHaveCount(3);
   for (let index = 0; index < await routeAltitudes.count(); index += 1) {
     await routeAltitudes.nth(index).fill("3500");
   }
-  const vrepAltitude = page.locator(".route-table tbody tr.vrep-row .table-number-input");
+  const vrepAltitude = page.locator(".timeline-stop[data-node-role=VISUAL_REPORTING_POINT] .table-number-input");
   await expect(vrepAltitude).toHaveValue("1500");
   await vrepAltitude.fill("2100");
   await expect(vrepAltitude).toHaveValue("2100");
@@ -2023,7 +2026,7 @@ test("destination altitude drafts validate locally and latest valid edit recalcu
   await expect.poll(() => recalculationPayloads.length).toBe(1);
   expect(recalculationPayloads[0]?.selected_pattern_altitude_ft_msl).toBe(1500);
   await expect(patternAltitude).toHaveValue("1500");
-  await expect(page.locator(".route-table tbody .table-number-input").last()).toHaveValue("2000");
+  await expect(page.locator(".route-timeline .table-number-input").last()).toHaveValue("2000");
 });
 
 test("phase-specific TAS drafts on one RCA-split Physical Leg persist independently", async ({ page }) => {
@@ -2313,7 +2316,7 @@ test("route-node inline rename reprojects the current table, map, and NAV LOG", 
   if (vrep === undefined || before.outcome === null) {
     throw new Error("Calculated VREP route node is missing");
   }
-  const routeRow = page.locator(".route-table tbody .vrep-point-row");
+  const routeRow = page.locator(".timeline-stop[data-node-role=VISUAL_REPORTING_POINT]");
   const nameInput = routeRow.locator(".route-name-editor input");
 
   await routeRow.getByRole("button", { name: "編集" }).click();
@@ -2390,25 +2393,14 @@ test("route-node inline rename reprojects the current table, map, and NAV LOG", 
 
   for (const width of [390, 1100, 1440] as const) {
     await page.setViewportSize({ width, height: 900 });
-    const [input, route, status, navLog] = await Promise.all([
-      page.locator(".input-rail").boundingBox(),
-      page.locator(".route-workspace").boundingBox(),
-      page.locator(".status-rail").boundingBox(),
+    const [map, pane, navLog] = await Promise.all([
+      page.locator(".map-frame").boundingBox(), page.locator(".planning-pane").boundingBox(),
       page.getByLabel("計算済みNAV LOG").boundingBox(),
     ]);
-    if (!input || !route || !status || !navLog) {
-      throw new Error(`Route-name workflow layout is missing at ${width}px`);
-    }
-    if (width <= 1240) {
-      expect(route.y).toBeGreaterThanOrEqual(input.y + input.height - 1);
-      expect(status.y).toBeGreaterThanOrEqual(route.y + route.height - 1);
-      expect(navLog.y).toBeGreaterThanOrEqual(status.y + status.height - 1);
-    } else {
-      expect(route.x).toBeGreaterThanOrEqual(input.x + input.width - 1);
-      expect(status.x).toBeGreaterThanOrEqual(route.x + route.width - 1);
-      expect(Math.abs(route.y - input.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(status.y - input.y)).toBeLessThanOrEqual(1);
-    }
+    if(!map || !pane || !navLog) throw new Error(`Route-name workflow layout is missing at ${width}px`);
+    if(width<=700) expect(pane.y).toBeGreaterThanOrEqual(map.y+map.height-1);
+    else {expect(pane.x).toBeGreaterThanOrEqual(map.x+map.width-1);expect(Math.abs(pane.y-map.y)).toBeLessThanOrEqual(1);}
+    expect(navLog.y).toBeGreaterThanOrEqual(Math.max(map.y+map.height,pane.y+pane.height)-1);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
     ).toBeLessThanOrEqual(1);
@@ -2861,7 +2853,7 @@ test("RJFM to UMK and UMK to OMARU inputs are fixed while OMARU outgoing stays e
   await expect(dialog).toBeHidden();
   await confirmImportedDraft(page);
 
-  const rows = page.locator(".route-table tbody .route-leg-row");
+  const rows = page.locator(".timeline-leg");
   await expect(page.locator(".route-table th", { hasText: "ROLE" })).toHaveCount(0);
   const departure = rows.nth(0);
   const umk = rows.nth(1);
@@ -3037,8 +3029,8 @@ test("RJFM departure guidance renders route overlays and runway diagnostics", as
 
   for (const width of [390, 1100, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
-    await expect(attribution).toHaveCSS("font-size", "12px");
-    await expect(attribution.getByRole("link", { name: "OpenStreetMap", exact: true }))
+    await expect(attribution).toHaveCSS("font-size", "9px");
+    await expect(attribution.getByRole("link", { name: "OpenStreetMap contributors", exact: true }))
       .toHaveAttribute("href", "https://www.openstreetmap.org/copyright");
     const bounds = await attribution.evaluate(element => {
       const credit = element.getBoundingClientRect();
@@ -3180,7 +3172,7 @@ test("RJFM departure guidance renders route overlays and runway diagnostics", as
     await expect(page.locator(".rjfm-training-airspace")).toHaveCount(0);
     await expect(page.locator(".rjfm-training-airspace-boundary")).toHaveCount(0);
     await expect(airspaceCredit).toHaveCount(0);
-    await expect(attribution.getByRole("link", { name: "OpenStreetMap", exact: true })).toBeVisible();
+    await expect(attribution.getByRole("link", { name: "OpenStreetMap contributors", exact: true })).toBeVisible();
     await expect(page.locator(".rjfm-pca-boundary")).toHaveCount(1);
     await expect(page.locator(".rjfm-pca-exclusion")).toHaveCount(1);
   }
@@ -3258,12 +3250,11 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   expect(stateAfterConfirm.project?.ftd_weather?.wind_at_5000_ft.direction_deg_from).toBe(360);
 
   const routePanel = page.getByRole("region", { name: "経路地図とLeg設定" });
-  const editor = routePanel.getByRole("region", { name: "チェックポイント設定" });
-  await editor.getByRole("button", { name: "チェックポイントを追加" }).click();
+  const editor = routePanel.locator(".planning-pane");
+  await editor.getByRole("button", { name: "2番目のLegへ地図からチェックポイントを追加" }).click();
   await expect(editor.getByLabel("関連Leg")).toHaveCount(0);
   const mapFrame = routePanel.locator("#route-map-frame");
-  const activeMapPicker = editor.getByRole("button", { name: "地図上の地点をクリック" });
-  await expect(activeMapPicker).toHaveAttribute("aria-pressed", "true");
+  await expect(editor.getByRole("button", { name: "地図上の地点をクリック" })).toHaveCount(0);
   await expect(mapFrame).toHaveClass(/is-picking-checkpoint/);
   await expect(mapFrame).toHaveCSS("touch-action", "none");
   await expect(mapFrame).toHaveCSS("overscroll-behavior", "contain");
@@ -3276,8 +3267,8 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   const draftMarker = routePanel.locator(".checkpoint-draft-marker");
   await expect(draftMarker).toHaveCount(1);
   await expect(routePanel.getByText("仮CP（未保存）", { exact: true })).toBeVisible();
-  await expect(editor.getByLabel("緯度")).not.toHaveValue("");
-  await expect(editor.getByLabel("経度")).not.toHaveValue("");
+  await expect(editor.getByLabel("緯度")).toHaveCount(0);
+  await expect(editor.getByLabel("経度")).toHaveCount(0);
   const nameWarning = editor.getByText(
     "チェックポイントの名称・未入力（入力必須）",
     { exact: true },
@@ -3290,16 +3281,15 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   const draftMarkerStroke = await draftMarker.getAttribute("stroke");
   expect(draftMarkerStroke).toBe("#6e4aa0");
 
-  await editor.getByLabel("緯度").fill("35.000000");
-  await expect(draftMarker).toHaveCount(0);
-  await editor.getByLabel("経度").fill("140.000000");
+  const originalZoom = await page.evaluate(() => JSON.parse(localStorage.getItem("autonavlog.map-viewport.v1.anonymous.last")!).zoom);
+  await clickMapCoordinate(page, 35, 140);
   await expect(editor.getByText(
     "Leg線分内にabeam点があり、横ずれ10 NM以内となる関連Legがありません。",
   )).toBeVisible();
   await expect(editor.getByRole("button", { name: "追加", exact: true })).toBeDisabled();
 
-  await editor.getByLabel("緯度").fill("32.389063");
-  await editor.getByLabel("経度").fill("131.597572");
+  await zoomMapTo(page, originalZoom);
+  await clickMapCoordinate(page, 32.389063, 131.597572);
   const linkedSection = editor.getByLabel("関連Leg");
   await expect(linkedSection).toBeVisible();
   await expect(linkedSection.locator("option")).toHaveCount(3);
@@ -3310,9 +3300,9 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   for (const width of [1100, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     const bounds = await routePanel.evaluate((element) => {
-      const editor = element.querySelector(".checkpoint-editor")?.getBoundingClientRect();
+      const editor = element.querySelector(".planning-pane")?.getBoundingClientRect();
       const map = element.querySelector("#route-map-frame")?.getBoundingClientRect();
-      const routeTable = element.querySelector(".route-table-scroll")?.getBoundingClientRect();
+      const routeTable = element.querySelector(".route-timeline")?.getBoundingClientRect();
       const form = element.querySelector(".checkpoint-form")?.getBoundingClientRect();
       const select = element.querySelector(".checkpoint-form select")?.getBoundingClientRect();
       const actions = element.querySelector(".checkpoint-form-actions")?.getBoundingClientRect();
@@ -3332,15 +3322,12 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
         : null;
     });
     expect(bounds, `${width}pxでチェックポイントフォームが表示されること`).not.toBeNull();
-    expect(bounds!.editorTop).toBeGreaterThanOrEqual(bounds!.mapBottom);
-    expect(bounds!.editorBottom).toBeLessThanOrEqual(bounds!.routeTableTop);
     expect(bounds!.selectLeft).toBeGreaterThanOrEqual(bounds!.formLeft);
     expect(bounds!.selectRight).toBeLessThanOrEqual(bounds!.formRight);
     expect(bounds!.actionsLeft).toBeGreaterThanOrEqual(bounds!.formLeft);
     expect(bounds!.actionsRight).toBeLessThanOrEqual(bounds!.formRight);
   }
-  await editor.getByLabel("緯度").fill("32.482176");
-  await editor.getByLabel("経度").fill("131.517485");
+  await clickMapCoordinate(page, 32.482176, 131.517485);
   await expect(editor.getByLabel("関連Leg")).toHaveCount(0);
   await expect(editor.getByText(/関連Legがありません/)).toHaveCount(0);
   await editor.getByLabel("名称").fill("訓練CP");
@@ -3354,7 +3341,7 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   await expect(confirmedMarker).toHaveCount(1);
   expect(await confirmedMarker.getAttribute("stroke")).toBe("#9b5b13");
   expect(await confirmedMarker.getAttribute("stroke")).not.toBe(draftMarkerStroke);
-  await expect(editor.getByText(/Leg内 .* NM \/ 累積 .* NM \/ 横ずれ .* NM/)).toBeVisible();
+  await expect(editor.getByText(/Leg内 .* NM/)).toBeVisible();
   const checkpointState = await page.evaluate(async () => {
     const response = await fetch("/api/state");
     return await response.json() as WebState;
@@ -3376,7 +3363,7 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   await editor.getByRole("button", { name: "訓練CP改を削除" }).click();
   await expect(editor.locator(".checkpoint-item")).toHaveCount(0);
   await expect(editor.getByText("まだチェックポイントはありません。")).toHaveCount(0);
-  await expect(editor.getByRole("button", { name: "チェックポイントを追加" })).toBeEnabled();
+  await expect(editor.getByRole("button", { name: "2番目のLegへ地図からチェックポイントを追加" })).toBeEnabled();
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -3953,15 +3940,7 @@ for (const width of [1100, 1440]) {
     const boxes = await Promise.all([".input-rail", ".route-workspace", ".status-rail", ".nav-log-section"]
       .map(selector => page.locator(selector).boundingBox()));
     expect(boxes.every(Boolean)).toBe(true);
-    if (width <= 1240) {
-      for (let index = 1; index < boxes.length; index++) {
-        expect(boxes[index]!.y).toBeGreaterThanOrEqual(boxes[index - 1]!.y + boxes[index - 1]!.height - 1);
-      }
-    } else {
-      expect(boxes[0]!.x + boxes[0]!.width).toBeLessThanOrEqual(boxes[1]!.x + 1);
-      expect(boxes[1]!.x + boxes[1]!.width).toBeLessThanOrEqual(boxes[2]!.x + 1);
-      expect(boxes[3]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0, 3).map(box => box!.y + box!.height)) - 1);
-    }
+    await expectPlanningLayout(page, width);
     await expect(page.locator("body")).not.toBeEmpty();
     await expect(page.locator("vite-error-overlay, .vite-error-overlay")).toHaveCount(0);
     expect(errors.filter(message => !message.includes("401 (Unauthorized)"))).toEqual([]);
@@ -4319,7 +4298,7 @@ test("RUN UP, nose fairing, and A/C choices persist after save and reload", asyn
   expect(state.project?.air_conditioning_enabled).toBe(false);
 
   const routeAltitudes = page.locator(
-    ".route-table tbody tr:not(.vrep-row) .table-number-input",
+    ".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input",
   );
   await expect(routeAltitudes).toHaveCount(3);
   const altitudeSaved = page.waitForResponse((response) => {
@@ -4591,15 +4570,7 @@ for (const width of [1100, 1440]) {
     const boxes = await Promise.all([".input-rail", ".route-workspace", ".status-rail", ".nav-log-section"]
       .map(selector => page.locator(selector).boundingBox()));
     expect(boxes.every(Boolean)).toBe(true);
-    if (width <= 1240) {
-      for (let i = 1; i < boxes.length; i++) {
-        expect(boxes[i]!.y).toBeGreaterThanOrEqual(boxes[i - 1]!.y + boxes[i - 1]!.height - 1);
-      }
-    } else {
-      expect(boxes[0]!.x + boxes[0]!.width).toBeLessThanOrEqual(boxes[1]!.x + 1);
-      expect(boxes[1]!.x + boxes[1]!.width).toBeLessThanOrEqual(boxes[2]!.x + 1);
-      expect(boxes[3]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0, 3).map(b => b!.y + b!.height)) - 1);
-    }
+    await expectPlanningLayout(page, width);
     const guidance = await page.locator(".rjfm-guidance").first().boundingBox();
     expect(guidance).not.toBeNull();
     const fuel = await page.locator(".fuel-plan-section").boundingBox();

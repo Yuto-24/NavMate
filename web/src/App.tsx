@@ -1,9 +1,11 @@
+import { TransientMessage } from "./components/TransientMessage";
+import { useNotificationState } from "./useNotificationState";
 import { localMode, localAccountScope } from "./executionMode";
 import type { ReferencePointSnapshot } from "./referencePoints";
 import { importCandidateToMapDraft } from "./importRouteDraft";
 import { canConfirmMapDraft, nextWaypointName, routeDraftFromProject, type MapRoutePoint } from "./mapRouteDraft";
 import { AccountSyncControl } from "./components/AccountSyncControl";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useCallback, useSyncExternalStore, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { ApplicationError } from "./application";
 import { WorkChangeQueue } from "./workChangeQueue";
@@ -48,7 +50,6 @@ import { ImportCandidateDialog } from "./components/ImportCandidateDialog";
 import { ImportPlanPanel } from "./components/ImportPlanPanel";
 import { NavLogTable } from "./components/NavLogTable";
 import { PasteDialog } from "./components/PasteDialog";
-import { ProgressRail } from "./components/ProgressRail";
 import { RouteWorkspace } from "./components/RouteWorkspace";
 import { StatusPanel } from "./components/StatusPanel";
 import { CalculationProgressOverlay } from "./components/CalculationProgressOverlay";
@@ -148,8 +149,21 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     percent: 0,
     message: "計算を開始しています。",
   });
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError, errorRevision] = useNotificationState();
+  const [notice, setNotice, noticeRevision] = useNotificationState();
+  const [syncError, setSyncError, syncErrorRevision] = useNotificationState();
+  const [syncErrors, setSyncErrors] = useState<string[]>([]);
+  const syncNotice = useSyncExternalStore(application.sync?.subscribe ?? (() => () => {}), () => application.sync?.getState().notice ?? null);
+  const [operationErrors, setOperationErrors] = useState<Record<string, string>>({});
+  const operationErrorsRef = useRef(operationErrors);
+  operationErrorsRef.current = operationErrors;
+  const recordOperationError = useCallback((key:string, message:string|null) => setOperationErrors(current => {
+    if (message === null) {
+      if (!(key in current)) return current;
+      const next={...current}; delete next[key]; return next;
+    }
+    return current[key] === message ? current : {...current,[key]:message};
+  }), []);
   const [calculationNotice, setCalculationNotice] = useState<{ message: string } | null>(null);
   useEffect(() => {
     if (!calculationNotice) return;
@@ -175,7 +189,6 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const navLogRef = useRef<HTMLDivElement | null>(null);
   const [preserveRouteViewport, setPreserveRouteViewport] = useState(false);
   const planningPanelRef = useRef<HTMLElement>(null);
-  const messageBarRef = useRef<HTMLDivElement>(null);
   const committedPlanningProjectRef = useRef<string | null>(null);
   const planningFocusRequestRef = useRef<{ projectId: string; showError: boolean } | null>(null);
   const applyPlanningFocus = () => {
@@ -187,10 +200,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     }
     const panel = planningPanelRef.current;
     if (request.projectId !== committedPlanningProjectRef.current || !panel) return;
-    const target = request.showError ? messageBarRef.current : panel;
-    if (!target || (request.showError && target.getAttribute("role") !== "alert")) return;
+    if (request.showError && !error) return;
     planningFocusRequestRef.current = null;
-    target.scrollIntoView({ block: "start" });
+    panel.scrollIntoView({ block: "start" });
     panel.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
   };
   const focusPlanning = (showError = false) => {
@@ -470,7 +482,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         setPendingKmz(restored.pendingKmz);
         setSelectedKmzDocument(restored.selectedKmzDocument);
       }
-      if (failed) setNotice(RECOVERY_FAILED);
+      if (failed) { recordOperationError("recovery", RECOVERY_FAILED); setError(RECOVERY_FAILED); }
       setSessionReady(true);
     };
     void bootstrap().catch((reason: unknown) => {
@@ -512,7 +524,12 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     // failure recovery aligned with the displayed work even while writes stop.
     if (sessionDiscarded.current) return;
     if (!writeSession(snapshot, platform.session.storage)) {
-      setNotice("作業状態を一時保存できません。再読み込みすると未保存の作業を失う可能性があります。");
+      const message = "作業状態を一時保存できません。再読み込みすると未保存の作業を失う可能性があります。";
+      recordOperationError("session", message);
+      setError(message);
+    } else {
+      recordOperationError("session", null);
+      setError(current => current === "作業状態を一時保存できません。再読み込みすると未保存の作業を失う可能性があります。" ? null : current);
     }
   }, [sessionReady, state, form, mapRouteDraft, editingRouteProjectId, legacyRouteInput, pendingImportDraft, selectedImportCandidate, altitudeInputs, navLogDrafts, checkPointDraft, nodeNameDraft, vorColumns,
     calculationInputsAreLocallyCurrent, pastedKml, projectName, selectedProjectId, pendingKmz, selectedKmzDocument]);
@@ -584,6 +601,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       apply?: (result: Result) => void;
       success?: string;
       fallbackError?: string;
+      isSuccess?: (result: Result) => boolean;
+      errorKey?: string;
       operation?: Exclude<ActiveOperation, null>;
     } = {},
   ): Promise<Result | undefined> => {
@@ -597,16 +616,17 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       const result = await action();
       if (epoch !== lifecycle.current) return undefined;
       options.apply?.(result);
-      if (options.success) setNotice(options.success);
+      if (options.isSuccess?.(result) ?? true) {
+        recordOperationError(options.errorKey ?? "operation", null);
+        if (options.success) setNotice(options.success);
+      }
       return result;
     } catch (reason) {
       if (epoch !== lifecycle.current) return undefined;
       applyCommittedFailure(reason);
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : options.fallbackError ?? "処理に失敗しました。",
-      );
+      const message = reason instanceof Error ? reason.message : options.fallbackError ?? "処理に失敗しました。";
+      recordOperationError(options.errorKey ?? "operation", message);
+      setError(message);
       return undefined;
     } finally {
       if (epoch === lifecycle.current) {
@@ -622,6 +642,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     options: {
       syncCalculationInputs?: boolean;
       operation?: Exclude<ActiveOperation, null>;
+      errorKey?: string;
       freshImport?: boolean;
       preserveMapDraft?: boolean;
       preserveRouteViewport?: boolean;
@@ -634,7 +655,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         syncCalculationInputs: options.syncCalculationInputs &&
           generation === calculationInputGenerationRef.current,
       }),
-      success, operation: options.operation,
+      success, operation: options.operation, errorKey: options.errorKey ?? options.operation ?? success ?? "planning",
     });
   };
 
@@ -649,12 +670,16 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     if (!candidate) return;
     const draft = importCandidateToMapDraft(candidate, next.airports);
     if (draft.status === "invalid") {
-      setError(candidate.vertexCount > 500
+      const message = candidate.vertexCount > 500
         ? "選択した経路は座標数の上限（500点）を超えています。500点以下の経路を選択してください。"
-        : "KMLを読み込めません。内容を確認してください。");
+        : "KMLを読み込めません。内容を確認してください。";
+      recordOperationError("import-validation", message);
+      setError(message);
       setPendingImportDraft(false);
       return;
     }
+    recordOperationError("import-validation", null);
+    setError(null);
     setImportFitCoordinates(draft.points.map(point => [point.latitude_deg, point.longitude_deg]));
     setForm(current => ({ ...current, candidateKey: key }));
     if (draft.status === "ready") {
@@ -672,7 +697,11 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     setNotice(null);
     setSelectedImportCandidate("");
     setPendingImportDraft(next.import.candidates.length > 0);
-    if (!next.import.candidates.length) setError("KMLを読み込めません。内容を確認してください。");
+    if (!next.import.candidates.length) {
+      const message = "KMLを読み込めません。内容を確認してください。";
+      recordOperationError("import-validation", message);
+      setError(message);
+    }
     if (next.import.candidates.length === 1) {
       const candidate = next.import.candidates[0]!;
       adoptImportCandidate(next, `${candidate.kind}:${candidate.index}`);
@@ -697,6 +726,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       stageImportedRoute(next);
       setPendingKmz(null);
       setSelectedKmzDocument("");
+      return true;
     } catch (reason) {
       if (epoch !== lifecycle.current) return;
       if (reason instanceof ApplicationError && reason.code === "KMZ_DOCUMENT_SELECTION_REQUIRED") {
@@ -718,9 +748,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         async () => {
           const input = routeImportInput(await platform.files.read(file));
           if (epoch !== lifecycle.current) return;
-          await importEncodedFile(input.filename, input.content_base64);
+          return importEncodedFile(input.filename, input.content_base64);
         },
-        { fallbackError: "ファイルを読み込めません。" },
+        { errorKey: "import", isSuccess: result => result === true, fallbackError: "ファイルを読み込めません。" },
       );
     } finally { pasteInFlight.current = false; }
   };
@@ -771,7 +801,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         if (epoch !== lifecycle.current) return;
         stageImportedRoute(next);
         setPasteOpen(false);
-      });
+        return true;
+      }, { errorKey: "import", isSuccess: result => result === true });
     } finally {
       pasteInFlight.current = false;
     }
@@ -1104,6 +1135,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   updatePayloadRef.current = updatePayload;
 
   const showDraftAutosaveFailure = () => {
+    recordOperationError("autosave", DRAFT_AUTOSAVE_FAILURE);
     setError(DRAFT_AUTOSAVE_FAILURE);
   };
 
@@ -1145,6 +1177,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
               syncDerivedArrival: request.syncDerivedArrival,
             });
             setDraftAutosaveVersion(0);
+            recordOperationError("autosave", null);
             setError((current) => current === DRAFT_AUTOSAVE_FAILURE ? null : current);
           }
         } catch {
@@ -1340,6 +1373,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
               patternRequestBasis(next) !== requestBasis
             ) return;
             applyState(next, { syncCalculationInputs: true });
+            const resolvedError = operationErrorsRef.current["destination-pattern"];
+            recordOperationError("destination-pattern", null);
+            setError(current => current === resolvedError ? null : current);
           } catch (reason) {
             if (requestEpoch !== lifecycle.current) return;
             applyCommittedFailure(reason);
@@ -1349,11 +1385,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
               calculationGeneration !== calculationInputGenerationRef.current ||
               requestBasis !== destinationPatternBasisRef.current
             ) return;
-            setError(
-              reason instanceof Error
-                ? reason.message
-                : "場周経路高度を更新できませんでした。",
-            );
+            const message = reason instanceof Error ? reason.message : "場周経路高度を更新できませんでした。";
+            recordOperationError("destination-pattern", message);
+            setError(message);
           }
         });
     }, 600);
@@ -1565,7 +1599,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           },
         });
       },
-      { apply: next => {
+      { errorKey: "load", isSuccess: next => Boolean(next), apply: next => {
         if (!next) return;
         cancelPendingRecalculation();
         invalidateDestinationPatternRequests();
@@ -1612,7 +1646,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         }
         return application.deleteProject(selectedProjectId);
       },
-      { success: "保存済みプロジェクトを削除しました。", fallbackError: "削除できませんでした。" },
+      { errorKey: "delete", success: "保存済みプロジェクトを削除しました。", fallbackError: "削除できませんでした。" },
     );
     if (deleted) {
       setSelectedProjectId("");
@@ -1645,7 +1679,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         }
         return true;
       }),
-      { fallbackError: "新規作業を開始できませんでした。" },
+      { errorKey: "new", fallbackError: "新規作業を開始できませんでした。" },
     );
     if (reset) {
       if (onNewWork) onNewWork();
@@ -1769,7 +1803,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
 
   return (
     <div className="app-shell">
-      <AccountSyncControl sync={application.sync} onBeforeResolve={() => {
+      <AccountSyncControl onErrorsChange={setSyncErrors} onErrorChange={setSyncError} notificationsManaged sync={application.sync} onBeforeResolve={() => {
         if (!confirmDiscardMapDraft()) return false;
         syncResolutionGeneration.current = workChanges.capture();
         return true;
@@ -1809,6 +1843,17 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         });
       }} />
       <Header
+        onOpenExternalUrl={(url) => {
+          try {
+            platform.openExternalUrl(url);
+            const resolvedError = operationErrorsRef.current["external-link"];
+            recordOperationError("external-link", null);
+            setError(current => current === resolvedError ? null : current);
+          }
+          catch (reason) { const message = reason instanceof Error ? reason.message : "外部リンクを開けません。"; recordOperationError("external-link", message); setError(message); }
+        }}
+        operationMessages={[...new Set([...Object.values(operationErrors), error].filter((message): message is string => Boolean(message)))]}
+        syncMessages={[...new Set([syncNotice, ...syncErrors])].filter((message): message is string => Boolean(message))}
         networkAvailability={platform.networkAvailability}
         onBeforeAccountChange={confirmDiscardMapDraft}
         auth={application.auth}
@@ -1830,9 +1875,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         onSave={handleSave}
         onNew={handleNew}
       />
-      <ProgressRail activeStep={state.readiness.workflowStep} />
-      <AccountNotice auth={application.auth} />
 
+      <div className="app-notification-region">
+      <AccountNotice auth={application.auth} />
       <div className="calculation-toast-region" role="status" aria-live="polite" aria-atomic="true">
         {calculationNotice && (
           <div className="message-bar message-success calculation-toast">
@@ -1850,31 +1895,19 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         )}
       </div>
 
-      {(error || notice) && (
-        <div
-          className={`message-bar ${error ? "message-error" : "message-success"}`}
-          ref={messageBarRef}
-          role={error ? "alert" : "status"}
-          aria-live={error ? "assertive" : "polite"}
-        >
-          {error ? <AlertCircle aria-hidden="true" size={18} /> : <CheckCircle2 aria-hidden="true" size={18} />}
-          <span>{error ?? notice}</span>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={() => { setError(null); setNotice(null); }}
-            aria-label="メッセージを閉じる"
-          >
-            <X aria-hidden="true" size={17} />
-          </button>
-        </div>
-      )}
+      <TransientMessage message={error} revision={errorRevision} />
+      <TransientMessage message={notice} revision={noticeRevision} kind="success" />
+      <TransientMessage message={syncNotice} className="sync-notification" />
+      <TransientMessage message={syncError} revision={syncErrorRevision} className="sync-notification" />
+
+      </div>
 
       {state.storageWarning && <div className="message-bar message-error" role="alert">{state.storageWarning}</div>}
 
       <main className={`app-workspace${buildingRoute ? " is-route-building" : ""}`}>
-        {buildingRoute ? <aside className="input-rail map-input-rail" aria-label="経路作成">
-          <h2>経路作成</h2>
+
+        <RouteWorkspace
+          planningPanel={buildingRoute ? <aside className="input-rail map-input-rail" aria-label="経路作成">
           {editingRouteProjectId && <button className="secondary-button" disabled={busy} onClick={() => {
             if (confirmDiscardMapDraft()) { setMapRouteDraft([]); setEditingRouteProjectId(null); }
           }}>キャンセル</button>}
@@ -1888,8 +1921,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
               ? "KML始点から5 NM以内に出発空港が見つかりません。経路始点を確認してください。"
               : "KML終点から5 NM以内に目的空港が見つかりません。経路終点を確認してください。"
           }</p>}
-          <FileInput busy={busy} onFile={handleFile} inputRef={routeFileInput} />
-          <button className="secondary-button" disabled={busy} onClick={() => void handlePasteImport("clipboard")}>Google Earth からペースト</button>
+          <div className="draft-import-controls"><FileInput busy={busy} onFile={handleFile} inputRef={routeFileInput} />
+          <button className="secondary-button" disabled={busy} onClick={() => void handlePasteImport("clipboard")}><span>Google Earth</span><span>からペースト</span></button></div>
           </>}
         </aside> : <ImportPlanPanel
           panelRef={planningPanelRef}
@@ -1904,7 +1937,19 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           fileInput={<FileInput busy={busy} onFile={handleFile} inputRef={routeFileInput} />}
           onPaste={() => void handlePasteImport("clipboard")}
         />}
-        <RouteWorkspace
+          readinessPanel={!buildingRoute && <StatusPanel
+          runtime={state.runtime}
+          readiness={state.readiness}
+          projectExists={Boolean(state.project)}
+          weatherMode={state.project?.weather_mode ?? form.weatherMode}
+          forecastRunId={state.outcome?.selected_forecast_run_id ?? null}
+          canCalculate={canCalculate}
+          outcomeExists={Boolean(state.outcome)}
+          busy={busy}
+          activeOperation={activeOperation}
+          onCalculate={() => void handleCalculate()}
+          onAcknowledge={handleAcknowledge}
+        />}
           onEditRoute={state.project && !buildingRoute ? () => {
             if (busy) return;
             const projectId = state.project!.id;
@@ -1913,7 +1958,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             void runTask(async () => {
               await Promise.all([navLogRecalculationRef.current, destinationPatternRecalculationRef.current]);
               return await flushDraftAutosave(true);
-            }, { apply: saved => {
+            }, { errorKey: "edit-route", apply: saved => {
               const project = canonicalProjectRef.current;
               if (!saved || project?.id !== projectId) return;
               setMapRouteDraft(routeDraftFromProject(project, state.airports));
@@ -1926,9 +1971,15 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           viewportScope={application.auth?.getState().account
             ? localAccountScope(application.auth.getState().account!.account_id) : "anonymous"}
           onOpenExternalUrl={(url) => {
-            try { platform.openExternalUrl(url); }
-            catch (reason) {
-              setError(reason instanceof Error ? reason.message : "外部リンクを開けません。");
+            try {
+              platform.openExternalUrl(url);
+              const resolvedError = operationErrorsRef.current["external-link"];
+              recordOperationError("external-link", null);
+              setError(current => current === resolvedError ? null : current);
+            } catch (reason) {
+              const message = reason instanceof Error ? reason.message : "外部リンクを開けません。";
+              recordOperationError("external-link", message);
+              setError(message);
             }
           }}
           checkPointDraft={checkPointDraft}
@@ -1973,19 +2024,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           onConfirmRoute={handleConfirmRoute}
           onReplaceCheckPoints={handleReplaceCheckPoints}
         />
-        {!buildingRoute && <StatusPanel
-          runtime={state.runtime}
-          readiness={state.readiness}
-          projectExists={Boolean(state.project)}
-          weatherMode={state.project?.weather_mode ?? form.weatherMode}
-          forecastRunId={state.outcome?.selected_forecast_run_id ?? null}
-          canCalculate={canCalculate}
-          outcomeExists={Boolean(state.outcome)}
-          busy={busy}
-          activeOperation={activeOperation}
-          onCalculate={() => void handleCalculate()}
-          onAcknowledge={handleAcknowledge}
-        />}
+
       </main>
 
       {state.outcome && state.project && (
@@ -2014,17 +2053,17 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           <div className="navlog-export-actions">
             <button className="secondary-button" disabled={busy} onClick={() => void runTask(
               () => platform.files.save(exportNavLog(state)),
-              { success: "NAV LOG JSONのダウンロードを開始しました。" },
+              { errorKey: "export-json", success: "NAV LOG JSONのダウンロードを開始しました。" },
             )}>NAV LOG JSONをダウンロード</button>
             <button className="secondary-button" disabled={busy} onClick={() => void runTask(
               () => platform.clipboard.writeText(new TextDecoder().decode(exportNavLog(state).content)),
-              { success: "NAV LOG JSONをコピーしました。" },
+              { errorKey: "copy-json", success: "NAV LOG JSONをコピーしました。" },
             )}>NAV LOG JSONをコピー</button>
             <button className="secondary-button" disabled={busy || !state.verticalProfile}
               aria-describedby="kml-export-notice" onClick={() => void runTask(
                 () => platform.files.save(exportVerticalProfileKml(state.verticalProfile!,
                   Boolean(state.verticalProfileStale) || !calculationInputsAreLocallyCurrent)),
-                { success: kmlCopy.saved },
+                { errorKey: "export-kml", success: kmlCopy.saved },
               )}>{kmlCopy.download}</button>
           </div>
           <p id="kml-export-notice" role="status">{!state.verticalProfile ? kmlCopy.unavailable
@@ -2153,7 +2192,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
                       pendingKmz.contentBase64,
                       selectedKmzDocument,
                     ),
-                    { fallbackError: "KMZを読み込めません。" },
+                    { errorKey: "import", isSuccess: result => result === true, fallbackError: "KMZを読み込めません。" },
                   );
                 }}
               >

@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { selectAirport } from "./helpers/mapCandidates";
@@ -206,13 +207,7 @@ test("download and Clipboard export the displayed result, survive denial, and re
       const rect = document.querySelector(selector)!.getBoundingClientRect();
       return { x: rect.x, y: rect.y, bottom: rect.bottom };
     }));
-    if (width <= 1240) {
-      expect(regions[1].y).toBeGreaterThanOrEqual(regions[0].bottom);
-      expect(regions[2].y).toBeGreaterThanOrEqual(regions[1].bottom);
-    } else {
-      expect(regions[0].x).toBeLessThan(regions[1].x);
-      expect(regions[1].x).toBeLessThan(regions[2].x);
-    }
+    await expectPlanningLayout(page, width);
     expect(regions[3].y).toBeGreaterThanOrEqual(Math.max(...regions.slice(0, 3).map(region => region.bottom)));
     expect(regions[4].y).toBeGreaterThanOrEqual(regions[3].bottom);
     const content = page.locator(".nav-log-focus-target");
@@ -421,8 +416,7 @@ for (const width of [1100, 1440]) {
     await expect(page.getByText("ファイルを選択", { exact: true })).toBeVisible();
     const initial = await page.locator(".input-rail").boundingBox();
     const initialMap = await page.locator(".route-workspace").boundingBox();
-    if (width <= 1240) expect(initialMap!.y).toBeGreaterThanOrEqual(initial!.y + initial!.height);
-    else expect(initialMap!.x).toBeGreaterThanOrEqual(initial!.x + initial!.width);
+    await expectPlanningLayout(page, width);
     await drop(page, "route.kml", kml);
     await expect(page.getByLabel("飛行経路候補")).toHaveValue("line:0");
     await expect(page.getByRole("heading", { name: "準備状況", exact: true })).toBeVisible();
@@ -432,8 +426,7 @@ for (const width of [1100, 1440]) {
       return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom };
     }));
     for (let i = 1; i < regions.length; i++) {
-      if (width <= 1240) expect(regions[i].y).toBeGreaterThanOrEqual(regions[i - 1].bottom);
-      else expect(regions[i].x).toBeGreaterThanOrEqual(regions[i - 1].right);
+      await expectPlanningLayout(page, width);
     }
   });
 }

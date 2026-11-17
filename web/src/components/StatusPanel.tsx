@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Calculator,
+  Check,
   CloudSun,
   Database,
   XCircle,
@@ -40,6 +42,20 @@ export function StatusPanel({
   onAcknowledge,
 }: StatusPanelProps) {
   const blockers = readiness.issues.filter((issue) => issue.severity === "BLOCKER");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const manuallyOpened = useRef(false);
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const blockerKey = blockers.map(issue => issue.code ?? issue.message).join("|");
+  useEffect(() => {
+    if (blockerKey) {
+      setDetailsOpen(true);
+    } else if (blockers.length === 0 && !manuallyOpened.current) {
+      // Do not leave keyboard focus inside the automatically hidden details.
+      if (detailsRef.current?.contains(document.activeElement)) toggleRef.current?.focus({ preventScroll: true });
+      setDetailsOpen(false);
+    }
+  }, [blockerKey, blockers.length]);
   const warnings = readiness.issues.filter((issue) => issue.severity === "WARNING");
   const formatCondition = (condition: BoundaryCondition) => (
     <>PA {condition.pressureAltitudeFt?.toLocaleString()} ft / ISA {condition.isaDeviationC}°C</>
@@ -65,6 +81,10 @@ export function StatusPanel({
 
   return (
     <aside className="status-rail" aria-label="準備状況">
+      <button ref={toggleRef} className="readiness-toggle" type="button" aria-expanded={detailsOpen} aria-controls="readiness-details" onClick={() => { manuallyOpened.current = !detailsOpen; setDetailsOpen(!detailsOpen); }}>
+        {blockers.length === 0 && warnings.length === 0 ? <span className="readiness-clear"><Check size={14} aria-hidden="true" />要対応・確認事項なし</span> : `要対応 ${blockers.length}・確認事項 ${warnings.length}`}<span>詳細</span>
+      </button>
+      <div ref={detailsRef} id="readiness-details" className="readiness-expanded" hidden={!detailsOpen}>
       <h2>準備状況</h2>
       <div className="next-action">
         <span>次の操作</span>
@@ -202,6 +222,7 @@ export function StatusPanel({
         ))}
       </div>
 
+      </div>
       <div className="status-actions">
         <button
           className="primary-button full-width"

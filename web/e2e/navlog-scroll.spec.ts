@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openInformation } from "./helpers/header";
 import { expectNavLogPaperGrid } from "./helpers/navLogGrid";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
@@ -35,15 +36,7 @@ async function checkToastLayout(page: Page, width: number) {
   expect(geometry.toast.bottom).toBeLessThanOrEqual(900);
   expect(geometry.toast.top).toBeGreaterThan(geometry.header.bottom);
   const [input, route, readiness, navlog] = geometry.before;
-  if (width <= 1240) {
-    expect(route.top).toBeGreaterThanOrEqual(input.bottom - 1);
-    expect(readiness.top).toBeGreaterThanOrEqual(route.bottom - 1);
-    expect(navlog.top).toBeGreaterThanOrEqual(readiness.bottom - 1);
-  } else {
-    expect(input.right).toBeLessThanOrEqual(route.left + 1);
-    expect(route.right).toBeLessThanOrEqual(readiness.left + 1);
-    expect(navlog.top).toBeGreaterThanOrEqual(Math.max(input.bottom, route.bottom, readiness.bottom) - 1);
-  }
+  await expectPlanningLayout(page, width);
   for (const guidance of geometry.guidance) expect(guidance.top).toBeGreaterThanOrEqual(navlog.bottom - 1);
   // The header stays usable, and the modal backdrop covers the toast rather than the reverse.
   await openInformation(page);
@@ -166,12 +159,12 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   const removeColumns = page.getByRole("button", { name: /VOR\/DME .*列目を削除/ });
   while (await removeColumns.count()) await removeColumns.first().click();
   await expectNavLogPaperGrid(page);
-  // Other successes and calculation failures retain the existing persistent message bar.
+  // #443: presentation expires, but unresolved failures remain in the owning menu.
   await page.getByRole("button", { name: "保存", exact: true }).click();
   const saved = page.getByRole("status").filter({ hasText: "プロジェクトを保存しました。" });
   await expect(saved).toBeVisible();
   await page.clock.fastForward(6_000);
-  await expect(saved).toBeVisible();
+  await expect(saved).toHaveCount(0);
   await expect(toast).toHaveCount(0);
   const worker = page.workers()[0]!;
   await page.evaluate(() => { (window as any).localWorkerFailed = false; });
@@ -181,7 +174,10 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   const failure = page.getByRole("alert").filter({ hasText: "自動保存できませんでした" });
   await expect(failure).toBeVisible();
   await page.clock.fastForward(6_000);
-  await expect(failure).toBeVisible();
+  await expect(failure).toHaveCount(0);
+  await page.getByRole("button", { name: /^その他/ }).click();
+  await expect(page.locator("#operation-messages")).toContainText("自動保存できませんでした");
+  await page.getByRole("button", { name: /^その他/ }).click();
   await expect(toast).toHaveCount(0);
   await expect(page.locator(".nav-log-table")).toHaveText(firstTable, { useInnerText: true });
 });

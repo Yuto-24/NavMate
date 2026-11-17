@@ -1,3 +1,5 @@
+import { clickMapCoordinate } from "./helpers/mapCoordinate";
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { confirmImportedDraft } from "./helpers/importWorkflow";
 import { mapZoom, revealAirport, selectAirport, zoomMapTo } from "./helpers/mapCandidates";
@@ -45,7 +47,7 @@ test("Leaflet zoom controls contain long-press styling without blocking map inte
   await expect(zoomButtons).toHaveCount(2);
   const attribution = page.locator("#route-map-frame .leaflet-control-attribution");
   const leaflet = attribution.getByRole("link", { name: "Leaflet", exact: true });
-  const osm = attribution.getByRole("link", { name: "OpenStreetMap", exact: true });
+  const osm = attribution.getByRole("link", { name: "OpenStreetMap contributors", exact: true });
   await expect(leaflet).toBeVisible();
   await expect(osm).toBeVisible();
   await expect(leaflet).toHaveAttribute("href", "https://leafletjs.com");
@@ -64,7 +66,7 @@ test("Leaflet zoom controls contain long-press styling without blocking map inte
     /\.map-frame\s+\*\s*\{[^}]*-webkit-touch-callout:\s*none/s,
   );
   await expect(page.locator("body")).not.toHaveCSS("user-select", "none");
-  await expect(page.locator(".workspace-heading h2")).not.toHaveCSS("user-select", "none");
+  await expect(page.locator(".map-route-controls h2")).not.toHaveCSS("user-select", "none");
 
   // Prepare the route before panning, while its airport markers are in view.
   await page.getByRole("button", { name: "Zoom out" }).click();
@@ -92,7 +94,7 @@ test("Leaflet zoom controls contain long-press styling without blocking map inte
   )).toBe(initialZoom - 1);
 
   await page.getByRole("button", { name: "経路を確定", exact: true }).click();
-  await expect(frame.getByText("RJFM空域", { exact: true })).toBeVisible();
+  await expect(frame.getByRole("button", { name: "RJFM空域凡例を表示", exact: true })).toBeVisible();
   const legend = frame.getByRole("group", { name: "RJFMガイダンス凡例" });
   expect(await legend.locator("*").evaluateAll(elements => elements.every(element => {
     const style = getComputedStyle(element);
@@ -117,10 +119,9 @@ for (const width of [1100, 1440]) {
     await expect(page.getByLabel("DATE", { exact: true })).toHaveCount(0);
     const draftInput = (await page.locator(".input-rail").boundingBox())!;
     const draftRoute = (await page.locator(".route-workspace").boundingBox())!;
-    if (width <= 1240) expect(draftInput.y + draftInput.height).toBeLessThanOrEqual(draftRoute.y + 2);
-    else expect(draftInput.x + draftInput.width).toBeLessThanOrEqual(draftRoute.x + 2);
+    await expectPlanningLayout(page, width);
     const before = await page.locator(".route-map").boundingBox();
-    expect(before!.height).toBeGreaterThan(500);
+    expect(before!.height).toBeGreaterThanOrEqual(300);
     await revealAirport(page, "RJFM");
     const viewport = await page.evaluate(() => localStorage.getItem("autonavlog.map-viewport.v1.anonymous.last"));
     await selectAirport(page, "RJFM");
@@ -153,19 +154,17 @@ for (const width of [1100, 1440]) {
     const input = (await page.locator(".input-rail").boundingBox())!;
     const route = (await page.locator(".route-workspace").boundingBox())!;
     const readiness = (await page.locator(".status-rail").boundingBox())!;
-    if (width <= 1240) { expect(input.y + input.height).toBeLessThanOrEqual(route.y + 2); expect(route.y + route.height).toBeLessThanOrEqual(readiness.y + 2); }
-    else { expect(input.x + input.width).toBeLessThanOrEqual(route.x + 2); expect(route.x + route.width).toBeLessThanOrEqual(readiness.x + 2); }
+    await expectPlanningLayout(page, width);
     await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
     await expect(page.getByLabel("気象モード")).toHaveValue("FORECAST");
     await page.getByLabel("気象モード").selectOption("FTD");
     for (const [name, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
       await page.getByLabel(`${name}出発Legの計画高度`, { exact: true }).fill(altitude!);
     }
-    await page.getByRole("button", { name: "チェックポイントを追加", exact: true }).click();
+    await page.getByRole("button", { name: "1番目のLegへ地図からチェックポイントを追加", exact: true }).click();
+    await clickMapCoordinate(page, 32.0, 130.9);
     const cp = page.locator(".checkpoint-form");
     await cp.getByLabel("名称", { exact: true }).fill("MAP CP");
-    await cp.getByLabel("緯度", { exact: true }).fill("32.0");
-    await cp.getByLabel("経度", { exact: true }).fill("130.9");
     await cp.getByRole("button", { name: "追加", exact: true }).click();
     await expect(page.getByRole("button", { name: "MAP CPを編集", exact: true })).toBeVisible();
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
@@ -279,12 +278,12 @@ test("direct airport route survives failed local persistence and can be saved", 
   await page.getByRole("button", { name: "経路を確定", exact: true }).click();
   await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
   await expect(page.getByRole("alert")).toBeInViewport();
-  await expect(page.locator(".route-table tbody .route-point-row")).toHaveCount(2);
+  await expect(page.locator(".timeline-stop")).toHaveCount(2);
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
   await page.reload();
   await expect(page.getByText("NavMateを起動しています", { exact: true })).toHaveCount(0, { timeout: 120_000 });
-  await expect(page.locator(".route-table tbody .route-point-row")).toHaveCount(2);
+  await expect(page.locator(".timeline-stop")).toHaveCount(2);
 });
 
 for (const width of [1100, 1440]) {
@@ -320,13 +319,7 @@ for (const width of [1100, 1440]) {
     const input = (await page.locator('.input-rail').boundingBox())!;
     const route = (await page.locator('.route-workspace').boundingBox())!;
     const readiness = (await page.locator('.status-rail').boundingBox())!;
-    if (width <= 1240) {
-      expect(input.y + input.height).toBeLessThanOrEqual(route.y + 2);
-      expect(route.y + route.height).toBeLessThanOrEqual(readiness.y + 2);
-    } else {
-      expect(input.x + input.width).toBeLessThanOrEqual(route.x + 2);
-      expect(route.x + route.width).toBeLessThanOrEqual(readiness.x + 2);
-    }
+    await expectPlanningLayout(page, width);
     await page.screenshot({ path: `/tmp/issue235-omaru-map-${width}.png` });
   });
 }
@@ -420,6 +413,8 @@ for (const width of [390, 1100, 1440]) {
         checkbox: bounds(checkbox), label: bounds(label), text: bounds(label.querySelector("span")!),
         from: bounds(document.querySelector('input[aria-label="FROM"]')!),
         to: bounds(document.querySelector('input[aria-label="TO"]')!),
+        category: bounds([...document.querySelectorAll(".plan-category")].find(e => e.textContent === "航法")!),
+        form: bounds(document.querySelector(".flight-plan-section .form-grid")!),
       };
     });
     expect(layout.checkbox.width).toBeCloseTo(17, 0);
@@ -429,15 +424,13 @@ for (const width of [390, 1100, 1440]) {
       - (layout.checkbox.top + layout.checkbox.bottom) / 2)).toBeLessThanOrEqual(2);
     expect(layout.label.x).toBeCloseTo(layout.from.x, 0);
     expect(layout.label.top).toBeGreaterThanOrEqual(layout.from.bottom);
-    expect(layout.label.top - layout.from.bottom).toBeLessThanOrEqual(8);
-    expect(layout.label.right).toBeLessThanOrEqual(layout.from.right + 1);
+    expect(layout.category.top).toBeGreaterThanOrEqual(Math.max(layout.from.bottom, layout.to.bottom));
+    expect(layout.label.top).toBeGreaterThanOrEqual(layout.category.bottom);
+    expect(layout.label.top - layout.category.bottom).toBeLessThanOrEqual(10);
+    expect(layout.label.right).toBeLessThanOrEqual(layout.form.right + 1);
     expect(layout.to.height).toBeCloseTo(layout.from.height, 0);
-    if (width === 1100) {
-      expect(layout.to.x).toBeGreaterThan(layout.from.right);
-      expect(layout.to.top).toBeCloseTo(layout.from.top, 0);
-    } else {
-      expect(layout.to.top).toBeGreaterThan(layout.label.bottom);
-    }
+    expect(layout.to.x).toBeGreaterThan(layout.from.right);
+    expect(layout.to.top).toBeCloseTo(layout.from.top, 0);
     // Clicking the visible text must activate the independent checkbox label.
     await page.getByText("VOR Tracking Mode", { exact: true }).click();
     await expect(vor).toBeChecked();
@@ -464,13 +457,7 @@ for (const width of [390, 1100, 1440]) {
       expect(region.width).toBeGreaterThan(0);
       expect(region.height).toBeGreaterThan(0);
     }
-    if (width <= 1240) {
-      expect(input.y + input.height).toBeLessThanOrEqual(route.y + 2);
-      expect(route.y + route.height).toBeLessThanOrEqual(readiness.y + 2);
-    } else {
-      expect(input.x + input.width).toBeLessThanOrEqual(route.x + 2);
-      expect(route.x + route.width).toBeLessThanOrEqual(readiness.x + 2);
-    }
+    await expectPlanningLayout(page, width);
     await page.getByRole("button", { name: "保存", exact: true }).click();
     await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
     const projectId = await page.getByLabel("保存済み", { exact: true }).inputValue();

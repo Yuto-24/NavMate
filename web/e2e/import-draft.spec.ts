@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -32,13 +33,7 @@ for (const width of [1100, 1440]) test(`#176 import Draft single route, reload a
   const input = (await page.getByRole("complementary", { name: "経路と飛行計画" }).boundingBox())!;
   const map = (await page.getByRole("region", { name: "経路地図とLeg設定" }).boundingBox())!;
   const readiness = (await page.locator(".status-rail").boundingBox())!;
-  if (width <= 1240) {
-    expect(input.y + input.height).toBeLessThanOrEqual(map.y + 2);
-    expect(map.y + map.height).toBeLessThanOrEqual(readiness.y + 2);
-  } else {
-    expect(input.x + input.width).toBeLessThanOrEqual(map.x + 2);
-    expect(map.x + map.width).toBeLessThanOrEqual(readiness.x + 2);
-  }
+  await expectPlanningLayout(page, width);
 });
 
 test("#176 invalid, cancelled and repeated import preserve the old Draft until a valid choice", async ({ page }) => {

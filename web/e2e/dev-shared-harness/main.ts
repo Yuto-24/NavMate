@@ -39,7 +39,7 @@ if (new URLSearchParams(location.search).has("ordinary")) {
     import("react-dom/client"), import("../../src/accountContext"), import("../../src/browserPlatform"),
     import("../../src/BrowserFileInput"), import("../../src/App"), import("react"),
   ]);
-  await Promise.all([import("leaflet/dist/leaflet.css"), import("../../src/styles.css"), import("../../src/flightPlanLayout.css")]);
+  await Promise.all([import("leaflet/dist/leaflet.css"), import("../../src/styles.css"), import("../../src/flightPlanLayout.css"), import("../../src/routePlanningLayout.css")]);
   const context = createAccountContext(browserPlatform);
   createRoot(document.getElementById("root")!).render(React.createElement(App,
     { application: context.application, platform: context.platform, FileInput: BrowserFileInput }));

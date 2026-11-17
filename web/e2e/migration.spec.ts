@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow } from "./helpers/importWorkflow";
 import { test, expect } from "@playwright/test";
@@ -115,13 +116,7 @@ test("Legacy account UI preserves 1100/1300 workflow order and locks then redire
     const regions = await Promise.all([".input-rail", ".route-workspace", ".status-rail"].map(selector => page.locator(selector).boundingBox()));
     expect(regions.every(Boolean)).toBe(true);
     const [input, route, readiness] = regions;
-    if (width <= 1240) {
-      expect(input!.y + input!.height).toBeLessThanOrEqual(route!.y);
-      expect(route!.y + route!.height).toBeLessThanOrEqual(readiness!.y);
-    } else {
-      expect(input!.x + input!.width).toBeLessThanOrEqual(route!.x);
-      expect(route!.x + route!.width).toBeLessThanOrEqual(readiness!.x);
-    }
+    await expectPlanningLayout(page, width);
   }
   await page.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
   await expect(page.getByRole("dialog", { name: /^アカウント(?:（|$)/ })).toBeVisible();

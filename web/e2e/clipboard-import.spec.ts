@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { expectImportedDraft, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test, type Page } from "@playwright/test";
 import { disableClipboardRead } from "./helpers/clipboard";
@@ -182,8 +183,7 @@ for (const width of [390, 1100, 1440]) {
     const draftRegions = await Promise.all([".input-rail", ".route-workspace"]
       .map(selector => page.locator(selector).boundingBox()));
     expect(draftRegions.every(Boolean)).toBe(true);
-    if (width <= 1240) expect(draftRegions[1]!.y).toBeGreaterThanOrEqual(draftRegions[0]!.y + draftRegions[0]!.height - 1);
-    else expect(draftRegions[1]!.x).toBeGreaterThanOrEqual(draftRegions[0]!.x + draftRegions[0]!.width - 1);
+    await expectPlanningLayout(page, width);
     await expect(page.locator(".status-rail")).toHaveCount(0);
     await confirmImportedDraft(page);
     const regions = await Promise.all([".input-rail", ".route-workspace", ".status-rail"].map((selector) => page.locator(selector).boundingBox()));
@@ -191,11 +191,7 @@ for (const width of [390, 1100, 1440]) {
     for (let index = 1; index < regions.length; index += 1) {
       const previous = regions[index - 1]!;
       const current = regions[index]!;
-      if (width <= 1240) expect(current.y).toBeGreaterThanOrEqual(previous.y + previous.height - 1);
-      else {
-        expect(current.x).toBeGreaterThanOrEqual(previous.x + previous.width - 1);
-        expect(Math.abs(current.y - previous.y)).toBeLessThanOrEqual(1);
-      }
+      await expectPlanningLayout(page, width);
     }
     await page.screenshot({ path: testInfo.outputPath(`clipboard-imported-${width}.png`), fullPage: true });
   });
