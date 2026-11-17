@@ -457,6 +457,16 @@ class Operator:
         )
 
     def target(self, variables: dict) -> dict:
+        try:
+            return self._target(variables)
+        except probe_providers.ProbeError as error:
+            # Only this locally defined classification may reach Actions logs.
+            # Never forward provider exceptions, paths, headers or response bodies.
+            if str(error) == "request_budget_exhausted":
+                raise Blocked("Pages inventory request budget exhausted") from None
+            raise Blocked("Pages target observation failed") from None
+
+    def _target(self, variables: dict) -> dict:
         env = {**self.env, "STATIC_CLOUDFLARE_READ_TOKEN": self.env["CLOUDFLARE_API_TOKEN"]}
         client = probe_providers.Client(env)
         path = f"/client/v4/accounts/{variables['CLOUDFLARE_ACCOUNT_ID']}/pages/projects/navmate"
