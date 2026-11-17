@@ -2,7 +2,7 @@ import { createPortal } from "react-dom";
 import type { Dispatch, SetStateAction } from "react";
 import { emptyCheckPointDraft as initialDraft } from "../applicationSession";
 import type { CheckPointDraft as Draft } from "../applicationSession";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import type {
   CheckPointInput,
@@ -55,6 +55,12 @@ export function CheckPointEditor({
   const savingRef = useRef(false);
   const composingRef = useRef(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const restoreLegFocusRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!restoreLegFocusRef.current) return;
+    restoreLegFocusRef.current = false;
+    nameInputRef.current?.focus({ preventScroll: true });
+  }, [draft.linkedSectionId]);
   const focusedCoordinateRef = useRef<PickedCoordinate | null>(null);
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const projectionById = useMemo(() => new Map(planning.projections.map(item => [item.checkpoint_id, item])), [planning.projections]);
@@ -203,9 +209,11 @@ export function CheckPointEditor({
               <span>関連Leg</span>
               <select
                 value={effectiveLinkedSectionId}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, linkedSectionId: event.target.value }))
-                }
+                onChange={(event) => {
+                  restoreLegFocusRef.current = true;
+                  const linkedSectionId = event.target.value;
+                  setDraft((current) => ({ ...current, linkedSectionId }));
+                }}
               >
                 <option value="">Legを選択</option>
                 {matchingSections.map((section) => {

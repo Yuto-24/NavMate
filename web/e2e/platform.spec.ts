@@ -49,7 +49,15 @@ test("picker opens compressed KMZ; drop replaces content; cancelled picker keeps
   await page.locator('input[type="file"]').setInputFiles([]);
   expect((await snapshot(page)).working.import_result).toEqual(previous);
   await drop(page, "broken.kml", "<broken");
-  await expect(page.locator('[role="alert"][aria-live="assertive"]')).toBeVisible();
+  // role=alert already supplies assertive live semantics; verify the emitted
+  // parser error, then its retained history after the five-second Toast expires.
+  const warning = page.getByRole("alert").filter({ hasText: /KML|XML/ });
+  await expect(warning).toBeVisible();
+  const warningText = await warning.locator("span").innerText();
+  expect(warningText.length).toBeGreaterThan(0);
+  await expect(warning).toHaveCount(0, { timeout: 7000 });
+  await page.getByRole("button", { name: /^その他/ }).click();
+  await expect(page.locator("#operation-messages")).toContainText(warningText);
   await expect.poll(async () => (await snapshot(page)).working.import_filename).toBe("ドロップ.kml");
   expect((await snapshot(page)).working.import_result).toEqual(previous);
 });

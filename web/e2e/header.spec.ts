@@ -94,13 +94,21 @@ test("#218 single-row sticky header preserves workflow, long names and keyboard/
     await page.evaluate(() => scrollTo({ top: 600, behavior: "instant" }));
     await assertHeader(page, width);
     await assertWorkflow(page, width);
+    // Ordinary notices are bottom Toasts, not another sticky header row.
+    const saveNotice = page.getByRole("button", { name: "保存", exact: true });
+    await saveNotice.evaluate((button:HTMLButtonElement) => button.focus({preventScroll:true}));
+    const beforeNoticeScroll = await page.evaluate(() => scrollY);
+    await saveNotice.evaluate((button:HTMLButtonElement) => button.click());
     const notice = page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" });
-    const noticeBounds = await notice.boundingBox();
-    expect(noticeBounds!.y).toBe(56);
+    await expect(notice).toBeVisible();
+    expect(await page.evaluate(() => scrollY)).toBe(beforeNoticeScroll);
+    const noticeBounds = (await notice.boundingBox())!;
+    expect(noticeBounds.y).toBeGreaterThan(56);
+    expect(noticeBounds.y + noticeBounds.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight));
     await expect(notice.getByRole("button", { name: "メッセージを閉じる" })).toBeInViewport();
     expect(await notice.evaluate(el => {
       const box = el.getBoundingClientRect();
-      return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+      return !el.contains(document.elementFromPoint(box.x + 12, box.y + box.height / 2));
     })).toBe(true);
     await page.screenshot({ path: info.outputPath(`header-scrolled-${width}.png`) });
 

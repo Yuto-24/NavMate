@@ -74,7 +74,7 @@ export function Time24Picker({ value, onChange, disabled = false }: Time24Picker
             onKeyDown={event => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
-                if (mode === "hour") setMode("minute");
+                if (mode === "hour") { setHour(n); setMode("minute"); } else setMinute(n);
                 return;
               }
               if (!["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.key)) return;

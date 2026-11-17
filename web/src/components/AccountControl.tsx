@@ -51,9 +51,9 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
           : state.account ? <p>ログアウト後も保存データは残ります。同じアカウントでログインすると再び開けます。</p>
           : <p>未ログイン中の保存データは、ログインしたアカウントへ取り込まれます。</p>}
         {!state.available && !state.notice && <p>この環境ではGoogleログインが設定されていません。未ログインのまま利用できます。</p>}
-        {error && <p role="alert">{error}</p>}
-        {state.notice && state.notice !== error && <p role="alert">{state.notice}</p>}
-        {syncMessages.map(message => <p role="alert" key={message}>{message}</p>)}
+        {error && <p role={error === state.notice || syncMessages.includes(error) ? undefined : "alert"}>{error}</p>}
+        {state.notice && state.notice !== error && <p>{state.notice}</p>}
+        {syncMessages.map(message => <p key={message}>{message}</p>)}
         <button type="button" className="primary-button" disabled={!auth || !state.available || pending || (busy && !state.account && !state.signOutPending)}
           onClick={() => auth && void act((state.account || state.signOutPending || state.deletionPending) ? () => auth.signOut() : () => auth.signIn())}>
           {state.signOutPending ? "ログアウトを再試行" : state.account || state.deletionPending ? "ログアウト" : "Googleでログイン"}

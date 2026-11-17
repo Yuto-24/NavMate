@@ -75,6 +75,9 @@ async function selectFirstCandidate(row: Locator) {
 async function assertFitsContainer(page: Page) {
   const layout=await page.locator(".route-timeline").evaluate(element=>({width:element.clientWidth,scroll:element.scrollWidth,controls:[...element.querySelectorAll("input,select,button,.fixed-altitude-control,.arrival-altitude-control")].map(control=>{const b=control.getBoundingClientRect(),p=element.getBoundingClientRect();return {left:b.left,right:b.right,min:p.left,max:p.right};})}));
   expect(layout.scroll).toBeLessThanOrEqual(layout.width+1);
+  const visible = await page.locator(".planning-pane-scroll").evaluate(element => { const b=element.getBoundingClientRect();return {left:b.left,right:b.right}; });
+  for(const c of layout.controls){expect(c.left).toBeGreaterThanOrEqual(visible.left);expect(c.right).toBeLessThanOrEqual(visible.right);}
+
   for(const c of layout.controls){expect(c.left).toBeGreaterThanOrEqual(c.min);expect(c.right).toBeLessThanOrEqual(c.max+1);}
 }
 
@@ -82,8 +85,10 @@ for (const containerWidth of [600, 390]) {
   test(`inbound table fits an actual ${containerWidth}px container during edits`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1100, height: 1000 });
     await importInboundRoute(page);
-    await page.getByRole("button", { name: "メッセージを閉じる" }).click();
+    await expect(page.locator(".app-notification-region .app-notification")).toHaveCount(0, { timeout: 7000 });
+    await page.locator(".route-workspace").evaluate((element, width) => { element.style.gridTemplateColumns = `minmax(0,1fr) ${width}px`; }, containerWidth + 28);
     await page.locator(".route-timeline").evaluate((element, width) => { element.style.width = `${width}px`; }, containerWidth);
+    expect(await page.locator(".route-timeline").evaluate(e => e.getBoundingClientRect().width)).toBe(containerWidth);
     await expect(page.getByText("本アプリは地表高を判定しないため、候補外の値は違法判定ではなく要確認表示です。", { exact: true })).toHaveCount(0);
     await expect(page.getByLabel("OMARU出発Legの固定高度")).toContainText("4,500 ft 固定");
     await expect(page.getByLabel("有田のVREP通過高度", { exact: true })).toHaveValue("1500");

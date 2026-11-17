@@ -166,8 +166,13 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
   }
   await page.route("https://maps.gsi.go.jp/xyz/kokuarea_minkankunren/8/221/*.geojson", route => route.abort());
   await page.reload();
-  await page.getByRole("button", { name: "RJFM空域凡例を表示", exact: true }).click({ timeout: 120_000 });
+  await expect(page.getByRole("button", { name: "RJFM空域凡例を表示", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(legend.locator(".rjfm-airspace-status")).toBeVisible();
   await expect(legend).toContainText("空域情報を取得できず非表示");
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({width,height:950});
+    await page.screenshot({path:info.outputPath(`airspace-failure-${width}.png`),fullPage:true});
+  }
   await expect(page.locator(".rjfm-training-airspace")).toHaveCount(0);
   await expect(boundary).toHaveCount(1);
   expect(errors).toEqual([]);

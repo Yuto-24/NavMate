@@ -190,7 +190,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const [preserveRouteViewport, setPreserveRouteViewport] = useState(false);
   const planningPanelRef = useRef<HTMLElement>(null);
   const committedPlanningProjectRef = useRef<string | null>(null);
-  const planningFocusRequestRef = useRef<{ projectId: string; showError: boolean } | null>(null);
+  const planningFocusRequestRef = useRef<{ projectId: string; expectedError?: string } | null>(null);
   const applyPlanningFocus = () => {
     const request = planningFocusRequestRef.current;
     if (!request) return;
@@ -200,15 +200,15 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     }
     const panel = planningPanelRef.current;
     if (request.projectId !== committedPlanningProjectRef.current || !panel) return;
-    if (request.showError && !error) return;
+    if (request.expectedError && request.expectedError !== error) return;
     planningFocusRequestRef.current = null;
     panel.scrollIntoView({ block: "start" });
     panel.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
   };
-  const focusPlanning = (showError = false) => {
+  const focusPlanning = (expectedError?: string) => {
     const projectId = projectIdRef.current;
     if (!projectId) return;
-    planningFocusRequestRef.current = { projectId, showError };
+    planningFocusRequestRef.current = { projectId, expectedError };
     window.requestAnimationFrame(applyPlanningFocus);
   };
 
@@ -589,7 +589,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       const newRoute = reason.details.operation === "confirmRoute";
       if (newRoute) { setMapRouteDraft([]); setEditingRouteProjectId(null); }
       applyState(reason.committedState, { syncCalculationInputs: newRoute, preserveRouteViewport: newRoute });
-      if (newRoute) focusPlanning(true);
+      if (newRoute) focusPlanning(reason.message);
       return true;
     }
     return false;
@@ -607,6 +607,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     } = {},
   ): Promise<Result | undefined> => {
     const epoch = lifecycle.current;
+    planningFocusRequestRef.current = null;
     setBusy(true);
     setActiveOperation(options.operation ?? null);
     setError(null);

@@ -57,8 +57,12 @@ for (const width of [390, 820, 1100, 1240, 1241, 1440]) {
     await page.screenshot({path:info.outputPath(`planning-${width}.png`),fullPage:true});
     await page.getByRole("button", {name:"経路を編集",exact:true}).click();
     await expect(page.getByRole("list",{name:"経路リスト"}).locator("li")).toHaveCount(5);
+    await page.getByRole("button",{name:"地図を全画面表示",exact:true}).click();
     page.once("dialog", dialog => dialog.accept());
-    await page.getByRole("button",{name:"キャンセル",exact:true}).click();
+    // Simulate completion/cancellation delivered while the fullscreen map owns input.
+    await page.getByRole("button",{name:"キャンセル",exact:true}).evaluate((button:HTMLButtonElement) => button.click());
+    await expect(page.getByRole("dialog",{name:"全画面の経路地図"})).toHaveCount(0);
+    await expect(page.locator("body")).not.toHaveCSS("overflow","hidden");
     await expect(page.getByLabel("DATE",{exact:true})).toHaveValue("2026-11-17");
     await page.screenshot({path:info.outputPath(`planning-${width}.png`),fullPage:true});
   });
@@ -98,6 +102,10 @@ test("per-Leg CPs retain distance order, reject a different Leg and preserve map
   await pick(33.25,131.68);
   await expect(page.getByText("選択したLegの範囲外です。地図で選び直すか、関連Legを選択してください。",{exact:true})).toBeVisible();
   await expect(page.locator(".checkpoint-form").getByRole("button",{name:"追加",exact:true})).toBeDisabled();
+  const relatedLeg = page.locator(".checkpoint-form select");
+  const option = await relatedLeg.locator('option').last().getAttribute('value');
+  await relatedLeg.selectOption(option!);
+  await expect(page.locator(".checkpoint-form").getByRole("textbox",{name:/^名称/})).toBeFocused();
   await page.getByRole("button",{name:"編集を閉じる",exact:true}).click();
   await page.screenshot({path:info.outputPath("planning-cps-1440.png"),fullPage:true});
 });
@@ -211,11 +219,20 @@ for (const width of [390, 1440]) test(`24h ETD dial confirms, cancels and preser
   await expect(dialog.getByLabel('ETD の時',{exact:true})).toHaveValue('13');
   await dialog.getByRole('button',{name:'00分',exact:true}).focus();
   await page.keyboard.press('ArrowRight');await page.keyboard.press('Space');
-  await expect(dialog.getByLabel('ETD の分',{exact:true})).toHaveValue('1');
+  await expect(dialog.getByLabel('ETD の分',{exact:true})).toHaveValue('0');
   for (let i=0;i<8 && !await dialog.getByRole('button',{name:'確定',exact:true}).evaluate(e=>e===document.activeElement);i++) await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button',{name:'確定',exact:true})).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(input).toHaveValue('13:01');
+  await expect(input).toHaveValue('13:00');
+  for (const key of ['Enter', 'Space']) {
+    await input.fill('09:17'); await trigger.click();
+    await dialog.getByRole('button', {name:'分を選択',exact:true}).click();
+    await dialog.getByRole('button', {name:'15分',exact:true}).focus();
+    await page.keyboard.press(key);
+    await expect(dialog.getByLabel('ETD の分',{exact:true})).toHaveValue('15');
+    await dialog.getByRole('button',{name:'確定',exact:true}).click();
+    await expect(input).toHaveValue('09:15');
+  }
   await input.fill('23:59');await expect(input).toHaveValue('23:59');
   await expect(page.getByRole('heading',{name:'確定済み経路',exact:true})).toHaveCount(0);
   await expect(page.getByRole('region',{name:'確定済み経路',exact:true})).toBeVisible();

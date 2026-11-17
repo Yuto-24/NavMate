@@ -31,6 +31,14 @@ if (!root) {
 const view = createRoot(root);
 let generation = 0;
 startApplication(browserPlatform, ({ application, platform }) => {
+  if (new URLSearchParams(location.search).has("committed-focus")) {
+    const confirm = application.confirmRoute.bind(application);
+    application.confirmRoute = async input => {
+      const committed = await confirm(input);
+      throw new ApplicationError("Test: committed route failure", "TEST_COMMITTED", {operation:"confirmRoute"}, committed);
+    };
+    application.saveProject = async () => { throw new Error("Test: unrelated save failure"); };
+  }
   if (new URLSearchParams(location.search).has("fail-new")) {
     application.newWork = async () => { throw new Error("Test: new work failed"); };
   }

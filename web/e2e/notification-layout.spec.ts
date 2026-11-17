@@ -194,3 +194,30 @@ for(const mode of ['denied','empty','kmz']) test(`unfinished ${mode} import pres
  await page.getByRole('button',{name:/^その他/}).click();
  await expect(page.locator('#operation-messages')).toContainText(error);
 });
+
+test('opening account history does not duplicate live provider announcements', async ({page}) => {
+ await page.clock.install();
+ await page.goto('/e2e/notification-harness/account.html');
+ await page.getByRole('button',{name:'Test: notify',exact:true}).click();
+ await page.getByRole('button',{name:'アカウント（未ログイン）'}).click();
+ await expect(page.getByRole('alert')).toHaveCount(1);
+ await expect(page.getByRole('dialog',{name:'アカウント',exact:true}).getByText('Test: sign-out failed',{exact:true})).toBeVisible();
+ await page.clock.fastForward(5100);
+ await expect(page.getByRole('alert')).toHaveCount(0);
+ await expect(page.getByRole('dialog',{name:'アカウント',exact:true})).toContainText('Test: sign-out failed');
+});
+
+test('committed route failure focuses planning once; unrelated failure does not steal focus or scroll', async ({page}) => {
+ await page.goto('/e2e/notification-harness/index.html?committed-focus');
+ await page.getByRole('button',{name:'Test: valid route',exact:true}).click();
+ await page.getByRole('button',{name:'経路を確定',exact:true}).click();
+ await expect(page.getByRole('alert')).toContainText('Test: committed route failure');
+ await expect(page.locator('.input-rail input').first()).toBeFocused();
+ const save=page.getByRole('button',{name:'保存',exact:true});
+ await page.locator('.route-map').focus();
+ const before=await page.evaluate(()=>scrollY);
+ await save.evaluate((button:HTMLButtonElement)=>button.click());
+ await expect(page.getByRole('alert')).toContainText('Test: unrelated save failure');
+ await expect(page.locator('.route-map')).toBeFocused();
+ expect(await page.evaluate(()=>scrollY)).toBe(before);
+});

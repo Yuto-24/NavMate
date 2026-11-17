@@ -986,21 +986,20 @@ async function calculateNavLog(
     await altitudeCandidates.nth(index).selectOption({ index: 0 });
   }
   const cruiseAltitude = page.getByLabel(/出発Legの巡航高度候補/).first();
-  const variationGuidance = page.locator(".altitude-course");
-  await expect(variationGuidance.first()).toContainText("VAR +7°");
-  await expect(variationGuidance.nth(1)).toContainText("VAR +8°");
+  // TC/MC are absent before calculation; VAR is verified in the resulting NAV LOG below.
+  await expect(page.locator(".timeline-leg-metrics").filter({ hasText: /TC|MC/ })).toHaveCount(0);
   const cruiseCandidate = await cruiseAltitude.locator("option").first().getAttribute("value");
   if (cruiseCandidate === null) {
     throw new Error("Cruise altitude candidate is missing");
   }
   await cruiseAltitude.selectOption(cruiseCandidate);
   const patternAltitude = page.getByLabel("今回採用する場周経路高度");
-  const arrivalRow = page.locator(".destination-row");
+  const arrivalRow = page.locator(".timeline-stop").last();
   await expect(page.locator(".input-rail").getByLabel("今回採用する場周経路高度")).toHaveCount(0);
   await expect(arrivalRow.getByLabel("今回採用する場周経路高度")).toBeVisible();
   await expect(arrivalRow.getByText("飛行場標高", { exact: true })).toBeVisible();
   await expect(arrivalRow.getByText("17 ft MSL", { exact: true })).toBeVisible();
-  await expect(arrivalRow).toContainText("参照値 1,000 ft MSL（標高差 983 ft）");
+  // The compact arrival row retains adopted altitude and airport elevation, not duplicate reference prose.
   await expect(patternAltitude).toHaveValue("1000");
   await expect(page.getByRole("button", { name: "目的空港・場周高度を確定" })).toHaveCount(0);
   await patternAltitude.fill("");
@@ -1015,10 +1014,10 @@ async function calculateNavLog(
   const patternPayload = (await patternUpdate).postDataJSON() as Record<string, unknown>;
   expect(patternPayload.selected_pattern_altitude_ft_msl).toBe(1300);
   await expect(patternAltitude).toHaveValue("1300");
-  await expect(altitudeInputs.first()).toHaveValue(firstAltitudeCandidate);
+  await expect(altitudeCandidates.first()).toHaveValue(firstAltitudeCandidate);
   await expect(vrepAltitudeInput).toHaveValue("1800");
   await expect(cruiseAltitude).toHaveValue(cruiseCandidate);
-  await expect(page.locator(".altitude-warning-row")).toHaveCount(0);
+  await expect(page.locator(".timeline-altitude .field-error")).toHaveCount(0);
   if (forceBacktrackedEoc) {
     const altitudeCount = await altitudeInputs.count();
     for (let index = 0; index < altitudeCount; index += 1) {
@@ -2521,6 +2520,7 @@ test("cruise boundary cards separate calculation conditions from interpolation c
   });
   await page.reload();
 
+  await page.locator(".readiness-toggle").click();
   const cards = page.locator(".issue-item", { hasText: "CRUISE_PRESSURE_ALTITUDE_TABLE_BOUNDARY_USED" });
   await expect(cards).toHaveCount(3);
   await expect(page.locator(".boundary-provenance")).toHaveCount(3);
@@ -2555,16 +2555,11 @@ test("cruise boundary cards separate calculation conditions from interpolation c
     if (!input || !route || !status || !navLog) {
       throw new Error(`Boundary workflow regions are missing at ${width}px`);
     }
-    if (width === 1100) {
-      expect(route.y).toBeGreaterThanOrEqual(input.y + input.height - 1);
-      expect(status.y).toBeGreaterThanOrEqual(route.y + route.height - 1);
-      expect(navLog.y).toBeGreaterThanOrEqual(status.y + status.height - 1);
-    } else {
-      expect(route.x).toBeGreaterThanOrEqual(input.x + input.width - 1);
-      expect(status.x).toBeGreaterThanOrEqual(route.x + route.width - 1);
-      expect(Math.abs(route.y - input.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(status.y - input.y)).toBeLessThanOrEqual(1);
-    }
+    const map = (await page.locator(".map-frame").boundingBox())!;
+    const pane = (await page.locator(".planning-pane").boundingBox())!;
+    expect(pane.x).toBeGreaterThanOrEqual(map.x + map.width - 1);
+    expect(Math.abs(map.y - pane.y)).toBeLessThanOrEqual(1);
+    expect(navLog.y).toBeGreaterThanOrEqual(Math.max(map.y + map.height, pane.y + pane.height) - 1);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
     ).toBeLessThanOrEqual(1);
@@ -2584,8 +2579,8 @@ test("responsive workflow keeps a one-way order at intermediate width", async ({
   await calculateNavLog(page);
   await reloadWithCurrentRjfmGuidance(page);
 
-  const input = page.locator(".input-rail");
-  const route = page.locator(".route-workspace");
+  const input = page.locator(".planning-pane");
+  const route = page.locator(".map-frame");
   const status = page.locator(".status-rail");
   const navLog = page.locator(".nav-log-scroll");
   const guidance = page.locator(".rjfm-guidance");
@@ -2599,22 +2594,14 @@ test("responsive workflow keeps a one-way order at intermediate width", async ({
   if (intermediate.some((box) => box === null)) {
     throw new Error("Intermediate workflow regions are missing");
   }
-  expect(intermediate[1]!.y).toBeGreaterThanOrEqual(
-    intermediate[0]!.y + intermediate[0]!.height - 1,
-  );
-  expect(intermediate[2]!.y).toBeGreaterThanOrEqual(
-    intermediate[1]!.y + intermediate[1]!.height - 1,
-  );
-  expect(intermediate[3]!.y).toBeGreaterThanOrEqual(
-    intermediate[2]!.y + intermediate[2]!.height - 1,
-  );
-  expect(intermediate[4]!.y).toBeGreaterThanOrEqual(
-    intermediate[3]!.y + intermediate[3]!.height - 1,
-  );
+  expect(intermediate[0]!.x).toBeGreaterThanOrEqual(intermediate[1]!.x + intermediate[1]!.width - 1);
+  expect(Math.abs(intermediate[0]!.y - intermediate[1]!.y)).toBeLessThanOrEqual(1);
+  expect(intermediate[3]!.y).toBeGreaterThanOrEqual(Math.max(intermediate[0]!.y + intermediate[0]!.height, intermediate[1]!.y + intermediate[1]!.height) - 1);
+  expect(intermediate[4]!.y).toBeGreaterThanOrEqual(intermediate[3]!.y + intermediate[3]!.height - 1);
   const from = page.getByLabel("FROM");
   const to = page.getByLabel("TO");
   const date = page.locator('.flight-plan-section input[type="date"]');
-  const time = page.locator('.flight-plan-section input[type="time"]');
+  const time = page.getByLabel("ETD JST", { exact: true });
   const intermediateSchedule = await Promise.all([date.boundingBox(), time.boundingBox()]);
   if (intermediateSchedule.some((box) => box === null)) {
     throw new Error("Intermediate DATE/ETD fields are missing");
@@ -2641,17 +2628,13 @@ test("responsive workflow keeps a one-way order at intermediate width", async ({
   if (wide.some((box) => box === null)) {
     throw new Error("Wide workflow regions are missing");
   }
-  expect(wide[1]!.x).toBeGreaterThanOrEqual(wide[0]!.x + wide[0]!.width - 1);
-  expect(wide[2]!.x).toBeGreaterThanOrEqual(wide[1]!.x + wide[1]!.width - 1);
+  expect(wide[0]!.x).toBeGreaterThanOrEqual(wide[1]!.x + wide[1]!.width - 1);
   expect(Math.abs(wide[0]!.y - wide[1]!.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(wide[1]!.y - wide[2]!.y)).toBeLessThanOrEqual(1);
   const wideSchedule = await Promise.all([date.boundingBox(), time.boundingBox()]);
   if (wideSchedule.some((box) => box === null)) {
     throw new Error("Wide DATE/ETD fields are missing");
   }
-  expect(wideSchedule[1]!.y).toBeGreaterThanOrEqual(
-    wideSchedule[0]!.y + wideSchedule[0]!.height - 1,
-  );
+  expect(wideSchedule[1]!.x).toBeGreaterThanOrEqual(wideSchedule[0]!.x + wideSchedule[0]!.width - 1);
   expect(wideSchedule[0]!.x + wideSchedule[0]!.width).toBeLessThanOrEqual(
     wide[0]!.x + wide[0]!.width,
   );
@@ -2662,9 +2645,7 @@ test("responsive workflow keeps a one-way order at intermediate width", async ({
   if (wideEndpoints.some((box) => box === null)) {
     throw new Error("Wide FROM/TO fields are missing");
   }
-  expect(wideEndpoints[1]!.y).toBeGreaterThanOrEqual(
-    wideEndpoints[0]!.y + wideEndpoints[0]!.height - 1,
-  );
+  expect(wideEndpoints[1]!.x).toBeGreaterThanOrEqual(wideEndpoints[0]!.x + wideEndpoints[0]!.width - 1);
   expect(wideEndpoints[0]!.x + wideEndpoints[0]!.width).toBeLessThanOrEqual(
     wide[0]!.x + wide[0]!.width,
   );
@@ -2683,11 +2664,9 @@ test("responsive workflow keeps a one-way order at intermediate width", async ({
   if (mobile.some((box) => box === null)) {
     throw new Error("Mobile workflow regions are missing");
   }
-  for (let index = 1; index < mobile.length; index += 1) {
-    expect(mobile[index]!.y).toBeGreaterThanOrEqual(
-      mobile[index - 1]!.y + mobile[index - 1]!.height - 1,
-    );
-  }
+  expect(mobile[0]!.y).toBeGreaterThanOrEqual(mobile[1]!.y + mobile[1]!.height - 1);
+  expect(mobile[3]!.y).toBeGreaterThanOrEqual(mobile[0]!.y + mobile[0]!.height - 1);
+  expect(mobile[4]!.y).toBeGreaterThanOrEqual(mobile[3]!.y + mobile[3]!.height - 1);
   const mobileOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,
   );
@@ -4332,10 +4311,15 @@ test("500 and 1000 fpm descent rates recalculate, render, and persist", async ({
   const consoleErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
+    // observeLegacyMigration explicitly treats this optional endpoint's 404 as
+    // migration disabled. Do not hide any other missing resources or errors.
+    const optionalMigrationUnavailable = message.location().url.endsWith("/api/account-link")
+      && message.text().includes("404 (Not Found)");
+    if (message.type() === "error" && !optionalMigrationUnavailable) consoleErrors.push(message.text());
   });
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.goto("/");
+  await calculateNavLog(page, false, false, true);
 
   const rateGroup = page.getByRole("group", { name: "計画降下率" });
   const standardRate = page.getByRole("radio", { name: /500 fpm/ });
@@ -4358,15 +4342,10 @@ test("500 and 1000 fpm descent rates recalculate, render, and persist", async ({
     }
     expect(groupBox.x).toBeGreaterThanOrEqual(inputBox.x);
     expect(groupBox.x + groupBox.width).toBeLessThanOrEqual(inputBox.x + inputBox.width);
-    if (width === 1100) {
-      expect(routeBox.y).toBeGreaterThanOrEqual(inputBox.y + inputBox.height - 1);
-      expect(statusBox.y).toBeGreaterThanOrEqual(routeBox.y + routeBox.height - 1);
-    } else {
-      expect(routeBox.x).toBeGreaterThanOrEqual(inputBox.x + inputBox.width - 1);
-      expect(statusBox.x).toBeGreaterThanOrEqual(routeBox.x + routeBox.width - 1);
-      expect(Math.abs(routeBox.y - inputBox.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(statusBox.y - inputBox.y)).toBeLessThanOrEqual(1);
-    }
+    const map = (await page.locator(".map-frame").boundingBox())!;
+    const pane = (await page.locator(".planning-pane").boundingBox())!;
+    expect(pane.x).toBeGreaterThanOrEqual(map.x + map.width - 1);
+    expect(Math.abs(map.y - pane.y)).toBeLessThanOrEqual(1);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
     ).toBeLessThanOrEqual(1);
@@ -4381,7 +4360,7 @@ test("500 and 1000 fpm descent rates recalculate, render, and persist", async ({
   await expect(page.getByText("標準計画値は500 fpmです。", { exact: true })).toBeVisible();
   await page.getByLabel("気象モード").selectOption("FTD");
 
-  await calculateNavLog(page, false);
+  await page.locator(".status-actions .primary-button").click();
   await expect(page.getByText("計算結果 1000 fpm", { exact: true })).toBeVisible();
   await standardRate.check();
   await expect(page.getByText("計算結果 1000 fpm", { exact: true })).toBeVisible();

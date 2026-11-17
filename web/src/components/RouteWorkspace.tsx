@@ -247,6 +247,8 @@ export function RouteWorkspace({
   const [customAltitudeSections, setCustomAltitudeSections] = useState<Record<string, boolean>>({});
   const [legendOpen, setLegendOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const routeBuilding = Boolean(mapBuilder);
+  useEffect(() => { if (!routeBuilding) setFullscreen(false); }, [routeBuilding]);
   const mapFrameRef = useRef<HTMLDivElement>(null);
   const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
   const [checkpointSlots, setCheckpointSlots] = useState<Record<string, HTMLElement>>({});
@@ -901,6 +903,15 @@ export function RouteWorkspace({
             aria-label="RJFMガイダンス凡例"
           >
             <button type="button" className="legend-toggle" aria-label={legendOpen ? "RJFM空域凡例を最小化" : "RJFM空域凡例を表示"} aria-expanded={legendOpen} onClick={() => setLegendOpen(v => !v)}>RJFM空域 <span aria-hidden="true">{legendOpen ? "−" : "+"}</span></button>
+            {rjfmMapReference && (
+              <span className="rjfm-airspace-status" aria-live="polite">
+                {trainingAirspace.status === "loading"
+                  ? "空域情報を取得中…"
+                  : trainingAirspace.status === "unavailable"
+                    ? "空域情報を取得できず非表示"
+                    : ""}
+              </span>
+            )}
             {legendOpen && <>
             {rjfmMapReference && (
               <>
@@ -924,15 +935,7 @@ export function RouteWorkspace({
                 ))}
               </>
             )}
-            {rjfmMapReference && (
-              <span className="rjfm-airspace-status" aria-live="polite">
-                {trainingAirspace.status === "loading"
-                  ? "空域情報を取得中…"
-                  : trainingAirspace.status === "unavailable"
-                    ? "空域情報を取得できず非表示"
-                    : ""}
-              </span>
-            )}
+
             </>}
           </div>
         )}

@@ -232,7 +232,7 @@ for (const width of [390, 1100, 1440]) {
     } else {
       expect(controlBox!.y).toBeGreaterThanOrEqual(addColumnBox!.y + addColumnBox!.height);
     }
-    await page.getByRole("button", { name: "メッセージを閉じる" }).click();
+    await expect(page.locator(".app-notification-region .app-notification")).toHaveCount(0, { timeout: 7000 });
     await page.locator(".nav-log-section").screenshot({ path: `/tmp/issue234-on-${width}.png` });
     await page.locator(".nav-log-rounding-control").screenshot({ path: `/tmp/issue234-control-${width}.png` });
     const completedCount = await page.evaluate(() => (window as any).localCalculationCount);

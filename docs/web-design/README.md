@@ -72,8 +72,10 @@ decorative cards. Shadows are reserved for temporary overlays.
 - Draft route confirmation leads to one Planning pane with a compact readiness/calculation footer; no separate numbered progress rail.
 - NAV LOG calculation success uses a non-blocking, polite live-region toast at the
   bottom right, below modal overlays. It closes after five seconds or via its close
-  button without changing layout, results, or readiness. Other notices and errors
-  retain their existing persistent message bars.
+  button without changing layout, results, or readiness. Ordinary App, authentication
+  and synchronization notices also expire after five seconds; unresolved failures
+  remain in their owning history/dialog. Persistent storage warnings and inline
+  validation are not transient Toasts.
 - KML/KMZ drop zone and paste dialog.
 - Multiple imported route candidates are chosen in a dialog; the resulting ordered points stay in the shared Draft card until route confirmation.
 - Flight-plan fields: DATE, ETD JST, read-only KML-derived FROM/TO, FUEL
@@ -298,15 +300,14 @@ establish physical IME behavior or mobile software keyboard activation.
 
 - 確定済み経路は KML/KMZ の情報とアクセス可能な領域名を保持し、重複する可視見出しを出さない。ファイル名と内包ファイル名は完全一致した場合だけ重複を省く。
 - ETD は `HH:mm` の直接入力を保持し、24 時間の時計ダイアログからも選べる。ダイアログ内の編集は確定まで計画に反映せず、取消・Escape で破棄する。AM/PM は使わない。
-- CP の名称必須・関連 Leg 判定は維持する。入力中に名称欄が動く赤い警告ブロックではなく、固定高さの穏やかな live status を使用する。範囲外の地点を別 Leg に自動で付け替えない。
+- CP の名称必須・関連 Leg 判定は維持する。入力中に名称欄が動く赤い警告ブロックではなく、画面の高さを変えないスクリーンリーダー向け live status を使用する。範囲外の地点を別 Leg に自動で付け替えない。
 - 高度の任意値選択には直下の注意を表示する。既存の候補外警告が該当する場合はそちらだけを表示し、計算・高度候補の規則を変えない。
 ### Notification layout (partial #443)
 
 Ordinary App success/error messages and the calculation-complete Toast share a
 fixed, non-modal region. Showing or closing these messages must not change the
 workflow geometry or page scroll position. Toast text does not intercept clicks on
-underlying planning controls; its explicit buttons remain operable. The region stays below the fixed
-header, is bounded by the viewport, and remains behind dialogs. Explicit
+underlying planning controls; its explicit buttons remain operable. The region is fixed near the viewport bottom, is bounded by the viewport, and remains behind dialogs. Explicit
 navigation to invalid planning inputs and a newly calculated NAV LOG is separate
 and remains intentional.
 
