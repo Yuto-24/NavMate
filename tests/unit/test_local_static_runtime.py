@@ -3,6 +3,7 @@
 import fcntl
 import functools
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -11,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
@@ -19,6 +21,8 @@ import pytest
 from scripts.static_ops.local_runtime import (
     Settings,
     StaticHandler,
+    Stopped,
+    Superseded,
     Updater,
     healthy,
     load,
@@ -271,11 +275,13 @@ def test_clone_detached_worktree_is_independent(runtime, tmp_path):
 
 
 def test_second_updater_cannot_start_a_concurrent_job(runtime):
+    pending = cache_file(runtime, "raw/old/input.bin", age_days=8)
     with (runtime.s.state / "updater.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with pytest.raises(BlockingIOError):
             runtime.serve()
     assert runtime.calls == []
+    assert pending.exists()
 
 
 def test_local_build_excludes_inherited_account_configuration(runtime, monkeypatch):
@@ -314,3 +320,166 @@ def test_same_sha_configuration_switch_rebuilds_the_local_application(runtime, m
     assert load(runtime.s.active() / "release.json")["configuration"] == runtime.configuration()
     runtime.tick(now)
     assert len(runtime.calls) == 3
+
+
+def cache_file(runtime, name, *, size=4, age_days=0):
+    path = runtime.s.state / "cache/msm" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"x" * size)
+    modified = time.time() - age_days * 86400
+    os.utime(path, (modified, modified))
+    return path
+
+
+def test_cache_retention_applies_age_then_one_combined_payload_budget(runtime, capsys):
+    runtime.s = replace(runtime.s, msm_cache_max_bytes=9)
+    expired = cache_file(runtime, "raw/expired/input.bin", age_days=8)
+    oldest = cache_file(runtime, "raw/older/input.bin", size=3, age_days=3)
+    normalized = cache_file(runtime, "normalized/run/forecast.nc", size=4, age_days=2)
+    listing = cache_file(runtime, "listings/recent.html", size=5, age_days=1)
+    lock = cache_file(runtime, "locks/input.lock", age_days=30)
+    unrelated = cache_file(runtime, "operator-note.txt", age_days=30)
+    runtime.collect()
+    assert not expired.exists()
+    assert not expired.parent.exists()
+    assert not oldest.exists()
+    assert normalized.exists() and listing.exists()
+    assert lock.exists() and unrelated.exists()
+    event = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert event["event"] == "msm_cache_collected"
+    assert event["deleted_files"] == 2
+    assert event["remaining_bytes"] == 9
+    assert event["maximum_age_days"] == 7
+
+
+def test_cache_collection_keeps_current_and_previous_publications(runtime):
+    runtime.tick(time.time())
+    commit(runtime.s.source)
+    runtime.next_weather = time.time() + 3600
+    runtime.tick(time.time())
+    publications = [runtime.s.active(), runtime.s.active("previous")]
+    for release in publications:
+        (release / "weather/msm/retained.npz").write_bytes(b"published forecast")
+    before = {file: file.read_bytes() for release in publications
+              for file in release.rglob("*") if file.is_file()}
+    expired = cache_file(runtime, "normalized/run/forecast.nc", age_days=8)
+    runtime.collect()
+    assert not expired.exists()
+    assert [runtime.s.active(), runtime.s.active("previous")] == publications
+    assert all(path.read_bytes() == value for path, value in before.items())
+
+
+@pytest.mark.parametrize("link", ["cache", "cache/msm", "cache/msm/raw",
+                                 "cache/msm/normalized/linked", "cache/msm/raw/linked.bin"])
+def test_cache_collection_never_follows_symlinks(runtime, tmp_path, link):
+    outside = tmp_path / "protected"
+    outside.mkdir()
+    protected = outside / "input.bin"
+    protected.write_bytes(b"protected")
+    os.utime(protected, (0, 0))
+    path = runtime.s.state / link
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_dir():
+        path.rmdir()
+    path.symlink_to(protected if path.suffix == ".bin" else outside)
+    runtime.collect_msm_cache()
+    assert path.is_symlink()
+    assert protected.read_bytes() == b"protected"
+
+
+def test_cache_collection_leaves_special_files_untouched(runtime):
+    pipe = runtime.s.state / "cache/msm/raw/operator-pipe"
+    pipe.parent.mkdir(parents=True)
+    os.mkfifo(pipe)
+    runtime.collect_msm_cache()
+    assert pipe.exists()
+
+
+@pytest.mark.parametrize("outcome", ["success", "failure", "superseded", "stopped", "noop"])
+def test_cache_collection_runs_before_and_after_every_job_outcome(runtime, outcome):
+    runtime.tick(time.time())
+    before = runtime.s.active()
+    stale = cache_file(runtime, "raw/old/input.bin", age_days=8)
+    produced = []
+
+    def during_build():
+        assert not stale.exists()
+        produced.append(cache_file(runtime, "normalized/new/forecast.nc", age_days=8))
+        assert produced[0].exists()
+        if outcome == "failure":
+            raise RuntimeError("Failed after populating cache")
+        if outcome == "superseded":
+            raise Superseded()
+        if outcome == "stopped":
+            raise Stopped()
+
+    runtime.during_build = during_build
+    runtime.weather_noop = outcome == "noop"
+    sha = runtime.desired()[0]
+    if outcome == "stopped":
+        with pytest.raises(Stopped):
+            runtime.attempt("weather", sha, runtime.s.source)
+    else:
+        assert runtime.attempt("weather", sha, runtime.s.source) is (outcome != "failure")
+    assert not produced[0].exists()
+    assert runtime.status["running"] is None
+    if outcome != "success":
+        assert runtime.s.active() == before
+
+
+def test_startup_collects_before_first_update_under_writer_lock(runtime, monkeypatch):
+    expired = cache_file(runtime, "raw/old/input.bin", age_days=8)
+
+    def tick(_):
+        assert not expired.exists()
+        with (runtime.s.state / "updater.lock").open("a") as lock:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        runtime.stop.set()
+
+    monkeypatch.setattr(runtime, "tick", tick)
+    monkeypatch.setattr("scripts.static_ops.local_runtime.signal.signal", lambda *_: None)
+    runtime.serve()
+
+
+def test_cache_delete_failure_is_reported_without_failing_publication(runtime, monkeypatch, capsys):
+    expired = cache_file(runtime, "raw/old/input.bin", age_days=8)
+    unlink = Path.unlink
+
+    def denied(path, *args, **kwargs):
+        if path == expired:
+            raise PermissionError("Cache deletion denied")
+        return unlink(path, *args, **kwargs)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(Path, "unlink", denied)
+        runtime.tick(time.time())
+    assert runtime.s.active() is not None
+    assert runtime.status["last_error"] is None
+    assert runtime.status["running"] is None
+    assert expired.exists()
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert any(item["event"] == "msm_cache_cleanup_failed" for item in events)
+    runtime.collect_msm_cache()
+    assert not expired.exists()
+
+
+def test_cache_retention_defaults_and_environment_overrides(monkeypatch):
+    monkeypatch.delenv("LOCAL_MSM_CACHE_MAX_BYTES", raising=False)
+    monkeypatch.delenv("LOCAL_MSM_CACHE_MAX_AGE_DAYS", raising=False)
+    default = Settings.environment()
+    assert default.msm_cache_max_bytes == 20 * 1024**3
+    assert default.msm_cache_max_age_days == 7
+    monkeypatch.setenv("LOCAL_MSM_CACHE_MAX_BYTES", "1024")
+    monkeypatch.setenv("LOCAL_MSM_CACHE_MAX_AGE_DAYS", "2")
+    configured = Settings.environment()
+    assert configured.msm_cache_max_bytes == 1024
+    assert configured.msm_cache_max_age_days == 2
+
+
+@pytest.mark.parametrize("key", ["LOCAL_MSM_CACHE_MAX_BYTES", "LOCAL_MSM_CACHE_MAX_AGE_DAYS"])
+@pytest.mark.parametrize("value", ["0", "-1", "invalid"])
+def test_cache_retention_rejects_unbounded_or_invalid_settings(monkeypatch, key, value):
+    monkeypatch.setenv(key, value)
+    with pytest.raises(ValueError):
+        Settings.environment()

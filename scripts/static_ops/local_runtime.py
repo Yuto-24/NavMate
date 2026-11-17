@@ -7,6 +7,7 @@ writable; no Project store, host checkout, Docker socket or provider token is us
 from __future__ import annotations
 
 import argparse
+import errno
 import fcntl
 import functools
 import json
@@ -14,6 +15,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -31,6 +33,8 @@ DEV_FIREBASE_KEYS = ("VITE_DEV_FIREBASE_API_KEY", "VITE_DEV_FIREBASE_AUTH_DOMAIN
                      "VITE_DEV_FIREBASE_PROJECT_ID", "VITE_DEV_FIREBASE_APP_ID")
 SHA = re.compile(r"[a-f0-9]{40}")
 RELEASE = re.compile(r"r-[a-f0-9]{32}")
+MSM_CACHE_MAX_BYTES = 20 * 1024**3
+MSM_CACHE_MAX_AGE_DAYS = 7
 
 
 def utc() -> str:
@@ -61,6 +65,53 @@ def pointer(root: Path, name: str, target: Path) -> None:
     temporary.replace(root / name)
 
 
+def prune_msm_cache(cache: Path, *, maximum_bytes: int, maximum_age_days: int) -> dict:
+    """Prune disposable payloads only while the updater owns the idle writer lock.
+
+    The producer's file locks do not cover all later reads. Callers must serialize
+    the entire build with collection; never unlink library lock files or follow links.
+    Published NPZ payloads are separate files in the publication volume.
+    """
+    if cache.parent.is_symlink() or cache.is_symlink():
+        raise ValueError("MSM cache root must not be a symlink")
+
+    def scan_error(error):
+        raise error
+
+    files = []
+    directories = []
+    for name in ("raw", "normalized", "listings"):
+        root = cache / name
+        if root.is_symlink() or not root.exists():
+            continue
+        for directory, children, names in os.walk(root, onerror=scan_error, followlinks=False):
+            parent = Path(directory)
+            children[:] = [name for name in children if not (parent / name).is_symlink()]
+            directories.append(parent)
+            for name in names:
+                path = parent / name
+                info = path.lstat()
+                if stat.S_ISREG(info.st_mode):
+                    files.append((info.st_mtime, info.st_size, path))
+    remaining = sum(size for _, size, _ in files)
+    cutoff = time.time() - maximum_age_days * 86400
+    deleted = 0
+    for modified, size, path in sorted(files):
+        if modified >= cutoff and remaining <= maximum_bytes:
+            break
+        path.unlink()
+        remaining -= size
+        deleted += 1
+    for directory in reversed(directories):
+        try:
+            directory.rmdir()
+        except OSError as error:
+            if error.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+                raise
+    return {"deleted_files": deleted, "remaining_bytes": remaining,
+            "maximum_bytes": maximum_bytes, "maximum_age_days": maximum_age_days}
+
+
 @dataclass(frozen=True)
 class Settings:
     source: Path
@@ -71,6 +122,12 @@ class Settings:
     retry: int = 900
     weather_interval: int = 3600
     job_timeout: int = 2700
+    msm_cache_max_bytes: int = MSM_CACHE_MAX_BYTES
+    msm_cache_max_age_days: int = MSM_CACHE_MAX_AGE_DAYS
+
+    def __post_init__(self):
+        if self.msm_cache_max_bytes <= 0 or self.msm_cache_max_age_days <= 0:
+            raise ValueError("MSM cache retention limits must be positive")
 
     @classmethod
     def environment(cls) -> Settings:
@@ -79,7 +136,11 @@ class Settings:
                    Path(os.getenv("LOCAL_STATE", "/state")),
                    Path(os.getenv("LOCAL_PUBLISHED", "/published")),
                    Path(os.getenv("LOCAL_TOOLING", "/opt/runtime")),
-                   int(os.getenv("LOCAL_PORT", "8123")))
+                   int(os.getenv("LOCAL_PORT", "8123")),
+                   msm_cache_max_bytes=int(os.getenv("LOCAL_MSM_CACHE_MAX_BYTES",
+                                                     str(MSM_CACHE_MAX_BYTES))),
+                   msm_cache_max_age_days=int(os.getenv("LOCAL_MSM_CACHE_MAX_AGE_DAYS",
+                                                        str(MSM_CACHE_MAX_AGE_DAYS))))
 
     def active(self, name: str = "current") -> Path | None:
         """Resolve only generated release directories, independently of private worker state."""
@@ -360,7 +421,17 @@ class Updater:
                          last_error=None)
         event("published", kind=kind, sha=sha, release=target.name,
               expires_at=catalog["expires_at"], run=max(a["run"] for a in catalog["assets"]))
-        self.collect()
+
+    def collect_msm_cache(self) -> None:
+        """Report cleanup failures separately; they must not undo a valid publication."""
+        try:
+            result = prune_msm_cache(self.s.state / "cache/msm",
+                                     maximum_bytes=self.s.msm_cache_max_bytes,
+                                     maximum_age_days=self.s.msm_cache_max_age_days)
+        except (OSError, ValueError) as error:
+            event("msm_cache_cleanup_failed", error=str(error))
+        else:
+            event("msm_cache_collected", **result)
 
     def collect(self) -> None:
         """Bound generated histories and leave unrelated operator files untouched."""
@@ -379,9 +450,12 @@ class Updater:
                        and p.is_file() and not p.is_symlink()), key=lambda p: p.stat().st_mtime)
         for path in logs[:-10]:
             path.unlink()
+        self.collect_msm_cache()
 
     def attempt(self, kind: str, sha: str, source: Path) -> bool:
         """Isolate failures and enforce retention after success, failure and supersession."""
+        # serve() holds updater.lock throughout this method. No child is running yet.
+        self.collect_msm_cache()
         name = "job-" + uuid.uuid4().hex
         job = self.s.state / "work" / name
         job.mkdir(mode=0o700)
@@ -445,6 +519,7 @@ class Updater:
                 if (re.fullmatch(r"job-[a-f0-9]{32}", abandoned.name)
                         and abandoned.is_dir() and not abandoned.is_symlink()):
                     shutil.rmtree(abandoned)
+            self.collect()
 
             def heartbeat():
                 while not self.stop.wait(15):
