@@ -16,6 +16,7 @@ import { CalculationProgressOverlay } from "../../src/components/CalculationProg
 import "leaflet/dist/leaflet.css";
 import "../../src/styles.css";
 import "../../src/flightPlanLayout.css";
+import "../../src/routePlanningLayout.css";
 
 const syncEnabled = new URLSearchParams(location.search).has("sync");
 const config = { apiKey: "issue-184-test", projectId: syncEnabled ? "demo-autonavlog-sync" : "autonavlog-test", authDomain: "autonavlog-test.firebaseapp.com", appId: "test-app" };

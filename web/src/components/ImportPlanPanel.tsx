@@ -1,3 +1,4 @@
+import { Time24Picker } from "./Time24Picker";
 import { ClipboardPaste, Route } from "lucide-react";
 import type { Dispatch, ReactNode, Ref, SetStateAction } from "react";
 import type { PlanningForm } from "../forms";
@@ -90,11 +91,8 @@ export function ImportPlanPanel({
       {onResumeKmz && (
         <button className="secondary-button" onClick={onResumeKmz}>KMZからの選択を続ける</button>
       )}
-      <section className="rail-section">
-        <div className="section-heading-row">
-          <h2>{projectExists ? "確定済み経路" : "経路を取り込む"}</h2>
-          {projectExists && <span className="quiet-state">確定済み</span>}
-        </div>
+      <section className="rail-section" aria-label={projectExists ? "確定済み経路" : "経路を取り込む"}>
+        {!projectExists && <div className="section-heading-row"><h2>経路を取り込む</h2></div>}
         {!projectExists && (
           <>
             {fileInput}
@@ -114,7 +112,7 @@ export function ImportPlanPanel({
             <Route aria-hidden="true" size={18} />
             <div>
               <strong>{importState.filename}</strong>
-              <span>{importState.sourceFiles.join(" / ") || "KML"}</span>
+              {(importState.sourceFiles.join(" / ") || "KML") !== importState.filename && <span>{importState.sourceFiles.join(" / ") || "KML"}</span>}
             </div>
           </div>
         )}
@@ -180,6 +178,7 @@ export function ImportPlanPanel({
           {projectExists && <span className="quiet-state">経路 確定済み</span>}
         </div>
         <div className="form-grid">
+          <h3 className="plan-category span-two">日時・空港</h3>
           <label className="flight-date-field">
             <span>DATE</span>
             <input
@@ -188,18 +187,11 @@ export function ImportPlanPanel({
               onChange={(event) => update("flightDate", event.target.value)}
             />
           </label>
-          <label className="flight-time-field">
-            <span>ETD JST</span>
-            <input
-              type="time"
-              value={form.departureTimeJst}
-              onChange={(event) => update("departureTimeJst", event.target.value)}
-            />
-          </label>
+          <Time24Picker value={form.departureTimeJst} onChange={value => update("departureTimeJst", value)} disabled={busy} />
           <div className="endpoint-row span-two">
             <div className="departure-field">
               <label>
-                <span>FROM（自動取得）</span>
+                <span>FROM</span>
                 <input
                   aria-label="FROM"
                   type="text"
@@ -209,14 +201,10 @@ export function ImportPlanPanel({
                   aria-invalid={Boolean(form.candidateKey && !selectedDeparture)}
                 />
               </label>
-              <label className="checkbox-row departure-vor-option">
-                <input type="checkbox" checked={form.departureOrigin === "VOR"}
-                  onChange={(event) => update("departureOrigin", event.target.checked ? "VOR" : "AIRPORT")} />
-                <span>VOR Tracking Mode</span>
-              </label>
+
             </div>
             <label>
-              <span>TO（自動取得）</span>
+              <span>TO</span>
               <input
                 aria-label="TO"
                 type="text"
@@ -232,6 +220,13 @@ export function ImportPlanPanel({
               </small>
             )}
           </div>
+          <h3 className="plan-category span-two">航法</h3>
+          <div className="span-two">              <label className="checkbox-row departure-vor-option">
+                <input type="checkbox" checked={form.departureOrigin === "VOR"}
+                  onChange={(event) => update("departureOrigin", event.target.checked ? "VOR" : "AIRPORT")} />
+                <span>VOR Tracking Mode</span>
+              </label></div>
+          <h3 className="plan-category span-two">燃料・TGL</h3>
           <div className="fuel-input-row span-two">
             <label>
               <span>FUEL gal</span>
@@ -256,6 +251,7 @@ export function ImportPlanPanel({
               />
             </label>
           </div>
+          <h3 className="plan-category span-two">運用設定</h3>
           <fieldset className="descent-rate-control span-two">
             <legend>計画降下率</legend>
             <div className="descent-rate-segments">
@@ -305,6 +301,7 @@ export function ImportPlanPanel({
               <span>ノーズフェアリングあり (OFF: -10 kt)</span>
             </label>
           </div>
+          <h3 className="plan-category span-two">気象</h3>
           <label className="span-two">
             <span>気象モード</span>
             <select

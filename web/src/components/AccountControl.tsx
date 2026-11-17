@@ -1,3 +1,4 @@
+import { TransientMessage } from "./TransientMessage";
 import { createPortal } from "react-dom";
 import { useState, useSyncExternalStore } from "react";
 import { devSharedMode } from "../executionMode";
@@ -16,7 +17,8 @@ const subscribeConnectivity = (listener: () => void) => {
     window.removeEventListener("offline", listener);
   };
 };
-export function AccountControl({ auth, busy, onBeforeChange, networkAvailability }: {
+export function AccountControl({ auth, busy, onBeforeChange, networkAvailability, syncMessages = [] }: {
+  syncMessages?: string[];
   auth?: AuthProvider; busy: boolean; onBeforeChange?: () => boolean;
   networkAvailability: PlatformCapabilities["networkAvailability"];
 }) {
@@ -34,10 +36,13 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
     catch (reason) { setError(reason instanceof Error ? reason.message : "認証操作に失敗しました。"); return false; }
     finally { setPending(false); }
   };
+  const notificationRegion = document.getElementById("app-notification-region");
   return <>
     <button type="button" className="icon-button header-icon-button" aria-label={state.account ? `アカウント（${state.account.displayName}でログイン中）` : "アカウント（未ログイン）"} title={state.account ? `アカウント（${state.account.displayName}）` : "アカウント（未ログイン）"} onClick={() => setOpen(true)}>
       {state.account ? <CircleUserRound aria-hidden="true" size={18} /> : <UserRound aria-hidden="true" size={18} />}
     </button>
+    {error && error !== state.notice && !syncMessages.includes(error) && notificationRegion && createPortal(
+      <TransientMessage message={error} className="account-notification" />, notificationRegion)}
     {open && createPortal(<div className="modal-backdrop">
       <section className="modal-panel account-dialog" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="account-title" onKeyDown={event => { if (event.key === "Escape") setOpen(false); }}>
         <div className="modal-heading"><h2 id="account-title">アカウント</h2>
@@ -49,7 +54,9 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
           : state.account ? <p>ログアウト後も保存データは残ります。同じアカウントでログインすると再び開けます。</p>
           : <p>未ログイン中の保存データは、ログインしたアカウントへ取り込まれます。</p>}
         {!state.available && !state.notice && <p>この環境ではGoogleログインが設定されていません。未ログインのまま利用できます。</p>}
-        {(error || state.notice) && <p role="alert">{error || state.notice}</p>}
+        {error && <p>{error}</p>}
+        {state.notice && state.notice !== error && <p>{state.notice}</p>}
+        {syncMessages.map(message => <p key={message}>{message}</p>)}
         <button type="button" className="primary-button" disabled={!auth || !state.available || pending || (busy && !state.account && !state.signOutPending)}
           onClick={() => auth && void act((state.account || state.signOutPending || state.deletionPending) ? () => auth.signOut() : () => auth.signIn())}>
           {state.signOutPending ? "ログアウトを再試行" : state.account || state.deletionPending ? "ログアウト" : "Googleでログイン"}
@@ -71,9 +78,5 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
 
 export function AccountNotice({ auth }: { auth?: AuthProvider }) {
   const state = useSyncExternalStore(auth?.subscribe ?? noSubscribe, auth?.getState ?? (() => unavailable));
-  if (!state.notice) return null;
-  return <div className="message-bar message-error" role="alert">
-    <span>{state.notice}</span>
-    {state.signOutPending && auth && <button type="button" onClick={() => { void auth.signOut().catch(() => {}); }}>ログアウトを再試行</button>}
-  </div>;
+  return <TransientMessage message={state.notice} className="account-notification" />;
 }

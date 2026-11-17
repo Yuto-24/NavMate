@@ -21,7 +21,7 @@
 
 ## Product constraints
 
-- At 1,240 px and below, the primary flow is input, route/map, readiness, NAV LOG, then NAV LOG guidance, in that order. Do not move a later step above an earlier one or require the user to scroll back up after checking the route/map. Above 1,240 px, retain the input / route / readiness three-column workspace unless the feature requires otherwise.
+- Route creation/re-edit and flight planning use one map and one operation pane. Above 700 px, keep the map on the left and the aligned operation pane on the right; only the operation contents scroll. At 700 px and below, place the map before the operation pane without pinning it over inputs. Keep readiness and calculation at the operation footer, with NAV LOG and its guidance below the workspace. Preserve calculation, persistence, and the NAV LOG table itself.
 - Any layout change needs browser coverage around 1,100 px and above 1,240 px, asserting workflow-region order/position rather than visibility alone. See `docs/web-design/README.md` for the UI reference.
 - For release-management, version metadata, documentation, or CI changes without user-facing behavior or layout changes, skip browser automation, screenshots, and visual checks unless the user explicitly requests them. Use only applicable focused source, build, or health checks.
 - Docker Compose is the supported local/Legacy runtime; the production delivery path is Static Web as described in `README.md` and `docs/static_production.md`. Local Compose health does not establish Static Web production acceptance. Preserve the `autonavlog-data` volume: routine updates and stops must not use `docker compose down -v`. Follow `README.md` and `docs/cloudflare_tunnel.md` for environment-specific startup and exposure rules.

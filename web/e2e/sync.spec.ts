@@ -425,6 +425,7 @@ for (const failure of ["none", "logout", "purge", "successor-deleting"] as const
       await stalePage.reload();
       await expect.poll(() => stalePage.evaluate(() => (window as any).authTest?.state().signOutPending)).toBe(true);
       await stalePage.evaluate(() => (window as any).restoreStorage());
+      await stalePage.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
       await stalePage.getByRole("button", { name: "ログアウトを再試行", exact: true }).click();
     } else {
       const notice = failure === "purge" ? "端末内のデータを削除できませんでした。別のタブを閉じてからGoogleでログインし、旧アカウントのデータ削除を再試行してください。" : "このNavMateアカウントは削除されました。";
@@ -442,7 +443,7 @@ for (const failure of ["none", "logout", "purge", "successor-deleting"] as const
       await page.evaluate(() => { (window as any).blockedAccountDb.close(); });
       await stalePage.getByRole("button", { name: /^アカウント(?:（|$)/ }).click();
       await stalePage.getByRole("button", { name: "削除を再試行", exact: true }).click();
-      await expect(stalePage.getByRole("dialog", { name: "アカウント", exact: true }).getByRole("alert"))
+      await expect(stalePage.getByRole("dialog", { name: "アカウント", exact: true }).getByText("NavMateアカウントを削除しました。", { exact: true }))
         .toHaveText("NavMateアカウントを削除しました。");
       expect(await stalePage.evaluate(() => (window as any).authTest.currentUser())).toBeNull();
     } else {

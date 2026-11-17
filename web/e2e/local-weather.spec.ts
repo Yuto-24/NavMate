@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test, type Page } from "@playwright/test";
@@ -312,13 +313,7 @@ test("saved MSM Advisory stays beside fuel and preserves workflow at 1100 and 14
     expect(positions.advisory.x).toBeGreaterThanOrEqual(positions.fuel.right);
     expect(positions.advisory.color).toBe(positions.normal);
     expect(positions.warning.color).toBe(positions.normal);
-    if (width <= 1240) {
-      expect(positions.route.y).toBeGreaterThanOrEqual(positions.input.bottom);
-      expect(positions.readiness.y).toBeGreaterThanOrEqual(positions.route.bottom);
-    } else {
-      expect(positions.route.x).toBeGreaterThanOrEqual(positions.input.right);
-      expect(positions.readiness.x).toBeGreaterThanOrEqual(positions.route.right);
-    }
+    await expectPlanningLayout(page, width);
     expect(positions.navlog.y).toBeGreaterThanOrEqual(positions.readiness.bottom);
   }
   await page.reload();
@@ -351,14 +346,7 @@ test("portable GSM fallback: complete Local NAV LOG matches Legacy, persists mod
         return element ? element.getBoundingClientRect().toJSON() : null;
       }));
     expect(boxes.every(Boolean)).toBe(true);
-    if (width <= 1240) {
-      for (let i = 1; i < boxes.length; i++) expect(boxes[i]!.y)
-        .toBeGreaterThanOrEqual(boxes[i - 1]!.y + boxes[i - 1]!.height - 1);
-    } else {
-      expect(boxes[0]!.x + boxes[0]!.width).toBeLessThanOrEqual(boxes[1]!.x + 1);
-      expect(boxes[1]!.x + boxes[1]!.width).toBeLessThanOrEqual(boxes[2]!.x + 1);
-      expect(boxes[3]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0, 3).map(b => b!.y + b!.height)) - 1);
-    }
+    await expectPlanningLayout(page, width);
   }
   const native = JSON.parse(execFileSync(
     process.env.AUTONAVLOG_REFERENCE_PYTHON ?? resolve("../.venv/bin/python"),

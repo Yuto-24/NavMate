@@ -17,7 +17,7 @@ export function MapBackground({ imagery }: { imagery: boolean }) {
   const currentZoom = zoom ?? map.getZoom();
   return <>
     <TileLayer
-      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
       url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
       maxZoom={localMode ? 19 : 18}
       zIndex={1}

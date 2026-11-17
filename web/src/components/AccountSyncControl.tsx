@@ -4,7 +4,10 @@ import type { AccountSyncControl as Control, ConflictChoice, SyncStatus } from "
 
 const empty: SyncStatus = { conflicts: [], imports: [], undo: [], generation: 0 };
 const noop = () => () => {};
-export function AccountSyncControl({ sync, onChange, onResolved, onBeforeResolve }: {
+export function AccountSyncControl({ sync, onChange, onResolved, onBeforeResolve, onErrorChange, onErrorsChange, notificationsManaged = false }: {
+  notificationsManaged?: boolean;
+  onErrorsChange?: (messages: string[]) => void;
+  onErrorChange?: (message: string) => void;
   onBeforeResolve?: () => boolean;
   sync?: Control; onChange(): void; onResolved(id: string): Promise<void>;
 }) {
@@ -13,7 +16,10 @@ export function AccountSyncControl({ sync, onChange, onResolved, onBeforeResolve
   const changed = useRef(onChange); changed.current = onChange;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [operationErrors, setOperationErrors] = useState<Record<string,string>>({});
+  useEffect(() => { onErrorsChange?.(Object.values(operationErrors)); }, [operationErrors, onErrorsChange]);
   const [name, setName] = useState("");
+  useEffect(() => { onErrorChange?.(error); }, [error, onErrorChange]);
   const conflict = state.conflicts[0], imported = state.imports[0];
   const blocked = !!(conflict || imported);
   useEffect(() => { changed.current(); }, [state.generation]);
@@ -23,24 +29,30 @@ export function AccountSyncControl({ sync, onChange, onResolved, onBeforeResolve
     if (blocked) setError("");
     setName("");
   }, [blocked, conflict?.id, imported?.id]);
-  const act = async (operation: () => Promise<void>) => {
+  const act = async (operation: () => Promise<void | false>, key: string) => {
     setPending(true); setError("");
-    try { await operation(); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "操作を完了できませんでした。"); }
+    try {
+      if (await operation() === false) return;
+      setOperationErrors(current => { const next={...current}; delete next[key]; return next; });
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "操作を完了できませんでした。";
+      setError(message);
+      setOperationErrors(current => ({...current, [key]:message}));
+    }
     finally { setPending(false); }
   };
   const resolve = (choice: ConflictChoice) => conflict && sync && void act(async () => {
-    if (onBeforeResolve && !onBeforeResolve()) return;
+    if (onBeforeResolve && !onBeforeResolve()) return false;
     const id = await sync.resolve(conflict.id, choice);
     await onResolved(id);
-  });
+  }, `resolve:${conflict.id}`);
   return <>
-    {state.notice && <div className="message-bar message-error" role="alert">{state.notice}</div>}
+    {!notificationsManaged && state.notice && <div className="message-bar message-error" role="alert">{state.notice}</div>}
+    {!notificationsManaged && !blocked && error && <div className="message-bar message-error" role="alert">{error}</div>}
     {state.undo.length > 0 && <div className="sync-undo" role="status">
       {state.undo.map(item => <div key={item.id}><span>「{item.name}」を削除しました。</span>
-        <button type="button" disabled={pending} onClick={() => sync && void act(() => sync.undo(item.id))}>元に戻す</button></div>)}
+        <button type="button" disabled={pending} onClick={() => sync && void act(() => sync.undo(item.id), `undo:${item.id}`)}>元に戻す</button></div>)}
     </div>}
-    {!blocked && error && <div className="message-bar message-error" role="alert">{error}</div>}
     {createPortal(<dialog ref={dialog} className="modal-panel account-sync-dialog" aria-labelledby="sync-title"
       onCancel={event => event.preventDefault()}>
       {conflict ? <>
@@ -57,8 +69,8 @@ export function AccountSyncControl({ sync, onChange, onResolved, onBeforeResolve
         <p>アカウントの自動保存を引き継ぎます。未ログイン時の自動保存は、名前を付けて保存しない場合は破棄されます。</p>
         <label>プロジェクト名<input maxLength={60} value={name} onChange={event => setName(event.target.value)} autoFocus /></label>
         <div className="modal-actions">
-          <button type="button" disabled={pending || !name.trim()} onClick={() => sync && void act(async () => { if (onBeforeResolve && !onBeforeResolve()) return; await sync.importLatest(imported.id, name); await onResolved(imported.id); })}>名前を付けて保存</button>
-          <button type="button" disabled={pending} onClick={() => sync && void act(async () => { if (onBeforeResolve && !onBeforeResolve()) return; await sync.importLatest(imported.id, null); await onResolved(imported.id); })}>破棄</button>
+          <button type="button" disabled={pending || !name.trim()} onClick={() => sync && void act(async () => { if (onBeforeResolve && !onBeforeResolve()) return false; await sync.importLatest(imported.id, name); await onResolved(imported.id); }, `import:${imported.id}`)}>名前を付けて保存</button>
+          <button type="button" disabled={pending} onClick={() => sync && void act(async () => { if (onBeforeResolve && !onBeforeResolve()) return false; await sync.importLatest(imported.id, null); await onResolved(imported.id); }, `import:${imported.id}`)}>破棄</button>
         </div>
       </> : null}
       {error && <p role="alert">{error}</p>}

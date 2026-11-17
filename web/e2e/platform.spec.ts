@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { selectAirport } from "./helpers/mapCandidates";
@@ -48,7 +49,15 @@ test("picker opens compressed KMZ; drop replaces content; cancelled picker keeps
   await page.locator('input[type="file"]').setInputFiles([]);
   expect((await snapshot(page)).working.import_result).toEqual(previous);
   await drop(page, "broken.kml", "<broken");
-  await expect(page.locator('[role="alert"][aria-live="assertive"]')).toBeVisible();
+  // role=alert already supplies assertive live semantics; verify the emitted
+  // parser error, then its retained history after the five-second Toast expires.
+  const warning = page.getByRole("alert").filter({ hasText: /KML|XML/ });
+  await expect(warning).toBeVisible();
+  const warningText = await warning.locator("span").innerText();
+  expect(warningText.length).toBeGreaterThan(0);
+  await expect(warning).toHaveCount(0, { timeout: 7000 });
+  await page.getByRole("button", { name: /^その他/ }).click();
+  await expect(page.locator("#operation-messages")).toContainText(warningText);
   await expect.poll(async () => (await snapshot(page)).working.import_filename).toBe("ドロップ.kml");
   expect((await snapshot(page)).working.import_result).toEqual(previous);
 });
@@ -206,13 +215,7 @@ test("download and Clipboard export the displayed result, survive denial, and re
       const rect = document.querySelector(selector)!.getBoundingClientRect();
       return { x: rect.x, y: rect.y, bottom: rect.bottom };
     }));
-    if (width <= 1240) {
-      expect(regions[1].y).toBeGreaterThanOrEqual(regions[0].bottom);
-      expect(regions[2].y).toBeGreaterThanOrEqual(regions[1].bottom);
-    } else {
-      expect(regions[0].x).toBeLessThan(regions[1].x);
-      expect(regions[1].x).toBeLessThan(regions[2].x);
-    }
+    await expectPlanningLayout(page, width);
     expect(regions[3].y).toBeGreaterThanOrEqual(Math.max(...regions.slice(0, 3).map(region => region.bottom)));
     expect(regions[4].y).toBeGreaterThanOrEqual(regions[3].bottom);
     const content = page.locator(".nav-log-focus-target");
@@ -421,8 +424,7 @@ for (const width of [1100, 1440]) {
     await expect(page.getByText("ファイルを選択", { exact: true })).toBeVisible();
     const initial = await page.locator(".input-rail").boundingBox();
     const initialMap = await page.locator(".route-workspace").boundingBox();
-    if (width <= 1240) expect(initialMap!.y).toBeGreaterThanOrEqual(initial!.y + initial!.height);
-    else expect(initialMap!.x).toBeGreaterThanOrEqual(initial!.x + initial!.width);
+    await expectPlanningLayout(page, width);
     await drop(page, "route.kml", kml);
     await expect(page.getByLabel("飛行経路候補")).toHaveValue("line:0");
     await expect(page.getByRole("heading", { name: "準備状況", exact: true })).toBeVisible();
@@ -432,8 +434,7 @@ for (const width of [1100, 1440]) {
       return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom };
     }));
     for (let i = 1; i < regions.length; i++) {
-      if (width <= 1240) expect(regions[i].y).toBeGreaterThanOrEqual(regions[i - 1].bottom);
-      else expect(regions[i].x).toBeGreaterThanOrEqual(regions[i - 1].right);
+      await expectPlanningLayout(page, width);
     }
   });
 }

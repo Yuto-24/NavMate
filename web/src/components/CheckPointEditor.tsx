@@ -1,8 +1,9 @@
+import { createPortal } from "react-dom";
 import type { Dispatch, SetStateAction } from "react";
 import { emptyCheckPointDraft as initialDraft } from "../applicationSession";
 import type { CheckPointDraft as Draft } from "../applicationSession";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Crosshair, Pencil, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import type {
   CheckPointInput,
   CheckPointPlanning,
@@ -21,6 +22,7 @@ interface PickedCoordinate {
 }
 
 interface CheckPointEditorProps {
+  slots?: Record<string, HTMLElement>;
   draft: Draft;
   setDraft: Dispatch<SetStateAction<Draft>>;
   nodes: RouteNode[];
@@ -36,6 +38,7 @@ interface CheckPointEditorProps {
 }
 
 export function CheckPointEditor({
+  slots,
   draft, setDraft,
   nodes,
   sections,
@@ -43,7 +46,6 @@ export function CheckPointEditor({
   planning,
   busy,
   pickedCoordinate,
-  pickingFromMap,
   onPickingFromMapChange,
   onPickedCoordinateClear,
   onReplace,
@@ -53,16 +55,15 @@ export function CheckPointEditor({
   const savingRef = useRef(false);
   const composingRef = useRef(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const restoreLegFocusRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!restoreLegFocusRef.current) return;
+    restoreLegFocusRef.current = false;
+    nameInputRef.current?.focus({ preventScroll: true });
+  }, [draft.linkedSectionId]);
   const focusedCoordinateRef = useRef<PickedCoordinate | null>(null);
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-  const sectionById = useMemo(
-    () => new Map(sections.map((section) => [section.id, section])),
-    [sections],
-  );
-  const projectionById = useMemo(
-    () => new Map(planning.projections.map((item) => [item.checkpoint_id, item])),
-    [planning.projections],
-  );
+  const projectionById = useMemo(() => new Map(planning.projections.map(item => [item.checkpoint_id, item])), [planning.projections]);
   const issueById = useMemo(() => {
     const grouped = new Map<string, string[]>();
     planning.issues.forEach((issue) => {
@@ -93,11 +94,11 @@ export function CheckPointEditor({
       return abeamDistanceNm !== null && abeamDistanceNm <= MAX_LINKED_LEG_DISTANCE_NM;
     });
   }, [coordinatesValid, latitude, longitude, nodeById, sections]);
-  const effectiveLinkedSectionId = matchingSections.length === 1
-    ? matchingSections[0]!.id
-    : matchingSections.some((section) => section.id === draft.linkedSectionId)
-      ? draft.linkedSectionId
-      : "";
+  const selectedLegMatches = matchingSections.some(section => section.id === draft.linkedSectionId);
+  const effectiveLinkedSectionId = slots
+    ? selectedLegMatches ? draft.linkedSectionId : ""
+    : matchingSections.length === 1 ? matchingSections[0]!.id
+      : selectedLegMatches ? draft.linkedSectionId : "";
 
   useEffect(() => {
     if (!pickedCoordinate) return;
@@ -139,10 +140,6 @@ export function CheckPointEditor({
   const draftValid =
     Boolean(draft.name.trim() && effectiveLinkedSectionId) && coordinatesValid;
   const nameIsBlocking = Boolean(pickedCoordinate && !draft.name.trim());
-  const nameFieldClassName = [
-    matchingSections.length > 1 ? "" : "checkpoint-name-field",
-    nameIsBlocking ? "checkpoint-name-warning" : "",
-  ].filter(Boolean).join(" ");
   const submitLabel = draft.id
     ? saving ? "保存中…" : "保存"
     : saving ? "追加中…" : "追加";
@@ -172,48 +169,24 @@ export function CheckPointEditor({
     }
   };
 
-  return (
-    <section className="checkpoint-editor" aria-label="チェックポイント設定">
-      <div className="section-heading-row">
-        <div>
-          <h3>チェックポイント</h3>
-        </div>
-        <button
-          className="secondary-button checkpoint-add-button"
-          type="button"
-          aria-label="チェックポイントを追加"
-          onClick={() => {
-            onPickedCoordinateClear();
-            setDraft(initialDraft());
-            setEditorOpen(true);
-            onPickingFromMapChange(true);
-          }}
-          disabled={busy || !sections.length}
-        >
-          <Plus aria-hidden="true" size={16} />
-          追加
-        </button>
-      </div>
-
-      {!editorOpen && (draft.name || draft.latitude || draft.longitude) && (
-        <button className="secondary-button" onClick={() => setEditorOpen(true)}>チェックポイントの編集を続ける</button>
-      )}
-      {editorOpen && (
-        <div className="checkpoint-form">
+  const form = editorOpen ? (
+        <div className={`checkpoint-form${draft.id ? "" : " is-adding"}`} role="form" aria-label={draft.id ? "チェックポイントを編集" : "チェックポイントを追加"}>
           <div className="checkpoint-form-heading">
-            <strong>{draft.id ? "チェックポイントを編集" : "チェックポイントを追加"}</strong>
+            {draft.id && <strong>チェックポイントを編集</strong>}
             <button className="icon-button" type="button" onClick={reset} aria-label="編集を閉じる">
               <X aria-hidden="true" size={16} />
             </button>
           </div>
-          <label className={nameFieldClassName || undefined}>
-            <span>名称</span>
+          <label className="checkpoint-name-field">
+            <span>名称{!draft.id && "（必須）"}</span>
             <input
               ref={nameInputRef}
+              aria-label="名称"
+              aria-required="true"
               value={draft.name}
               maxLength={100}
               aria-invalid={nameIsBlocking || undefined}
-              aria-describedby={nameIsBlocking ? "checkpoint-name-warning" : undefined}
+              aria-describedby={draft.id && nameIsBlocking ? "checkpoint-name-warning" : undefined}
               onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
               onCompositionStart={() => { composingRef.current = true; }}
               onCompositionEnd={() => { composingRef.current = false; }}
@@ -227,24 +200,20 @@ export function CheckPointEditor({
               }}
               placeholder="例: 岩瀬ダム"
             />
-            {nameIsBlocking && (
-              <small
-                id="checkpoint-name-warning"
-                className="checkpoint-name-warning-text"
-                role="alert"
-              >
-                チェックポイントの名称・未入力（入力必須）
-              </small>
-            )}
+            {draft.id && <small id="checkpoint-name-warning" className="checkpoint-name-status" role="status" aria-live="polite">
+              {nameIsBlocking ? "チェックポイントの名称・未入力（入力必須）" : ""}
+            </small>}
           </label>
-          {matchingSections.length > 1 && (
+          {(matchingSections.length > 1 || (coordinatesValid && !selectedLegMatches)) && (
             <label>
               <span>関連Leg</span>
               <select
                 value={effectiveLinkedSectionId}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, linkedSectionId: event.target.value }))
-                }
+                onChange={(event) => {
+                  restoreLegFocusRef.current = true;
+                  const linkedSectionId = event.target.value;
+                  setDraft((current) => ({ ...current, linkedSectionId }));
+                }}
               >
                 <option value="">Legを選択</option>
                 {matchingSections.map((section) => {
@@ -259,50 +228,13 @@ export function CheckPointEditor({
               </select>
             </label>
           )}
-          <label>
-            <span>緯度</span>
-            <input
-              type="number"
-              min="-90"
-              max="90"
-              step="0.000001"
-              value={draft.latitude}
-              onChange={(event) => {
-                onPickedCoordinateClear();
-                setDraft((current) => ({ ...current, latitude: event.target.value }))
-              }}
-            />
-          </label>
-          <label>
-            <span>経度</span>
-            <input
-              type="number"
-              min="-180"
-              max="180"
-              step="0.000001"
-              value={draft.longitude}
-              onChange={(event) => {
-                onPickedCoordinateClear();
-                setDraft((current) => ({ ...current, longitude: event.target.value }))
-              }}
-            />
-          </label>
-          {coordinatesValid && matchingSections.length === 0 && (
-            <p className="checkpoint-leg-error" role="alert">
-              Leg線分内にabeam点があり、横ずれ10 NM以内となる関連Legがありません。
-            </p>
-          )}
-          <button
-            className={`secondary-button checkpoint-map-pick${pickingFromMap ? " is-active" : ""}`}
-            type="button"
-            aria-pressed={pickingFromMap}
-            onClick={() => onPickingFromMapChange(!pickingFromMap)}
-          >
-            <Crosshair aria-hidden="true" size={16} />
-            {pickingFromMap ? "地図上の地点をクリック" : "地図から座標を選択"}
-          </button>
+          <p id={!draft.id ? "checkpoint-name-warning" : undefined} className="checkpoint-leg-status" role="status" aria-live="polite">
+            {coordinatesValid && matchingSections.length === 0
+              ? "Leg線分内にabeam点があり、横ずれ10 NM以内となる関連Legがありません。"
+              : coordinatesValid && slots && draft.linkedSectionId && !selectedLegMatches && matchingSections.length > 0
+                ? "選択したLegの範囲外です。地図で選び直すか、関連Legを選択してください。" : ""}
+          </p>
           <div className="checkpoint-form-actions">
-            <button className="secondary-button" type="button" onClick={reset}>キャンセル</button>
             <button
               className="primary-button"
               type="button"
@@ -313,29 +245,15 @@ export function CheckPointEditor({
             </button>
           </div>
         </div>
-      )}
+      ) : null;
 
-      {checkPoints.length > 0 && (
-        <div className="checkpoint-list">
-          {checkPoints.map((item) => {
-            const projection = projectionById.get(item.id);
-            const messages = issueById.get(item.id) ?? [];
-            const section = item.linked_section_id
-              ? sectionById.get(item.linked_section_id)
-              : undefined;
-            return (
+  const renderRow = (item: VisualReference) => {
+    const messages = issueById.get(item.id) ?? [];
+    return (
               <article className={`checkpoint-item${messages.length ? " has-error" : ""}`} key={item.id}>
                 <div>
                   <strong>{item.name}</strong>
-                  <span>
-                    Leg {section ? section.sequence + 1 : "?"}・
-                    {item.latitude_deg.toFixed(5)}, {item.longitude_deg.toFixed(5)}
-                  </span>
-                  {projection && (
-                    <span>
-                      Leg内 {projection.along_section_distance_nm.toFixed(1)} NM / 累積 {projection.cumulative_distance_nm.toFixed(1)} NM / 横ずれ {projection.cross_track_distance_nm.toFixed(2)} NM
-                    </span>
-                  )}
+                  {projectionById.get(item.id) && <span>Leg内 {projectionById.get(item.id)!.along_section_distance_nm.toFixed(1)} NM</span>}
                   {messages.map((message) => <em key={message}>{message}</em>)}
                 </div>
                 <div className="checkpoint-item-actions">
@@ -374,9 +292,52 @@ export function CheckPointEditor({
                 </div>
               </article>
             );
-          })}
+  };
+  const sorted = [...checkPoints].sort((a, b) => (projectionById.get(a.id)?.along_section_distance_nm ?? Infinity) - (projectionById.get(b.id)?.along_section_distance_nm ?? Infinity));
+  return (
+    <section className="checkpoint-editor" aria-label="チェックポイント設定">
+      {!slots && <div className="section-heading-row">
+        <div>
+          <h3>チェックポイント</h3>
         </div>
+        <button
+          className="secondary-button checkpoint-add-button"
+          type="button"
+          aria-label="チェックポイントを追加"
+          onClick={() => {
+            onPickedCoordinateClear();
+            setDraft(initialDraft());
+            setEditorOpen(true);
+            onPickingFromMapChange(true);
+          }}
+          disabled={busy || !sections.length}
+        >
+          <Plus aria-hidden="true" size={16} />
+          CPを追加
+        </button>
+      </div>}
+
+
+      {!editorOpen && (draft.name || draft.latitude || draft.longitude) && (
+        <button className="secondary-button" onClick={() => { setEditorOpen(true); if (!draft.id) onPickingFromMapChange(true); }}>チェックポイントの編集を続ける</button>
       )}
+      {form && !slots?.[draft.linkedSectionId] && form}
+      <div className="checkpoint-list">
+        {sorted.filter(item => !item.linked_section_id || !slots?.[item.linked_section_id]).map(renderRow)}
+      </div>
+      {slots && sections.map(section => {
+        const target = slots[section.id];
+        return target ? createPortal(<>
+          {sorted.filter(item => item.linked_section_id === section.id).map(renderRow)}
+          {draft.linkedSectionId === section.id && form}
+          <button type="button" className="icon-button checkpoint-inline-add" aria-label={`${section.sequence + 1}番目のLegへ地図からチェックポイントを追加`} title="CPを追加" disabled={busy} onClick={() => {
+            onPickedCoordinateClear();
+            setDraft({ ...initialDraft(), linkedSectionId: section.id });
+            setEditorOpen(true);
+            onPickingFromMapChange(true);
+          }}><Plus aria-hidden="true" size={13} /><span>CPを追加</span></button>
+        </>, target, section.id) : null;
+      })}
     </section>
   );
 }

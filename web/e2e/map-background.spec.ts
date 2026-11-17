@@ -41,16 +41,10 @@ for (const width of [1100, 1440]) {
     await page.getByLabel("背景地図").selectOption("imagery");
     // Airspace may finish loading during the switch; existing overlays must survive.
     for (const path of paths) expect(await path.evaluate(element => element.isConnected)).toBe(true);
-    const input = (await page.locator(".input-rail").boundingBox())!;
-    const route = (await page.locator(".route-workspace").boundingBox())!;
-    const readiness = (await page.locator(".status-rail").boundingBox())!;
-    if (width <= 1240) {
-      expect(input.y + input.height).toBeLessThanOrEqual(route.y + 2);
-      expect(route.y + route.height).toBeLessThanOrEqual(readiness.y + 2);
-    } else {
-      expect(input.x + input.width).toBeLessThanOrEqual(route.x + 2);
-      expect(route.x + route.width).toBeLessThanOrEqual(readiness.x + 2);
-    }
+    const mapBox = (await page.locator(".map-frame").boundingBox())!;
+    const pane = (await page.locator(".planning-pane").boundingBox())!;
+    expect(mapBox.x + mapBox.width).toBeLessThanOrEqual(pane.x + 2);
+    expect(Math.abs(mapBox.y - pane.y)).toBeLessThanOrEqual(2);
     await page.reload();
     await expect(page.getByLabel("背景地図")).toHaveValue("imagery", { timeout: 90_000 });
     await expect(page.locator(".rjfm-pca-boundary")).toBeAttached();

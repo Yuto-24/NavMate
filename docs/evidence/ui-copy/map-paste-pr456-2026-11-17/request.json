@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "map-clipboard-paste",
+      "text": "Google Earth からペースト",
+      "location": "MAP / 新規Draft経路作成時、ファイル入力の隣にあるコンパクトなクリップボード取込ボタン。画面上は「Google Earth」と「からペースト」を二段に表示。",
+      "purpose": "Google Earthでコピーした経路をクリップボードから取り込む操作を示し、ファイル選択や候補経路の確定と区別する。",
+      "context": "最新PR HEADで buildingRoute=true かつ editingRouteProjectId が未設定の新規Draft作成中に表示。busy中は無効。クリックは従来どおり handlePasteImport(\"clipboard\") を呼び、クリップボード拒否・未対応時は既存の手動貼り付け案内を使う。再編集の開始前・編集モードでは表示しない。可視配置、二段表示、イベントは変更しない。aria-label は合意済みの全文字列に一致する。",
+      "constraints": "Issue #336 でユーザーが確定した「Google Earth からペースト」を維持する。表示文言、二段配置、操作を変えない。今回の aria-label は既存の表示語と同一の全文字列を指定する。候補確定「KMLを取り込む」や取込処理は変更しない。",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "          planningPanel={buildingRoute ? <aside className=\"input-rail map-input-rail\" aria-label=\"経路作成\">",
+        "end": "        </aside> : <ImportPlanPanel",
+        "expected": "          planningPanel={buildingRoute ? <aside className=\"input-rail map-input-rail\" aria-label=\"経路作成\">\n          {editingRouteProjectId && <button className=\"secondary-button\" disabled={busy} onClick={() => {\n            if (confirmDiscardMapDraft()) { setMapRouteDraft([]); setEditingRouteProjectId(null); }\n          }}>キャンセル</button>}\n          {!editingRouteProjectId && <>\n          {pastedKml && !pasteOpen && <button className=\"secondary-button\" onClick={() => setPasteOpen(true)}>貼り付けたKMLの編集を続ける</button>}\n          {pendingKmz && !kmzOpen && <button className=\"secondary-button\" onClick={() => setKmzOpen(true)}>KMZからの選択を続ける</button>}\n          {state.import.warnings.map((warning, index) => <p className=\"inline-warning\" key={`${index}:${warning}`}>{warning}</p>)}\n          {pendingImportDraft && <button className=\"secondary-button\" disabled={busy} onClick={() => { if (confirmDiscardMapDraft()) setPendingImportDraft(false); }}>キャンセル</button>}\n          {pendingImportedDraft?.status === \"unmatched-endpoints\" && <p role=\"alert\">{\n            pendingImportedDraft.missingEndpoints.includes(\"departure\")\n              ? \"KML始点から5 NM以内に出発空港が見つかりません。経路始点を確認してください。\"\n              : \"KML終点から5 NM以内に目的空港が見つかりません。経路終点を確認してください。\"\n          }</p>}\n          <div className=\"draft-import-controls\"><FileInput busy={busy} onFile={handleFile} inputRef={routeFileInput} />\n          <button className=\"secondary-button\" aria-label=\"Google Earth からペースト\" disabled={busy} onClick={() => void handlePasteImport(\"clipboard\")}><span>Google Earth</span><span>からペースト</span></button></div>\n          </>}\n        </aside> : <ImportPlanPanel"
+      }
+    }
+  ]
+}

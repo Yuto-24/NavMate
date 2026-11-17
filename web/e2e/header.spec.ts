@@ -30,19 +30,16 @@ async function assertHeader(page: Page, width: number) {
 }
 
 async function assertWorkflow(page: Page, width: number) {
-  const boxes = await page.evaluate(() => [".input-rail", ".route-workspace", ".status-rail", ".nav-log-focus-target"].map(selector => {
+  const boxes = await page.evaluate(() => [".map-frame", ".planning-pane", ".nav-log-focus-target"].map(selector => {
     const { x, y, width, height } = document.querySelector(selector)!.getBoundingClientRect();
     return { x, y, width, height };
   }));
-  if (width <= 1240) {
-    for (let i = 1; i < boxes.length; i++) expect(boxes[i]!.y).toBeGreaterThanOrEqual(boxes[i - 1]!.y + boxes[i - 1]!.height - 1);
-  } else {
-    for (let i = 1; i < 3; i++) {
-      expect(boxes[i]!.x).toBeGreaterThanOrEqual(boxes[i - 1]!.x + boxes[i - 1]!.width - 1);
-      expect(boxes[i]!.y).toBe(boxes[0]!.y);
-    }
-    expect(boxes[3]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0, 3).map(b => b.y + b.height)) - 1);
+  if (width <= 700) expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y + boxes[0]!.height - 1);
+  else {
+    expect(boxes[1]!.x).toBeGreaterThanOrEqual(boxes[0]!.x + boxes[0]!.width - 1);
+    expect(Math.abs(boxes[1]!.y - boxes[0]!.y)).toBeLessThanOrEqual(1);
   }
+  expect(boxes[2]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0,2).map(b => b.y + b.height)) - 1);
 }
 
 test("#218 single-row sticky header preserves workflow, long names and keyboard/menu access", async ({ page }, info) => {
@@ -89,20 +86,29 @@ test("#218 single-row sticky header preserves workflow, long names and keyboard/
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));
     await assertHeader(page, width);
-    const rail = await page.locator(".progress-rail").boundingBox();
-    expect(rail!.y).toBeGreaterThanOrEqual(56);
+    await expect(page.locator(".progress-rail")).toHaveCount(0);
+    const map = await page.locator(".route-map").boundingBox();
+    expect(map!.y).toBeGreaterThanOrEqual(56);
     await assertWorkflow(page, width);
     await page.screenshot({ path: info.outputPath(`header-${width}.png`) });
     await page.evaluate(() => scrollTo({ top: 600, behavior: "instant" }));
     await assertHeader(page, width);
     await assertWorkflow(page, width);
+    // Ordinary notices are bottom Toasts, not another sticky header row.
+    const saveNotice = page.getByRole("button", { name: "保存", exact: true });
+    await saveNotice.evaluate((button:HTMLButtonElement) => button.focus({preventScroll:true}));
+    const beforeNoticeScroll = await page.evaluate(() => scrollY);
+    await saveNotice.evaluate((button:HTMLButtonElement) => button.click());
     const notice = page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" });
-    const noticeBounds = await notice.boundingBox();
-    expect(noticeBounds!.y).toBe(56);
+    await expect(notice).toBeVisible();
+    expect(await page.evaluate(() => scrollY)).toBe(beforeNoticeScroll);
+    const noticeBounds = (await notice.boundingBox())!;
+    expect(noticeBounds.y).toBeGreaterThan(56);
+    expect(noticeBounds.y + noticeBounds.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight));
     await expect(notice.getByRole("button", { name: "メッセージを閉じる" })).toBeInViewport();
     expect(await notice.evaluate(el => {
       const box = el.getBoundingClientRect();
-      return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+      return !el.contains(document.elementFromPoint(box.x + 12, box.y + box.height / 2));
     })).toBe(true);
     await page.screenshot({ path: info.outputPath(`header-scrolled-${width}.png`) });
 
@@ -202,6 +208,9 @@ test("#218 panel pointer actions survive input blur and keyboard departure still
   await page.keyboard.press("Escape");
   await more.press("Enter");
   await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: /^お知らせ/ })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".map-source-details summary")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(more).toHaveAttribute("aria-expanded", "false");
 });

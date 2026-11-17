@@ -1,5 +1,5 @@
 import rjfmReference from "../../../data/reference/rjfm/rjfm-reference.json";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { clusterCandidates, referencePoints, type ReferencePointSnapshot } from "../referencePoints";
 import { CircleMarker, Marker, Polyline, Tooltip, useMapEvents } from "react-leaflet";
 import { divIcon } from "leaflet";
@@ -100,17 +100,19 @@ export function MapDraftLayers({ points, airports, busy, onAirport, onReference,
     {[...selected.values()].map(renderPoint)}
   </>;
 }
-export function RouteStrip({ points, busy, onRemove, onClear, onConfirm }: MapRouteBuilderProps) {
+export function RouteStrip({ points, busy, onRemove, onClear, onConfirm, children }: MapRouteBuilderProps & { children?: ReactNode }) {
   return <div className="map-route-controls">
-    <p>{points.length ? "飛行順に地点を追加し、最後の空港で経路を確定してください。" : "地図上の空港を選んで、出発地（FROM）を設定してください。"}</p>
-    {points.length > 0 && <ol className="route-strip" aria-label="経路リスト">
+    <h2 className="draft-card-title" aria-label="経路作成">経路</h2>
+    <p>{points.length ? "飛行順に地点を追加し、最後の空港で経路を確定してください。" : "地図をクリックし、経路を作成してください"}</p>
+    <ol className="route-strip" aria-label="経路リスト">
       {points.map((point, index) => <li key={point.id}>
         <span>{index + 1}. {point.name}{index === 0 ? " (FROM)" : ""}</span>
         {index > 0 && <button type="button" disabled={busy} onClick={() => onRemove(point.id)}
           aria-label={`${index + 1}番目の${point.name}を削除`}>削除</button>}
       </li>)}
-    </ol>}
+    </ol>
     {points.length >= 500 && <p role="status">経路は500地点までです。</p>}
+    {children}
     <div className="map-route-actions">
       <button className="secondary-button" disabled={busy || points.length === 0} onClick={onClear}>経路をクリア</button>
       <button className="primary-button" disabled={busy || !canConfirmMapDraft(points)} onClick={onConfirm}>経路を確定</button>

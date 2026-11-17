@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const inboundKml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document>
-  <Placemark><name>RJFO→RJFM inbound</name><LineString><coordinates>
+  <Placemark><name>RJFO→OMARU→UMK→有田→RJFM</name><LineString><coordinates>
     131.7371201529664,33.47949406702627,0
     131.47036916946163,32.16255070087476,0
     131.42429852046251,31.985137767624444,0
@@ -113,7 +113,7 @@ test("real RJFO inbound KML keeps physical route and places EOC at UMK", async (
   await page.getByLabel("5,000 ft風向 ° FROM").fill("270");
   await page.getByLabel("5,000 ft風速 kt").fill("30");
 
-  const routeRows = page.locator(".route-table tbody .route-point-row");
+  const routeRows = page.locator(".route-timeline > .timeline-stop");
   await expect(routeRows).toHaveCount(5);
   const confirmed = await readState(page);
   if (!confirmed.project) throw new Error("confirmed project is missing");
@@ -124,7 +124,8 @@ test("real RJFO inbound KML keeps physical route and places EOC at UMK", async (
   expect(physicalNodes.map((node) => node.role)).toEqual([
     "AIRPORT", "ROUTE_POINT", "ROUTE_POINT", "VISUAL_REPORTING_POINT", "DESTINATION",
   ]);
-  expect(physicalNodes[0]?.name).toBe("RJFO");
+  // Default VOR tracking names the RJFO departure node after its associated VOR.
+  expect(physicalNodes[0]?.name).toBe("TFE");
   expect(physicalNodes[1]?.name).toBe("OMARU");
   expect(physicalNodes[2]?.name).toBe("UMK");
   expect(physicalNodes[4]?.name).toBe("RJFM");
@@ -147,7 +148,7 @@ test("real RJFO inbound KML keeps physical route and places EOC at UMK", async (
   await expect(fixedRouteControl).toContainText("RJFM帰路 OMARU→UMKの到達高度");
   await expect(fixedRouteControl.locator("input, select")).toHaveCount(0);
 
-  for (const input of await page.locator(".route-table tbody tr:not(.vrep-row) .table-number-input").all()) {
+  for (const input of await page.locator(".timeline-leg .table-number-input").all()) {
     await input.fill("4500");
   }
   for (const select of await page.locator(".altitude-candidate-select").all()) {
@@ -155,7 +156,7 @@ test("real RJFO inbound KML keeps physical route and places EOC at UMK", async (
   }
   // This fixed FTD wind needs the existing feasible manual entry plan; the
   // automatic 1,500 ft plan correctly returns NO_SOLUTION in the current core.
-  await page.locator(".vrep-row .table-number-input").fill("2500");
+  await page.getByLabel(/のVREP通過高度$/).fill("2500");
   const calculateButton = page.locator(".status-actions .primary-button");
   await expect(calculateButton).toHaveText("NAV LOGを作る");
   await calculateButton.click();
@@ -184,9 +185,11 @@ test("real RJFO inbound KML keeps physical route and places EOC at UMK", async (
   expect(calculatedInboundSection?.from_node_id).toBe(physicalNodes[1]?.id);
   expect(calculatedInboundSection?.to_node_id).toBe(physicalNodes[2]?.id);
   expect(calculatedInboundSection?.planned_altitude_ft_msl.automatic_value).toBe(4500);
+  // The terminal summary groups OMARU through the destination; the physical
+  // OMARU-to-UMK section and its EOC remain checked separately.
   const navLogInbound = calculated.outcome.display_rows.find(
     (row) => row.row_type === "PHYSICAL_LEG_SUMMARY"
-      && row.from_node_id === physicalNodes[1]?.id && row.to_node_id === physicalNodes[2]?.id,
+      && row.from_node_id === physicalNodes[1]?.id && row.to_node_id === physicalNodes[4]?.id,
   );
   expect(navLogInbound?.pa.text).toBe("4500");
   const eoc = calculated.outcome.derived_points.filter((point) => point.type === "EOC");
@@ -201,7 +204,7 @@ test("real RJFO inbound KML keeps physical route and places EOC at UMK", async (
   expect(guidance?.predicted_ete_min).toBeGreaterThan(0);
   expect(guidance?.minimum_boundary_clearance_nm).toBeGreaterThanOrEqual(0);
   await expect(page.getByLabel("RJFM帰路の経路延長案内")).toBeVisible();
-  await expect(page.getByLabel("RJFM帰路の経路延長案内")).toContainText("warningのみ");
+  await expect(page.getByLabel("RJFM帰路の経路延長案内")).toContainText("警告のみ");
   const navLogBox = await page.getByLabel("計算済みNAV LOG").boundingBox();
   const guidanceBox = await page.getByLabel("RJFM帰路の経路延長案内").boundingBox();
   if (!navLogBox || !guidanceBox) throw new Error("NAV LOG or inbound guidance is missing");

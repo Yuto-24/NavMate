@@ -1,11 +1,11 @@
+import { Maximize, Minimize, Pencil } from "lucide-react";
 import { MapDraftLayers, RouteStrip, type MapRouteBuilderProps } from "./MapRouteBuilder";
 import { MapViewport } from "./MapViewport";
 import { MapBackground } from "./MapBackground";
 import type { KeyValueStorage } from "../platform";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, SetStateAction, ReactNode } from "react";
 import type { CheckPointDraft, NodeNameDraft } from "../applicationSession";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Circle,
   CircleMarker,
@@ -18,7 +18,6 @@ import {
 } from "react-leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
 import { patternAltitudeFtMsl } from "../forms";
-import { formatOperationalMagneticCourse } from "../displayRounding";
 import {
   fetchRjfmTrainingAirspace,
   isApprovedRjfmAirspaceReference,
@@ -39,7 +38,6 @@ import type {
   RouteCandidate,
 } from "../types";
 import { CheckPointEditor } from "./CheckPointEditor";
-import { MapResizeHandle } from "./MapResizeHandle";
 import { rjfmCandidateClass, rjfmStatusLabels } from "./RjfmGuidancePanel";
 import { RouteConfirmation } from "./RouteConfirmation";
 import "./RouteWorkspacePhase.css";
@@ -66,6 +64,8 @@ function MapAttributionLayout() {
 }
 
 interface RouteWorkspaceProps {
+  planningPanel?: ReactNode;
+  readinessPanel?: ReactNode;
   mapBuilder?: MapRouteBuilderProps;
   onEditRoute?: () => void;
   viewportStorage: KeyValueStorage;
@@ -175,11 +175,9 @@ type TrainingAirspaceState =
 function FitBounds({
   coordinates,
   signature,
-  viewportRevision,
 }: {
   coordinates: [number, number][];
   signature: string;
-  viewportRevision: number;
 }) {
   const map = useMap();
   useEffect(() => {
@@ -192,7 +190,7 @@ function FitBounds({
       }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [map, signature, viewportRevision]);
+  }, [map, signature]);
   return null;
 }
 
@@ -212,6 +210,7 @@ function CheckPointMapPicker({
 }
 
 export function RouteWorkspace({
+  planningPanel, readinessPanel,
   mapBuilder, onEditRoute, viewportStorage, viewportScope, preserveRouteViewport,
   onOpenExternalUrl,
   checkPointDraft, setCheckPointDraft, nodeNameDraft: nodeDraft, setNodeNameDraft: setNodeDraft,
@@ -238,7 +237,6 @@ export function RouteWorkspace({
   onConfirmRoute,
   onReplaceCheckPoints,
 }: RouteWorkspaceProps) {
-  const [mapHeight, setMapHeight] = useState(425);
   // Device preference: deliberately outside Project, account scope and calculation data.
   const [mapBackground, setMapBackground] = useState(() => {
     try { return viewportStorage.getItem("autonavlog.map-background.v1") === "imagery" ? "imagery" : "map"; }
@@ -246,6 +244,46 @@ export function RouteWorkspace({
   });
   const [pickingCheckPoint, setPickingCheckPoint] = useState(false);
   const [phaseEditing, setPhaseEditing] = useState(false);
+  const [customAltitudeSections, setCustomAltitudeSections] = useState<Record<string, boolean>>({});
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const routeBuilding = Boolean(mapBuilder);
+  useEffect(() => { if (!routeBuilding) setFullscreen(false); }, [routeBuilding]);
+  const mapFrameRef = useRef<HTMLDivElement>(null);
+  const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
+  const [checkpointSlots, setCheckpointSlots] = useState<Record<string, HTMLElement>>({});
+  const registerCheckpointSlot = useCallback((id: string, element: HTMLDivElement | null) => {
+    setCheckpointSlots(current => {
+      if (current[id] === element || (!element && !current[id])) return current;
+      const next = { ...current };
+      if (element) next[id] = element; else delete next[id];
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    if (!fullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const frame = mapFrameRef.current!;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setFullscreen(false); }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(frame.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], select, input:not(:disabled), [tabindex="0"]'));
+      const first = focusable[0], last = focusable.at(-1);
+      if (event.shiftKey && (document.activeElement === first || !frame.contains(document.activeElement))) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !frame.contains(document.activeElement))) {
+        event.preventDefault(); first?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    fullscreenButtonRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKey);
+      fullscreenButtonRef.current?.focus({ preventScroll: true });
+    };
+  }, [fullscreen]);
   const editingNodeId = nodeDraft.id;
   const nodeNameDraft = nodeDraft.name;
   const setEditingNodeId = (id: string | null) => setNodeDraft(current => ({ ...current, id }));
@@ -552,26 +590,44 @@ export function RouteWorkspace({
   const clearPickedCoordinate = useCallback(() => {
     setPickedCoordinate(null);
   }, []);
-  const mapFrameStyle = {
-    "--route-map-height": `${mapHeight}px`,
-  } as CSSProperties;
+  useEffect(() => {
+    const workspace = document.querySelector<HTMLElement>(".app-workspace");
+    if (!workspace) return;
+    const update = () => workspace.style.setProperty("--workspace-top", `${workspace.getBoundingClientRect().top + window.scrollY}px`);
+    const observer = new ResizeObserver(update);
+    for (const sibling of Array.from(workspace.parentElement?.children ?? [])) {
+      if (sibling === workspace) break;
+      observer.observe(sibling);
+    }
+    const mutation = new MutationObserver(update);
+    mutation.observe(workspace.parentElement!, {childList:true});
+    window.addEventListener("resize", update);
+    update();
+    return () => { observer.disconnect(); mutation.disconnect(); window.removeEventListener("resize", update); };
+  }, []);
 
   return (
     <section className={`route-workspace${mapBuilder ? " is-route-building" : ""}`} aria-label="経路地図とLeg設定">
-      <div className="workspace-heading">
-        <div>
-          <h2>経路</h2>
-          <p>
-            {project
-              ? `${project.departure_airport_id} → ${project.destination_airport_id}`
-              : mapBuilder ? "地図で経路を作成" : candidate?.name ?? "飛行経路候補を選択すると地図へ表示します"}
-          </p>
-        </div>
-        {onEditRoute && <button className="secondary-button" disabled={busy} onClick={onEditRoute}>経路を編集</button>}
-        {project && <span className="route-count">{nodes.length}点 / {sections.length} Leg</span>}
-      </div>
+      {mapBuilder && <div className="draft-mobile-heading"><h2>経路</h2><p>地図で経路を作成</p></div>}
+      <div
+        ref={mapFrameRef}
+        id="route-map-frame"
+        role={fullscreen ? "dialog" : undefined}
+        aria-modal={fullscreen || undefined}
+        aria-label={fullscreen ? "全画面の経路地図" : undefined}
+        className={`map-frame${fullscreen ? " is-fullscreen" : ""}${pickingCheckPoint ? " is-picking-checkpoint" : ""}${localMode && mapBackground === "imagery" ? " is-imagery" : ""}`}
+        onClickCapture={(event) => {
+          const link = event.target instanceof Element
+            ? event.target.closest<HTMLAnchorElement>("a[data-airspace-source]")
+            : null;
+          if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          onOpenExternalUrl(link.href);
+        }}
+      >
+        <div className="map-toolbar">
       {localMode && <label className="map-background-picker">
-        背景地図
+        <span>背景地図</span>
         <select value={mapBackground} onChange={(event) => {
           const value = event.target.value;
           setMapBackground(value);
@@ -582,20 +638,13 @@ export function RouteWorkspace({
           <option value="imagery">衛星・空中写真</option>
         </select>
       </label>}
-      <div
-        id="route-map-frame"
-        className={`map-frame${pickingCheckPoint ? " is-picking-checkpoint" : ""}${localMode && mapBackground === "imagery" ? " is-imagery" : ""}`}
-        style={mapFrameStyle}
-        onClickCapture={(event) => {
-          const link = event.target instanceof Element
-            ? event.target.closest<HTMLAnchorElement>("a[data-airspace-source]")
-            : null;
-          if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-          event.preventDefault();
-          onOpenExternalUrl(link.href);
-        }}
-      >
+        {mapBuilder && <button ref={fullscreenButtonRef} type="button" className="map-fullscreen-toggle" disabled={busy && !fullscreen} aria-label={fullscreen ? "地図の全画面表示を終了" : "地図を全画面表示"} aria-pressed={fullscreen} onClick={() => setFullscreen(value => !value)}>
+          {fullscreen ? <Minimize aria-hidden="true" size={18} /> : <Maximize aria-hidden="true" size={18} />}
+        </button>}
+        </div>
+        {!mapBuilder && onEditRoute && <div className="map-route-edit"><button className="secondary-button" disabled={busy} onClick={onEditRoute}>経路を編集</button><span>{nodes.length}点 / {sections.length} Leg</span></div>}
         <MapContainer
+          trackResize={false}
           // Local Account changes may unmount immediately; Leaflet zoom timers outlive remove().
           zoomAnimation={!localMode}
           center={[31.8772, 131.4486]}
@@ -841,11 +890,10 @@ export function RouteWorkspace({
           )}
           {mapBuilder && <MapDraftLayers {...mapBuilder} />}
           <MapViewport storage={viewportStorage} scope={viewportScope} projectId={project?.id ?? null} coordinates={fitCoordinates} preserveViewport={preserveRouteViewport} importFitCoordinates={mapBuilder?.importFitCoordinates} />
-          <CheckPointMapPicker active={!mapBuilder && pickingCheckPoint} onPick={handleMapPick} />
+          <CheckPointMapPicker active={!busy && !mapBuilder && (pickingCheckPoint || pickedCoordinate !== null || Boolean(checkPointDraft.id))} onPick={handleMapPick} />
           {!mapBuilder && !project && <FitBounds
             coordinates={fitCoordinates}
             signature={coordinateSignature}
-            viewportRevision={mapHeight}
           />}
         </MapContainer>
         {(rjfmMapReference || rjfmGuidance) && (
@@ -854,7 +902,17 @@ export function RouteWorkspace({
             role="group"
             aria-label="RJFMガイダンス凡例"
           >
-            <strong>RJFM空域</strong>
+            <button type="button" className="legend-toggle" aria-label={legendOpen ? "RJFM空域凡例を最小化" : "RJFM空域凡例を表示"} aria-expanded={legendOpen} onClick={() => setLegendOpen(v => !v)}>RJFM空域 <span aria-hidden="true">{legendOpen ? "−" : "+"}</span></button>
+            {rjfmMapReference && (
+              <span className="rjfm-airspace-status" aria-live="polite">
+                {trainingAirspace.status === "loading"
+                  ? "空域情報を取得中…"
+                  : trainingAirspace.status === "unavailable"
+                    ? "空域情報を取得できず非表示"
+                    : ""}
+              </span>
+            )}
+            {legendOpen && <>
             {rjfmMapReference && (
               <>
                 <span>
@@ -863,10 +921,7 @@ export function RouteWorkspace({
                   –{Math.round(rjfmMapReference.pca.sourceAltitudeUpperM / 0.3048).toLocaleString("ja-JP")} ft（{rjfmMapReference.pca.sourceAltitudeLowerM.toLocaleString("ja-JP")}
                   –{rjfmMapReference.pca.sourceAltitudeUpperM.toLocaleString("ja-JP")} m）
                 </span>
-                <span>
-                  <i className="is-pca-exclusion" aria-hidden="true" />
-                  中心除外 {rjfmMapReference.pca.exclusionRadiusKm.toLocaleString("ja-JP")} km
-                </span>
+                <span><i className="is-pca-exclusion" aria-hidden="true" />中心除外 {rjfmMapReference.pca.exclusionRadiusKm.toLocaleString("ja-JP")} km</span>
               </>
             )}
             {rjfmGuidance && (
@@ -880,15 +935,8 @@ export function RouteWorkspace({
                 ))}
               </>
             )}
-            {rjfmMapReference && (
-              <span className="rjfm-airspace-status" aria-live="polite">
-                {trainingAirspace.status === "loading"
-                  ? "空域情報を取得中…"
-                  : trainingAirspace.status === "unavailable"
-                    ? "空域情報を取得できず非表示"
-                    : ""}
-              </span>
-            )}
+
+            </>}
           </div>
         )}
         {!mapBuilder && !coordinates.length && (
@@ -898,7 +946,6 @@ export function RouteWorkspace({
           </div>
         )}
       </div>
-      {mapBuilder ? <RouteStrip {...mapBuilder} /> : <MapResizeHandle value={mapHeight} min={320} max={900} onChange={setMapHeight} />}
 
       <RouteConfirmation
         visible={Boolean(candidate && !project && !mapBuilder)}
@@ -912,8 +959,13 @@ export function RouteWorkspace({
         onConfirm={onConfirmRoute}
       />
 
+      <div className="planning-pane"><div className="planning-pane-scroll">
+
+      {!mapBuilder && planningPanel}
+      {mapBuilder && <RouteStrip {...mapBuilder}>{planningPanel}</RouteStrip>}
       {project && !mapBuilder && (
         <CheckPointEditor
+          slots={checkpointSlots}
           draft={checkPointDraft}
           setDraft={setCheckPointDraft}
           nodes={nodes}
@@ -936,45 +988,13 @@ export function RouteWorkspace({
           RCA・EOC・性能・時間・燃料計算が変わるため、計画意図を確認して変更してください。
         </div>
       )}
-      <div className="table-scroll route-table-scroll">
-        <table className="route-table route-table-phase-compact">
-          <thead>
-            <tr>
-              <th>POINT</th>
-              <th>ALT ft MSL / MC候補</th>
-              <th>
-                <div className="phase-heading">
-                  <span>PHASE</span>
-                  {project && hasEditablePhaseSections && (
-                    <button
-                      className={`phase-edit-toggle${phaseEditing ? " is-active" : ""}`}
-                      type="button"
-                      disabled={busy}
-                      aria-pressed={phaseEditing}
-                      onClick={() => setPhaseEditing((current) => !current)}
-                    >
-                      {phaseEditing ? "完了" : "変更"}
-                    </button>
-                  )}
-                </div>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {!project && candidate && (
-              <tr>
-                <td colSpan={3}>{candidate.vertexCount}点の形状を確認中</td>
-              </tr>
-            )}
-            {!project && !candidate && (
-              <tr>
-                <td colSpan={3} className="empty-table-cell">
-                  経路を取り込むとRoute点が表示されます
-                </td>
-              </tr>
-            )}
+      <div className="route-timeline-heading"><strong>経路</strong>{project && hasEditablePhaseSections && <button className="phase-edit-toggle" type="button" disabled={busy} aria-pressed={phaseEditing} onClick={() => setPhaseEditing(v=>!v)}>{phaseEditing ? "飛行段階の編集を完了" : "飛行段階を編集"}</button>}</div>
+      <ol className="route-timeline">
             {!mapBuilder && nodes.map((node, index) => {
               const section = sectionByFromNode.get(node.id);
+              const legResults = section ? outcome?.sections.filter(r => r.section_id === section.id) ?? [] : [];
+              const currentLeg = calculationIsCurrent ? legResults[0] : null;
+              const currentDistance = calculationIsCurrent && legResults.length ? legResults.reduce((total,r)=>total+(r.zone_distance_nm.automatic_value ?? 0),0) : null;
               const guidance = section
                 ? guidanceBySection.get(section.id)
                 : undefined;
@@ -1010,7 +1030,7 @@ export function RouteWorkspace({
               const phaseLocked = Boolean(section && isPhaseLocked(section));
               const pointContent = (
                 <div className="route-point-content" id={`route-point-${node.id}`}>
-                  <span className="point-index">{index}</span>
+                  <span className="point-index" aria-hidden="true" />
                   {editingNodeId === node.id ? (
                     <div className="route-name-editor">
                       <input
@@ -1031,7 +1051,7 @@ export function RouteWorkspace({
                         }}
                       />
                       <button
-                        className="route-name-save"
+                        className="route-name-save primary-button"
                         type="button"
                         disabled={busy || nodeNameSaving}
                         onClick={() => void saveNodeNameEdit()}
@@ -1039,7 +1059,7 @@ export function RouteWorkspace({
                         {nodeNameSaving ? "保存中" : "保存"}
                       </button>
                       <button
-                        className="route-name-cancel"
+                        className="route-name-cancel secondary-button"
                         type="button"
                         disabled={busy || nodeNameSaving}
                         onClick={cancelNodeNameEdit}
@@ -1054,6 +1074,7 @@ export function RouteWorkspace({
                       {node.role !== "AIRPORT" && node.role !== "DESTINATION" && (
                         <button
                           className="route-name-edit"
+                          aria-label={`${node.name}を編集`} title="名称を編集"
                           type="button"
                           disabled={busy}
                           onClick={() => {
@@ -1062,42 +1083,17 @@ export function RouteWorkspace({
                             setNodeNameError(null);
                           }}
                         >
-                          編集
+                          <Pencil aria-hidden="true" size={15} />
                         </button>
                       )}
                     </div>
                   )}
                 </div>
               );
-              return (
-                <Fragment key={node.id}>
-                  {section && (
-                    <tr
-                      className={`route-point-row${node.role === "VISUAL_REPORTING_POINT" ? " vrep-point-row" : ""}`}
-                      data-node-id={node.id}
-                    >
-                      <td>{pointContent}</td>
-                      <td />
-                      <td />
-                    </tr>
-                  )}
-                  <tr
-                    data-node-id={section ? undefined : node.id}
-                    data-section-id={section?.id}
-                    data-from-node-id={section?.from_node_id}
-                    data-to-node-id={section?.to_node_id}
-                    aria-labelledby={section ? `route-point-${section.from_node_id} route-point-${section.to_node_id}` : undefined}
-                    className={[
-                      section ? "route-leg-row" : "route-point-row",
-                      node.role === "VISUAL_REPORTING_POINT" ? "vrep-row" : "",
-                      node.role === "DESTINATION" ? "destination-row" : "",
-                      hasAltitudeCandidateWarning ? "altitude-warning-row" : "",
-                    ].filter(Boolean).join(" ")}
-                  >
-                    <td>
-                      {section ? null : pointContent}
-                    </td>
-                    <td className={hasAltitudeCandidateWarning ? "altitude-warning-cell" : ""}>
+              const isVrepAltitude = node.role === "VISUAL_REPORTING_POINT" && section?.phase === "VISUAL_ARRIVAL";
+              const altitudeControl = (
+<div className={hasAltitudeCandidateWarning ? "timeline-altitude altitude-warning-cell" : "timeline-altitude"}>
+                      {section && <div className="timeline-altitude-label">{isVrepAltitude ? "VREP通過高度" : "巡航高度"}</div>}
                       {section && fixedLabels ? (
                         <div
                           className="fixed-altitude-control"
@@ -1121,11 +1117,12 @@ export function RouteWorkspace({
                                       "候補"
                                 }
                                 value={
-                                  isCandidateAltitude
+                                  isCandidateAltitude && !customAltitudeSections[section.id]
                                     ? String(effectiveAltitude)
                                     : "custom"
                                 }
                                 onChange={(event) => {
+                                  setCustomAltitudeSections(prev => ({...prev, [section.id]: event.target.value === "custom"}));
                                   if (event.target.value !== "custom") {
                                     onAltitudeInputChange(section.id, event.target.value);
                                   }
@@ -1139,51 +1136,31 @@ export function RouteWorkspace({
                                 <option value="custom">任意値</option>
                               </select>
                             )}
-                            <input
+                            {(!guidance?.appliesToCruisingAltitudeInput || !isCandidateAltitude || customAltitudeSections[section.id]) && <span className="altitude-unit-input"><input
                               className="table-number-input"
-                              aria-label={node.name + "出発Legの計画高度"}
+                              aria-label={isVrepAltitude ? node.name + "のVREP通過高度" : node.name + "出発Legの計画高度"}
                               type="number"
                               min="100"
                               max="25000"
                               step="100"
                               value={altitudeInputs[section.id] ?? String(section.planned_altitude_ft_msl)}
+                              aria-description="単位 ft"
                               placeholder="入力"
-                              onChange={(event) =>
-                                onAltitudeInputChange(section.id, event.target.value)
-                              }
-                            />
+                              onChange={(event) => {
+                                setCustomAltitudeSections(current => ({ ...current, [section.id]: true }));
+                                onAltitudeInputChange(section.id, event.target.value);
+                              }}
+                            /><span aria-hidden="true">ft</span></span>}
                           </div>
-                          {guidance && (
-                            <small className="altitude-course">
-                              {guidance.appliesToCruisingAltitudeInput
-                                ? altitudeBasisLabels[section.phase] + "・"
-                                : ""}
-                              VAR {guidance.variationDegEast > 0 ? "+" : ""}{guidance.variationDegEast}°
-                              {" / MC "}{formatOperationalMagneticCourse(
-                                guidance.vfrCruisingAltitudeMagneticCourseDeg,
-                              )}
-                              {hasAltitudeCandidateWarning ? "・候補外（警告）" : ""}
-                            </small>
-                          )}
+                          {hasAltitudeCandidateWarning ? <small className="field-error">巡航高度の候補外（警告）</small> : section && customAltitudeSections[section.id] && guidance?.appliesToCruisingAltitudeInput ? <small className="inline-warning custom-altitude-warning">任意値を使用します。巡航高度を確認してください。</small> : null}
                         </div>
                       ) : node.role === "DESTINATION" ? (
                         <div className="arrival-altitude-control">
-                          <div className="arrival-airport-reference">
-                            <span>飛行場標高</span>
-                            <strong>
-                              {destinationAirport?.elevationFtMsl.toLocaleString("ja-JP") ?? "—"}
-                              {" ft MSL"}
-                            </strong>
-                            {destinationAirport && (
-                              <small>
-                                {destinationAirport.icao} {destinationAirport.name}
-                              </small>
-                            )}
-                          </div>
                           <label>
-                            <span>今回採用する場周経路高度</span>
-                            <input
+                            <span>場周高度</span>
+                            <span className="altitude-unit-input"><input
                               className="arrival-pattern-input"
+                              aria-description="単位 ft"
                               aria-label="今回採用する場周経路高度"
                               aria-describedby={`${node.id}-pattern-altitude-help`}
                               aria-invalid={validPatternAltitude === null}
@@ -1195,28 +1172,41 @@ export function RouteWorkspace({
                               onChange={(event) =>
                                 onDestinationPatternAltitudeChange(event.target.value)
                               }
-                            />
+                            /><span aria-hidden="true">ft</span></span>
                           </label>
+                          <div className="arrival-airport-reference">
+                            <span>飛行場標高</span>
+                            <strong>
+                              {destinationAirport?.elevationFtMsl.toLocaleString("ja-JP") ?? "—"}
+                              {" ft MSL"}
+                            </strong>
+                          </div>
+
                           <small
                             id={`${node.id}-pattern-altitude-help`}
                             className={`arrival-altitude-help ${validPatternAltitude === null ? "field-error" : ""}`}
                           >
-                            {destinationAirport
-                              ? `参照値 ${destinationAirport.patternAltitudeFtMsl.toLocaleString("ja-JP")} ft MSL（標高差 ${(destinationAirport.patternAltitudeFtMsl - destinationAirport.elevationFtMsl).toLocaleString("ja-JP")} ft）`
-                              : "目的地空港の参照データ値を確認してください。"}
-                            <br />
                             {validPatternAltitude === null
                               ? patternAltitudeBelowAirport
                                 ? "採用場周経路高度は飛行場標高より高くしてください。"
                                 : "100～25,000 ftの範囲で100 ft単位の整数を入力してください。"
-                              : "運用差がある場合は、今回使用するMSL高度へ編集してください。"}
+                              : ""}
                           </small>
                         </div>
                       ) : (
                         "—"
                       )}
-                    </td>
-                    <td className="phase-cell">
+                    </div>
+              );
+              return (
+                <li key={node.id} className="timeline-stop" data-node-id={node.id} data-node-role={node.role}>
+                  <div className={`timeline-node${isVrepAltitude || node.role === "DESTINATION" ? " has-node-altitude" : ""}`}>{pointContent}{(isVrepAltitude || node.role === "DESTINATION") && <div className="timeline-node-altitude">{altitudeControl}</div>}<small className="timeline-node-kind">{index === 0 ? "FROM" : node.role === "DESTINATION" ? "TO" : node.role === "VISUAL_REPORTING_POINT" ? "VREP" : "WP"}</small></div>
+                  <section className={section ? "timeline-leg" : "timeline-arrival"} aria-label={section ? `${node.name}から次の地点までの区間` : "到着空港の高度"} data-section-id={section?.id} data-from-node-id={section?.from_node_id} data-to-node-id={section?.to_node_id}>
+                    {section && <div className="timeline-leg-metrics">{currentLeg && <><span>TC {currentLeg.true_course_deg.automatic_value?.toFixed(0)}°</span><span>MC {currentLeg.magnetic_course_deg.automatic_value?.toFixed(0)}°</span></>}{currentDistance != null && <span>Dist {currentDistance.toFixed(1)} NM</span>}</div>}
+                    <div className="timeline-leg-controls">
+                    {!isVrepAltitude && node.role !== "DESTINATION" && altitudeControl}
+                    <div className={`timeline-phase${isVrepAltitude ? " is-visual-arrival" : ""}`}>
+                      {section && <div className="timeline-altitude-label">飛行段階</div>}
                       <div className="route-phase-content">
                         <div className="route-phase-primary">
                           {section && fixedLabels ? (
@@ -1271,15 +1261,21 @@ export function RouteWorkspace({
                           </small>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                </Fragment>
+                    </div>
+                    </div>
+                    {section && <CheckpointSlot sectionId={section.id} register={registerCheckpointSlot} />}
+                  </section>
+                </li>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+      </ol>
       </>}
+      </div><div className="planning-pane-footer">{readinessPanel}</div></div>
     </section>
   );
+}
+
+function CheckpointSlot({ sectionId, register }: { sectionId: string; register: (id: string, element: HTMLDivElement | null) => void }) {
+  const ref = useCallback((element: HTMLDivElement | null) => register(sectionId, element), [register, sectionId]);
+  return <div className="timeline-cps" ref={ref} />;
 }

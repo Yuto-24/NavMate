@@ -4,12 +4,14 @@ import { AccountControl } from "./AccountControl";
 import type { AuthProvider } from "../auth";
 import type { PlatformCapabilities } from "../platform";
 import { localMode, devSharedMode } from "../executionMode";
-import { CheckCircle2, ChevronDown, Info, MoreHorizontal, FolderOpen, Plus, Save, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Info, MoreHorizontal, FolderOpen, Plus, Save, Trash2 } from "lucide-react";
 import type { SavedProject } from "../types";
 
 const noSubscribe = () => () => {};
 
 interface HeaderProps {
+  operationMessages?: string[];
+  syncMessages?: string[];
   auth?: AuthProvider;
   networkAvailability: PlatformCapabilities["networkAvailability"];
   onBeforeAccountChange?: () => boolean;
@@ -22,6 +24,7 @@ interface HeaderProps {
   informationUnread: boolean;
   knownIssuesUnread: boolean;
   onInformation: () => void;
+  onOpenExternalUrl?: (url: string) => void;
   onProjectNameChange: (value: string) => void;
   onSelectedProjectIdChange: (value: string) => void;
   onLoad: () => void;
@@ -31,7 +34,7 @@ interface HeaderProps {
 }
 
 export function Header({
-  auth, onBeforeAccountChange, networkAvailability,
+  auth, onBeforeAccountChange, networkAvailability, operationMessages = [], syncMessages = [],
   appVersion,
   projectName,
   revision,
@@ -40,7 +43,7 @@ export function Header({
   busy,
   informationUnread,
   knownIssuesUnread,
-  onInformation,
+  onInformation, onOpenExternalUrl,
   onProjectNameChange,
   onSelectedProjectIdChange,
   onLoad,
@@ -136,22 +139,34 @@ export function Header({
         <button className="header-button header-new-button" aria-label="新規" title="新規" type="button" onClick={onNew} disabled={busy}>
           <Plus aria-hidden="true" size={18} /><span className="header-action-label">新規</span>
         </button>
-        {localMode ? <AccountControl auth={auth} busy={busy} onBeforeChange={onBeforeAccountChange} networkAvailability={networkAvailability} /> : <LegacyAccountControl busy={busy} />}
+        {localMode ? <AccountControl syncMessages={syncMessages} auth={auth} busy={busy} onBeforeChange={onBeforeAccountChange} networkAvailability={networkAvailability} /> : <LegacyAccountControl busy={busy} />}
         <div className="header-more" ref={moreControl} onBlur={event => {
           // Safari may blur an input to no focus target before an internal button's click.
           if (!event.currentTarget.contains(event.relatedTarget) && !(event.relatedTarget === null && pointerInPanel.current)) setPanel(current => current === "more" ? null : current);
         }}>
           <button ref={moreButton} className={`header-button header-more-button${knownIssuesUnread ? " information-warning" : ""}`}
             type="button" aria-label={knownIssuesUnread ? "その他（既知の不具合に更新があります）" : informationUnread ? "その他（未読の更新があります）" : "その他"}
+            aria-describedby={operationMessages.length ? "operation-messages" : undefined}
             title="その他" aria-expanded={panel === "more"} aria-controls="header-more-panel"
             onClick={() => setPanel(panel === "more" ? null : "more")}>
-            <span className="information-icon-wrap"><MoreHorizontal aria-hidden="true" size={20} />{informationUnread && <span className="information-unread-dot" />}</span>
+            <span className="information-icon-wrap">{operationMessages.length ? <AlertCircle aria-hidden="true" size={20} /> : <MoreHorizontal aria-hidden="true" size={20} />}{informationUnread && <span className="information-unread-dot" />}</span>
           </button>
           <div id="header-more-panel" className="header-panel more-panel" hidden={panel !== "more"}>
             <button className={`header-button information-button${knownIssuesUnread ? " information-warning" : ""}`}
               type="button" aria-label={informationLabel} onClick={() => { closePanel(); onInformation(); }}>
               <Info aria-hidden="true" size={18} /><span>お知らせ</span>
             </button>
+            <div id="operation-messages">{operationMessages.map(message => <p key={message}>{message}</p>)}</div>
+            <details className="map-source-details" onClick={event => {
+              const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+              if (link && onOpenExternalUrl && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); onOpenExternalUrl(link.href); }
+            }}>
+              <summary>地図の出典</summary>
+              <p>標準地図・写真背景の下地：© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></p>
+              <p>衛星・空中写真：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener noreferrer">地理院タイル</a>。表示倍率に応じて全国最新写真と衛星画像を重ねています。</p>
+              <p>衛星画像：Landsat8画像（GSI,TSIC,GEO Grid/AIST）、Landsat8画像（courtesy of the U.S. Geological Survey）、海底地形（GEBCO）。全国最新写真：GRUS画像（© Axelspace）を含みます。</p>
+              <p>必要な出典表示は地図上にも常時表示します。空域の出典は地図上の空域表示に付記します。</p>
+            </details>
             <p className="brand-subtitle">NAV2 地上準備 / v{appVersion}</p>
             <div className="storage-state" aria-label={devSharedMode ? (personal ? "Googleアカウントでログイン中の個人プロジェクト保存領域" : "端末内に保存し、開発用の共通スペースへ同期する方式") : localMode ? "保存先はこの端末のブラウザです" : "保存先はサーバーです"}>
               <CheckCircle2 aria-hidden="true" size={17} />

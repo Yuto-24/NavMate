@@ -1,3 +1,6 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
+import { zoomMapTo } from "./helpers/mapCandidates";
+import { clickMapCoordinate } from "./helpers/mapCoordinate";
 import { openProjectMenu } from "./helpers/header";
 import { confirmImportedDraft, expectImportedDraft, enterImportWorkflow } from "./helpers/importWorkflow";
 import { observeLegacySession } from "./helpers/legacySession";
@@ -962,9 +965,9 @@ async function calculateNavLog(
   }
 
 
-  await expect(page.locator(".route-table tbody tr.vrep-row")).toHaveCount(1);
-  const altitudeInputs = page.locator(".route-table tbody tr:not(.vrep-row) .table-number-input");
-  const vrepAltitudeInput = page.locator(".route-table tbody tr.vrep-row .table-number-input");
+  await expect(page.locator(".timeline-stop[data-node-role=VISUAL_REPORTING_POINT]")).toHaveCount(1);
+  const altitudeInputs = page.locator(".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input");
+  const vrepAltitudeInput = page.locator(".timeline-stop[data-node-role=VISUAL_REPORTING_POINT] .table-number-input");
   await expect(altitudeInputs.first()).toHaveValue("3000");
   await altitudeInputs.first().fill("");
   await expect(altitudeInputs.first()).toHaveValue("");
@@ -983,21 +986,20 @@ async function calculateNavLog(
     await altitudeCandidates.nth(index).selectOption({ index: 0 });
   }
   const cruiseAltitude = page.getByLabel(/出発Legの巡航高度候補/).first();
-  const variationGuidance = page.locator(".altitude-course");
-  await expect(variationGuidance.first()).toContainText("VAR +7°");
-  await expect(variationGuidance.nth(1)).toContainText("VAR +8°");
+  // TC/MC are absent before calculation; VAR is verified in the resulting NAV LOG below.
+  await expect(page.locator(".timeline-leg-metrics").filter({ hasText: /TC|MC/ })).toHaveCount(0);
   const cruiseCandidate = await cruiseAltitude.locator("option").first().getAttribute("value");
   if (cruiseCandidate === null) {
     throw new Error("Cruise altitude candidate is missing");
   }
   await cruiseAltitude.selectOption(cruiseCandidate);
   const patternAltitude = page.getByLabel("今回採用する場周経路高度");
-  const arrivalRow = page.locator(".destination-row");
+  const arrivalRow = page.locator(".timeline-stop").last();
   await expect(page.locator(".input-rail").getByLabel("今回採用する場周経路高度")).toHaveCount(0);
   await expect(arrivalRow.getByLabel("今回採用する場周経路高度")).toBeVisible();
   await expect(arrivalRow.getByText("飛行場標高", { exact: true })).toBeVisible();
   await expect(arrivalRow.getByText("17 ft MSL", { exact: true })).toBeVisible();
-  await expect(arrivalRow).toContainText("参照値 1,000 ft MSL（標高差 983 ft）");
+  // The compact arrival row retains adopted altitude and airport elevation, not duplicate reference prose.
   await expect(patternAltitude).toHaveValue("1000");
   await expect(page.getByRole("button", { name: "目的空港・場周高度を確定" })).toHaveCount(0);
   await patternAltitude.fill("");
@@ -1012,10 +1014,10 @@ async function calculateNavLog(
   const patternPayload = (await patternUpdate).postDataJSON() as Record<string, unknown>;
   expect(patternPayload.selected_pattern_altitude_ft_msl).toBe(1300);
   await expect(patternAltitude).toHaveValue("1300");
-  await expect(altitudeInputs.first()).toHaveValue(firstAltitudeCandidate);
+  await expect(altitudeCandidates.first()).toHaveValue(firstAltitudeCandidate);
   await expect(vrepAltitudeInput).toHaveValue("1800");
   await expect(cruiseAltitude).toHaveValue(cruiseCandidate);
-  await expect(page.locator(".altitude-warning-row")).toHaveCount(0);
+  await expect(page.locator(".timeline-altitude .field-error")).toHaveCount(0);
   if (forceBacktrackedEoc) {
     const altitudeCount = await altitudeInputs.count();
     for (let index = 0; index < altitudeCount; index += 1) {
@@ -1502,7 +1504,7 @@ test("valid planning drafts autosave before calculation and coalesce rapid edits
   await confirmImportedDraft(page);
 
   const routeAltitudes = page.locator(
-    ".route-table tbody tr:not(.vrep-row) .table-number-input",
+    ".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input",
   );
   await expect(routeAltitudes).toHaveCount(3);
   const requests: Array<Record<string, unknown>> = [];
@@ -1613,7 +1615,7 @@ test("draft autosave failure keeps the local value and a manual save flushes its
   await importKmlCandidate(page);
   await confirmImportedDraft(page);
   const routeAltitudes = page.locator(
-    ".route-table tbody tr:not(.vrep-row) .table-number-input",
+    ".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input",
   );
   await expect(routeAltitudes).toHaveCount(3);
   const altitudeSaved = page.waitForResponse((response) => {
@@ -1677,7 +1679,7 @@ test("manual save flushes a pending destination pattern exactly once before chec
   await confirmImportedDraft(page);
 
   const routeAltitudes = page.locator(
-    ".route-table tbody tr:not(.vrep-row) .table-number-input",
+    ".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input",
   );
   await expect(routeAltitudes).toHaveCount(3);
   const altitudeSaved = page.waitForResponse((response) => {
@@ -1750,7 +1752,7 @@ test("tab-only drafts become shared projects only after explicit save", async ({
   expect(latestState.savedProjects.some(project => project.id === latest.id)).toBe(false);
 
   const routeAltitudes = page.locator(
-    ".route-table tbody tr:not(.vrep-row) .table-number-input",
+    ".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input",
   );
   await expect(routeAltitudes).toHaveCount(3);
   const altitudeSaved = page.waitForResponse((response) => {
@@ -1949,13 +1951,13 @@ test("edited VREP altitude reaches the calculation request and NAV LOG", async (
   await importKmlCandidate(page);
   await confirmImportedDraft(page);
 
-  await expect(page.locator(".route-table tbody tr.vrep-row")).toHaveCount(1);
-  const routeAltitudes = page.locator(".route-table tbody tr:not(.vrep-row) .table-number-input");
+  await expect(page.locator(".timeline-stop[data-node-role=VISUAL_REPORTING_POINT]")).toHaveCount(1);
+  const routeAltitudes = page.locator(".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input");
   await expect(routeAltitudes).toHaveCount(3);
   for (let index = 0; index < await routeAltitudes.count(); index += 1) {
     await routeAltitudes.nth(index).fill("3500");
   }
-  const vrepAltitude = page.locator(".route-table tbody tr.vrep-row .table-number-input");
+  const vrepAltitude = page.locator(".timeline-stop[data-node-role=VISUAL_REPORTING_POINT] .table-number-input");
   await expect(vrepAltitude).toHaveValue("1500");
   await vrepAltitude.fill("2100");
   await expect(vrepAltitude).toHaveValue("2100");
@@ -1987,6 +1989,39 @@ test("edited VREP altitude reaches the calculation request and NAV LOG", async (
   expect(
     consoleErrors.filter((message) => !message.includes("401 (Unauthorized)")),
   ).toEqual([]);
+});
+
+test("manual calculation clears a recovered destination pattern failure only after success", async ({ page }) => {
+  await page.goto("/");
+  await importKmlCandidate(page);
+  await confirmImportedDraft(page);
+  await page.getByLabel("気象モード").selectOption("FTD");
+  for (const select of await page.locator(".altitude-candidate-select").all()) {
+    await select.selectOption({ index: 0 });
+  }
+  const calculate = page.getByRole("button", { name: /^NAV LOGを(?:作る|再計算)$/ });
+  await calculate.click();
+  await expect(page.getByLabel("計算済みNAV LOG")).toBeFocused({ timeout: 30_000 });
+  await page.route("**/api/project/recalculate", route => route.fulfill({
+    status: 500, contentType: "application/json", body: JSON.stringify({ error: { message: "Test: pattern update failed" } }),
+  }));
+  await page.getByLabel("今回採用する場周経路高度").fill("1400");
+  await expect(page.locator(".app-notification")).toContainText("Test: pattern update failed");
+  await page.route("**/api/calculation-jobs", route => route.fulfill({
+    status: 500, contentType: "application/json", body: JSON.stringify({ error: { message: "Test: calculation failed" } }),
+  }));
+  await calculate.click();
+  await expect(page.locator(".app-notification")).toContainText("Test: calculation failed");
+  await page.getByRole("button", { name: /^その他/ }).click();
+  await expect(page.locator("#operation-messages")).toContainText("Test: pattern update failed");
+  await page.getByRole("button", { name: /^その他/ }).click();
+  await page.unroute("**/api/calculation-jobs");
+  await calculate.click();
+  await expect(page.getByLabel("計算済みNAV LOG")).toBeFocused({ timeout: 30_000 });
+  await page.getByRole("button", { name: /^その他/ }).click();
+  await expect(page.locator("#operation-messages")).not.toContainText("Test: pattern update failed");
+  const state = await page.evaluate(async () => (await (await fetch("/api/state")).json()) as WebState);
+  expect(state.project?.metadata.ui_state?.arrival_plan?.selected_pattern_altitude_ft_msl).toBe(1400);
 });
 
 test("destination altitude drafts validate locally and latest valid edit recalculates", async ({ page }) => {
@@ -2023,7 +2058,7 @@ test("destination altitude drafts validate locally and latest valid edit recalcu
   await expect.poll(() => recalculationPayloads.length).toBe(1);
   expect(recalculationPayloads[0]?.selected_pattern_altitude_ft_msl).toBe(1500);
   await expect(patternAltitude).toHaveValue("1500");
-  await expect(page.locator(".route-table tbody .table-number-input").last()).toHaveValue("2000");
+  await expect(page.locator(".route-timeline .table-number-input").last()).toHaveValue("2000");
 });
 
 test("phase-specific TAS drafts on one RCA-split Physical Leg persist independently", async ({ page }) => {
@@ -2313,7 +2348,7 @@ test("route-node inline rename reprojects the current table, map, and NAV LOG", 
   if (vrep === undefined || before.outcome === null) {
     throw new Error("Calculated VREP route node is missing");
   }
-  const routeRow = page.locator(".route-table tbody .vrep-point-row");
+  const routeRow = page.locator(".timeline-stop[data-node-role=VISUAL_REPORTING_POINT]");
   const nameInput = routeRow.locator(".route-name-editor input");
 
   await routeRow.getByRole("button", { name: "編集" }).click();
@@ -2390,25 +2425,14 @@ test("route-node inline rename reprojects the current table, map, and NAV LOG", 
 
   for (const width of [390, 1100, 1440] as const) {
     await page.setViewportSize({ width, height: 900 });
-    const [input, route, status, navLog] = await Promise.all([
-      page.locator(".input-rail").boundingBox(),
-      page.locator(".route-workspace").boundingBox(),
-      page.locator(".status-rail").boundingBox(),
+    const [map, pane, navLog] = await Promise.all([
+      page.locator(".map-frame").boundingBox(), page.locator(".planning-pane").boundingBox(),
       page.getByLabel("計算済みNAV LOG").boundingBox(),
     ]);
-    if (!input || !route || !status || !navLog) {
-      throw new Error(`Route-name workflow layout is missing at ${width}px`);
-    }
-    if (width <= 1240) {
-      expect(route.y).toBeGreaterThanOrEqual(input.y + input.height - 1);
-      expect(status.y).toBeGreaterThanOrEqual(route.y + route.height - 1);
-      expect(navLog.y).toBeGreaterThanOrEqual(status.y + status.height - 1);
-    } else {
-      expect(route.x).toBeGreaterThanOrEqual(input.x + input.width - 1);
-      expect(status.x).toBeGreaterThanOrEqual(route.x + route.width - 1);
-      expect(Math.abs(route.y - input.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(status.y - input.y)).toBeLessThanOrEqual(1);
-    }
+    if(!map || !pane || !navLog) throw new Error(`Route-name workflow layout is missing at ${width}px`);
+    if(width<=700) expect(pane.y).toBeGreaterThanOrEqual(map.y+map.height-1);
+    else {expect(pane.x).toBeGreaterThanOrEqual(map.x+map.width-1);expect(Math.abs(pane.y-map.y)).toBeLessThanOrEqual(1);}
+    expect(navLog.y).toBeGreaterThanOrEqual(Math.max(map.y+map.height,pane.y+pane.height)-1);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
     ).toBeLessThanOrEqual(1);
@@ -2529,6 +2553,7 @@ test("cruise boundary cards separate calculation conditions from interpolation c
   });
   await page.reload();
 
+  await page.locator(".readiness-toggle").click();
   const cards = page.locator(".issue-item", { hasText: "CRUISE_PRESSURE_ALTITUDE_TABLE_BOUNDARY_USED" });
   await expect(cards).toHaveCount(3);
   await expect(page.locator(".boundary-provenance")).toHaveCount(3);
@@ -2563,16 +2588,11 @@ test("cruise boundary cards separate calculation conditions from interpolation c
     if (!input || !route || !status || !navLog) {
       throw new Error(`Boundary workflow regions are missing at ${width}px`);
     }
-    if (width === 1100) {
-      expect(route.y).toBeGreaterThanOrEqual(input.y + input.height - 1);
-      expect(status.y).toBeGreaterThanOrEqual(route.y + route.height - 1);
-      expect(navLog.y).toBeGreaterThanOrEqual(status.y + status.height - 1);
-    } else {
-      expect(route.x).toBeGreaterThanOrEqual(input.x + input.width - 1);
-      expect(status.x).toBeGreaterThanOrEqual(route.x + route.width - 1);
-      expect(Math.abs(route.y - input.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(status.y - input.y)).toBeLessThanOrEqual(1);
-    }
+    const map = (await page.locator(".map-frame").boundingBox())!;
+    const pane = (await page.locator(".planning-pane").boundingBox())!;
+    expect(pane.x).toBeGreaterThanOrEqual(map.x + map.width - 1);
+    expect(Math.abs(map.y - pane.y)).toBeLessThanOrEqual(1);
+    expect(navLog.y).toBeGreaterThanOrEqual(Math.max(map.y + map.height, pane.y + pane.height) - 1);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
     ).toBeLessThanOrEqual(1);
@@ -2592,8 +2612,8 @@ test("responsive workflow keeps a one-way order at intermediate width", async ({
   await calculateNavLog(page);
   await reloadWithCurrentRjfmGuidance(page);
 
-  const input = page.locator(".input-rail");
-  const route = page.locator(".route-workspace");
+  const input = page.locator(".planning-pane");
+  const route = page.locator(".map-frame");
   const status = page.locator(".status-rail");
   const navLog = page.locator(".nav-log-scroll");
   const guidance = page.locator(".rjfm-guidance");
@@ -2607,22 +2627,14 @@ test("responsive workflow keeps a one-way order at intermediate width", async ({
   if (intermediate.some((box) => box === null)) {
     throw new Error("Intermediate workflow regions are missing");
   }
-  expect(intermediate[1]!.y).toBeGreaterThanOrEqual(
-    intermediate[0]!.y + intermediate[0]!.height - 1,
-  );
-  expect(intermediate[2]!.y).toBeGreaterThanOrEqual(
-    intermediate[1]!.y + intermediate[1]!.height - 1,
-  );
-  expect(intermediate[3]!.y).toBeGreaterThanOrEqual(
-    intermediate[2]!.y + intermediate[2]!.height - 1,
-  );
-  expect(intermediate[4]!.y).toBeGreaterThanOrEqual(
-    intermediate[3]!.y + intermediate[3]!.height - 1,
-  );
+  expect(intermediate[0]!.x).toBeGreaterThanOrEqual(intermediate[1]!.x + intermediate[1]!.width - 1);
+  expect(Math.abs(intermediate[0]!.y - intermediate[1]!.y)).toBeLessThanOrEqual(1);
+  expect(intermediate[3]!.y).toBeGreaterThanOrEqual(Math.max(intermediate[0]!.y + intermediate[0]!.height, intermediate[1]!.y + intermediate[1]!.height) - 1);
+  expect(intermediate[4]!.y).toBeGreaterThanOrEqual(intermediate[3]!.y + intermediate[3]!.height - 1);
   const from = page.getByLabel("FROM");
   const to = page.getByLabel("TO");
   const date = page.locator('.flight-plan-section input[type="date"]');
-  const time = page.locator('.flight-plan-section input[type="time"]');
+  const time = page.getByLabel("ETD JST", { exact: true });
   const intermediateSchedule = await Promise.all([date.boundingBox(), time.boundingBox()]);
   if (intermediateSchedule.some((box) => box === null)) {
     throw new Error("Intermediate DATE/ETD fields are missing");
@@ -2649,17 +2661,13 @@ test("responsive workflow keeps a one-way order at intermediate width", async ({
   if (wide.some((box) => box === null)) {
     throw new Error("Wide workflow regions are missing");
   }
-  expect(wide[1]!.x).toBeGreaterThanOrEqual(wide[0]!.x + wide[0]!.width - 1);
-  expect(wide[2]!.x).toBeGreaterThanOrEqual(wide[1]!.x + wide[1]!.width - 1);
+  expect(wide[0]!.x).toBeGreaterThanOrEqual(wide[1]!.x + wide[1]!.width - 1);
   expect(Math.abs(wide[0]!.y - wide[1]!.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(wide[1]!.y - wide[2]!.y)).toBeLessThanOrEqual(1);
   const wideSchedule = await Promise.all([date.boundingBox(), time.boundingBox()]);
   if (wideSchedule.some((box) => box === null)) {
     throw new Error("Wide DATE/ETD fields are missing");
   }
-  expect(wideSchedule[1]!.y).toBeGreaterThanOrEqual(
-    wideSchedule[0]!.y + wideSchedule[0]!.height - 1,
-  );
+  expect(wideSchedule[1]!.x).toBeGreaterThanOrEqual(wideSchedule[0]!.x + wideSchedule[0]!.width - 1);
   expect(wideSchedule[0]!.x + wideSchedule[0]!.width).toBeLessThanOrEqual(
     wide[0]!.x + wide[0]!.width,
   );
@@ -2670,9 +2678,7 @@ test("responsive workflow keeps a one-way order at intermediate width", async ({
   if (wideEndpoints.some((box) => box === null)) {
     throw new Error("Wide FROM/TO fields are missing");
   }
-  expect(wideEndpoints[1]!.y).toBeGreaterThanOrEqual(
-    wideEndpoints[0]!.y + wideEndpoints[0]!.height - 1,
-  );
+  expect(wideEndpoints[1]!.x).toBeGreaterThanOrEqual(wideEndpoints[0]!.x + wideEndpoints[0]!.width - 1);
   expect(wideEndpoints[0]!.x + wideEndpoints[0]!.width).toBeLessThanOrEqual(
     wide[0]!.x + wide[0]!.width,
   );
@@ -2691,11 +2697,9 @@ test("responsive workflow keeps a one-way order at intermediate width", async ({
   if (mobile.some((box) => box === null)) {
     throw new Error("Mobile workflow regions are missing");
   }
-  for (let index = 1; index < mobile.length; index += 1) {
-    expect(mobile[index]!.y).toBeGreaterThanOrEqual(
-      mobile[index - 1]!.y + mobile[index - 1]!.height - 1,
-    );
-  }
+  expect(mobile[0]!.y).toBeGreaterThanOrEqual(mobile[1]!.y + mobile[1]!.height - 1);
+  expect(mobile[3]!.y).toBeGreaterThanOrEqual(mobile[0]!.y + mobile[0]!.height - 1);
+  expect(mobile[4]!.y).toBeGreaterThanOrEqual(mobile[3]!.y + mobile[3]!.height - 1);
   const mobileOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,
   );
@@ -2811,29 +2815,20 @@ test("RJFM inbound guidance remains below NAV LOG at intermediate and wide width
   await page.reload();
   const navLog = page.getByLabel("計算済みNAV LOG");
   const guidance = page.getByLabel("RJFM帰路の経路延長案内");
-  await expect(guidance).toContainText("warningのみ");
+  await expect(guidance).toContainText("この案内は警告のみです。NAV LOGの物理経路・距離・針路は変更されません。");
   await expect(guidance.getByTestId("rjfm-inbound-guidance-diagnostics")).toContainText("12.5 NM");
-  const wide = await Promise.all([navLog.boundingBox(), guidance.boundingBox()]);
-  if (wide.some((box) => box === null)) throw new Error("inbound guidance layout is missing");
-  expect(wide[1]!.y).toBeGreaterThanOrEqual(wide[0]!.y + wide[0]!.height - 1);
-  const wideWorkspace = await Promise.all([
-    page.locator(".input-rail").boundingBox(),
-    page.locator(".route-workspace").boundingBox(),
-    page.locator(".status-rail").boundingBox(),
-  ]);
-  if (wideWorkspace.some((box) => box === null)) throw new Error("wide workspace regions are missing");
-  expect(wideWorkspace[0]!.x).toBeLessThan(wideWorkspace[1]!.x);
-  expect(wideWorkspace[1]!.x).toBeLessThan(wideWorkspace[2]!.x);
-  await page.setViewportSize({ width: 1100, height: 1000 });
-  const narrow = await Promise.all([
-    page.locator(".input-rail").boundingBox(),
-    page.locator(".route-workspace").boundingBox(),
-    page.locator(".status-rail").boundingBox(),
-    navLog.boundingBox(), guidance.boundingBox(),
-  ]);
-  if (narrow.some((box) => box === null)) throw new Error("intermediate workflow regions are missing");
-  for (let index = 1; index < narrow.length; index += 1) {
-    expect(narrow[index]!.y).toBeGreaterThanOrEqual(narrow[index - 1]!.y + narrow[index - 1]!.height - 1);
+  for (const width of [1100, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const regions = await Promise.all([
+      page.locator(".map-frame").boundingBox(), page.locator(".planning-pane").boundingBox(),
+      page.locator(".route-workspace").boundingBox(), navLog.boundingBox(), guidance.boundingBox(),
+    ]);
+    if (regions.some(box => box === null)) throw new Error("inbound workflow regions are missing");
+    const [map, planning, workspace, nav, guide] = regions.map(box => box!);
+    expect(map.x + map.width).toBeLessThanOrEqual(planning.x + 1);
+    expect(Math.abs(map.y - planning.y)).toBeLessThan(2);
+    expect(nav.y).toBeGreaterThanOrEqual(workspace.y + workspace.height - 1);
+    expect(guide.y).toBeGreaterThanOrEqual(nav.y + nav.height - 1);
   }
 
   const staleState: WebState = {
@@ -2861,7 +2856,7 @@ test("RJFM to UMK and UMK to OMARU inputs are fixed while OMARU outgoing stays e
   await expect(dialog).toBeHidden();
   await confirmImportedDraft(page);
 
-  const rows = page.locator(".route-table tbody .route-leg-row");
+  const rows = page.locator(".timeline-leg");
   await expect(page.locator(".route-table th", { hasText: "ROLE" })).toHaveCount(0);
   const departure = rows.nth(0);
   const umk = rows.nth(1);
@@ -3037,8 +3032,8 @@ test("RJFM departure guidance renders route overlays and runway diagnostics", as
 
   for (const width of [390, 1100, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
-    await expect(attribution).toHaveCSS("font-size", "12px");
-    await expect(attribution.getByRole("link", { name: "OpenStreetMap", exact: true }))
+    await expect(attribution).toHaveCSS("font-size", "9px");
+    await expect(attribution.getByRole("link", { name: "OpenStreetMap contributors", exact: true }))
       .toHaveAttribute("href", "https://www.openstreetmap.org/copyright");
     const bounds = await attribution.evaluate(element => {
       const credit = element.getBoundingClientRect();
@@ -3180,7 +3175,7 @@ test("RJFM departure guidance renders route overlays and runway diagnostics", as
     await expect(page.locator(".rjfm-training-airspace")).toHaveCount(0);
     await expect(page.locator(".rjfm-training-airspace-boundary")).toHaveCount(0);
     await expect(airspaceCredit).toHaveCount(0);
-    await expect(attribution.getByRole("link", { name: "OpenStreetMap", exact: true })).toBeVisible();
+    await expect(attribution.getByRole("link", { name: "OpenStreetMap contributors", exact: true })).toBeVisible();
     await expect(page.locator(".rjfm-pca-boundary")).toHaveCount(1);
     await expect(page.locator(".rjfm-pca-exclusion")).toHaveCount(1);
   }
@@ -3258,12 +3253,11 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   expect(stateAfterConfirm.project?.ftd_weather?.wind_at_5000_ft.direction_deg_from).toBe(360);
 
   const routePanel = page.getByRole("region", { name: "経路地図とLeg設定" });
-  const editor = routePanel.getByRole("region", { name: "チェックポイント設定" });
-  await editor.getByRole("button", { name: "チェックポイントを追加" }).click();
+  const editor = routePanel.locator(".planning-pane");
+  await editor.getByRole("button", { name: "2番目のLegへ地図からチェックポイントを追加" }).click();
   await expect(editor.getByLabel("関連Leg")).toHaveCount(0);
   const mapFrame = routePanel.locator("#route-map-frame");
-  const activeMapPicker = editor.getByRole("button", { name: "地図上の地点をクリック" });
-  await expect(activeMapPicker).toHaveAttribute("aria-pressed", "true");
+  await expect(editor.getByRole("button", { name: "地図上の地点をクリック" })).toHaveCount(0);
   await expect(mapFrame).toHaveClass(/is-picking-checkpoint/);
   await expect(mapFrame).toHaveCSS("touch-action", "none");
   await expect(mapFrame).toHaveCSS("overscroll-behavior", "contain");
@@ -3276,8 +3270,8 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   const draftMarker = routePanel.locator(".checkpoint-draft-marker");
   await expect(draftMarker).toHaveCount(1);
   await expect(routePanel.getByText("仮CP（未保存）", { exact: true })).toBeVisible();
-  await expect(editor.getByLabel("緯度")).not.toHaveValue("");
-  await expect(editor.getByLabel("経度")).not.toHaveValue("");
+  await expect(editor.getByLabel("緯度")).toHaveCount(0);
+  await expect(editor.getByLabel("経度")).toHaveCount(0);
   const nameWarning = editor.getByText(
     "チェックポイントの名称・未入力（入力必須）",
     { exact: true },
@@ -3290,16 +3284,15 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   const draftMarkerStroke = await draftMarker.getAttribute("stroke");
   expect(draftMarkerStroke).toBe("#6e4aa0");
 
-  await editor.getByLabel("緯度").fill("35.000000");
-  await expect(draftMarker).toHaveCount(0);
-  await editor.getByLabel("経度").fill("140.000000");
+  const originalZoom = await page.evaluate(() => JSON.parse(localStorage.getItem("autonavlog.map-viewport.v1.anonymous.last")!).zoom);
+  await clickMapCoordinate(page, 35, 140);
   await expect(editor.getByText(
     "Leg線分内にabeam点があり、横ずれ10 NM以内となる関連Legがありません。",
   )).toBeVisible();
   await expect(editor.getByRole("button", { name: "追加", exact: true })).toBeDisabled();
 
-  await editor.getByLabel("緯度").fill("32.389063");
-  await editor.getByLabel("経度").fill("131.597572");
+  await zoomMapTo(page, originalZoom);
+  await clickMapCoordinate(page, 32.389063, 131.597572);
   const linkedSection = editor.getByLabel("関連Leg");
   await expect(linkedSection).toBeVisible();
   await expect(linkedSection.locator("option")).toHaveCount(3);
@@ -3310,9 +3303,9 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   for (const width of [1100, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     const bounds = await routePanel.evaluate((element) => {
-      const editor = element.querySelector(".checkpoint-editor")?.getBoundingClientRect();
+      const editor = element.querySelector(".planning-pane")?.getBoundingClientRect();
       const map = element.querySelector("#route-map-frame")?.getBoundingClientRect();
-      const routeTable = element.querySelector(".route-table-scroll")?.getBoundingClientRect();
+      const routeTable = element.querySelector(".route-timeline")?.getBoundingClientRect();
       const form = element.querySelector(".checkpoint-form")?.getBoundingClientRect();
       const select = element.querySelector(".checkpoint-form select")?.getBoundingClientRect();
       const actions = element.querySelector(".checkpoint-form-actions")?.getBoundingClientRect();
@@ -3332,15 +3325,12 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
         : null;
     });
     expect(bounds, `${width}pxでチェックポイントフォームが表示されること`).not.toBeNull();
-    expect(bounds!.editorTop).toBeGreaterThanOrEqual(bounds!.mapBottom);
-    expect(bounds!.editorBottom).toBeLessThanOrEqual(bounds!.routeTableTop);
     expect(bounds!.selectLeft).toBeGreaterThanOrEqual(bounds!.formLeft);
     expect(bounds!.selectRight).toBeLessThanOrEqual(bounds!.formRight);
     expect(bounds!.actionsLeft).toBeGreaterThanOrEqual(bounds!.formLeft);
     expect(bounds!.actionsRight).toBeLessThanOrEqual(bounds!.formRight);
   }
-  await editor.getByLabel("緯度").fill("32.482176");
-  await editor.getByLabel("経度").fill("131.517485");
+  await clickMapCoordinate(page, 32.482176, 131.517485);
   await expect(editor.getByLabel("関連Leg")).toHaveCount(0);
   await expect(editor.getByText(/関連Legがありません/)).toHaveCount(0);
   await editor.getByLabel("名称").fill("訓練CP");
@@ -3354,7 +3344,7 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   await expect(confirmedMarker).toHaveCount(1);
   expect(await confirmedMarker.getAttribute("stroke")).toBe("#9b5b13");
   expect(await confirmedMarker.getAttribute("stroke")).not.toBe(draftMarkerStroke);
-  await expect(editor.getByText(/Leg内 .* NM \/ 累積 .* NM \/ 横ずれ .* NM/)).toBeVisible();
+  await expect(editor.getByText(/Leg内 .* NM/)).toBeVisible();
   const checkpointState = await page.evaluate(async () => {
     const response = await fetch("/api/state");
     return await response.json() as WebState;
@@ -3376,7 +3366,7 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   await editor.getByRole("button", { name: "訓練CP改を削除" }).click();
   await expect(editor.locator(".checkpoint-item")).toHaveCount(0);
   await expect(editor.getByText("まだチェックポイントはありません。")).toHaveCount(0);
-  await expect(editor.getByRole("button", { name: "チェックポイントを追加" })).toBeEnabled();
+  await expect(editor.getByRole("button", { name: "2番目のLegへ地図からチェックポイントを追加" })).toBeEnabled();
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -3953,15 +3943,7 @@ for (const width of [1100, 1440]) {
     const boxes = await Promise.all([".input-rail", ".route-workspace", ".status-rail", ".nav-log-section"]
       .map(selector => page.locator(selector).boundingBox()));
     expect(boxes.every(Boolean)).toBe(true);
-    if (width <= 1240) {
-      for (let index = 1; index < boxes.length; index++) {
-        expect(boxes[index]!.y).toBeGreaterThanOrEqual(boxes[index - 1]!.y + boxes[index - 1]!.height - 1);
-      }
-    } else {
-      expect(boxes[0]!.x + boxes[0]!.width).toBeLessThanOrEqual(boxes[1]!.x + 1);
-      expect(boxes[1]!.x + boxes[1]!.width).toBeLessThanOrEqual(boxes[2]!.x + 1);
-      expect(boxes[3]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0, 3).map(box => box!.y + box!.height)) - 1);
-    }
+    await expectPlanningLayout(page, width);
     await expect(page.locator("body")).not.toBeEmpty();
     await expect(page.locator("vite-error-overlay, .vite-error-overlay")).toHaveCount(0);
     expect(errors.filter(message => !message.includes("401 (Unauthorized)"))).toEqual([]);
@@ -4319,7 +4301,7 @@ test("RUN UP, nose fairing, and A/C choices persist after save and reload", asyn
   expect(state.project?.air_conditioning_enabled).toBe(false);
 
   const routeAltitudes = page.locator(
-    ".route-table tbody tr:not(.vrep-row) .table-number-input",
+    ".timeline-stop:not([data-node-role=VISUAL_REPORTING_POINT]) .table-number-input",
   );
   await expect(routeAltitudes).toHaveCount(3);
   const altitudeSaved = page.waitForResponse((response) => {
@@ -4353,10 +4335,15 @@ test("500 and 1000 fpm descent rates recalculate, render, and persist", async ({
   const consoleErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
+    // observeLegacyMigration explicitly treats this optional endpoint's 404 as
+    // migration disabled. Do not hide any other missing resources or errors.
+    const optionalMigrationUnavailable = message.location().url.endsWith("/api/account-link")
+      && message.text().includes("404 (Not Found)");
+    if (message.type() === "error" && !optionalMigrationUnavailable) consoleErrors.push(message.text());
   });
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.goto("/");
+  await calculateNavLog(page, false, false, true);
 
   const rateGroup = page.getByRole("group", { name: "計画降下率" });
   const standardRate = page.getByRole("radio", { name: /500 fpm/ });
@@ -4379,15 +4366,10 @@ test("500 and 1000 fpm descent rates recalculate, render, and persist", async ({
     }
     expect(groupBox.x).toBeGreaterThanOrEqual(inputBox.x);
     expect(groupBox.x + groupBox.width).toBeLessThanOrEqual(inputBox.x + inputBox.width);
-    if (width === 1100) {
-      expect(routeBox.y).toBeGreaterThanOrEqual(inputBox.y + inputBox.height - 1);
-      expect(statusBox.y).toBeGreaterThanOrEqual(routeBox.y + routeBox.height - 1);
-    } else {
-      expect(routeBox.x).toBeGreaterThanOrEqual(inputBox.x + inputBox.width - 1);
-      expect(statusBox.x).toBeGreaterThanOrEqual(routeBox.x + routeBox.width - 1);
-      expect(Math.abs(routeBox.y - inputBox.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(statusBox.y - inputBox.y)).toBeLessThanOrEqual(1);
-    }
+    const map = (await page.locator(".map-frame").boundingBox())!;
+    const pane = (await page.locator(".planning-pane").boundingBox())!;
+    expect(pane.x).toBeGreaterThanOrEqual(map.x + map.width - 1);
+    expect(Math.abs(map.y - pane.y)).toBeLessThanOrEqual(1);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
     ).toBeLessThanOrEqual(1);
@@ -4402,7 +4384,7 @@ test("500 and 1000 fpm descent rates recalculate, render, and persist", async ({
   await expect(page.getByText("標準計画値は500 fpmです。", { exact: true })).toBeVisible();
   await page.getByLabel("気象モード").selectOption("FTD");
 
-  await calculateNavLog(page, false);
+  await page.locator(".status-actions .primary-button").click();
   await expect(page.getByText("計算結果 1000 fpm", { exact: true })).toBeVisible();
   await standardRate.check();
   await expect(page.getByText("計算結果 1000 fpm", { exact: true })).toBeVisible();
@@ -4591,15 +4573,7 @@ for (const width of [1100, 1440]) {
     const boxes = await Promise.all([".input-rail", ".route-workspace", ".status-rail", ".nav-log-section"]
       .map(selector => page.locator(selector).boundingBox()));
     expect(boxes.every(Boolean)).toBe(true);
-    if (width <= 1240) {
-      for (let i = 1; i < boxes.length; i++) {
-        expect(boxes[i]!.y).toBeGreaterThanOrEqual(boxes[i - 1]!.y + boxes[i - 1]!.height - 1);
-      }
-    } else {
-      expect(boxes[0]!.x + boxes[0]!.width).toBeLessThanOrEqual(boxes[1]!.x + 1);
-      expect(boxes[1]!.x + boxes[1]!.width).toBeLessThanOrEqual(boxes[2]!.x + 1);
-      expect(boxes[3]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0, 3).map(b => b!.y + b!.height)) - 1);
-    }
+    await expectPlanningLayout(page, width);
     const guidance = await page.locator(".rjfm-guidance").first().boundingBox();
     expect(guidance).not.toBeNull();
     const fuel = await page.locator(".fuel-plan-section").boundingBox();

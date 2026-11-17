@@ -50,7 +50,7 @@ async function createEditCalculateAndSave(page: Page) {
   await pasteDialog.getByRole("button", { name: "貼付KMLを読み込む" }).click();
   await confirmImportedDraft(page);
 
-  const altitudeInputs = page.locator(".route-table tbody tr:not(.vrep-row) .table-number-input");
+  const altitudeInputs = page.locator(".timeline-leg .table-number-input");
   await expect(altitudeInputs.first()).toBeVisible();
   for (let index = 0; index < await altitudeInputs.count(); index += 1) {
     await altitudeInputs.nth(index).fill("4500");
