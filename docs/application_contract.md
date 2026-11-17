@@ -67,7 +67,8 @@ Local save/name controls are enabled by #124. There is no UI redesign, new defau
 - `npm --prefix web run test:application`: no-browser contract/adapter tests, also in CI.
 - `pytest tests/integration/test_local_calculation.py`: Python dispatch, errors,
   last-good/draft behavior and the existing FTD/FORECAST regressions.
-- Legacy Browser suite: `npm --prefix web run test:e2e` (see existing runtime setup).
+- `test:e2e`は現行Local Browser suiteの標準入口。残る混在UIテストは、隔離したLegacy URLを
+  指定する`test:legacy`で保持する。通常CIの担当と移管理由は[Testing](testing.md)を参照。
 - Production Local Browser suite: `npm --prefix web run build:local`, serve dist-local,
   then `AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4174 npm --prefix web run test:local`.
   Existing differential tests retain canonical result/Golden tolerances, API blocking,
@@ -169,9 +170,9 @@ snapshot so an asynchronous reset failure restores the matching Project on reloa
 Map resize observers disconnect during layout cleanup. Detached or zero-size maps
 must not invalidate and overwrite the viewport that the new workspace restores.
 
-Verification: shared e2e/session.spec.ts runs against Legacy and production Local
+Verification: e2e/session.spec.ts runs against the production Local build
 (npm --prefix web run test:local -- session.spec.ts).
-Local blocks /api/**; KMZ document selection and reload continuation run in both modes.
+Local blocks /api/** and retains KMZ document selection and reload continuation.
 Adapter/codec tests run in test:application; Python integration verifies parsed import
 continuation, last-good hydration without calculation, separate Legacy handles and no
 persistence writes during restore.

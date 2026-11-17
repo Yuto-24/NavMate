@@ -162,7 +162,16 @@ def test_local_shards_keep_auxiliary_tests_once_and_auth_separate():
         assert f"- {{suite: local, shard: {shard}}}" in block
     assert "npm --prefix web run test:local -- --workers=2 --shard=${{ matrix.shard }}/4" in block
     assert block.count("if: matrix.suite == 'local' && matrix.shard == 1") == 2
-    assert "if: matrix.suite == 'auth'" in block
+    auth_step = block.split(
+        "      - name: Verify auth, browser components and notification recovery\n"
+    )[1].split("      - name:")[0]
+    assert "if: matrix.suite == 'auth'" in auth_step
+    for suite in ["auth", "sync-component", "notification"]:
+        assert f"npm --prefix web run test:{suite}\n" in auth_step
+        assert block.count(f"npm --prefix web run test:{suite}\n") == 1
+    for output in ["autonavlog-sync-component-browser", "navmate-416-443-test-results"]:
+        assert f"/tmp/{output}" in block
     assert 'if [ "${{ matrix.suite }}" = auth ]; then exit 0; fi' in block
     assert "if [ '${{ matrix.shard }}' = 1 ]; then" in block
+    assert "production artifact rejects a different build manifest and recovers on reload" in block
     assert "name: local-browser-${{ matrix.suite }}-${{ matrix.shard }}-failure" in block

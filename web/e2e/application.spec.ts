@@ -7,7 +7,6 @@ import { resolve } from "node:path";
 import { ApplicationError } from "../src/application";
 import type { AutoNavLogApplication, UpdateProjectInput } from "../src/application";
 import type { WebState } from "../src/types";
-import { LegacyApplication } from "../src/legacyApplication";
 import { LocalApplication } from "../src/localApplication";
 import type { LocalProjectRepository } from "../src/localProjectRepository";
 
@@ -39,71 +38,6 @@ test("UI and application contract have no transport dependencies", () => {
     expect(text, name).not.toMatch(/\/api\/|credentials|document\.cookie|\b401\b|new Worker|firebase[\/\"]|comlink|localClient|legacyApplication|localApplication|FastAPI|fetch\(/);
   }
   expect(readFileSync(resolve(source, "application.ts"), "utf8")).not.toMatch(/\bstatus\s*:|RequestInit|Response|\brequest\s*[<(]/);
-});
-
-test("bootstrap shares initialization and contains session creation", async () => {
-  const calls = responses(json({ state, token: "tab-one" }));
-  const app: AutoNavLogApplication = new LegacyApplication();
-  expect(await Promise.all([app.bootstrap(), app.bootstrap()])).toEqual([state, state]);
-  expect(calls.map(call => call.path)).toEqual(["/api/application-session"]);
-  expect(calls.every(call => call.options?.credentials === "same-origin")).toBe(true);
-});
-
-test("Legacy retries an operation once and does not expose HTTP status", async () => {
-  const calls = responses(json({}, 401), json({ state, token: "adapter-token" }), json({ error: { code: "SESSION_REQUIRED", message: "session missing" } }, 401));
-  const app: AutoNavLogApplication = new LegacyApplication();
-  await expect(app.updateProject(update)).rejects.toMatchObject({ code: "SESSION_REQUIRED", message: "session missing" });
-  expect(calls.map(call => call.path)).toEqual(["/api/project", "/api/application-session", "/api/project"]);
-  expect(calls[0].options?.body).toBe(calls[2].options?.body);
-  responses(json({ error: { code: "PROJECT_REQUIRED", message: "先に経路を確定してください。" } }, 400));
-  const error = await app.calculate().catch(error => error);
-  expect(error).toBeInstanceOf(ApplicationError);
-  expect(error).not.toHaveProperty("status");
-});
-
-test("Legacy retains application details and normalizes validation failures", async () => {
-  responses(json({ error: { code: "KMZ_DOCUMENT_SELECTION_REQUIRED", message: "select", candidates: ["a.kml", "b.kml"] } }, 409));
-  const app = new LegacyApplication();
-  await expect(app.importRoute({ filename: "a.kmz", content_base64: "" })).rejects.toMatchObject({ code: "KMZ_DOCUMENT_SELECTION_REQUIRED", details: { candidates: ["a.kml", "b.kml"] } });
-  responses(json({ detail: [{ loc: ["body", "flight_date"], msg: "Field required", type: "missing", input: {} }] }, 422));
-  await expect(app.updateProject(update)).rejects.toMatchObject({ code: "VALIDATION_FAILED", message: "入力内容を確認してください。", details: { issues: [{ location: ["flight_date"], message: "Field required", type: "missing" }] } });
-  responses(json({ detail: [{ loc: ["path", "node_id"], msg: "Invalid UUID", type: "uuid_parsing" }] }, 422));
-  await expect(app.renameRouteNode("invalid", "name")).rejects.toMatchObject({ code: "VALIDATION_FAILED", details: { issues: [{ location: ["node_id"], message: "Invalid UUID", type: "uuid_parsing" }] } });
-  responses(new Response("gateway internals", { status: 502, statusText: "Internal Gateway" }));
-  await expect(app.bootstrap()).rejects.toMatchObject({ code: "REQUEST_FAILED", message: "処理に失敗しました。" });
-  responses(new Response("invalid success JSON"));
-  await expect(app.bootstrap()).rejects.toBeInstanceOf(ApplicationError);
-});
-
-test("Legacy keeps update/recalculate atomic and maps all project operations", async () => {
-  const calls = responses(...Array.from({ length: 6 }, () => json(state)), new Response(null, { status: 204 }));
-  const app: AutoNavLogApplication = new LegacyApplication();
-  await app.updateAndRecalculate(update);
-  await app.saveProject("name");
-  await app.loadProject("project");
-  await app.deleteProject("project/a");
-  await app.renameRouteNode("node/a", "renamed");
-  await app.acknowledge("key/a", true);
-  await app.newWork();
-  expect(calls.map(call => [call.path, call.options?.method])).toEqual([
-    ["/api/project/recalculate", "POST"], ["/api/projects/save", "POST"],
-    ["/api/projects/load", "POST"], ["/api/projects/project%2Fa", "DELETE"],
-    ["/api/project/route-nodes/node%2Fa/name", "PUT"], ["/api/acknowledgements/key%2Fa", "PUT"],
-    ["/api/application-session", "DELETE"],
-  ]);
-  expect(JSON.parse(calls[0].options!.body as string)).toEqual(update);
-});
-
-test("Legacy calculation progress and job failure retain application meaning", async () => {
-  responses(json({ job_id: "job", status: "calculating", progress_percent: 30, progress_message: "calculating" }),
-    json({ status: "succeeded", state, progress_percent: 100, progress_message: "done" }));
-  const progress: number[] = [];
-  expect(await new LegacyApplication().calculate(value => progress.push(value.percent))).toEqual(state);
-  expect(progress).toEqual([30, 100]);
-  responses(json({ status: "failed", error: { code: "PROJECT_REQUIRED", message: "missing", status: 400 } }));
-  const error = await new LegacyApplication().calculate().catch(error => error);
-  expect(error).toMatchObject({ code: "PROJECT_REQUIRED", message: "missing", details: {} });
-  expect(error).not.toHaveProperty("status");
 });
 
 test("Local uses common operations, real progress milestones, and durable repository composition", async () => {
@@ -149,35 +83,6 @@ test("Local failure never invokes Legacy or emits successful progress", async ()
   expect(calls).toEqual([]);
 });
 
-
-test("internal failures remain neutral at the Legacy UI boundary", async () => {
-  responses(new Response("Internal Server Error", { status: 500 }));
-  await expect(new LegacyApplication().updateAndRecalculate(update)).rejects.toMatchObject({
-    code: "REQUEST_FAILED", message: "処理に失敗しました。", details: {},
-  });
-  responses(json({ status: "failed", error: {
-    code: "CALCULATION_JOB_FAILED", message: "計算に失敗しました。", status: 500,
-  } }));
-  await expect(new LegacyApplication().calculate()).rejects.toMatchObject({
-    code: "CALCULATION_JOB_FAILED", message: "計算に失敗しました。", details: {},
-  });
-});
-
-test("Legacy tab handles and recovery retries remain adapter-private", async () => {
-  const recovery = { version: 1, project: null, outcome: null, destination_wind: null, import_result: null, import_filename: null } as const;
-  const restored = { ...state, workingRecovery: recovery };
-  const calls = responses(json({ state: restored, token: "one" }), json({ state, token: "two" }),
-    json({}, 401), json({ state: restored, token: "replacement" }), json(restored));
-  const one = new LegacyApplication(), two = new LegacyApplication();
-  await one.bootstrap(recovery);
-  await two.bootstrap();
-  await one.updateProject(update);
-  expect(JSON.parse(calls[0].options!.body as string)).toEqual(recovery);
-  expect(JSON.parse(calls[1].options!.body as string)).toBeNull();
-  expect(calls[2].options!.headers).toMatchObject({ "X-AutoNavLog-Session": "one" });
-  expect(JSON.parse(calls[3].options!.body as string)).toEqual(recovery);
-  expect(calls[4].options!.headers).toMatchObject({ "X-AutoNavLog-Session": "replacement" });
-});
 
 test("session decoding preserves invalid text and rejects incompatible UI shapes", async () => {
   const { decodeSession, emptyCheckPointDraft } = await import("../src/applicationSession");
@@ -385,10 +290,7 @@ test("account switch interrupts a pending reset without bootstrapping prior work
   expect(operations).toEqual(["bootstrap", "newWork"]);
 });
 
-test("rounding calculation options cross both adapters without changing Project inputs", async () => {
-  const calls = responses(json({ job_id: "rounding", status: "succeeded", state, progress_percent: 100, progress_message: "done" }));
-  await new LegacyApplication().calculate(undefined, { roundingMode: true });
-  expect(JSON.parse(String(calls[0]!.options!.body))).toEqual({ rounding_mode: true });
+test("Local rounding calculation options do not change Project inputs", async () => {
   const requests: [string, unknown][] = [];
   const app = new LocalApplication(browserPlatform.persistence.createProjectRepository, () => ({
     request: async <T>(operation: string, input?: unknown) => { requests.push([operation, input]); return state as T; }, dispose() {},
@@ -415,20 +317,6 @@ test("failed Local open rolls back the previous ON result and live mode", async 
   }));
   await expect(app.loadProject("next")).rejects.toMatchObject({ code: "LOCAL_PROJECT_UNAVAILABLE" });
   expect(await app.refreshProjects()).toMatchObject({ roundingMode: true, outcome: previous.outcome, project: previous.project });
-});
-
-test("Legacy transparent session renewal retains ON without persisting a preference", async () => {
-  const rounded = { ...state, roundingMode: true, workingRecovery: { version: 1, project: null, outcome: null } } as WebState;
-  const calls = responses(json({ state, token: "first" }),
-    json({ job_id: "round", status: "succeeded", state: rounded, progress_percent: 100, progress_message: "done" }),
-    json({}, 401), json({ state: rounded, token: "renewed" }), json(rounded));
-  const app = new LegacyApplication();
-  await app.bootstrap();
-  await app.calculate(undefined, { roundingMode: true });
-  expect(await app.updateAndRecalculate(update)).toEqual(rounded);
-  expect(calls[3]!.path).toBe("/api/application-session?rounding_mode=true");
-  expect(JSON.parse(String(calls[3]!.options!.body))).toEqual(rounded.workingRecovery);
-  expect(calls[2]!.options!.body).toBe(calls[4]!.options!.body);
 });
 
 

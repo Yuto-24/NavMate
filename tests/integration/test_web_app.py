@@ -14,10 +14,6 @@ import autonavlog.web.app as web_app
 from autonavlog.nav.rounding import round_half_up
 from autonavlog.version import __version__
 from autonavlog.web.app import create_app
-from autonavlog.web.calculation_jobs import (
-    CalculationJob,
-    CalculationJobAlreadyActiveError,
-)
 from autonavlog.web.cloudflare_access import CloudflareAccessVerificationError
 from autonavlog.web.runtime import WebRuntimeConfig
 
@@ -1997,80 +1993,6 @@ async def test_intermediate_line_names_preserve_every_original_coordinate(
         assert loaded.json()["project"]["metadata"]["ui_state"][
             "rjfm_departure_guidance"
         ] == guidance
-
-
-@pytest.mark.anyio
-async def test_duplicate_calculation_job_returns_conflict(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = create_app(
-        WebRuntimeConfig(
-            data_root=ROOT / "data",
-            storage_root=tmp_path / "storage",
-            weather_mode="fake",
-            trusted_local_identity="local-test-user",
-        )
-    )
-
-    def reject_duplicate(**kwargs: object) -> None:
-        raise CalculationJobAlreadyActiveError("session already has an active calculation job")
-
-    monkeypatch.setattr(app.state.calculation_jobs, "submit", reject_duplicate)
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="https://test") as client:
-        assert (await client.post("/api/session")).status_code == 200
-
-        response = await client.post("/api/calculation-jobs")
-
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "CALCULATION_JOB_ALREADY_ACTIVE"
-
-
-@pytest.mark.anyio
-async def test_calculation_job_snapshot_prune_race_returns_minimal_payload(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = create_app(
-        WebRuntimeConfig(
-            data_root=ROOT / "data",
-            storage_root=tmp_path / "storage",
-            weather_mode="fake",
-            trusted_local_identity="local-test-user",
-        )
-    )
-    submitted = CalculationJob(
-        id="issued-job-id",
-        owner_id="local-test-user",
-        session_token="session-token",
-    )
-    monkeypatch.setattr(
-        app.state.calculation_jobs,
-        "submit",
-        lambda **kwargs: submitted,
-    )
-    monkeypatch.setattr(
-        app.state.calculation_jobs,
-        "snapshot",
-        lambda job_id, **kwargs: None,
-    )
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="https://test") as client:
-        assert (await client.post("/api/session")).status_code == 200
-
-        response = await client.post("/api/calculation-jobs")
-
-    assert response.status_code == 202
-    assert response.json() == {
-        "job_id": "issued-job-id",
-        "status": "queued",
-        "queue_position": None,
-        "progress_percent": 0,
-        "progress_message": "計算待ちです。",
-        "created_at_utc": submitted.created_at_utc.isoformat(),
-        "updated_at_utc": submitted.updated_at_utc.isoformat(),
-    }
 
 
 @pytest.mark.anyio

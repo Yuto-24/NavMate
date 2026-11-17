@@ -350,8 +350,12 @@ jobs:
       - run: npm --prefix web run build:local
         env:
           AUTONAVLOG_TEST_FIXTURES: "1"
-      - run: npm --prefix web run test:auth
+      - name: Verify auth, browser components and notification recovery
         if: matrix.suite == 'auth'
+        run: |
+          npm --prefix web run test:auth
+          npm --prefix web run test:sync-component
+          npm --prefix web run test:notification
       - name: Verify Local persistence and session/calculation regression without FastAPI
         env:
           AUTONAVLOG_REFERENCE_PYTHON: python3
@@ -365,7 +369,7 @@ jobs:
           if [ "${{ matrix.suite }}" = local ]; then
             npm --prefix web run test:local -- --workers=2 --shard=${{ matrix.shard }}/4
             if [ '${{ matrix.shard }}' = 1 ]; then
-              AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4174 npm --prefix web run test:static -- --grep 'production artifact shows storage limits and uses no Service Worker'
+              AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4174 npm --prefix web run test:static -- --grep 'production artifact shows storage limits and uses no Service Worker|production artifact rejects a different build manifest and recovers on reload'
             fi
             exit 0
           fi
@@ -404,6 +408,8 @@ jobs:
             /tmp/backup-server.log
             /tmp/backup-browser-server.log
             /tmp/autonavlog-auth-tests
+            /tmp/autonavlog-sync-component-browser
+            /tmp/navmate-416-443-test-results
             /tmp/autonavlog-focused-ux-browser
             /tmp/autonavlog-clipboard-playwright
 

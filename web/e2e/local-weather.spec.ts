@@ -108,6 +108,16 @@ test("portable real MSM: cold, warm after reload, Python reference and saved NAV
   await page.reload();
   await expect(page.locator(".nav-log-table")).toBeVisible();
   expect((await record(page)).lastCalculation.outcome.summary).toEqual(before.outcome.summary);
+  // A fixed feed exercises acquisition failure without depending on live MSM.
+  const saved = (await record(page)).lastCalculation;
+  const navlog = await page.locator(".nav-log-table").innerText();
+  await context.route("**/weather/msm/catalog.json", route => route.fulfill({ status: 503, body: "outage" }));
+  await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+  await expect.poll(async () => (await state(page))?.readiness?.issues.map((issue: any) => issue.code))
+    .toContain("FORECAST_PREPARE_FAILED");
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator(".nav-log-table")).toHaveText(navlog, { useInnerText: true });
+  expect((await record(page)).lastCalculation).toEqual(saved);
   // Draft inputs can diverge from the retained NAV LOG before recalculation.
   await page.getByLabel("気象モード").selectOption("FTD");
   await expect(page.getByLabel("使用Forecast")).toHaveText("Forecast: MSM / Run: 20260915210000");
