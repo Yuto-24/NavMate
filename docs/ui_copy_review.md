@@ -7,7 +7,7 @@ UI文言を追加・変更・移動・転用する作業では、Gemini の回�
 ## 入力と実行
 
 1. `docs/evidence/ui-copy/<対象名>/request.json` を作る。
-   [MAPペーストの記録](evidence/ui-copy/map-paste/request.json) が入力例。
+   [MAPペーストの記録](evidence/ui-copy/map-paste-pr456-2026-11-17/request.json) が入力例。
    `items` の各要素に、一意な `id`、候補の `text`、表示場所 `location`、目的 `purpose`、
    利用場面・表示条件 `context`、本人指定などの `constraints` を記入する。
    転用先も別の表示箇所として対象に含める。

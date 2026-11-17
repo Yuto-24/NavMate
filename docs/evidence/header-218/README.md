@@ -24,7 +24,7 @@ Project操作は開閉パネル、お知らせ・版数・保存先はその他�
 | 別タブ復元 | `browser-acceptance.spec.ts` 6構成成功。デスクトップChromium/WebKit、iPhone/iPad/Android端末エミュレーション。実Local WorkerとIndexedDBで計算・保存・別タブ復元。 |
 | Legacy | 隔離Composeで`information.spec.ts` / `information-known-issues.spec.ts` 13件成功。通常未読/既知の不具合更新、既読維持、メニュー経由の保存・読込・削除・新規。`web.spec.ts`のタブ限定draft→明示保存・削除も1件成功。 |
 | 基本検査 | release validation、version単体2件、Web型検査・Localビルド、applicationテスト140件成功。 |
-| 文言 | [Headerの実行記録](../ui-copy/header-218/run.json)・[採用理由](../ui-copy/header-218/adoption.json)、[Legacyの実行記録](../ui-copy/header-218-legacy/run.json)・[採用理由](../ui-copy/header-218-legacy/adoption.json)。Gemini CLIで29項目確認、全記録のソース照合成功。 |
+| 文言 | [Headerの実行記録](../ui-copy/header-218-pr456-2026-11-17-context-2/run.json)・[採用理由](../ui-copy/header-218-pr456-2026-11-17-context-2/adoption.json)、[Legacyの実行記録](../ui-copy/header-218-legacy/run.json)・[採用理由](../ui-copy/header-218-legacy/adoption.json)。Gemini CLIで29項目確認、全記録のソース照合成功。 |
 
 ## 独立レビュー
 

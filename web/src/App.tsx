@@ -1923,7 +1923,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
               : "KML終点から5 NM以内に目的空港が見つかりません。経路終点を確認してください。"
           }</p>}
           <div className="draft-import-controls"><FileInput busy={busy} onFile={handleFile} inputRef={routeFileInput} />
-          <button className="secondary-button" disabled={busy} onClick={() => void handlePasteImport("clipboard")}><span>Google Earth</span><span>からペースト</span></button></div>
+          <button className="secondary-button" aria-label="Google Earth からペースト" disabled={busy} onClick={() => void handlePasteImport("clipboard")}><span>Google Earth</span><span>からペースト</span></button></div>
           </>}
         </aside> : <ImportPlanPanel
           panelRef={planningPanelRef}
