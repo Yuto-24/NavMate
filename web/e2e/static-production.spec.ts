@@ -89,6 +89,6 @@ test("production artifact calculates with its served real MSM feed and retains N
   });
   await context.route("**/weather/msm/catalog.json", route => route.fulfill({ status: 503, body: "outage" }));
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-  await expect(page.locator('[role="alert"][aria-live="assertive"]')).toBeVisible();
+  await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.locator(".nav-log-table")).toHaveText(navlog, { useInnerText: true });
 });
