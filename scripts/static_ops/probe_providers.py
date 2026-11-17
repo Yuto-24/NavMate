@@ -374,6 +374,30 @@ def probe(env, now, client=None, *, only=None):
         raise ProbeError("unknown_check")
     client = client or Client(env)
     if only == "cloudflare_pages_target":
+        # Temporary GET-only investigation; output bounded pagination metadata only.
+        account = identifier(env, "CLOUDFLARE_ACCOUNT_ID", r"[a-f0-9]{32}")
+        observations = []
+        for requested in (20, 25, 50):
+            item = {"requested_per_page": requested}
+            try:
+                response = client.get("cloudflare", f"/client/v4/accounts/{account}"
+                                      "/pages/projects/navmate/deployments",
+                                      {"page": 1, "per_page": requested})
+                info = response.get("result_info")
+                if not isinstance(info, dict):
+                    raise ProbeError("invalid_shape")
+                for key in ("page", "per_page", "count", "total_count", "total_pages"):
+                    value = info.get(key)
+                    if type(value) is not int or not 0 <= value <= 1000000:
+                        raise ProbeError("invalid_shape")
+                    item[key] = value
+                item["status"] = "observed"
+            except ProbeError as error:
+                item["status"] = "http_400" if str(error) == "http_400" else "read_failed"
+            observations.append(item)
+        return {"status": "BLOCKED", "kind": "read_only_pagination_diagnosis",
+                "checks": observations}
+
         try:
             from . import pages_target
         except ImportError:
