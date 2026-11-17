@@ -102,10 +102,24 @@ for (const width of [1100, 1440]) {
     expect(Math.abs(clicked.latitude_deg - entered.latitude_deg)).toBeLessThan(2 * degreesPerPixel);
     expect(Math.abs(clicked.longitude_deg - entered.longitude_deg)).toBeLessThan(2 * degreesPerPixel);
     await editor(page).getByRole("button", { name: "岩瀬ダムを編集", exact: true }).click();
+    await clickMapCoordinate(page, 32.65, 131.55);
+    await expect(name(page)).toBeFocused();
+    // Closing discards coordinate edits as well as names.
+    await form(page).getByRole("button", { name: "編集を閉じる", exact: true }).click();
+    expect((await references(page))[0]).toEqual(entered);
+    await editor(page).getByRole("button", { name: "岩瀬ダムを編集", exact: true }).click();
+    await clickMapCoordinate(page, 32.65, 131.55);
+    await expect(name(page)).toBeFocused();
     await name(page).fill("岩瀬ダム改");
     await name(page).press("Enter");
     await expect(editor(page).getByText("岩瀬ダム改", { exact: true })).toBeVisible();
     expect(await references(page)).toHaveLength(2);
+    const moved = (await references(page))[0];
+    expect(moved.id).toBe(entered.id);
+    expect(moved.linked_section_id).toBe(entered.linked_section_id);
+    // Saved-center projection and the physical click each round to a pixel.
+    expect(Math.abs(moved.latitude_deg - 32.65)).toBeLessThan(2 * degreesPerPixel);
+    expect(Math.abs(moved.longitude_deg - 131.55)).toBeLessThan(2 * degreesPerPixel);
     await expect(page.locator(".vite-error-overlay, vite-error-overlay")).toHaveCount(0);
     expect(await page.pageErrors()).toEqual([]);
     const consoleErrors = (await page.consoleMessages()).filter(message => message.type() === "error");

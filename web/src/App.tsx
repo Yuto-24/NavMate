@@ -1522,6 +1522,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
 
   const handleCalculate = async (roundingMode?: boolean) => {
     if (busy || calculationInFlight.current) return;
+    const requestedPattern = patternAltitudeFtMsl(form.destinationPatternAltitudeFtMsl);
+    const requestedProjectId = state?.project?.id;
     calculationInFlight.current = true;
     cancelPendingRecalculation();
     invalidateDestinationPatternRequests();
@@ -1541,6 +1543,13 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       operation: "calculate",
     });
     if (calculated?.outcome) {
+      if (requestedPattern !== null
+        && calculated.project?.id === requestedProjectId
+        && calculated.project?.metadata.ui_state?.arrival_plan?.selected_pattern_altitude_ft_msl === requestedPattern) {
+        const resolvedError = operationErrorsRef.current["destination-pattern"];
+        recordOperationError("destination-pattern", null);
+        setError(current => current === resolvedError ? null : current);
+      }
       setCalculationNotice({ message: "NAV LOGを計算しました。準備状況と各値を確認してください。" });
     } else {
       scrollToCalculatedNavLogRef.current = null;

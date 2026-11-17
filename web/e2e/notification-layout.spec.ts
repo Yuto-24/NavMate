@@ -54,6 +54,7 @@ test('auth toast expires at five seconds, keeps retry in account dialog, and res
  await expect(dialog).toContainText('Test: newer failure');
  await expect(dialog.getByRole('button',{name:'ログアウトを再試行'})).toBeEnabled();
  await dialog.getByRole('button',{name:'ログアウトを再試行'}).click();
+ await expect(page.locator('#retries')).toHaveText('1');
  await expect(dialog.getByRole('button',{name:'Googleでログイン'})).toBeVisible();
  await page.getByRole('button',{name:'アカウントを閉じる'}).click();
  await page.getByRole('button',{name:'Test: notify',exact:true}).click();

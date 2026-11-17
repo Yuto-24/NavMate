@@ -1991,6 +1991,39 @@ test("edited VREP altitude reaches the calculation request and NAV LOG", async (
   ).toEqual([]);
 });
 
+test("manual calculation clears a recovered destination pattern failure only after success", async ({ page }) => {
+  await page.goto("/");
+  await importKmlCandidate(page);
+  await confirmImportedDraft(page);
+  await page.getByLabel("気象モード").selectOption("FTD");
+  for (const select of await page.locator(".altitude-candidate-select").all()) {
+    await select.selectOption({ index: 0 });
+  }
+  const calculate = page.getByRole("button", { name: /^NAV LOGを(?:作る|再計算)$/ });
+  await calculate.click();
+  await expect(page.getByLabel("計算済みNAV LOG")).toBeFocused({ timeout: 30_000 });
+  await page.route("**/api/project/recalculate", route => route.fulfill({
+    status: 500, contentType: "application/json", body: JSON.stringify({ error: { message: "Test: pattern update failed" } }),
+  }));
+  await page.getByLabel("今回採用する場周経路高度").fill("1400");
+  await expect(page.locator(".app-notification")).toContainText("Test: pattern update failed");
+  await page.route("**/api/calculation-jobs", route => route.fulfill({
+    status: 500, contentType: "application/json", body: JSON.stringify({ error: { message: "Test: calculation failed" } }),
+  }));
+  await calculate.click();
+  await expect(page.locator(".app-notification")).toContainText("Test: calculation failed");
+  await page.getByRole("button", { name: /^その他/ }).click();
+  await expect(page.locator("#operation-messages")).toContainText("Test: pattern update failed");
+  await page.getByRole("button", { name: /^その他/ }).click();
+  await page.unroute("**/api/calculation-jobs");
+  await calculate.click();
+  await expect(page.getByLabel("計算済みNAV LOG")).toBeFocused({ timeout: 30_000 });
+  await page.getByRole("button", { name: /^その他/ }).click();
+  await expect(page.locator("#operation-messages")).not.toContainText("Test: pattern update failed");
+  const state = await page.evaluate(async () => (await (await fetch("/api/state")).json()) as WebState);
+  expect(state.project?.metadata.ui_state?.arrival_plan?.selected_pattern_altitude_ft_msl).toBe(1400);
+});
+
 test("destination altitude drafts validate locally and latest valid edit recalculates", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/");

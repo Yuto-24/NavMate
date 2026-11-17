@@ -890,7 +890,7 @@ export function RouteWorkspace({
           )}
           {mapBuilder && <MapDraftLayers {...mapBuilder} />}
           <MapViewport storage={viewportStorage} scope={viewportScope} projectId={project?.id ?? null} coordinates={fitCoordinates} preserveViewport={preserveRouteViewport} importFitCoordinates={mapBuilder?.importFitCoordinates} />
-          <CheckPointMapPicker active={!mapBuilder && (pickingCheckPoint || pickedCoordinate !== null)} onPick={handleMapPick} />
+          <CheckPointMapPicker active={!mapBuilder && (pickingCheckPoint || pickedCoordinate !== null || Boolean(checkPointDraft.id))} onPick={handleMapPick} />
           {!mapBuilder && !project && <FitBounds
             coordinates={fitCoordinates}
             signature={coordinateSignature}
