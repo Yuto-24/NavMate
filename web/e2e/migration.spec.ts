@@ -141,3 +141,46 @@ test("Legacy account UI preserves 1100/1300 workflow order and locks then redire
   }
   await expect(page).toHaveURL("http://127.0.0.1:5179/");
 });
+
+
+test("large Legacy record reaches a fresh browser with full calculation through compressed REST and SDK", async ({ page, context, browser, request }) => {
+  const subject = `migration-${crypto.randomUUID()}`;
+  const seed = await request.post(`http://127.0.0.1:8186/fixture/seed?subject=${subject}&large=true`);
+  expect(seed.ok()).toBeTruthy();
+  const { projectId } = await seed.json();
+  await backend(context);
+  await context.route("**/api/navmate-migration/**", route => route.continue());
+  await page.goto(path);
+  await enterImportWorkflow(page);
+  await page.evaluate(subject => (window as any).authTest.signIn(subject), subject);
+  await expect(page.locator(`#saved-project option[value="${projectId}"]`)).toHaveCount(1);
+  const read = async (target: import("@playwright/test").Page) => target.evaluate(async projectId => {
+    const id = (window as any).authTest.state().account.account_id;
+    return new Promise<any>((resolve, reject) => {
+      const open = indexedDB.open(`autonavlog.projects.${id}`);
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result, transaction = db.transaction("projects", "readonly");
+        const request = transaction.objectStore("projects").get(projectId);
+        request.onsuccess = () => { db.close(); resolve(request.result); };
+      };
+    });
+  }, projectId);
+  const original = await read(page);
+  expect(original.draft.metadata.retained_test_data).toBe("完全な記録 🌤️".repeat(100_000));
+  expect(original.lastCalculation).toBeTruthy();
+  expect(Buffer.byteLength(JSON.stringify(original))).toBeGreaterThan(1_048_576);
+  const second = await browser.newContext();
+  try {
+    await backend(second);
+    await second.route("**/api/navmate-migration/**", route => route.continue());
+    const fresh = await second.newPage();
+    await fresh.goto(path); await enterImportWorkflow(fresh);
+    await fresh.evaluate(subject => (window as any).authTest.signIn(subject), subject);
+    await expect(fresh.locator(`#saved-project option[value="${projectId}"]`)).toHaveCount(1);
+    const restored = await read(fresh);
+    expect(restored.draft).toEqual(original.draft);
+    expect(restored.checkpoint).toEqual(original.checkpoint);
+    expect(restored.lastCalculation).toEqual(original.lastCalculation);
+  } finally { await second.close(); }
+});

@@ -1,0 +1,4 @@
+{
+  "payload": "{\"id\":\"synthetic-project\",\"nested\":[[1,2]],\"text\":\"宮崎 → 空港 🌤️\",\"number\":1.23456789012345,\"nullable\":null}",
+  "encoded": "gzip-v1:H4sIAAAAAAACA6tWykxRslIqrswryUgtyUzWLSjKz0pNLlHSUcpLLS5JBUpGRxvqGMXG6iiVpFaUANU+Xbfu6ZY+hUdtkxSer9z1bMd6hQ/ze5a839EP0lOam5RapGRlqGdkbGJqZm5haWAIYoFkcnISk3JSlaxArFoAA2qBAXgAAAA="
+}

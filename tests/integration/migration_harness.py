@@ -99,11 +99,13 @@ install_migration_routes(app, service, TestVerifier(), _owner_identity)
 
 
 @app.post("/fixture/seed")
-def seed(request: FastAPIRequest, subject: str, count: int = 1):
+def seed(request: FastAPIRequest, subject: str, count: int = 1, large: bool = False):
     if request.client.host not in {"127.0.0.1", "testclient"}:
         raise ValueError("loopback fixture only")
     owner = subject + "@example.com"
     session, _ = _new_project(web, owner=owner)
+    if large:
+        session.project.metadata["retained_test_data"] = "完全な記録 🌤️" * 100_000
     web.calculate(session)
     assert session.last_calculation is not None
     if not 1 <= count <= 200:

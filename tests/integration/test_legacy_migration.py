@@ -501,3 +501,46 @@ def test_concurrent_two_owner_link_has_one_winner_and_domain_conflict(migration)
         assert sorted(future.result() for future in futures) == ["ACCOUNT_ALREADY_LINKED", "LINKED"]
     with migration.db() as db:
         assert db.execute("SELECT count(*) FROM links").fetchone()[0] == 1
+
+
+def test_compressed_rest_commit_lost_ack_resumes_with_existing_raw_receipts(migration, monkeypatch):
+    from autonavlog.web.migration_remote import FirestoreMigrationRemote
+    from autonavlog.web.sync_payload import PREFIX, decode_payload
+
+    source = project(migration)
+    source.metadata["retained_test_data"] = "complete record " * 100_000
+    migration.web.project_service.repository.autosave(source)
+    migration.link(OWNER, GOOGLE)
+    original = migration.snapshot(KEY)
+    assert len(original[0]["payload"].encode()) > 1_048_576
+    stored = {}
+    commits = 0
+
+    def request(url, body, token):
+        nonlocal commits
+        if url.endswith(":batchGet"):
+            return [{"found": {**stored[name], "updateTime": "server-version"}}
+                    if name in stored else {"missing": name} for name in body["documents"]]
+        assert url.endswith(":commit")
+        commits += 1
+        for write in body["writes"]:
+            assert write["currentDocument"] == {"exists": False}
+            value = write["update"]
+            assert value["fields"]["payload"]["stringValue"].startswith(PREFIX)
+            stored[value["name"]] = value
+        raise OSError("lost commit acknowledgement")
+
+    monkeypatch.setattr("autonavlog.web.migration_remote.request_json", request)
+    remote = FirestoreMigrationRemote("test", GOOGLE, "synthetic")
+    migration.begin(KEY)
+    with pytest.raises(OSError):
+        migration.step(KEY, remote)
+    assert migration.status(KEY)["state"] == "LINKED"
+    with migration.db() as db:
+        receipt = db.execute("SELECT intended FROM receipts WHERE owner=?", (KEY,)).fetchone()
+        assert json.loads(receipt["intended"])["payload"] == original[0]["payload"]
+    assert finish(migration, remote)["state"] == "NAVMATE_ACTIVE"
+    assert commits == 1
+    wire, = stored.values()
+    assert decode_payload(wire["fields"]["payload"]["stringValue"]) == original[0]["payload"]
+    assert migration.web.project_service.repository.load(source.id).metadata == source.metadata

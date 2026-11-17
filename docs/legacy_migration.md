@@ -43,6 +43,15 @@ records and approximately 6 MiB per commit bound request size; 200 Projects are 
 multi-batch migration, not 200 sequential network writes. The final read verifies the
 whole target set in one consistent snapshot before committing NAVMATE_ACTIVE locally.
 
+Batch size alone does not enforce Firestore's **per-document** 1 MiB limit. Large
+Project + checkpoint + Last Calculation records use the lossless
+[Account Sync payload codec](account_sync.md#large-project-payloads) in the REST adapter.
+The browser's normal sync adapter uses the same format. A payload that cannot fit after
+compression fails without dropping its calculation or other fields. Receipts and
+snapshot plans remain uncompressed JSON; reads decode before comparison. Install the
+compatible NavMate client before updating the Legacy migration runtime, and preserve
+both source files and existing Local/remote data before any separately authorized retry.
+
 An intended-write receipt is durable **before** each remote commit. Lost acknowledgements
 can be recognized by exact content/version. A retry takes a fresh Legacy snapshot:
 
