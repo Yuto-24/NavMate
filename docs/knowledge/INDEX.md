@@ -4,6 +4,7 @@ Read [the workflow](README.md) before adding or applying lessons. Search by the 
 
 ## Existing canonical sources
 - [Agent workflow](../agent_workflow.md)
+- [Large Account Sync payloads](../account_sync.md#large-project-payloads): Legacy移行のバッチ容量制限とFirestoreの1文書上限は別。Project・checkpoint・Last Calculationを欠落なく保存する可逆圧縮、旧クライアントの停止、NavMate先行更新、再試行記録の互換性。ローカル合成データで検証し、本番反映・再移行は別途承認。
 - [Local StaticのMSMキャッシュ](../local_static_docker.md#msm取得キャッシュの容量管理): 2026-11-17の1環境で約44 GB。Legacyの20 GiB・7日の整理と#257のWorktree対策は別経路。取得cacheと配信Runの保持を分け、updaterの排他区間で整理する。開発用backup・終了時の資源整理は[Worktree手順](../development_worktrees.md#作業終了時の整理)を参照。
 - [Forecast schema 4 → 5 transition](../forecast_schema_transition.md): Issue #423。旧版生成データ、旧タブとの共存、同一端末 Latest 置換の了承範囲、手動公開の証拠と制約。最終v2.3.2候補への適用審査、元報告を保持するWSL helper、remote tag照合、受理済み記録を再生成しない運用。
 - [Releaseの期限・受渡し・再実行の知見](../schema431_actions_prepare.md#操作窓を始める前の確認): planとprepared feedの別々の30分条件、取得・レビューの事前準備、v2.3.2の公開結果と検証限界。2026-11-15、tooling `64225b82` / driver `2394d59d`で確認。未実装の改善はリンク先Issueへ。

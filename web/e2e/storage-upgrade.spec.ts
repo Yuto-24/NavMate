@@ -156,3 +156,38 @@ for (const sameProfile of [true, false]) test(`old SDK commit already read befor
     if (!sameProfile) await targetContext.close();
   }
 });
+
+
+test("compressed Project and Last Calculation survive fresh browser, editing and an old tab's pending write", async ({ page: old, browser }) => {
+  const account = "compression-" + randomUUID(), subject = "compression-" + randomUUID();
+  const initial = oldShape(fixture());
+  const fresh = await browser.newContext(), next = await fresh.newPage();
+  try {
+    await start(old, { old: true, account, subject, device: "old-device" });
+    await call(old, "write", initial, null); await call(old, "flush");
+    const oldEdit = { ...structuredClone(initial), token: randomUUID(), draft: { ...initial.draft, pilot_name: "pending old edit" } };
+    await call(old, "write", oldEdit, initial.token); await call(old, "holdPending");
+    await start(next, { account, subject, device: "new-device" }); await call(next, "flush");
+    const base = await call(next, "read", initial.id);
+    const large = structuredClone(base); large.token = randomUUID();
+    large.draft.metadata.retained_test_data = "完全な記録 🌤️".repeat(100_000);
+    expect(Buffer.byteLength(JSON.stringify(large))).toBeGreaterThan(1_048_576);
+    await call(next, "write", large, base.token); await call(next, "flush");
+    const expected = await call(next, "remoteList");
+    expect(expected[0].record.lastCalculation).toEqual(initial.lastCalculation);
+    expect(await call(old, "attempt", "finishPending", [])).toBe("SYNC_DATA_INVALID");
+    expect(await call(next, "remoteList")).toEqual(expected);
+    expect((await call(old, "snapshot"))[0].sync.sent.value.record.draft.pilot_name).toBe("pending old edit");
+    // A separate browser context restores from Firestore without any Local copy.
+    await call(next, "dispose");
+    const second = await browser.newContext(), device = await second.newPage();
+    try {
+      await start(device, { account, subject, device: "fresh-device" }); await call(device, "flush");
+      const restored = await call(device, "read", initial.id);
+      expect(restored).toEqual(expected[0].record);
+      const edited = { ...structuredClone(restored), token: randomUUID(), draft: { ...restored.draft, pilot_name: "new edit" } };
+      await call(device, "write", edited, restored.token); await call(device, "flush");
+      expect((await call(device, "remoteList"))[0].record).toEqual(edited);
+    } finally { await call(device, "dispose"); await second.close(); }
+  } finally { await call(old, "dispose"); await fresh.close(); }
+});

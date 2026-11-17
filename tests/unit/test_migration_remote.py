@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 import jwt
@@ -94,3 +95,55 @@ def test_firestore_envelope_roundtrip():
         "version": "version",
     }
     assert decode_fields(encode_fields(value)) == value
+
+
+def test_rest_adapter_compresses_writes_and_decodes_reads_without_mutating_receipts(monkeypatch):
+    from autonavlog.web.migration_remote import FirestoreMigrationRemote, GoogleIdentity
+    from autonavlog.web.sync_payload import PREFIX, decode_payload
+
+    payload = json.dumps({"id": "synthetic", "calculation": "full result " * 110_000})
+    intended = {
+        "schema": 1, "id": "synthetic", "payload": payload, "revision": 1,
+        "version": "operation-1", "baseVersion": None, "deletion": "ACTIVE",
+        "undoUntil": None, "latestDeviceId": None,
+    }
+    stored = {}
+    calls = []
+
+    def request(url, body, token):
+        assert token == "synthetic-token"
+        calls.append(url)
+        if url.endswith(":commit"):
+            write, = body["writes"]
+            assert write["currentDocument"] == {"exists": False}
+            stored.update(write["update"])
+            return {}
+        assert url.endswith(":batchGet")
+        return [{"found": {**stored, "updateTime": "server-version"}}]
+
+    monkeypatch.setattr("autonavlog.web.migration_remote.request_json", request)
+    remote = FirestoreMigrationRemote(
+        "test", GoogleIdentity("subject", "account"), "synthetic-token"
+    )
+    remote.commit([(intended, None)])
+    wire = decode_fields(stored["fields"])
+    assert wire["payload"].startswith(PREFIX)
+    assert decode_payload(wire["payload"]) == payload
+    assert intended["payload"] == payload  # Durable receipts keep their existing representation.
+    assert remote.read(["synthetic"])["synthetic"] == {**intended, "_updateTime": "server-version"}
+    assert len(calls) == 2
+
+
+def test_oversized_commit_is_rejected_before_any_network_write(monkeypatch):
+    from autonavlog.web.migration_remote import FirestoreMigrationRemote, GoogleIdentity
+    from autonavlog.web.sync_payload import MAX_DECODED_BYTES
+
+    calls = []
+    monkeypatch.setattr(
+        "autonavlog.web.migration_remote.request_json", lambda *args: calls.append(args)
+    )
+    remote = FirestoreMigrationRemote("test", GoogleIdentity("subject", "account"), "synthetic")
+    with pytest.raises(ValueError):
+        remote.commit([({"id": "small", "payload": "{}"}, None),
+                       ({"id": "large", "payload": "x" * (MAX_DECODED_BYTES + 1)}, None)])
+    assert not calls

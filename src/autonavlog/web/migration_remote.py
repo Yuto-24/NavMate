@@ -13,6 +13,7 @@ import jwt
 from jwt import PyJWKClient
 
 from .cloudflare_access import SigningKeyProvider
+from .sync_payload import decode_payload, encode_payload
 
 
 def request_json(url: str, body: Any, token: str | None = None) -> Any:
@@ -148,6 +149,7 @@ class FirestoreMigrationRemote:
                     )
                 ):
                     raise ValueError("Invalid Account Sync envelope")
+                data["payload"] = decode_payload(data["payload"])
                 data["_updateTime"] = document["updateTime"]
                 result[document["name"].rsplit("/", 1)[-1]] = data
         return result
@@ -162,7 +164,9 @@ class FirestoreMigrationRemote:
                     {
                         "update": {
                             "name": f"{self.collection}/{value['id']}",
-                            "fields": encode_fields(value),
+                            "fields": encode_fields(
+                                {**value, "payload": encode_payload(value["payload"])}
+                            ),
                         },
                         "currentDocument": (
                             {"updateTime": old["_updateTime"]} if old else {"exists": False}

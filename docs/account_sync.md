@@ -32,6 +32,49 @@ ordinary Project JSON, including nested arrays, remains independent of Firestore
 The adapter's document-size/quota failures preserve the Local outbox and show their
 impact on cross-device continuation; no Local Project is evicted or switched to Legacy.
 
+## Large Project payloads
+
+The Firestore envelope remains schema 1 with its existing string `payload`, document
+path, CAS version and revision. Local IndexedDB and domain records remain unchanged.
+Both the browser adapter and Legacy REST adapter understand these two representations:
+
+- Existing JSON text.
+- `gzip-v1:` followed by canonical standard Base64 of gzip-compressed UTF-8 JSON.
+
+Writers try gzip at 256 KiB and keep it only when its Base64 representation is smaller.
+The stored payload budget is 1,000,000 UTF-8 bytes, leaving room for the normal envelope
+under Firestore's 1 MiB document limit. Compression is lossless: no Project field,
+checkpoint, calculation, provenance or numeric precision is dropped. Readers continue
+to accept valid historical uncompressed documents above the new write budget.
+
+Decoded payloads are bounded at 16 MiB, including during streaming decompression, to
+prevent compressed data from causing unbounded allocation. Invalid Base64, corrupt or
+truncated gzip, invalid UTF-8/JSON and identity mismatch fail closed. If a new record
+exceeds the decoded limit or cannot fit the stored budget after compression, the whole
+atomic write group fails before writing; Local data and its pending outbox stay intact.
+This format does not provide unlimited-size storage or split records into chunks.
+
+Legacy receipts retain the original JSON and compare decoded content, so encoding is
+not a new Project identity or operation version. Lost acknowledgements and retries
+continue to use the existing CAS and receipt rules. Both migration and ordinary Account
+Sync must use this codec; fixing only the first import would fail on a later edit.
+
+### Rollout and older clients
+
+Deploy the NavMate reader/writer before enabling the updated Legacy migration server.
+New code reads existing JSON without a database rewrite. Older browser/Legacy adapters
+cannot parse `gzip-v1:` as JSON and stop before overwriting that Project. Old tabs may
+therefore report a sync/read failure after a large Project is saved; update them while
+preserving their Local data and any pending edits. A rollback to old code cannot read
+compressed documents and is not a transparent recovery procedure. Rules and indexes are
+unchanged; this PR does not deploy either application or rerun any real migration.
+
+Verification covers a shared Python/browser wire vector, byte-for-byte restoration,
+size limits and corrupt input, compressed REST lost-ACK retry with existing receipts,
+real SDK/Rules CAS and atomic failure, old-tab pending writes, browser re-save and fresh
+device restoration including Last Calculation. Fixtures are synthetic; local/emulator
+success is not production or physical-device acceptance.
+
 ## Durable contract
 
 The #124 domain record remains checkpoint + draft + Last Calculation. The account

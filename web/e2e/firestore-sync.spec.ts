@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { initializeApp, deleteApp } from "firebase/app";
 import { connectFirestoreEmulator, deleteDoc, doc, getDoc, getFirestore, setDoc, terminate } from "firebase/firestore";
+import { MAX_DECODED_BYTES, SYNC_PAYLOAD_PREFIX } from "../src/syncPayload";
 import { FirestoreSyncRepository } from "../src/firestoreSyncRepository";
 import type { SyncProject } from "../src/accountSync";
 
@@ -100,5 +101,37 @@ test("Firestore adapter rejects missing/mismatched payload identities and malfor
       await expect(repository.list()).rejects.toMatchObject({ code: "SYNC_DATA_INVALID" });
       await expect(repository.commit([{ expectedVersion: next, value: { id } as SyncProject }])).rejects.toMatchObject({ code: "SYNC_DATA_INVALID" });
     }
+  } finally { repository.dispose(); await terminate(db); await deleteApp(app); }
+});
+
+
+test("large compressed records retain CAS, lost-ACK replay and atomic failures", async () => {
+  const subject = `compressed-${crypto.randomUUID()}`;
+  const app = initializeApp({ projectId: "demo-autonavlog-sync", apiKey: "test" }, subject);
+  const db = getFirestore(app);
+  connectFirestoreEmulator(db, "127.0.0.1", 8088, { mockUserToken: { sub: "owner",
+    firebase: { sign_in_provider: "google.com", identities: { "google.com": [subject] } } } });
+  const repository = new FirestoreSyncRepository(db, subject, () => {});
+  const id = crypto.randomUUID(), ref = doc(db, "googleAccounts", subject, "projects", id);
+  const value = { id, version: crypto.randomUUID(), revision: 1, latestDeviceId: null,
+    deletion: "ACTIVE", undoUntil: null, record: { id, calculation: "完全な結果 🌤️".repeat(100_000) } } as unknown as SyncProject;
+  try {
+    expect(await repository.commit([{ expectedVersion: null, value }])).toEqual({ committed: true });
+    const stored = (await getDoc(ref)).data()!;
+    expect(stored.payload.startsWith(SYNC_PAYLOAD_PREFIX)).toBe(true);
+    expect(new TextEncoder().encode(JSON.stringify(value.record)).length).toBeGreaterThan(1_048_576);
+    expect((await repository.list())[0]?.record).toEqual(value.record);
+    expect(await repository.commit([{ expectedVersion: null, value }])).toEqual({ committed: true });
+    expect((await getDoc(ref)).data()).toEqual(stored); // Lost acknowledgement never rewrites.
+    const next = { ...value, version: crypto.randomUUID(), revision: 2 };
+    expect((await getDoc(ref)).data()).toEqual(stored);
+    expect((await repository.commit([{ expectedVersion: null, value: next }])).committed).toBe(false);
+    const tooBigId = crypto.randomUUID();
+    const tooBig = { ...value, id: tooBigId, record: { id: tooBigId, data: "x".repeat(MAX_DECODED_BYTES + 1) } } as unknown as SyncProject;
+    await expect(repository.commit([{ expectedVersion: value.version, value: next }, { expectedVersion: null, value: tooBig }])).rejects.toMatchObject({ code: "invalid-argument" });
+    expect((await getDoc(ref)).data()).toEqual(stored);
+    expect((await getDoc(doc(db, "googleAccounts", subject, "projects", tooBigId))).exists()).toBe(false);
+    expect(await repository.commit([{ expectedVersion: value.version, value: next }])).toEqual({ committed: true });
+    expect((await repository.list())[0]?.record).toEqual(value.record);
   } finally { repository.dispose(); await terminate(db); await deleteApp(app); }
 });

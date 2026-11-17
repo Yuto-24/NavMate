@@ -3,18 +3,19 @@ import { getAuth } from "firebase/auth";
 import { collection, doc, getDocsFromServer, getFirestore, onSnapshot, runTransaction,
   type Firestore, type DocumentData, type CollectionReference } from "firebase/firestore";
 import { ApplicationError } from "./application";
+import { decodeSyncPayload, encodeSyncPayload } from "./syncPayload";
 import { accountBoundaryClosed } from "./auth";
 import { deletionState, type AccountSyncRepository, type SyncProject, type SyncMutation, type SyncCommit } from "./accountSync";
 import type { LocalAccountContext } from "./localProjectRepository";
 
 const invalid = () => new ApplicationError("他の端末の保存データを読み込めません。端末内のデータは保持されています。", "SYNC_DATA_INVALID");
-function decode(data: DocumentData, id: string): SyncProject {
+async function decode(data: DocumentData, id: string): Promise<SyncProject> {
   if (data.schema !== 1 || typeof data.payload !== "string" || typeof data.version !== "string" || !Number.isSafeInteger(data.revision) || data.revision < 1 ||
     !["ACTIVE", "PENDING_DELETE", "DELETED"].includes(data.deletion)) {
     throw invalid();
   }
   let record;
-  try { record = JSON.parse(data.payload); } catch { throw invalid(); }
+  try { record = JSON.parse(await decodeSyncPayload(data.payload)); } catch { throw invalid(); }
   if (data.id !== id || !record || typeof record !== "object" || record.id !== id) throw invalid();
   return { id: data.id, version: data.version, revision: data.revision, record, latestDeviceId: data.latestDeviceId,
     deletion: data.deletion, undoUntil: data.undoUntil };
@@ -47,7 +48,9 @@ export class FirestoreSyncRepository implements AccountSyncRepository {
     this.assert();
     const snapshot = await getDocsFromServer(this.projects);
     this.assert();
-    return snapshot.docs.map(row => decode(row.data(), row.id));
+    const values = await Promise.all(snapshot.docs.map(row => decode(row.data(), row.id)));
+    this.assert();
+    return values;
   }
   async commit(mutations: SyncMutation[]): Promise<SyncCommit> {
     this.assert();
@@ -60,7 +63,7 @@ export class FirestoreSyncRepository implements AccountSyncRepository {
       for (let index = 0; index < mutations.length; index++) {
         const mutation = mutations[index]!;
         const snapshot = snapshots[index]!;
-        const current = snapshot.exists() ? decode(snapshot.data(), snapshot.id) : null;
+        const current = snapshot.exists() ? await decode(snapshot.data(), snapshot.id) : null;
         if (current?.version === mutation.value.version) continue; // retry after lost acknowledgement
         if ((current?.version ?? null) !== mutation.expectedVersion ||
           (current && deletionState(current) === "DELETED" && deletionState(mutation.value) !== "DELETED")) {
@@ -68,13 +71,19 @@ export class FirestoreSyncRepository implements AccountSyncRepository {
           else throw new ApplicationError("同期先のProjectを確認できません。", "SYNC_DATA_INVALID");
         }
       }
+      this.assert();
       if (conflicts.length) return { committed: false, conflicts };
+      // Encode the entire atomic group before staging any write. Replays need no encoding.
+      const payloads = await Promise.all(mutations.map((mutation, index) =>
+        snapshots[index]!.data()?.version === mutation.value.version ? undefined
+          : encodeSyncPayload(JSON.stringify(mutation.value.record))));
+      this.assert();
       for (let index = 0; index < mutations.length; index++) {
         const { value, expectedVersion } = mutations[index]!;
         if (snapshots[index]!.data()?.version === value.version) continue;
         transaction.set(refs[index]!, { schema: 1, id: value.id, version: value.version, revision: value.revision,
           baseVersion: expectedVersion, latestDeviceId: value.latestDeviceId,
-          deletion: deletionState(value), undoUntil: value.undoUntil, payload: JSON.stringify(value.record) });
+          deletion: deletionState(value), undoUntil: value.undoUntil, payload: payloads[index]! });
       }
       return { committed: true };
     }, { maxAttempts: 1 }); // The durable controller owns retry/backoff.
