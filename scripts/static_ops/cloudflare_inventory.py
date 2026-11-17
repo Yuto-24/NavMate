@@ -71,19 +71,19 @@ def envelope(response, page):
     return rows, info, counts
 
 
-def paginated(client, path, normalize):
+def paginated(client, path, normalize, *, per_page=PAGE_SIZE):
     """Read every declared Pages page; reject gaps, repeats and observed drift."""
     result = []
     ids = set()
     expected = None
     for page in range(1, api.MAX_REQUESTS + 1):
-        response = client.get("cloudflare", path, {"page": page, "per_page": PAGE_SIZE})
+        response = client.get("cloudflare", path, {"page": page, "per_page": per_page})
         rows, info, counts = envelope(response, page)
         total_pages = integer(info.get("total_pages"))
         if (
             not page <= total_pages <= api.MAX_REQUESTS
-            or counts["per_page"] != PAGE_SIZE
-            or not total_pages <= counts["total_count"] <= total_pages * PAGE_SIZE
+            or counts["per_page"] != per_page
+            or not total_pages <= counts["total_count"] <= total_pages * per_page
         ):
             fail("inconsistent_page_metadata")
         snapshot = (counts["total_count"], total_pages, counts["per_page"])

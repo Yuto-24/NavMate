@@ -135,6 +135,44 @@ mainの自動更新対象はアプリです。Compose、Python、Node、git-sync
 ホスト側のcheckoutを更新して上記の `up --build` を再実行します。
 イメージは固定tagを使い、勝手に新しい基盤へ追随しません。
 
+## MSM取得キャッシュの容量管理
+
+既存環境へこの整理処理を導入する初回は、ホストのcheckoutを更新し、updater imageを再buildして
+起動し直します。mainのGit同期だけでは、既に動いているupdater自体は更新されません。
+
+updaterは `/state/cache/msm` の `raw`・`normalized`・`listings` にある通常ファイルを、
+**合計20 GiB・更新時刻から7日**を既定値として整理します。期限を過ぎたものを消し、
+まだ上限を超える場合は古いファイルから削除します。これは再取得できる取得元キャッシュです。
+配信済みNPZと現行・直前の配布物、Project、Gitソース、backupをこの処理で削除しません。
+配信するMSM Runの7日保持は、従来のfeed生成処理が別に管理します。
+
+整理はupdater起動時と各更新処理の前後に行います。成功、失敗、新commitによる候補破棄、
+新Runなしのいずれでも実行します。同じvolumeの `updater.lock` で更新全体を直列化し、
+producerなどの子プロセスが終了してから削除します。libraryのlockファイルは保持し、
+symlinkや特殊ファイルを追跡しません。稼働中に別の手動処理から同じcacheを読み書きしないでください。
+
+上限は**更新間の整理後に残すMSMキャッシュの通常ファイル合計**です。処理中には一時的に
+超えることがあり、volume全体やpip/npm cache、配布物、backupの容量上限ではありません。
+削除・走査に失敗した場合は上限を満たせないことがあります。`msm_cache_cleanup_failed` に
+原因を記録し、正常な公開結果を更新失敗に変更しません。次回の整理で再試行します。
+成功時の `msm_cache_collected` には削除件数・残存bytes・適用した上限を出力します。
+
+変更が必要な場合は `.env.local-static` に正の整数で指定し、updaterを再作成します。
+0・負数・数値以外を指定すると起動を拒否します。
+
+```dotenv
+LOCAL_MSM_CACHE_MAX_BYTES=21474836480
+LOCAL_MSM_CACHE_MAX_AGE_DAYS=7
+```
+
+### 2026-11-17の容量調査から分かったこと
+
+利用者の調査ではLocal Staticのstate約47 GBのうち、MSM rawが約33 GB、normalizedが約11 GBでした。
+当時の `Updater.collect()` は配布物・source・logだけを整理し、取得cacheを対象にしていませんでした。
+Legacyの20 GiB・7日の整理や、#257のWorktree prewarm抑止はLocal Static updaterには適用されません。
+配信Runに7日の保持条件があっても、別保存先の取得cacheが同じ期間で消えるわけではありません。
+今回の変更はこの経路に整理を追加します。上記の容量は1環境の観測であり、全環境の増加量ではありません。
+
 ## 状態・ログ・停止
 
 ```bash
@@ -157,6 +195,8 @@ docker compose -f compose.local.yaml stop source updater
 
 更新用のsource・state・publishedボリュームは、Legacyの `autonavlog-data` と別です。
 停止・更新で `down -v` を使わず、既存のLegacy volumeと移行バックアップも保持します。
+旧環境の廃止・データ保護条件が満たされた後の個別整理は、
+[廃止後のVolume整理](server_retirement.md#廃止後のvolume整理)で扱います。
 
 ## 既存8123番からの切替と復旧
 
