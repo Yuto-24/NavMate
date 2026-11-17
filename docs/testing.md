@@ -14,6 +14,7 @@ PR headと一致することを確認し、第1親（実際に検証したbase�
 | PR の変更入力 | 必須 suite（release-sources は常時） |
 | --- | --- |
 | `AGENTS.md`、通常ファイルとして残る `README.md`、`docs/**/*.md` のみ | source 検証のみ |
+| 通常ファイルとして残る `VERSION` / `CHANGELOG.md` | release-build |
 | `web/src/` 内の `.ts` / `.tsx` / `.css` | web、local-browser、account-sync |
 | `src/autonavlog/` 内の `.py` | pytest、runtime、web、local-browser、account-sync、static-tooling-install |
 | `services/taf-proxy/worker.mjs` | taf-proxy、web、local-browser |
@@ -25,10 +26,22 @@ Python はブラウザの計算エンジンと配信ツールにも組み込ま�
 含む pytest 全体と、それらの利用側の検証を維持します。独立したサービスの実装だけを
 限定選択します。テスト内の assertion、grep、project、pytest の分配は維持します。ブラウザの分割方法は後述します。
 
+`VERSION` / `CHANGELOG.md`だけのPRは、常時の`release-sources`と`release-build`、
+最終集約の`ci-required`を実行します。`release-build`は既存のリリースノートテストと
+Web build（生成JSON・TypeScript・Vite）、Python 3.12でのsdist/wheel buildを行い、
+生成wheelの版番号とWeb成果物の同梱を確認します。Docker、ブラウザE2E、全pytest、
+同期emulator、実MSMは起動しません。PRのRelease契約とVERSION/CHANGELOGの整合性は
+従来どおり検査するため、限定分類されたことだけでリリース準備を有効とは扱いません。
+
+push・手動実行・未知差分は`release-build`を含む全suiteを維持します。
+全検証時には既存web/pytestと一部buildが重複しますが、今回は分類と必須checkを小さく拡張し、
+工程全体の重複整理は[#459](https://github.com/Yuto-24/NavMate/issues/459)で扱います。
+
 複合変更は選択の和集合です。PR の共通祖先から head までを Git で比較し、rename は削除と
 追加の両方を評価します。ファイル件数上限はありません。未知パス、空差分、判定エラー、
-通常ファイル以外・実行権限の変更は全検証へ戻ります。`CHANGELOG.md` / `KNOWN_ISSUES.md`
-は画面生成の入力なので文書省略の対象外です。判定ジョブの失敗・出力欠落でも各 suite を
+通常ファイル以外・実行権限の変更、`VERSION` / `CHANGELOG.md`の削除は全検証へ戻ります。
+`CHANGELOG.md`はリリース検証へ分類し、`KNOWN_ISSUES.md`は引き続き全suite対象です。
+どちらも画面生成の入力なので文書省略の対象外です。判定ジョブの失敗・出力欠落でも各 suite を
 起動し、最終集約は判定失敗を成功に変換しません。
 
 `ci-required` は常に完了結果を集約します。判定の成功、全 suite の出力、選択された suite の

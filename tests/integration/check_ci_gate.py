@@ -26,7 +26,8 @@ def results(selected=JOBS):
 
 
 @pytest.mark.parametrize(
-    "selected", [JOBS, set(), {"msm-trigger"}, {"web", "local-browser", "account-sync"}]
+    "selected",
+    [JOBS, set(), {"release-build"}, {"msm-trigger"}, {"web", "local-browser", "account-sync"}],
 )
 def test_full_selected_and_documentation_results(selected):
     assert check_results(results(selected)) == []
