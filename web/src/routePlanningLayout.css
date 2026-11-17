@@ -213,7 +213,9 @@
 .route-workspace.is-route-building .map-route-actions{order:5;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:8px;border-top:1px solid #dce4e8}
 .route-workspace.is-route-building .map-route-actions button{min-height:40px;padding:7px 5px;font-size:12px}
 .draft-import-controls .file-picker,.draft-import-controls>button{flex-direction:column;gap:2px;white-space:nowrap}
-.draft-import-controls .file-picker::after{content:"KML/KMZ をドロップ";font-size:10px;font-weight:400;white-space:nowrap}
+.file-picker .file-picker-label{color:inherit;font-size:inherit}
+.file-picker .file-picker-drop-description{display:none}
+.draft-import-controls .file-picker .file-picker-drop-description{display:block;color:inherit;font-size:10px;font-weight:400;white-space:nowrap}
 .draft-import-controls>button>span{display:block;white-space:nowrap}
 .draft-import-controls .file-picker,.draft-import-controls>button{height:48px;min-height:48px}
 .draft-import-controls .file-picker{border-color:#4f6f64}

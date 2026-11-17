@@ -2,6 +2,8 @@ import { FileUp } from "lucide-react";
 import type { DragEvent, RefObject } from "react";
 import type { FileContentSource } from "./platform";
 
+const dropDescription = "KML/KMZ をドロップ";
+
 export interface FileInputProps {
   busy: boolean;
   onFile: (file: FileContentSource) => void;
@@ -28,10 +30,11 @@ export function BrowserFileInput({ busy, onFile, inputRef }: FileInputProps) {
       onDrop={acceptDrop}
     >
       <FileUp aria-hidden="true" size={26} />
-      <strong>KML/KMZ をドロップ</strong>
+      <strong>{dropDescription}</strong>
       <span>10 MiB以下</span>
       <label className="file-picker" htmlFor="route-file">
-        ファイルを選択
+        <span className="file-picker-label">ファイルを選択</span>
+        <span className="file-picker-drop-description">{dropDescription}</span>
       </label>
       <input
         ref={inputRef}

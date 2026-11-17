@@ -14,6 +14,19 @@ for (const width of [390, 820, 1100, 1240, 1241, 1440]) {
     if (width > 700) { expect(Math.abs(b.map.y - b.pane.y)).toBeLessThan(2); expect(b.map.x + b.map.width).toBeLessThanOrEqual(b.pane.x + 1); }
     else expect(b.map.y + b.map.height).toBeLessThanOrEqual(b.pane.y + 1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const drop = page.locator(".draft-import-controls .drop-zone");
+    await expect(drop.locator(".file-picker-drop-description")).toHaveText("KML/KMZ をドロップ");
+    await expect(drop.locator(".file-picker-drop-description")).toBeVisible();
+    await expect(drop.locator("strong")).toBeHidden();
+    await expect(drop.locator(".file-picker-label")).toHaveCSS("font-size", "11px");
+    // Exercise the same component's non-compact presentation without changing
+    // application state; restore Draft before file actions.
+    await page.locator(".draft-import-controls").evaluate(el => el.classList.remove("draft-import-controls"));
+    const normalDrop = page.locator(".drop-zone");
+    await expect(normalDrop.locator("strong")).toHaveText("KML/KMZ をドロップ");
+    await expect(normalDrop.locator("strong")).toBeVisible();
+    await expect(normalDrop.locator(".file-picker-drop-description")).toBeHidden();
+    await normalDrop.evaluate(el => el.parentElement!.classList.add("draft-import-controls"));
     const imports = await page.locator(".draft-import-controls > *").evaluateAll(elements => elements.map(e => ({width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,y:e.getBoundingClientRect().y})));
     expect(Math.abs(imports[0]!.height - imports[1]!.height)).toBeLessThan(2);
     expect(Math.abs(imports[0]!.width - imports[1]!.width)).toBeLessThan(2);
