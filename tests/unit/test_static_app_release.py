@@ -448,18 +448,19 @@ def disabled_github_source():
     }
 
 
-@pytest.mark.parametrize("per_page", [20, 25])
+@pytest.mark.parametrize("per_page,total,complete", [(20, 773, False), (25, 773, True),
+                                                     (25, 926, False)])
 def test_growing_history_prepare_preserves_request_budget_and_full_inventory(
-    pages_operator, monkeypatch, tmp_path, per_page
+    pages_operator, monkeypatch, tmp_path, per_page, total, complete
 ):
     operator, _, rows, requests = pages_operator
-    rows.extend(pages_deployment(i) for i in range(2, 774))
+    rows.extend(pages_deployment(i) for i in range(2, total + 1))
     monkeypatch.setattr(app.pages_target, "DEPLOYMENTS_PER_PAGE", per_page)
     store = tmp_path / "store"
     store.mkdir()
     journal = app.Journal(store / "prepare-status.json", "prepare", NEW)
-    if per_page == 20:
-        # 39 list pages plus the initial/project stability reads exhaust 40 GETs.
+    if not complete:
+        # The complete operation includes three project reads in the 40 GET cap.
         with pytest.raises(app.Blocked, match="Pages inventory request budget exhausted"):
             app.prepare(operator, NEW, OLD, store, journal)
         assert len(requests) == 40

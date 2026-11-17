@@ -230,6 +230,55 @@ sanitized artifactはrun画面またはActions artifacts APIから取得する�
 source固定、予報鮮度・整合性、canonical照合、Rules/schema互換性、無料枠の条件は維持する。
 この調査結果を根拠に既存gateを削除・緩和せず、merge・本番公開・停止復旧はそれぞれの承認と証拠で判断する。
 
+## 2026-11-17: Pages履歴取得の通信上限によるpreflight停止
+
+**v2.4.0の[公開Run 43944939018](https://github.com/Yuto-24/NavMate/actions/runs/43944939018)は、
+Pagesの全履歴取得と前後照合に必要なリクエスト数が、Clientの40回上限を超えて停止した。**
+Release選択は成功したが、prepareのpreflightで止まり、build・pause・uploadには進んでいない。
+保存された確認記録は`stage=preflight`、`status=BLOCKED`、`evidence_status=UNAVAILABLE`で、
+`ProbeError`がActionsの汎用例外メッセージに置換されたため、原因がログに残らなかった。
+
+### 原因の証拠と修正
+
+- [既存のGET専用診断](https://github.com/Yuto-24/NavMate/actions/runs/44012448492)で、
+  同じPages棚卸しが約17秒で`request_budget_exhausted`になることを再現した。
+  180秒の時間制限ではなく、通信回数の境界に当たっていた。
+- [件数だけの限定診断](https://github.com/Yuto-24/NavMate/actions/runs/44013440036)では、
+  履歴773件を20件指定で39ページ、25件指定で31ページと返した。
+  50件指定と[先行する100件指定](https://github.com/Yuto-24/NavMate/actions/runs/44013052933)は
+  HTTP 400だった。公式APIの`per_page`には数値上限が記載されていないため、
+  [API仕様](https://developers.cloudflare.com/api/resources/pages/subresources/projects/subresources/deployments/methods/list/)
+  だけから100件を受理すると判断せず、実際に受理された25件を使う。
+- [25件指定の全件診断](https://github.com/Yuto-24/NavMate/actions/runs/44013843187)は774件を取得し、
+  `pagination_complete`、`project_unchanged`、`production_in_inventory`がtrue、
+  `in_flight_present`がfalse、本番commitが当時の承認済みv2.3.2と一致した。
+  失敗開始時刻より前に作成された履歴も769件残っていた。これは当時の削除済み履歴まで復元した
+  総数ではないが、旧方式で最低39ページ必要だったことを裏付ける。
+  app経路は最初のProject取得と棚卸し前後のProject取得を加えて最低42回必要だった。
+
+`pages_target`だけを25件／ページに変更し、共通の他用途は20件のまま維持する。
+全ページの件数・ID重複・metadata変動検査、Projectの前後照合は省略しない。
+app経路の774件は31ページと3回のProject取得で34回に収まる。
+観測結果には検証済みの`inventory_count`を追加し、取得ページ数の推定値は出さない。
+appのPages棚卸しが予算超過した場合は固定メッセージで分類し、他のprovider例外本文は出さない。
+限定診断のコード・固定日時・履歴の一時集計は最終実装に残さない。
+
+### 回帰検証と適用限界
+
+773件のprepareを実Client・合成GET応答で検証する。旧20件指定は40回で止まり、build・plan生成・
+provider書込みに到達しない。25件指定はprepare内の2回のsnapshotで各34回となり、plan生成まで進む。
+最終ページの進行中／不明デプロイ、重複・欠落・途中のmetadata変動、Project変動も引き続き拒否する。
+任意の例外文字列を注入し、固定分類以外が出力されないことを確認する。
+
+40リクエスト・180秒・1応答8 MiBの上限は変更していない。
+app経路の通信回数上限内に収まる履歴は最大925件であり、926件で引き続き停止する回帰も置く。
+この修正は無制限の履歴増加を許すものではない。将来この境界へ近づいた場合は`inventory_count`を
+確認し、履歴保持の見直し等を別途検討する。履歴削除・上限緩和・末尾ページ省略による公開は行わない。
+Rules・schema・認証・排他・鮮度・承認SHA更新の条件も変更しない。
+
+診断workflowは公開許可を出さない設計のため、観測が完了しても外側の`BLOCKED`とexit 1を維持する。
+成否は上記の個別観測で判断する。GET診断の成功と、PRのCI・レビュー、本番公開・受入は別の証拠である。
+
 ## Issue #440: 共通公開処理の期限表示と工程計測
 
 2026-11-15の実装では、共通の `app_release.py` と `build_app_release.sh` に

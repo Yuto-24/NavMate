@@ -77,6 +77,7 @@ def test_complete_get_only_scope_and_project_reread():
     assert [urlsplit(url).path for url in calls] == [PATH, PATH + "/deployments", PATH]
     assert parse_qs(urlsplit(calls[1]).query) == {"page": ["1"], "per_page": ["25"]}
     assert result["status"] == "pages_target_observed"
+    assert result["inventory_count"] == 1
     assert all(result[key] is True for key in (
         "project_matches", "branch_matches", "domain_matches", "project_unchanged",
         "pagination_complete", "production_in_inventory",
