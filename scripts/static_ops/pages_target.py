@@ -14,7 +14,7 @@ except ImportError:
 UNKNOWN = "UNKNOWN"
 # Keep the shared request/time/response limits while reading growing deployment
 # history in fewer requests. Every page and the final project reread are required.
-DEPLOYMENTS_PER_PAGE = 100
+DEPLOYMENTS_PER_PAGE = 25
 BINDINGS = (
     "kv_namespaces", "durable_object_namespaces", "d1_databases", "r2_buckets",
     "services", "queue_producers", "analytics_engine_datasets", "ai_bindings",

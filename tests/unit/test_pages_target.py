@@ -39,7 +39,7 @@ def project():
             "build_config": {"web_analytics_token": "PRIVATE_ANALYTICS"}}
 
 
-def page(rows, number=1, total=None, *, per_page=100):
+def page(rows, number=1, total=None, *, per_page=25):
     total = len(rows) if total is None else total
     return {"success": True, "result": rows, "result_info": {
         "page": number, "per_page": per_page, "count": len(rows), "total_count": total,
@@ -75,7 +75,7 @@ def observe(p=None, pages=None, after=None):
 def test_complete_get_only_scope_and_project_reread():
     result, calls = observe()
     assert [urlsplit(url).path for url in calls] == [PATH, PATH + "/deployments", PATH]
-    assert parse_qs(urlsplit(calls[1]).query) == {"page": ["1"], "per_page": ["100"]}
+    assert parse_qs(urlsplit(calls[1]).query) == {"page": ["1"], "per_page": ["25"]}
     assert result["status"] == "pages_target_observed"
     assert all(result[key] is True for key in (
         "project_matches", "branch_matches", "domain_matches", "project_unchanged",
@@ -88,9 +88,9 @@ def test_complete_get_only_scope_and_project_reread():
 
 
 def test_inflight_preview_on_last_page_is_not_missed():
-    rows = [deployment(i) for i in range(1, 101)]
-    last = deployment(101, "build", "active", "preview")
-    result, calls = observe(pages=[page(rows, total=101), page([last], 2, 101)])
+    rows = [deployment(i) for i in range(1, 26)]
+    last = deployment(26, "build", "active", "preview")
+    result, calls = observe(pages=[page(rows, total=26), page([last], 2, 26)])
     assert len(calls) == 4
     assert result["in_flight_present"] is True
     assert [row["id"] for row in result["in_flight"]] == [last["id"]]
@@ -161,12 +161,12 @@ def test_scope_mismatch_stops_at_project_read():
 
 
 def test_duplicate_and_changed_pagination_are_not_complete():
-    rows = [deployment(i) for i in range(1, 101)]
+    rows = [deployment(i) for i in range(1, 26)]
     for response, expected in [
-        (page([deployment(1)], 2, 101), "duplicate_inventory_id"),
-        (page([deployment(101)], 2, 102), "inventory_changed_during_pagination"),
+        (page([deployment(1)], 2, 26), "duplicate_inventory_id"),
+        (page([deployment(26)], 2, 27), "inventory_changed_during_pagination"),
     ]:
-        result, _ = observe(pages=[page(copy.deepcopy(rows), total=101), response])
+        result, _ = observe(pages=[page(copy.deepcopy(rows), total=26), response])
         assert result["status"] == expected and "in_flight_present" not in result
 
 
@@ -217,15 +217,15 @@ def test_explicit_skip_pending_active_and_conflicts(skipped, state, expected):
 
 
 def test_skipped_inventory_is_preserved_across_pages_without_active_inference():
-    rows = [deployment(i, "queued", "idle") for i in range(1, 102)]
+    rows = [deployment(i, "queued", "idle") for i in range(1, 27)]
     for row in rows:
         row.update(is_skipped=True, skip_reason="superseded_queued_build")
-    result, calls = observe(pages=[page(rows[:100], total=101), page(rows[100:], 2, 101)])
+    result, calls = observe(pages=[page(rows[:25], total=26), page(rows[25:], 2, 26)])
     assert len(calls) == 4
     assert result["activity_counts"] == {
-        "ACTIVE": 0, "PENDING": 0, "SKIPPED": 101, "FINISHED": 0, "UNKNOWN": 0,
+        "ACTIVE": 0, "PENDING": 0, "SKIPPED": 26, "FINISHED": 0, "UNKNOWN": 0,
     }
-    assert len(result["skipped"]) == 101 and result["in_flight"] == []
+    assert len(result["skipped"]) == 26 and result["in_flight"] == []
     assert all(row["skip_reason"] == "superseded_queued_build" for row in result["skipped"])
 
 

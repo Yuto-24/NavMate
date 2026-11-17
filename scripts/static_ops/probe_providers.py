@@ -374,34 +374,24 @@ def probe(env, now, client=None, *, only=None):
         raise ProbeError("unknown_check")
     client = client or Client(env)
     if only == "cloudflare_pages_target":
-        # Temporary GET-only investigation; output bounded pagination metadata only.
-        account = identifier(env, "CLOUDFLARE_ACCOUNT_ID", r"[a-f0-9]{32}")
-        observations = []
-        for requested in (20, 25, 50):
-            item = {"requested_per_page": requested}
-            try:
-                response = client.get("cloudflare", f"/client/v4/accounts/{account}"
-                                      "/pages/projects/navmate/deployments",
-                                      {"page": 1, "per_page": requested})
-                info = response.get("result_info")
-                if not isinstance(info, dict):
-                    raise ProbeError("invalid_shape")
-                for key in ("page", "per_page", "count", "total_count", "total_pages"):
-                    value = info.get(key)
-                    if type(value) is not int or not 0 <= value <= 1000000:
-                        raise ProbeError("invalid_shape")
-                    item[key] = value
-                item["status"] = "observed"
-            except ProbeError as error:
-                item["status"] = "http_400" if str(error) == "http_400" else "read_failed"
-            observations.append(item)
-        return {"status": "BLOCKED", "kind": "read_only_pagination_diagnosis",
-                "checks": observations}
-
         try:
             from . import pages_target
         except ImportError:
             import pages_target
+        # Temporary historical count, using only validated retained identities/times.
+        retained_before_failure = set()
+        normalize = pages_target.deployment
+
+        def counted(row, project_id):
+            item = normalize(row, project_id)
+            if item and item.get("created_on") not in (None, pages_target.UNKNOWN):
+                if datetime.fromisoformat(item["created_on"]) <= datetime(
+                    2026, 11, 16, 19, 59, 21, tzinfo=UTC
+                ):
+                    retained_before_failure.add(item["id"])
+            return item
+
+        pages_target.deployment = counted
         try:
             account = identifier(env, "CLOUDFLARE_ACCOUNT_ID", r"[a-f0-9]{32}")
             observation = pages_target.inspect(client, account)
@@ -409,6 +399,10 @@ def probe(env, now, client=None, *, only=None):
             observation = {"status": str(error)}
         except (KeyError, TypeError, IndexError, AttributeError):
             observation = {"status": "invalid_shape"}
+        finally:
+            pages_target.deployment = normalize
+        if observation.get("pagination_complete") is True:
+            observation["retained_before_failure_count"] = len(retained_before_failure)
         return {
             "status": "BLOCKED", "kind": "pages_target_observation_not_publication",
             "reviewed_sha": pages_target.identifier(env.get("GITHUB_SHA"), r"[a-f0-9]{40}"),
