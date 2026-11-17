@@ -2,6 +2,26 @@
 
 NavMate のRelease履歴です。公開日時はGitHub Releaseを正本とします。
 
+## 2.5.0
+
+### 利用者向け
+
+#### 改善
+- 経路作成・再編集と飛行計画を、一つの地図と操作ペインで行えるようにしました。
+- CPの追加、24時間形式のETD入力、地図の出典表示、準備状況の自動折り畳みを改善しました。
+- 通常の通知を5秒で閉じる表示に統一しました。未解決の失敗は、その他・アカウント画面から再確認できます。
+
+#### 修正
+- 大きなProjectのアカウント同期で、入力内容や計算結果を削らず圧縮して保存できるようにしました。
+
+### 開発者向け
+
+- [PR #456 経路計画UIと通知の統合](https://github.com/Yuto-24/NavMate/pull/456)：地図と操作ペイン、CP操作、ETD入力、準備状況、通知と失敗の再表示を整理しました。[PR #457 静的公開E2Eの修正](https://github.com/Yuto-24/NavMate/pull/457)で、通知の検証を現在のToastに合わせています。
+- [PR #455 大きなProjectの同期・Legacy引継ぎ修正](https://github.com/Yuto-24/NavMate/pull/455)：保存payloadを可逆圧縮し、既存の未圧縮JSONも読み取ります。NavMateを先に公開し、Legacy runtimeはその後に更新します。旧クライアントは圧縮済みProjectを読み書きできないため、Localデータと同期待ち編集を保持して更新してください。旧版へのロールバックだけでは圧縮済みデータを読み込めません。
+- [PR #453 Local Staticの容量管理](https://github.com/Yuto-24/NavMate/pull/453)：MSM取得キャッシュに容量・保持期間の上限と自動整理を追加しました。updaterへの適用にはホストcheckoutの更新とimageの再build・再作成が必要です。
+- [PR #454 Pages履歴取得の修正](https://github.com/Yuto-24/NavMate/pull/454)：公開前の履歴取得で通信回数の上限に達する問題と診断を改善しました。既存の公開・認証・互換性検証は維持します。
+- v2.4.0以降のmain変更を含みます。Firestore Rules、indexes、Project schemaはv2.4.0と同一です。保存payloadの圧縮形式追加は、これらの契約ファイルとは別の互換性変更です。
+
 ## 2.4.0
 
 ### 利用者向け
