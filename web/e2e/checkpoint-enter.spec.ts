@@ -130,6 +130,52 @@ for (const width of [1100, 1440]) {
   });
 }
 
+for (const failSave of [false, true]) {
+  test(`checkpoint map clicks are ignored while an existing CP save is pending: failure=${failSave}`, async ({ page }) => {
+    test.skip(local(), "Legacy response interception delays the shared editor's save");
+    await name(page).fill("保存待ちCP");
+    await name(page).press("Enter");
+    await expect(form(page)).toHaveCount(0);
+    const original = (await references(page))[0];
+    await editor(page).getByRole("button", { name: "保存待ちCPを編集", exact: true }).click();
+    await clickMapCoordinate(page, 32.65, 131.55);
+    await expect(name(page)).toBeFocused();
+    const draft = () => page.evaluate(() => JSON.parse(sessionStorage.getItem("autonavlog.working-session.v1")!).checkPointDraft);
+    await expect.poll(async () => (await draft()).latitude).not.toBe(String(original.latitude_deg));
+    const submitted = await draft();
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    await page.route("**/api/project/check-points", async route => {
+      await pending;
+      if (failSave) await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { message: "Test save failure" } }) });
+      else await route.continue();
+    }, { times: 1 });
+    await form(page).getByRole("button", { name: "保存", exact: true }).click();
+    await expect(form(page).getByRole("button", { name: "保存中…", exact: true })).toBeDisabled();
+    try {
+      await clickMapCoordinate(page, 32.55, 131.53);
+      // Let React commit effects after the physical click before checking recovery data.
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      expect(await draft()).toEqual(submitted);
+    } finally {
+      release();
+    }
+    if (failSave) {
+      await expect(form(page).getByRole("button", { name: "保存", exact: true })).toBeEnabled();
+      expect((await references(page))[0]).toEqual(original);
+      // The same draft remains retryable once the failed save has finished.
+      await form(page).getByRole("button", { name: "保存", exact: true }).click();
+    }
+    await expect(form(page)).toHaveCount(0);
+    const saved = await references(page);
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ id: original.id, latitude_deg: Number(submitted.latitude), longitude_deg: Number(submitted.longitude), linked_section_id: original.linked_section_id });
+    await editor(page).getByRole("button", { name: "保存待ちCPを編集", exact: true }).click();
+    await clickMapCoordinate(page, 32.55, 131.53);
+    await expect.poll(draft).not.toEqual(submitted);
+  });
+}
+
 test("checkpoint name Enter locks pending saves and allows retry after failure", async ({ page }) => {
   test.skip(local(), "Legacy response interception verifies the shared editor's pending-save lock");
   let requests = 0;
