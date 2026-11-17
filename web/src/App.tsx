@@ -1877,7 +1877,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         onNew={handleNew}
       />
 
-      <div className="app-notification-region">
+      <div id="app-notification-region" className="app-notification-region">
       <AccountNotice auth={application.auth} />
       <div className="calculation-toast-region" role="status" aria-live="polite" aria-atomic="true">
         {calculationNotice && (

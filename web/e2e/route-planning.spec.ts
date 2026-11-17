@@ -230,7 +230,7 @@ for (const width of [390, 1440]) test(`24h ETD dial confirms, cancels and preser
   await dialog.getByRole('button',{name:'12時',exact:true}).focus();
   await page.keyboard.press('ArrowRight');await page.keyboard.press('Enter');
   await expect(dialog.getByLabel('ETD の時',{exact:true})).toHaveValue('13');
-  await dialog.getByRole('button',{name:'00分',exact:true}).focus();
+  await expect(dialog.getByRole('button',{name:'00分',exact:true})).toBeFocused();
   await page.keyboard.press('ArrowRight');await page.keyboard.press('Space');
   await expect(dialog.getByLabel('ETD の分',{exact:true})).toHaveValue('0');
   for (let i=0;i<8 && !await dialog.getByRole('button',{name:'確定',exact:true}).evaluate(e=>e===document.activeElement);i++) await page.keyboard.press('Tab');
@@ -239,8 +239,10 @@ for (const width of [390, 1440]) test(`24h ETD dial confirms, cancels and preser
   await expect(input).toHaveValue('13:00');
   for (const key of ['Enter', 'Space']) {
     await input.fill('09:17'); await trigger.click();
-    await dialog.getByRole('button', {name:'分を選択',exact:true}).click();
-    await dialog.getByRole('button', {name:'15分',exact:true}).focus();
+    await dialog.getByRole('button', {name:'09時',exact:true}).focus();
+    await page.keyboard.press(key);
+    await expect(dialog.getByRole('button', {name:'15分',exact:true})).toBeFocused();
+    await expect(dialog.getByLabel('ETD の分',{exact:true})).toHaveValue('17');
     await page.keyboard.press(key);
     await expect(dialog.getByLabel('ETD の分',{exact:true})).toHaveValue('15');
     await dialog.getByRole('button',{name:'確定',exact:true}).click();

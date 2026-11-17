@@ -1,5 +1,5 @@
 import { Clock3 } from "lucide-react";
-import { useId, useRef, useState, type PointerEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 import "./Time24Picker.css";
 
 interface Time24PickerProps {
@@ -18,6 +18,12 @@ export function Time24Picker({ value, onChange, disabled = false }: Time24Picker
   const [hour, setHour] = useState(0);
   const [minute, setMinute] = useState(0);
   const [mode, setMode] = useState<"hour" | "minute">("hour");
+  const focusMinuteAfterSelection = useRef(false);
+  useLayoutEffect(() => {
+    if (mode !== "minute" || !focusMinuteAfterSelection.current) return;
+    focusMinuteAfterSelection.current = false;
+    dialog.current?.querySelector<HTMLButtonElement>(`.time24-tick[data-tick="${Math.floor(minute / 5) * 5}"]`)?.focus();
+  }, [mode, minute]);
   const [dragging, setDragging] = useState(false);
   const close = () => { dialog.current?.close(); trigger.current?.focus(); };
   const open = () => {
@@ -74,7 +80,7 @@ export function Time24Picker({ value, onChange, disabled = false }: Time24Picker
             onKeyDown={event => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
-                if (mode === "hour") { setHour(n); setMode("minute"); } else setMinute(n);
+                if (mode === "hour") { focusMinuteAfterSelection.current = true; setHour(n); setMode("minute"); } else setMinute(n);
                 return;
               }
               if (!["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.key)) return;

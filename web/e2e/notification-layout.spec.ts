@@ -221,3 +221,31 @@ test('committed route failure focuses planning once; unrelated failure does not 
  await expect(page.locator('.route-map')).toBeFocused();
  expect(await page.evaluate(()=>scrollY)).toBe(before);
 });
+
+for (const width of [390, 1440]) for (const fail of [true, false]) test(`closed pending login keeps failure toast, retry and cancellation semantics: ${fail} at ${width}px`, async ({page}, info) => {
+ await page.setViewportSize({width,height:950});
+ await page.goto('/e2e/notification-harness/account.html?pending-login');
+ await page.getByRole('button',{name:'アカウント（未ログイン）',exact:true}).click();
+ await page.getByRole('button',{name:'Googleでログイン',exact:true}).click();
+ await page.getByRole('button',{name:'アカウントを閉じる',exact:true}).click();
+ await page.evaluate(fail=>(window as any).completeLogin(fail),fail);
+ const toast=page.getByRole('alert').filter({hasText:'Test: login failed'});
+ if (fail) {
+  await expect(toast).toHaveCount(1);
+  await page.getByRole('button',{name:'アカウント（未ログイン）',exact:true}).click();
+  await expect(page.getByRole('dialog').getByText('Test: login failed',{exact:true})).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(1);
+  await page.getByRole('button',{name:'アカウントを閉じる',exact:true}).click();
+  await page.getByRole('button',{name:'Test: newer notice',exact:true}).click();
+  const alerts=page.getByRole('alert');
+  await expect(alerts).toHaveCount(2);
+  const boxes=await alerts.evaluateAll(nodes=>nodes.map(n=>({y:n.getBoundingClientRect().y,bottom:n.getBoundingClientRect().bottom})));
+  expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.bottom);
+  await page.screenshot({path:info.outputPath(`login-failure-${width}.png`),fullPage:true});
+  await page.getByRole('button',{name:'アカウント（未ログイン）',exact:true}).click();
+  await expect(toast).toHaveCount(0,{timeout:7000});
+  await page.getByRole('button',{name:'Googleでログイン',exact:true}).click();
+  await page.evaluate(()=>(window as any).completeLogin(false));
+  await expect(page.getByRole('dialog').getByText('Test: login failed',{exact:true})).toHaveCount(0);
+ } else await expect(page.getByRole('alert')).toHaveCount(0);
+});

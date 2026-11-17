@@ -8,7 +8,11 @@ const listeners = new Set<()=>void>();
 function publish(next:AuthState) {state=next; listeners.forEach(fn=>fn());}
 let retries=0;
 const auth:AuthProvider={getState:()=>state,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)},
- signIn:async()=>{},signOut:async()=>{retries++;publish({account:null,available:true});}};
+ signIn:async()=>{
+  if (new URLSearchParams(location.search).has('pending-login')) await new Promise<void>((resolve,reject)=>{
+   (window as any).completeLogin = (failure:boolean)=>failure ? reject(new Error('Test: login failed')) : resolve();
+  });
+ },signOut:async()=>{retries++;publish({account:null,available:true});}};
 function Test(){return <>
  <header className="app-header"><AccountControl auth={auth} busy={false} networkAvailability={()=>'online'}/></header>
  <main style={{paddingTop:70,minHeight:1200}}>
@@ -16,6 +20,6 @@ function Test(){return <>
   <button onClick={()=>publish({...state,notice:'Test: newer failure'})}>Test: newer notice</button>
   <output id="retries">{retries}</output>
  </main>
- <div className="app-notification-region"><AccountNotice auth={auth}/></div>
+ <div id="app-notification-region" className="app-notification-region"><AccountNotice auth={auth}/></div>
  </>}
 createRoot(document.getElementById('root')!).render(<Test/>);

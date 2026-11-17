@@ -2782,29 +2782,20 @@ test("RJFM inbound guidance remains below NAV LOG at intermediate and wide width
   await page.reload();
   const navLog = page.getByLabel("計算済みNAV LOG");
   const guidance = page.getByLabel("RJFM帰路の経路延長案内");
-  await expect(guidance).toContainText("warningのみ");
+  await expect(guidance).toContainText("この案内は警告のみです。NAV LOGの物理経路・距離・針路は変更されません。");
   await expect(guidance.getByTestId("rjfm-inbound-guidance-diagnostics")).toContainText("12.5 NM");
-  const wide = await Promise.all([navLog.boundingBox(), guidance.boundingBox()]);
-  if (wide.some((box) => box === null)) throw new Error("inbound guidance layout is missing");
-  expect(wide[1]!.y).toBeGreaterThanOrEqual(wide[0]!.y + wide[0]!.height - 1);
-  const wideWorkspace = await Promise.all([
-    page.locator(".input-rail").boundingBox(),
-    page.locator(".route-workspace").boundingBox(),
-    page.locator(".status-rail").boundingBox(),
-  ]);
-  if (wideWorkspace.some((box) => box === null)) throw new Error("wide workspace regions are missing");
-  expect(wideWorkspace[0]!.x).toBeLessThan(wideWorkspace[1]!.x);
-  expect(wideWorkspace[1]!.x).toBeLessThan(wideWorkspace[2]!.x);
-  await page.setViewportSize({ width: 1100, height: 1000 });
-  const narrow = await Promise.all([
-    page.locator(".input-rail").boundingBox(),
-    page.locator(".route-workspace").boundingBox(),
-    page.locator(".status-rail").boundingBox(),
-    navLog.boundingBox(), guidance.boundingBox(),
-  ]);
-  if (narrow.some((box) => box === null)) throw new Error("intermediate workflow regions are missing");
-  for (let index = 1; index < narrow.length; index += 1) {
-    expect(narrow[index]!.y).toBeGreaterThanOrEqual(narrow[index - 1]!.y + narrow[index - 1]!.height - 1);
+  for (const width of [1100, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const regions = await Promise.all([
+      page.locator(".map-frame").boundingBox(), page.locator(".planning-pane").boundingBox(),
+      page.locator(".route-workspace").boundingBox(), navLog.boundingBox(), guidance.boundingBox(),
+    ]);
+    if (regions.some(box => box === null)) throw new Error("inbound workflow regions are missing");
+    const [map, planning, workspace, nav, guide] = regions.map(box => box!);
+    expect(map.x + map.width).toBeLessThanOrEqual(planning.x + 1);
+    expect(Math.abs(map.y - planning.y)).toBeLessThan(2);
+    expect(nav.y).toBeGreaterThanOrEqual(workspace.y + workspace.height - 1);
+    expect(guide.y).toBeGreaterThanOrEqual(nav.y + nav.height - 1);
   }
 
   const staleState: WebState = {
