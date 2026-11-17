@@ -12,6 +12,9 @@ except ImportError:
     from publication_gate import CONFIGURATION
 
 UNKNOWN = "UNKNOWN"
+# Keep the shared request/time/response limits while reading growing deployment
+# history in fewer requests. Every page and the final project reread are required.
+DEPLOYMENTS_PER_PAGE = 100
 BINDINGS = (
     "kv_namespaces", "durable_object_namespaces", "d1_databases", "r2_buckets",
     "services", "queue_producers", "analytics_engine_datasets", "ai_bindings",
@@ -211,8 +214,10 @@ def inspect(client, account, *, expected_project=None):
         result["status"] = "pages_target_mismatch"
         return result
     rows = inventory.paginated(client, path + "/deployments",
-                               lambda row: deployment(row, project_id))
+                               lambda row: deployment(row, project_id),
+                               per_page=DEPLOYMENTS_PER_PAGE)
     result["pagination_complete"] = True
+    result["inventory_count"] = len(rows)
     result["activity_counts"] = {name: sum(row["activity"] == name for row in rows)
                                  for name in ACTIVITIES}
     result["skipped"] = [row for row in rows if row["activity"] == "SKIPPED"]

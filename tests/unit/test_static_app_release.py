@@ -419,9 +419,11 @@ def pages_operator(monkeypatch, tmp_path):
             else:
                 assert parsed.path == path + "/deployments"
                 query = parse_qs(parsed.query)
-                assert query["per_page"] == ["20"] and set(query) == {"page", "per_page"}
+                assert set(query) == {"page", "per_page"}
+                per_page = int(query["per_page"][0])
                 page = int(query["page"][0])
-                payload = pages_page(rows[(page - 1) * 20:page * 20], page, len(rows))
+                payload = pages_page(rows[(page - 1) * per_page:page * per_page], page,
+                                     len(rows), per_page=per_page)
             return Response(json.dumps(payload).encode())
 
     client = app.probe_providers.Client
@@ -446,11 +448,56 @@ def disabled_github_source():
     }
 
 
+@pytest.mark.parametrize("per_page", [20, 100])
+def test_growing_history_prepare_preserves_request_budget_and_full_inventory(
+    pages_operator, monkeypatch, tmp_path, per_page
+):
+    operator, _, rows, requests = pages_operator
+    rows.extend(pages_deployment(i) for i in range(2, 782))
+    monkeypatch.setattr(app.pages_target, "DEPLOYMENTS_PER_PAGE", per_page)
+    store = tmp_path / "store"
+    store.mkdir()
+    journal = app.Journal(store / "prepare-status.json", "prepare", NEW)
+    if per_page == 20:
+        # 40 list pages plus the initial/project stability reads exhaust 40 GETs.
+        with pytest.raises(app.Blocked, match="Pages inventory request budget exhausted"):
+            app.prepare(operator, NEW, OLD, store, journal)
+        assert len(requests) == 40
+        assert not (store / "plan.json").exists()
+        assert "prepare-build" not in operator.calls
+    else:
+        app.prepare(operator, NEW, OLD, store, journal)
+        # Each snapshot includes eight list pages and all three project reads.
+        assert len(requests) == 22
+        assert (store / "plan.json").is_file()
+    assert journal.value["events"] == []
+    assert set(journal.value["changes"].values()) == {"UNCHANGED"}
+
+
+@pytest.mark.parametrize("code", ["request_budget_exhausted", "PRIVATE_URL_TOKEN_BODY"])
+def test_pages_probe_failure_is_classified_without_exposing_native_error(
+    monkeypatch, tmp_path, capsys, code
+):
+    operator = app.Operator(tmp_path)
+
+    def fail(_):
+        raise app.probe_providers.ProbeError(code)
+
+    monkeypatch.setattr(operator, "_target", fail)
+    with pytest.raises(app.Blocked) as error:
+        operator.target({})
+    assert str(error.value) == (
+        "Pages inventory request budget exhausted" if code == "request_budget_exhausted"
+        else "Pages target observation failed"
+    )
+    assert "PRIVATE" not in str(error.value) + str(capsys.readouterr())
+
+
 @pytest.mark.parametrize("source", [None, disabled_github_source()])
 def test_real_target_allows_upload_method_with_git_builds_disabled(pages_operator, source):
     operator, project, rows, requests = pages_operator
     project["source"] = source
-    rows.extend(pages_deployment(i) for i in range(2, 22))
+    rows.extend(pages_deployment(i) for i in range(2, 102))
     result = operator.target(operator.variables())
     assert result["id"] == project["canonical_deployment"]["id"]
     assert result["commit"] == OLD
@@ -566,8 +613,8 @@ def test_real_target_disabled_git_still_rejects_busy_or_unknown_last_page(
 ):
     operator, project, rows, requests = pages_operator
     project["source"] = disabled_github_source()
-    rows.extend(pages_deployment(i) for i in range(2, 21))
-    rows.append(pages_deployment(21, stage, state, "preview"))
+    rows.extend(pages_deployment(i) for i in range(2, 101))
+    rows.append(pages_deployment(101, stage, state, "preview"))
     with pytest.raises(app.Blocked, match="in flight"):
         operator.target(operator.variables())
     assert len([url for url in requests if "/deployments?" in url]) == 2
