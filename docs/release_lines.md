@@ -59,8 +59,8 @@ explicit 404 stop publication; draft/prerelease collisions also require inspecti
 
 ## Establishing the v1 maintenance branch
 
-At preparation time, `release/1.x` does not exist. Its base must be selected from the
-confirmed v1 runtime/release history; **do not create it from current v2 main**.
+When `release/1.x` has not yet been initialized in the repository, select its base from the
+confirmed v1 runtime/release history; **do not create it from v2 main**.
 Once that base is approved, backport these files together before publishing v1:
 
 - `.github/workflows/publish-github-release.yml`
@@ -72,8 +72,7 @@ Once that base is approved, backport these files together before publishing v1:
 
 Run the focused release tests and source validation on the actual v1 checkout.
 The workflow on main alone does not install a workflow on an older release branch.
-No v1 branch base, VREP backport, deployment, or release publication is performed by
-this workflow-support PR.
+Creating the v1 branch base, VREP backports, deployment, and release publication remain separate explicit operations.
 
 MSM/provider workflows remain main-only. The optional main-based
 `static-app-release.yml` completion bridge accepts stable Releases from both lines

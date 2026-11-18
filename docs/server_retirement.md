@@ -1,18 +1,13 @@
 # 旧サーバ廃止の準備と救済手順 (#146)
 
-**現時点では停止不可。** この文書と救済ツールは準備用であり、旧runtimeの停止、
-移行受付終了、公開、定期運用の有効化を承認するものではない。
-[#146](https://github.com/Yuto-24/AutoNavLog/issues/146) の直接前提は
-[#123](https://github.com/Yuto-24/AutoNavLog/issues/123) のproduction automation受入。
-ただし2026-10-23の方針変更により、無料枠利用量・課金状態の無人監視は
-後続の [#281](https://github.com/Yuto-24/AutoNavLog/issues/281) へ分離した。
-当面は無料枠内で運用できる想定とし、#281の未完了を廃止の条件に含めない。
-MSM定期更新・catalog整合性と鮮度・Auth/Sync/Local・rollbackの受入は維持する。
-対象はAutoNavLogの旧runtimeと専用公開経路であり、matsuホスト全体ではない。
-移行仕様は [Legacy migration](legacy_migration.md)、配信・監視は
-[Static operations](static_operations.md) を正本とする。
+**承認された停止操作を行うまでは旧サーバを無断停止しない。** この文書と `scripts/legacy_rescue.py` は廃止準備・データ救済手順の正本であり、旧 runtime の停止、移行受付終了、公開、定期運用の有効化を承認するものではありません。
 
-## 2026-10-23 JSTの準備状況
+[#146](https://github.com/Yuto-24/AutoNavLog/issues/146) の直接前提は
+[#123](https://github.com/Yuto-24/AutoNavLog/issues/123) の production automation 受入です（2026-10-23 の方針変更により、無料枠利用量・課金状態の無人監視は後続 [#281](https://github.com/Yuto-24/AutoNavLog/issues/281) へ分離し、廃止条件から除外済み）。対象は AutoNavLog の旧 runtime と専用公開経路であり、matsu ホスト全体ではありません。移行仕様は [Legacy migration](legacy_migration.md)、配信・監視は [Static operations](static_operations.md) を正本とします。
+
+## 2026-10-23 JST 時点の準備状況（歴史的ベースライン）
+
+> **日付付き観測**: 下表は 2026-10-23 時点のスナップショットであり、現在の本番設定（`STATIC_AUTOMATION_ENABLED` や配信版）を示すものではありません。実停止前には必ず最新の状態を再確認してください。
 
 | 項目 | 確認済みの範囲 / 停止前に残ること |
 | --- | --- |
@@ -23,7 +18,7 @@ MSM定期更新・catalog整合性と鮮度・Auth/Sync/Local・rollbackの受�
 | 初回ログインの旧サーバ依存 | `web/src/createApplication.ts` / `legacyMigration.ts`。移行URL設定中はfresh device / 未確認accountが旧status APIへ依存する。既存端末のactivation markerだけで停止可としない |
 | 救済 | `scripts/legacy_rescue.py`でoffline snapshot、hash照合、owner単位の取り出しを実装。fixtureで実repository・Last Calculation・既存移行receiptの復旧を検証。実サーバの最終backup・別媒体からの復元は未実施 |
 | 移行受付終了日・保持期限 | **未定のまま準備実装を進める**。実停止前には決定・記録が必要。既定の日数・終了日は置かない |
-| 公開・停止 | 本準備では未実施。#123完了、実backup、切替受入、対象を特定した明示承認が必要 |
+| 公開・停止 | 2026-10-23 時点では未実施。#123完了、実backup、切替受入、対象を特定した明示承認が必要 |
 
 PR #274は無人監視の一部修正・監査であり、そのmergeだけで#123は完了しない。
 #159 / #160 / #161 / #187 / #281、branding、任意のUI改善を廃止条件に追加しない。

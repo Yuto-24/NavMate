@@ -1,5 +1,7 @@
 # テストの責任とCI
 
+PR・main の CI ルーティング（`test.yml` / `scripts/ci_changes.py`）、#458 以降の現行テスト担当境界、Browser E2E の標準入口（`test:e2e`）、テスト配置規則、および過去の性能・shard 計測基準を定めます。
+
 ## PR と main の CI
 
 `test.yml` は PR、main / release/1.x / release/2.x への push、手動実行で起動します。
@@ -194,7 +196,7 @@ GitHub Actionsのpytest jobにはDocker build、ruff、mypy、pytest、データ
 package buildが含まれます。job全体、`docker run` step、pytest自身のログ時間を区別し、
 異なるマシンのローカル時間と直接比較しません。hosted CIは実際の完了状態を記録します。
 
-## Issue #142の棚卸し（2026-09-09）
+## Issue #142 の棚卸し（2026-09-09・歴史的記録）
 
 基準はmain `a32a649`。WSL Ubuntu / Python 3.12.3 / pytest 8.4.2 /
 pytest-cov 6.3.0、coverage付きの逐次実行で754件が331.44秒で成功しました。
@@ -249,7 +251,7 @@ coverageは前後とも10,144 / 11,334行（89.5006%、表示90%）、missing 1,
 branch coverageや実データの正しさまでこの数値だけで証明するものではないため、
 主要golden・数値回帰も削除せず全suiteで実行しています。
 
-## Issue #154: inbound solverの関数profile（2026-09-11）
+## Issue #154: inbound solver の関数 profile（2026-09-11・歴史的記録）
 
 基準はmain `aab2dab`（#142 / #151と#152のRelease契約移行を含む）。
 Python 3.12.3 / pytest 8.4.2 / pytest-cov 6.3.0 / coverage 7.15.4 /
@@ -567,3 +569,9 @@ Node、Python、Java、npm / pip の導入と現在の checkout のビルドは�
 公式 image の説明は [Playwright Docker](https://playwright.dev/docs/docker) を参照してください。
 コンテナ取得と npm / pip / Firebase emulator の外部取得は残ります。コンテナ利用だけから
 高速化を断定せず、Hosted Run の Initialize containers、依存導入、テスト本体を分けて比較します。
+
+### 地形入力（GSI DEM10B / 地形点 KML）の検証
+
+- `npm --prefix web run test:application -- terrain-unit.spec.ts`：PNG 復号、領域境界、凹 polygon、欠損・未取得・不正入力、通信およびキャッシュ契約を検証します（`dem-signed.png` は独立した合成 RGB fixture です）。
+- `npm --prefix web run test:terrain`：Chromium / WebKit 上で PNG 数値復号、KML の有効・不正・標高基準未確認・障害物除外、境界判定、外部通信抑止を検証します。
+- 実データ限定確認（2026-11-09）：`dem_png/14/14174/6668.png`（HTTP 200、102,668 bytes、CORS `Access-Control-Allow-Origin: *`、SHA-256 `c30fad6bc8ca2ce64e4d6cb297425ba507ac0f3bec709bebfc7713387da396b4`）について、Python 標準ライブラリの独立復号と Chromium / WebKit で全 65,536 画素（うち欠損 2,942 画素）の一致を確認済み。これは 1 タイルの取得・復号確認であり、経路全域の被覆や SEA の正確さを保証するものではありません。仕様は [terrain_inputs.md](terrain_inputs.md) を参照してください。

@@ -1,4 +1,6 @@
-# Issue #235: 新田CENTER往復経路の補完と計算契約
+# Issue #235: 新田CENTER往復経路の補完と計算契約（2026-10-31 検証記録）
+
+> **仕様の正本との関係**: 最新の帰路ポリシー契約（Inbound Policy V3 を含む）の正本は [rjfm_inbound_guidance.md](../rjfm_inbound_guidance.md) です。本ファイルは #235（Inbound Policy V2 時点）の実装判断根拠・事前ローカル検証・独立レビューで固定した回帰条件を保持します。
 
 RJFM→小丸の往路と、小丸→RJFM・小丸→有田→RJFMの帰路で、必要な参照点を補完する。
 NAV LOGは往路RJFM→小丸、帰路小丸→RJFMを親Legとし、子Legに各実区間の距離・TC/MCを表示する。
@@ -41,9 +43,9 @@ Check Pointは分割後の有効なabeam投影へ紐づけ、生成点解除時�
 再計算待ちとする。旧結果を新しい360秒の計算済み結果として扱わない。
 復元は下書きをcopyして正規化し、Last Calculationを保持する。再計算やdisk autosaveは実行しない。
 
-## 事前ローカル検証
+## 検証結果のベースライン（`b515afc7` 時点）
 
-以下はmain取り込み前の `b515afc7` に対する結果。main取り込み後と最終HEADの結果はPRへ記録する。
+以下は実装確定時点（`b515afc7`）でのローカル検証結果である。
 
 | 検証 | 結果・範囲 |
 | --- | --- |
@@ -84,23 +86,14 @@ GPT-6 AstraがSol実装を別の読み取り専用contextで確認した。指�
 
 ## 検証の限界と運用境界
 
-fixtureは既存の空港発着Project内の帰路Legを検証する。始点・終点の空港要件と経路作成UIは変更しない。
-本人の実KML/Projectは未取得。実端末、全ブラウザWorker flow、実飛行、本番Static Web受入を示す結果ではない。
-事前検証以降の注記修正と幅別の画面順序検証は、PRの最終検証記録を参照。
+fixtureは既存の空港発着Project内の帰路Legを検証する。始点・終点の空港要件と経路作成UIは対象外で、本人の実KML/Project、実端末、全ブラウザWorker flow、実飛行、本番Static Web受入を示す結果ではない。
 
-Browser pluginは環境の `sandboxCwd is not a local file URI` で初期化できず、地図クリックはrepoの
-Playwrightで検証した。一般的なasset 404 console出力は残ったが対象操作は成功した。
-HTTPテストがsandbox内で停止した試行は中断し、host-capable実行の成功と区別した。
+- Playwright検証では環境制約（`sandboxCwd is not a local file URI`）によりBrowser pluginではなくrepoのPlaywrightを使用し、host-capable実行での成功とsandbox内停止試行を区別した（一般asset 404 console出力を除き対象操作は成功）。
+- 隔離Compose projectは `autonavlog-wt-f34e8230`（volume `autonavlog-wt-f34e8230_autonavlog-data` 保持）で、primary runtimeやRelease・本番公開・予報workflowは対象外。
 
-専用Compose projectは `autonavlog-wt-f34e8230`。volume
-`autonavlog-wt-f34e8230_autonavlog-data`を保持し、primary runtimeを変更しない。
-Release・本番公開・予報workflowはこの変更の範囲外。
+## 実装の参照 commit
 
-## 実装の参照点
-
-- `7107a36d`: 帰路の不足UMK補完と入力保持。
-- `7eba3e40`: 親子Leg・TC/MC・小丸クリック。
-- `a486fd56`: 往路の実UMK補完とPOH時間維持。
-- `b515afc7`: 確定した有田帰路・別時計・保存鮮度。
-
-各段階の詳細な当時の検証記録は上記commitの本ファイルに残る。
+- `7107a36d`: 帰路の不足UMK補完と入力保持
+- `7eba3e40`: 親子Leg・TC/MC・小丸クリック
+- `a486fd56`: 往路の実UMK補完とPOH時間維持
+- `b515afc7`: 確定した有田帰路・別時計・保存鮮度

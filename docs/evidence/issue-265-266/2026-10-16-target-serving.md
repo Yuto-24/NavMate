@@ -1,8 +1,10 @@
-# Pages target consistency and canonical serving investigation
+# Pages target consistency and canonical serving investigation (2026-10-16)
 
-Scope: #265 / #266, following Draft PR #267 at
-`1f04cd3adc406df6d21ba8cf1eeb56d03af7f969`. No merge, provider writes, app
-publication, Rules changes, scheduler/workflow changes or new credentials.
+> **日付付き調査記録（2026-10-16）**: #265（Pages target 3 回読取の一致検証）と #266（Cloudflare 1010 エラーおよび root HTML 差分）の初期原因調査記録です。その後の Analytics 2 版許可と `verify_serving()` 完了確認は [2026-10-18-two-analytics-versions.md](2026-10-18-two-analytics-versions.md) を参照してください（現行の公開運用正本は [static_operations.md](../../static_operations.md)）。
+
+**再利用可能な原因知見**:
+- **#265（A/B/B ドリフト）**: `Operator.target()` が初回読取 A を使い、`pages_target.inspect()` が在庫前後の読取 B/B だけを比較すると、A→B 間の設定変更を見逃すため、`expected_project` として A/B/B の 3 回一致を要求する。
+- **#266（Error 1010 と Analytics 挿入・ETag 欠落の観測）**: Python 標準 `urllib` User-Agent への Cloudflare Error 1010 に対し、所有者承諾済みの `AutoNavLog-StaticOperations/1.0` を共通 `static_request()` で使用する。また、エッジ応答では Web Analytics スクリプトの挿入に伴う root HTML のバイト長変化と ETag 欠落を観測した（変換の全容および ETag 欠落の原因は未確認）。
 
 ## #265: three project reads must agree
 
@@ -119,21 +121,12 @@ not an additional non-overlapping total. These are synthetic/local checks, not a
 candidate build or production acceptance.
 
 PR #267's rerun [38868133221](https://github.com/Yuto-24/AutoNavLog/actions/runs/38868133221)
-finished with all eight jobs successful. This follow-up depends on that unmerged
-PR and uses `codex/fix-pages-git-controls` as its PR base. Parent CI does not prove
-this follow-up's CI result.
+finished with all eight jobs successful at that time; parent PR CI does not substitute for verification of downstream changes.
 
 ## Execution boundary
 
-Do not start prepare using #267's standalone SHA. After the follow-up is reviewed,
-merge is explicitly approved and reflected in main, pin the final reviewed tooling
-SHA and create a new private prepare store. Recheck current production/approved
-SHA, automation/workflow state, complete idle inventory, source configuration and
-live Rules at that time. Candidate remains
-`e0ad634a8fab2ed48310f48b08c4ec3961cad14b` with the existing
-`--rules-transition-v1227` option. Unresolved serving conditions must remain
-explicit publication blockers; neither a passing unit test nor a successful
-prepare authorizes publish or replaces production acceptance.
+Before running a `prepare` store from any tooling update, verify the reviewed tooling SHA reflected in `main`, create a private prepare store, and recheck current production/approved SHA, automation/workflow state, complete idle inventory, source configuration, and live Rules at that time. Candidate at this snapshot was
+`e0ad634a8fab2ed48310f48b08c4ec3961cad14b` with `--rules-transition-v1227`. Unresolved serving conditions remain explicit publication blockers; neither a passing unit test nor a successful prepare authorizes publish or replaces production acceptance.
 
 References:
 

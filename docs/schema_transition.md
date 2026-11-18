@@ -1,4 +1,6 @@
-# One-way Project schema publication
+# One-way Project schema publication (1.x DB v1→v2 writer fence)
+
+IndexedDB DB version 2 への一方通行ストレージ移行（`RouteNode.reference_snapshot` 追加・old writer fence）に関する手動公開契約です。v2 系の Schema 4→5 移行は [forecast_schema_transition.md](forecast_schema_transition.md) を参照してください。
 
 This is a manual, separately authorized transition, not an automatic publication
 exception. Ordinary and automated releases still require identical schema/index

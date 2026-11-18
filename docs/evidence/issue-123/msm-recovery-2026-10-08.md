@@ -1,11 +1,13 @@
-# MSM renewal recovery — 2026-10-08 JST
+# MSM renewal recovery audit — 2026-10-08 JST
 
-This audit and local build did not merge, deploy, enable schedules, change credentials,
-provider settings or the independent TAF Worker. The current task explicitly separates
-mandatory static-only publication safety from optional-service usage monitoring. The
-historical #123 statements coupling both gates are superseded for this renewal path.
+> **日付付き復旧準備監査（2026-10-08 時点）**: 2026-09-28 に失効していた本番 MSM カタログの再生成準備とコンテナ隔離検証を記録したものです。現在の運用手順は [static_operations.md](../../static_operations.md) を参照し、当時のカタログ時刻や未設定状態を現在の本番状態として扱わないでください。
 
-## Current production reads
+**再利用可能な教訓と検証境界**:
+- 本番カタログが 7 日以上前に失効していた場合、7 日保持復元（retention restore）は 0 件となり、完全な新規取得による再構築が必要になる。
+- 候補ビルドコンテナ（Docker）とホスト側検証・アップロード基盤の境界分離（tooling マウントなし、Docker socket なし、トークンなし、feed は read-only）を実コンテナ検証で確認した。
+- ローカル Wrangler OAuth の期限切れによる Pages 管理 GET 401 が残っていても、公開 `release.json` の一致だけでは Pages 管理状態（進行中デプロイ・Functions 有無等）を代替できない。
+
+## Production reads at 2026-10-08 01:16 JST (2026-10-07 16:16 UTC)
 
 Observed at 2026-10-08 01:16 JST (2026-10-07 16:16 UTC), using existing GitHub
 authentication and canonical HTTPS reads. Secret endpoints were used for **names only**;
@@ -63,21 +65,7 @@ and covered by isolated tests; this particular live sample does not prove retain
   `http://127.0.0.1:45174`, version `1.22.5`. Its generated named volume is retained;
   the primary working directory, `.codex/` and primary runtime/volume were untouched.
 
-## Remaining gates
+## 2026-10-08 時点の残ゲートと限界
 
-Pages project/current deployment/in-flight state need a current read through existing
-authorized management access before any production approval. The upload gate independently
-reads the existing project with the existing Pages credential and rejects wrong
-project/branch/domain or production runtime bindings; it does not create a project.
-
-Hosted PR CI, actual publication and at least two real scheduled renewals are distinct
-evidence. Local build/E2E do not prove the scheduled path or authorize activation. Usage
-collection remains incomplete/UNKNOWN, including Google unattended authentication and
-Workers/Firestore/GitHub shared allowance. UNKNOWN does not mean zero usage, healthy
-services or account-wide zero billing. TAF and Sync stay enabled in public configuration.
-
-After reviewing the PR and latest CI, seek separate approval for merge, a current
-build-only dispatch and bounded publication, then separately for the recurring policy.
-Rebuild fresh feed for an approved publication; this local catalog must not be reused
-after expiry. New authentication, permissions, billing, FastAPI fallback and legacy-server
-shutdown remain outside this task.
+- Pages project / 現行デプロイ / 進行中状態は 401 のため未確認であり、公開前に管理 API の再取得が必要と判定した。
+- 本ローカルビルドとブラウザ E2E（10 件）は時間制限付きのローカル証拠であり、定期実行・本番配信・クオータ取得（#281）の受入を代替しない。失効したローカルカタログの再利用は禁止とし、公開承認後に新規生成する条件とした。

@@ -197,11 +197,7 @@ sanitized artifactはrun画面またはActions artifacts APIから取得する�
 現在のprovider状態の再読取は可能でも、当時のHTTP応答や原因を復元できたとは扱わない。
 公開summary/log自体の保持はrepository設定に従うため、artifactの14日案と同一視しない。
 
-文書と実装の差として、`automatic_app_releases.md`は詳細journalをprivateと説明するが、
-`Journal.finish()`は`rules_receipt`等を含むjournal全体をstdoutへ出す。
-`report`のallowlistだけではstep log側の公開範囲を制限できない。
-本調査では認証情報の漏洩を確認したとは主張しないが、診断改善時はstdout/stderr/summary/artifactを
-同じ境界で検査する必要がある。raw journalを公開しない修正を先行単位に含める。
+2026-11-10 の #339 調査時点では、`Journal.finish()` が `rules_receipt` 等を含む journal 全体を stdout へ出していたため、`report` の allowlist だけでは step log 側の公開範囲を制限できない問題があった。後続修正（`f0de81a8`、現行 `scripts/static_ops/app_release.py`）で full journal は非公開保持に改められ、stdout には `status`・`review_sha256`・`plan_sha256` のみを出力する。診断改善時は引き続き stdout/stderr/summary/artifact を同じ境界で検査する。
 
 ### 秘密情報を出さない回帰確認
 
@@ -215,9 +211,9 @@ sanitized artifactはrun画面またはActions artifacts APIから取得する�
   mutation前後の失敗テストと`test_release_automation.py`を再利用し、不足する境界だけ追加する。
   本番への故障注入・公開は不要。
 
-## 後続の最小実装単位
+## 後続の最小実装単位（#339 棚卸し提案）
 
-このPRでは文書だけを変更する。次の各単位は個別にレビュー・検証して採否を決める。
+以下は #339 棚卸しに基づく提案単位であり、採否は個別にレビュー・検証して判断する（#440 の確認記録・工程計測、#454 の Pages 履歴 25 件ページネーション修正は実装済み）。
 
 | 優先 | 単位 | 必須の回帰確認・判断条件 |
 | --- | --- | --- |

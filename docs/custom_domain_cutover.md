@@ -1,5 +1,7 @@
 # Canonical production cutover (#123)
 
+2026-09-27 の決定に基づき、正式本番オリジン **`https://navmate.yuto24.com`**（Cloudflare Pages project `navmate` / Direct Upload）に対するドメイン切替・TAF/Legacy 設定整合・旧 `navmate.pages.dev` リダイレクト・オリジン単位ロールバック手順の正本です。関連する日付付き切替前確認記録は [custom-domain-2026-09-28.md](evidence/issue-123/custom-domain-2026-09-28.md) にあります。
+
 The canonical origin is **`https://navmate.yuto24.com`** (2026-09-27 decision in
 [#123](https://github.com/Yuto-24/AutoNavLog/issues/123)). Hosting remains Cloudflare
 Pages project `navmate`, using Direct Upload. Firebase provides Authentication / Sync;

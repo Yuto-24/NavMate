@@ -1,182 +1,46 @@
-# Local Project persistence (#124)
+# Local Project 永続化契約
 
-Local mode uses the browser's IndexedDB database `autonavlog.projects`, object store
-`projects`, keyed by Project UUID. `LocalProjectRepository` in
-`web/src/localProjectRepository.ts` is the storage contract: list, read, atomic write,
-explicit open, and explicit delete. `LocalApplication` composes it with the existing
-Python/Pyodide application. Legacy storage remains in its existing adapter; Local
-storage failures never call Legacy, request authentication, or send Project data to a server.
+Static Web（Local モード）におけるブラウザ内永続ストレージへの Project 保存契約です（#124）。Local の保存障害時に Legacy サーバーへフォールバックしたり、認証を求めたり、Project データを送信したりしません。
 
-## Durable data and session boundary
+## 自動 Project 名と保存する情報
 
-Automatic Project names (#293) use `YYYY-MM-DD_FROM-TO_WP1-WP2` for FORECAST
-and `FTD_FROM-TO_WP1-WP2` for FTD; routes without intermediate points omit the
-last underscore. The common Python naming policy uses physical route order and
-excludes internally inserted RJFM points by their source, not their display name
-or label provenance. Names retain the existing normalization and 60-character limit.
+### 自動命名規則（#293）
 
-Project validation lazily converts old names only when `project_name_auto` is
-explicitly true and `project_name_generated` matches the current name. It preserves
-an existing collision ordinal and records the new naming format/base. Local and
-Legacy readers apply this same idempotent conversion to draft, checkpoint, and
-Last Calculation Project snapshots; IDs, revisions, timestamps, calculation payloads
-and fingerprints remain unchanged. Reading does not rewrite storage; the converted
-name is persisted by the next ordinary write. Unknown/manual names remain intact.
-Saving the offered name retains automatic naming; saving a different name disables it.
-Route confirmation and WP renaming refresh automatic names, including mode/date
-changes through the ordinary draft update. Unsaved text in the Project name field
-is preserved when the underlying automatic name changes.
+- **FORECAST モード**：`YYYY-MM-DD_FROM-TO_WP1-WP2`、**FTD モード**：`FTD_FROM-TO_WP1-WP2`（中間点がない直行経路では末尾のアンダースコアと WP 部分を省略）。
+- 物理経路の並びから生成し、内部的に自動挿入された RJFM 補助点は対象外とします（既存の正規化と 60 文字上限を維持）。
+- 既存名称が自動生成かつ生成基準名と一致する場合のみ読込時に新命名形式へ遅延変換し、重複連番や手動変更済み名称は保持します（読込だけでストレージを書き換えず、次の通常保存で確定）。経路確定や WP 改名、モード／日付変更で自動名を更新しますが、Project 名入力欄の未保存手入力は維持します。
 
-Each JSON-compatible record contains:
+### 保存する情報と目的
 
-- `schemaVersion`, Project `id`, opaque optimistic-concurrency `token`, and `updatedAt`;
-- `checkpoint`: the explicitly saved Project, or null for autosave-only Latest;
-- `draft`: the latest validated working Project;
-- `lastCalculation`: one last successful calculation, with its original Project,
-  CalculationOutcome, destination wind, forecast metadata/selected Run, and calculation
-  input fingerprint. This reuses `WorkingCalculation`'s domain validation, not the UI snapshot.
+各 Project は UI の未確定生入力、取込生バイト列、所有者識別子、生気象配列を含めず、以下の情報単位で保持します。
 
-There are no UI drafts, importer bytes, owner identity, runtime handles, or raw Weather
-arrays in this record. Export/backup or later Account Sync can consume these ordinary
-records; this issue adds no user-facing backup or authentication UI.
+| 保存する情報 | 目的 |
+| --- | --- |
+| 明示保存チェックポイント | 利用者が名前を付けて保存した確定版の計画状態（自動保存のみの `Latest` では空） |
+| 最新の作業中下書き | 検証を通過した最新の編集状態（自動保存の反映先） |
+| 最後に正常完了した計算結果 | 計算時 Project・結果・目的地風・気象来歴・整合情報（編集・失敗時も閲覧・比較に保持） |
+| 識別・更新時刻・排他制御情報 | Project ID、保存形式バージョン、更新日時、他タブとの競合上書きを防ぐ楽観的ロック情報 |
 
-The #119 session remains a separate ephemeral, per-tab recovery copy. A same-tab reload
-restores it first, including invalid raw inputs and last-good results. Its optional
-`durableToken` identifies the version this tab last read/wrote; it is stripped before
-Python session hydration. Reload never writes the recovered copy over durable data.
-A fresh navigation/tab/browser process starts blank and lists saved data. It **does not
-automatically open the last Project**. The user selects a Project explicitly.
+- [Session ライフサイクル](application_contract.md#frontend-application-session--lifecycle-119)は同一タブの再読み込み限定の一時コピーであり、上記永続データとは別管理です。同一タブ再読み込み時は作業セッションを優先復元しますが、**新しいタブやブラウザ再起動では必ず空白状態で起動し、最後に開いた Project を自動で開きません**（保存済み一覧から利用者が明示的に選択して開きます）。
 
-## Writes and selection
+## 書込・読込・競合保護の振る舞い
 
-Validated edits autosave without advancing revision. Explicit Save advances revision by
-one, updates the domain `Project.updated_at`, and commits the checkpoint and working draft together. Once saved, a Project keeps
-its own draft and is never removed by Latest cleanup.
+- **自動保存と明示保存**：検証済み入力の編集はリビジョンを進めずに作業中下書きを自動保存します。明示保存（Save）ではリビジョンを 1 進め、更新日時を更新してチェックポイントと作業中下書きを一体で確定します（一度名前付き保存された Project は自動 `Latest` 整理の対象外）。
+- **明示読込（Load）**：対象 Project のチェックポイントを復元して作業中下書きを置き換えます（`Latest` のみ下書きを復元）。直前の正常計算結果とその気象来歴は保持し、Readiness を再評価します。読込開始時は予約済みの自動保存・再計算を停止・完了待ちし、未保存変更を破棄する場合のみ確認ダイアログを表示します。
+- **単一の自動保存 `Latest`**：1 つのオリジン／プロファイル（またはアカウント名前空間）につき、有効な自動保存専用 `Latest` は **最大 1 件** です。新しい `Latest` の確定または別 Project を開いた時点で、同一更新内で旧 `Latest` を置き換え・整理します。タブを閉じても永続データは消えません。
+- **計算結果の確定境界**：直前の正常計算記録を更新するのは、ブロッカーなしで完了した計算のみです。計算失敗や入力変更では消去しません。入力更新＋再計算で計算側が失敗した場合も、計算前に確定した有効な下書きは保持され、エラー経由でセッション側へ同期されます。
+- **更新の原子性と競合保護**：チェックポイント・下書き・計算結果・`Latest` 置換は 1 つの原子的トランザクションとして確定します。他タブからの新しい更新や削除の後に古いタブから保存・削除しようとした場合は上書き・復活を防いで競合エラーとし、利用者の編集内容は保持します（タブ間の自動マージは行いません）。
 
-Explicit Load of a named Project restores its checkpoint and replaces its durable
-draft in the same CAS transaction as opening it. Last Calculation and its Forecast
-provenance remain intact; readiness is reevaluated against the checkpoint. Latest,
-which has no checkpoint, still opens its draft. This differs from same-tab reload,
-which continues to recover the working session without resetting the draft.
+## スキーマ互換・破損隔離・容量退避
 
-Load pauses scheduled input autosave/recalculation and drains already-started work
-before inspecting the target. It asks for confirmation only when the operation would
-discard a stored draft or unfinished input. Cancellation leaves the inputs and stored
-records intact and resumes scheduled work. Successful Load resets the raw inputs and
-session to the restored Project. A concurrent write or deletion after confirmation
-fails the CAS check and retains the previous working state.
+- **保存構造の一方通行アップグレード**：現行の保存構造へ更新した環境では、古い版のクライアントからの誤った書込・同期操作を遮断し、再読み込みを促します（データ消去や逆戻り移行は行いません）。
+- **レコード単位の移行と破損隔離**：データ形式の移行は Project 単位で行い、1 件の破損・非互換レコードが他の健全な Project の一覧・読込・保存を妨げないようにします。読取不能・破損レコードはエラー警告付きで利用可能一覧から除外しつつ、元のデータを自動削除・全消去せず保持します（除外対象の明示削除は可能）。
+- **容量不足時の気象キャッシュ退避**：保存容量不足が発生した場合、**Project データは絶対に退避削除せず**、再取得可能な気象キャッシュのみを解放して保存を 1 回再試行します。それでも失敗した場合は保存エラーを報告し、既存の Project・直前正常計算・現在入力を保護します。
+- ブラウザへの永続ストレージ保護要求は可能な範囲で行いますが、拒否・非対応でも利用を妨げません（ただしサイトデータ削除やプライベートブラウジングの制約はストレージ保証対象外です）。
 
-There is at most one usable autosave-only Latest per browser origin/profile. A successful
-new Latest write replaces the former one in the same transaction. Saving Latest promotes
-it to a named checkpoint. Successfully opening a different Project drops the former
-Latest in that same transaction. An unavailable target or failed transaction leaves the
-previous work intact. Explicit new work clears the tab session, as in #119; its durable
-Latest stays recoverable until another Latest is successfully written or another Project
-is explicitly opened. Closing a tab does not delete durable data.
+## アカウント名前空間との連携
 
-Calculation writes use only the facade's last successful, non-blocked calculation.
-Failed or blocked calculations and uncalculated edits do not clear it. An
-update-and-recalculate failure still autosaves the validated working draft that the
-facade committed before the calculation error. The application error carries that committed
-state, including the new durable token, so the UI refreshes canonical session recovery
-without replacing raw input drafts or hiding the calculation error. A same-tab reload can
-then continue autosaving without conflicting with its own preceding write. Loading presents the saved last-good
-snapshot and reevaluates readiness; it does not calculate or change the selected
-Forecast Run. The original calculation's provenance remains separate from the edited draft.
+- 未ログイン利用の保存領域と、Google ログイン時のアカウント別保存領域は分離します（詳細は [Google ログイン](authentication.md) / [Account Sync](account_sync.md)）。
+- ログイン時に適格な匿名データを 1 回だけアカウントへ取り込み、元データは匿名側で「取込済み・他アカウントから不可視」として中断再開用に保持します。不正レコードは取り込まず匿名側の利用不可一覧に残します。ログアウト・認証失効時はアカウントのローカルデータを削除せず非表示にします。
 
-An IndexedDB transaction's `complete` event, rather than a `put` request's success,
-is the commit boundary. Checkpoint, draft, last-good, and Latest replacement are atomic.
-Compare-and-swap tokens prevent a stale tab from overwriting a newer write, recreating a
-deleted Project, resurrecting a replaced Latest, or deleting another tab's newer draft.
-Explicit deletion uses the active working token or the version from the last displayed
-selector listing, not a fresh read that would silently authorize deleting newer work. During Latest cleanup, the validated
-record set is checked again inside the transaction; concurrent changes fail safely with
-`PROJECT_REVISION_CONFLICT`. The user retains the tab's edits and can explicitly reopen.
-There is no automatic cross-tab merge. Account namespaces add the [Account Sync contract](account_sync.md) without changing the domain record.
-
-## Schema and corruption isolation
-
-Database layout version 2 preserves the existing object store and every record body.
-It is a one-way writer boundary: earlier clients explicitly opening version 1 fail
-storage/outbox operations after the upgrade. Existing connections close on
-`versionchange`; in-flight transactions finish before the upgrade. A blocked upgrade
-fails without changing records and can be retried after the blocking tab closes.
-The account cleanup path uses the same version. Both 1.x and subsequent 2.x clients
-must retain this access version; it is independent of portable payload schemaVersion.
-Old tabs can retain their ephemeral edits, but must reload onto compatible code to
-resume storage. Remote in-flight mutations still use the existing CAS contract.
-No record conversion, database deletion, reverse reader or rollback is introduced.
-
-Project payload migration is
-per record, outside the database upgrade transaction, so one invalid Project cannot
-block access to the store. Payload schema 2 adds an envelope update timestamp to the
-schema 1 shape (which derives it from `draft.updated_at`). These are the first Local
-durable formats; no previously shipped IndexedDB or Legacy server migration is implied.
-
-`src/autonavlog/local_persistence.py` performs pure v1-to-v2 conversion followed by the
-existing Pydantic Project/WorkingCalculation validation and envelope identity/revision
-checks. Listing validates/migrates in memory. Explicit open persists the migrated record
-only after successful validation and hydration, under the same concurrency check.
-Failed validation, migration, or migration write leaves original bytes unchanged.
-No database clear/delete or repository reset is used for recovery.
-
-Unsupported/corrupt Projects are excluded from the usable selector, with a visible
-warning. Healthy records remain listable, readable, and writable. Unavailable records
-are also excluded from automatic Latest deletion; their original data stays available
-for a future compatible version or targeted recovery. Thus an unavailable historical
-record can remain on disk alongside the one usable Latest. Explicit repository deletion
-can target an unavailable UUID; no manual recovery UI is introduced here.
-
-## Quota and Weather boundary
-
-Project data is never evicted to free capacity. On a quota error, the adapter first
-clears disposable Weather caches in the exclusive `autonavlog.weather.` Cache Storage
-namespace, then retries the entire transaction once. Other origin caches are untouched.
-If cache release or retry fails, the operation reports `LOCAL_STORAGE_FAILED`, preserving
-old Project/Last Calculation records and the user's current UI inputs. Other storage
-errors fail directly. Listing failure is shown as a storage warning, so ephemeral work
-can still load without pretending that durable storage succeeded.
-
-`evictWeatherCache` is the #144 integration point. #144 owns actual Weather acquisition,
-decode, raw/normalized storage choice, TTL, and invalidation; if it uses another storage
-backend it must supply an equivalent disposable-cache eviction callback. This issue does
-not create Weather data or duplicate Pyodide's bundled fixed fixture. Weather cache loss
-never removes calculation provenance or prevents saved NAV LOG display. Full historical
-Weather replay is not guaranteed.
-
-[Platform persistence access](platform_capabilities.md) supplies the existing IndexedDB
-Repository factory, the disposable-cache eviction callback, and best-effort
-`navigator.storage.persist()`. Repository transaction/migration/quota semantics stay here. Unsupported, denied, and rejected
-requests do not warn or block use. Actual storage operation failures do. Browser-managed
-site eviction and user deletion of site data are outside the transaction guarantee;
-private browsing and separate profiles/origins have separate storage lifetimes.
-
-The implementation follows the standard
-[IndexedDB transaction lifecycle](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB)
-and [best-effort persistent storage API](https://developer.mozilla.org/en-US/docs/Web/API/StorageManager/persist).
-
-## Verification
-
-- `npm --prefix web run test:application`: adapter contract and fake-indexeddb transaction
-  tests, including rollback after request success, quota retries, corruption isolation,
-  concurrent Latest insertion, stale saves/opens, and storage denial.
-- `pytest tests/unit/test_local_persistence.py tests/integration/test_local_calculation.py`:
-  pure migration, domain corruption/identity checks, calculation/provenance and hydration.
-- Build production Local assets, serve `web/dist-local` on loopback, then
-  `npm --prefix web run test:local`: real IndexedDB/browser process restart, explicit
-  selection, draft/checkpoint semantics, Last Calculation, Latest, quota injection,
-  migration write failure, corruption isolation, and existing session/calculation regressions.
-
-Browser tests use disposable profiles and block `/api/**`. Quota failure is injected at
-the storage API boundary; it is distinguished from physically filling a device disk.
-Local FORECAST now uses the [#144 Weather Adapter](local_weather.md). Its disposable
-`autonavlog.weather.msm.v1` cache uses this same quota eviction boundary.
-
-## Account context (#184)
-
-[Authentication](authentication.md) adds per-account Repository/Session scopes. Anonymous records
-remain in their original database. On sign-in, #185 validates and claims eligible anonymous
-records for that account once, then imports them into its scope. Claimed originals are hidden
-from anonymous and other accounts and retained so an interrupted import can resume.
-Invalid records remain unclaimed and visible as unavailable in the anonymous scope.
-Logout/revocation hides account copies without deleting them.
+> **参考（検証範囲）**：IndexedDB トランザクション、容量注入、破損隔離、およびブラウザ再起動の自動テストは [testing.md](testing.md) を参照してください。

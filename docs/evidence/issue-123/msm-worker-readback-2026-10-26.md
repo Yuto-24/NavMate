@@ -1,11 +1,10 @@
 # PR #290: Worker軽量化と管理API read-back（2026-10-26 JST）
 
-## 目的と範囲
+> **日付付き観測記録（2026-10-26 時点）**: PR #290 実装時点の 401 調査・管理 API read-back・ローカル検証記録です。その後の 2026-11-18 復旧再配置・自然 Cron 観測は [msm-worker-recovery-2026-11-18.md](msm-worker-recovery-2026-11-18.md)、再利用知見は [MSM-TRIGGER-OPS-DRIFT](../../knowledge/entries/msm-trigger-worker-ops-drift.md) を参照してください。
 
-10月末までのNavMate新環境提供開始へ向け、Worker軽量化と実行可否を確認する。
-本番deploy、Cron再開、実dispatch、mergeは行わない。
-厳密なDO起動回数管理は後続へ分離し、共有無料枠・課金監視は#281へ戻す。
-これらを今回の配置条件にしない。Worker CPUは実行可否の検証対象に残す。
+## 目的と範囲（2026-10-26 時点）
+
+PR #290 における Worker 軽量化と管理 API read-back の記録である。厳密な DO 起動回数管理は後続へ分離し、共有無料枠・課金監視は #281 へ戻した。Worker CPU の provider 実測は実行可否の検証対象に残る。
 
 ## 401調査: 確認済みと原因の確度
 
@@ -55,53 +54,12 @@ KVで同時tick・古いreadの厳密なadmissionは保証しない。この保�
 [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)、
 [KVの結果整合性](https://developers.cloudflare.com/kv/concepts/how-kv-works/)（今回再確認）。
 
-## 未確認と次の限定実測
+## PR #290 時点の未確認事項と限定実測の計画（2026-10-26）
 
-軽量版のCloudflare上のCPUは未測定。旧版FRESHの17ms・旧526の接続先不明は解決済みとしない。
-ローカルworkerdの実行成功・bundle縮小・dry-runをprovider CPU合格や本番公開受入へ読み替えない。
+- 軽量版の Cloudflare 上の CPU は未測定（旧版 FRESH の 17 ms・旧 526 の接続先不明は解決済みとせず、ローカル `workerd`・bundle 縮小・dry-run を provider CPU 合格へ読み替えない）。限定 observe 実測の運用手順正本は [msm_external_trigger.md](../../msm_external_trigger.md) を参照。
+- 2026-10-26 20:39 JST の read-only 確認：canonical の `freshness.json` は 404、`release.json` は 200 / 29,909 bytes、公開アプリ commit と GitHub `STATIC_APPROVED_SHA` はともに `a4de2a226dfa205b8be42fb62a710a1b06271ed8`、`STATIC_EXTERNAL_TRIGGER_ENABLED` 未設定、`STATIC_AUTOMATION_ENABLED=true`。
 
-次は別途承認のうえ、固定commit・既存Worker/KV/Secret、MODE=observe・外部opt-in無効で
-配置→最大15分のCron反映待ち→最大30分/2tickの観測→停止→read-backを一組として行う。
-hint未配置なら先に新しい完全Runでhint付き公開を行う別承認が必要。同Run再公開で移行しない。
-CPU 10ms超過、exceededCpu、UNKNOWN、HTTP/IO/BODY_LIMIT、想定外設定、期限、2tick到達で停止する。
-FRESHとGitHub到達経路を別々に記録し、未測定経路を受入済みにしない。
-実dispatch・opt-in変更・公開はさらに別段階。DO移行と#281完了はこの限定実測の前提にしない。
+## 2026-10-26 時点の検証と concurrency-group 境界（PR #290）
 
-20:39 JSTの追加read-only確認ではcanonicalの`freshness.json`は404、`release.json`は200 / 29,909 bytes、
-公開アプリcommitとGitHub `STATIC_APPROVED_SHA` はともに
-`a4de2a226dfa205b8be42fb62a710a1b06271ed8`。`STATIC_EXTERNAL_TRIGGER_ENABLED`は未設定、
-既存`STATIC_AUTOMATION_ENABLED`はtrue。既存scheduleの設定は変更していない。
-現在のhint欠落を古いhintと見なして起動することはない。
-
-## 提出前検証
-
-- Worker/CLI/native workerd: 45件成功。DOなしのscheduled handler、native KV、outbound mockで実行。
-  POST前write失敗、受付不明、401/403、回数・間隔、日跨ぎ、遅いKV、既存pendingを検証。
-- Worker TypeScript、Wrangler dry-run成功（9.14 KiB / gzip 3.37 KiB）。本番には送信していない。
-- 関連Python 123件、公開後検証42件、release検査、Ruff、Web型検査、git diff --check成功。
-- 実装GPT-6.1 Solに対しGPT-6 Astra highが別read-only contextで今回差分と関連Actionsを確認し、
-  修正必須の未解決指摘なし。管理APIの再取得は実装担当が実施し、reviewerは資料の整合性を確認。
-- setup後、既存隔離Compose `autonavlog-wt-6021b5fb` / 41503はhealthy、healthz ok。
-  Workerは別runtimeであり、今回の範囲にアプリ再配置は含めない。volumeは保持。
-- 最新HEADのhosted CI・CodeRabbitはPR Conversationで記録し、このローカル結果とは分ける。
-
-
-## CodeRabbitの最新指摘への対応
-
-6c6e559bの自動レビューはMajor 2件。DO直列化復元は今回のユーザー指示と範囲が異なるため、
-明示された後続分離と厳密上限の非保証をスレッドへ回答した。DOは復元しない。
-
-もう1件のActions作成順によるlock待ち誤判定は修正した。履歴と全active状態を読んだ後、
-`GET /repos/Yuto-24/AutoNavLog/actions/concurrency_groups/static-production` で現在Runの
-workflow-level leaseがin_progressであることと、他Runが同groupでpendingであることを確認する。
-確認できた待機Runだけactive競合から除き、日次回数・cooldown・同Run制限からは除かない。
-API失敗・欠落・不完全・job-level lease・別holderは停止する。新規権限は追加せず既存Actions:readを使う。
-
-[公式concurrency API](https://docs.github.com/en/rest/actions/concurrency-groups) の仕様を確認し、
-既存CIの `test-290` groupを既存認証でread-only取得して200、run ID・statusの応答形を確認した。
-本番 `static-production` のlock保持経路は実dispatchせずfixtureで検証した段階であり、
-実運用のlock経路受入を済ませたとは扱わない。
-
-追加修正後の関連Pythonは187件成功、Ruff・release検査・git diff --checkも成功。
-GPT-6 Astra highが4ファイルの追加差分とworkflow呼出箇所をread-onlyで再確認し、
-修正必須の未解決指摘なし。Workerソースは6c6e559bから変更していない。
+- **ローカル検証・独立レビュー**: Worker/CLI/native `workerd` 45 件、TypeScript・Wrangler dry-run（9.14 KiB / gzip 3.37 KiB）、関連 Python 123 件、公開後検証 42 件、Ruff、Web 型検査成功（GPT-6 Astra 読み取り専用レビューで必須指摘なし。隔離 Compose `autonavlog-wt-6021b5fb` / 41503 healthy）。
+- **Actions concurrency-group API の採用理由（`6c6e559b` 修正後）**: 作成順で待機 Run を推定する誤判定を防ぐため、`GET /repos/Yuto-24/NavMate/actions/concurrency_groups/static-production`（当時は移行前の `Yuto-24/AutoNavLog`）で現在 Run の workflow-level lease 保持と他 Run の `pending` を確認し、確認できた待機 Run のみを active 競合から除外する（API 失敗・欠落・job-level lease・別 holder は停止）。修正後 Python 187 件成功・GPT-6 Astra 再レビューで必須指摘なし。本番 `static-production` の lock 保持経路は当時 fixture 検証のみで未実証。

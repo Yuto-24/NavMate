@@ -1,128 +1,36 @@
-# MAP Route creation (#174)
+# MAP での経路作成・再編集・KML/KMZ 取込
 
-New work begins with the airport markers on a large MAP. The first airport is FROM;
-subsequent map clicks and airport selections append occurrences in flight order.
-The Route Strip identifies occurrences independently, including repeat visits to the
-same airport. Confirm requires at least two points with airport endpoints; the final
-airport becomes TO and the penultimate intermediate point becomes VREP. A direct
-FROM → TO route has no synthetic VREP. Existing Readiness rules still apply.
+1 つの大画面 MAP と共通の経路確定・取込方針を用いて、新規経路作成（#174）、確定済み経路の再編集（#175）、および KML/KMZ の下書き取込統合（#176）を行います。Project 保存・Phase 規則・Readiness 判定の境界は既存の仕組みを共有します。
 
-`ConfirmRouteRequest` accepts `candidate_kind=map` and ordered `map_points`.
-The common Python facade resolves airport identities against the active catalog,
-uses canonical airport coordinates for new selections, preserves every occurrence
-(including repeated coordinates), rejects routes with fewer than two distinct
-positions, and installs the route through the existing
-Project/arrival/phase normalization and Readiness boundaries. Geometry is never
-converted to KML; generated MAP labels never become imported Point provenance. Planning, Check Points, Calculation, Last Calculation, and the
-Local/Legacy Repository contracts remain shared with existing routes.
+## 新規経路作成（#174）
 
-Draft occurrences live only in the optional `mapRouteDraft` field of the existing
-version-1 Application Session. Old sessions without this field remain compatible.
-Same-tab reload restores the draft without confirming, calculating, or writing a
-Project. New work, clear, import replacement, Project open and user-initiated account
-changes ask before discarding it. External authentication revocation still follows
-the existing account boundary. Confirmed routes reopen in Planning.
+- 新規作業は大画面 MAP 上の空港マーカー表示から始まります。最初に選択した空港が出発地（FROM）となり、以降の地図クリックや空港・VREP 選択は飛行順に地点として追加されます。
+- 経路一覧は同じ空港への再訪を含め、経路上の通過点（同じ空港が複数回登場する場合はそれぞれの出現）を個別に識別します。
+- **確定条件**：空港を両端（最初と最後）に含む **2 地点以上**、かつ異なる位置が 2 つ以上あること。最終空港が到着地（TO）となり、経路が 3 地点以上ある場合は到着地直前の中間点（経路全体の最後から 2 点目。例：`FROM → A → TO` の `A`）が VREP となります。`FROM → TO` の直行経路では仮想 VREP を作りません。既存の Readiness 規則が適用されます。
+- 確定時は有効なカタログから空港を解決し、新規選択には基準座標を使用し、KML への逆変換や取込由来名称の偽装は行いません。
+- 確定前の下書きは現在のタブの一時作業領域にのみ保持され、確定・計算・Project 保存を行わない限り同一タブの再読み込みで復元されます。新規作業・クリア・取込による置換・別 Project を開く操作・ユーザー操作によるアカウント切替では破棄確認を求めます（外部からの認証失効時は既存のアカウント境界に従います）。確定後は Planning 画面を開きます。
+- **地図表示範囲（Viewport）**：アカウントおよび Project ごとに端末ローカルへ保存する任意の表示補助設定であり、同期対象の Project・計算データには含まれません。**その端末に表示範囲が保存されていない確定済み Project を開くときは、経路全体に 1 回だけフィットします**。下書きからの確定時は現在の表示範囲を維持します。FROM 選択、ウィンドウサイズ変更、下書き編集中に自動センタリングは行いません（新規作業で保存済み表示範囲がない場合の初期位置は RJFM）。
+- KML/KMZ 取込候補のプレビューを含め、簡略化前の座標で **500 点** を超える経路は拒否します。
+- 元に戻す（Undo）・地点検索・ドラッグによる順序変更やマーカー移動は未対応です。
 
-Viewport preferences (center/zoom) use Platform persistence values, scoped by account
-and Project UUID, with a last-used view for new work and RJFM as the initial fallback.
-They are best-effort device preferences, not synchronized Project or Calculation data.
-Opening a confirmed Project without a saved device viewport fits its route once.
-Draft confirmation retains its current view. Selecting FROM never fits/recenters the map. Resizing invalidates the Leaflet canvas
-without fitting the route. Existing KML candidate preview retains its fit behavior.
+## 確定済み経路の再編集（#175）
 
-The existing KML/KMZ import controls stage candidates as new Map Drafts (#176).
-Import uses unsimplified route coordinates, not display-only preview geometry;
-routes above the existing 500-point MAP limit are explicitly rejected.
-Undo, search, reorder and marker dragging are not implemented here.
+- Planning 画面から確定済み Project を MAP 下書きとして再編集できます。再編集中の下書きは一時作業状態に保持され、再確定するまで元の確定済み経路・計算結果は置き換わりません。
+- 再編集の開始時は、進行中の再計算を無効化・完了待ちしてから下書きを作成します。再編集中は Check Point / Leg 編集欄および KML 置換操作を隠し（MAP 上の既存 Check Point 表示は維持）、キャンセル時は破棄確認のうえで下書きだけを破棄します。同一タブの再読み込みでは再編集状態（全削除直後の空状態を含む）を復元します。
+- **再確定時の保持と更新**：
+  - 地点の識別・形状・端点の並びが実質不変の場合は変更なしとして扱い、到着高度ポリシーの手動設定等も含めてそのまま維持します。
+  - 変更されていない地点の識別・名称・出典（採用済み空港・VOR スナップショット含む。後から利用者が改名した参照点も元の出典スナップショットと現在名を維持）および有向区間（同じ始点・終点の区間）が一致する手入力の計画値は引き継がれます。
+  - 到着地または VREP の役割が変わった場合のみ、通常の経路 Phase 規則に従って末尾の降下・Visual Arrival Phase を再割り当てします。
+  - 置き換わった区間に紐づいていた Check Point のみ削除し、維持される区間と互換な Check Point は保持します。
+  - 既存の直前正常計算スナップショットは保持し、経路入力が変わった場合は再計算まで古い結果（stale）として扱います。
 
-Verification: `test_map_route.py` exercises validation, repeated airports, direct
-routes, existing calculation Golden and recovery. `map-route.spec.ts` exercises the
-real browser workflow at 1100/1440 px, occurrence deletion, discard confirmation,
-viewport restoration, saved Project reopening and Local storage failure recovery.
+## KML/KMZ の下書き取込統合（#176）
 
-
-## Confirmed-route editing (#175)
-
-Planning can reopen a confirmed Project as a MAP draft. `editingRouteProjectId`
-identifies its owner in the existing ephemeral Application Session; each copied
-occurrence carries `original_node_id`. Neither entry nor draft editing replaces the
-confirmed route. Cancel clears only the draft after discard confirmation. Same-tab
-reload restores the editing state, including an empty draft after route clear.
-Project switches retain the existing discard confirmation boundary.
-
-Reconfirmation sends `edit_project_id` through the common confirmation operation.
-The facade rejects a different Project and duplicate or foreign occurrence IDs.
-An unchanged identity/geometry/endpoints sequence is a no-op, including customized
-arrival policy. Otherwise unchanged occurrences retain identity, names and source;
-unchanged directed section pairs retain manual planning inputs. If the destination
-or VREP role changes, descent/visual-arrival phases are reassigned to the new tail
-using the normal route phase rules; retained leg IDs, altitude/speed inputs and
-Check Points are preserved wherever compatible. No-op reconfirmation does not
-reassign phases. Adopted airport and
-VOR snapshots remain tied to unchanged airport identities, not a newer catalog.
-User-renamed reference occurrences retain their source snapshot and current name.
-Only Check Points
-linked to replaced sections are removed. New sections use normal installation
-and readiness rules. Last Calculation remains its existing snapshot and changed
-route inputs become stale until recalculated.
-
-The MAP retains Check Point display while editing, but hides Check Point/leg editors
-and KML replacement controls. Entry invalidates and drains pending recalculations
-before taking the draft; asynchronous state updates use the current edit owner.
-
-Verification adds backend identity, no-op, calculated snapshot, selective planning
-and Check Point tests; pure frontend occurrence/session tests; and browser
-reload/cancel/reconfirm plus region-order coverage at 1100/1440 px. Browser tests
-must run in an environment permitting the browser/server sockets; adding them is
-not evidence that they passed. Release version/changelog are owned by integration.
-
-## KML/KMZ Draft integration (#176)
-
-`importCandidateToMapDraft` in `web/src/importRouteDraft.ts` adapts the common
-parser's `RouteCandidate` to ordered `MapRoutePoint` occurrences without changing
-Application state, confirming a route, or writing a Project. Candidate coordinates
-are already latitude/longitude pairs. Line, connected-line, Point and Polygon
-candidates keep their supplied order and repeated occurrences; no winding reversal,
-rotation, deduplication or synthetic VREP is performed here. Only the first and last
-coordinates are snapped to the canonical airports identified by the parser's existing
-5 NM endpoint matching. Rounded display distances do not drive another match policy.
-
-`routeNames` carries nullable name slots aligned to `routeCoordinates`, never the
-simplified preview. Point names and unambiguous LineString names use the existing
-parser and RJFM physical-slot alignment. Missing names alone receive sequential WP
-labels; airport endpoints keep their ICAO identity. Imported Draft points carry
-`name_source: IMPORTED` through confirmation, including names longer than the manual
-MAP input limit. Old candidates without name slots retain automatic naming. Draft
-reload and Project persistence preserve names; later user renames retain the existing
-USER provenance rules (#361).
-
-The result distinguishes `ready`, `unmatched-endpoints` and invalid coordinate/count
-input. An unmatched endpoint is kept in the preview but cannot be confirmed. In
-particular, a missing departure airport does not satisfy the existing `validMapDraft`
-session contract: retain the pending Import candidate rather than storing that preview
-as `mapRouteDraft`. Unknown catalog IDs are treated as unmatched. New imported
-occurrences do not carry confirmed-Project `original_node_id` references.
-
-New Route creation stays on the large MAP. Platform file/Clipboard operations stage
-parser candidates without erasing the previous Map Draft. One valid candidate is
-adopted immediately; multiple candidates use a compact selection dialog. Cancellation,
-parser failure or unusable geometry preserves the previous Draft. A replacement
-requires the existing discard confirmation, and never merges two drafts. Polygon
-order uses the same explicit Map confirmation as any other route, with no separate
-Polygon checkbox. Import is not available for a confirmed Project or route re-edit.
-
-The optional `pendingImportDraft` and `selectedImportCandidate` session fields retain
-unmatched endpoint previews and candidate selection through same-tab reload without
-weakening `validMapDraft`. Actual points are derived from the recovered parser payload,
-not persisted as an invalid Draft. Pending import may be cancelled to return to the
-previous Draft. A recognized legacy pending import resumes in the new Map workflow.
-
-Verification includes all parser candidate kinds, occurrence order, endpoint matching,
-invalid geometry and session validation, plus the imported parser geometry routed
-through Map confirmation to the existing FTD calculation golden. Focused browser
-coverage includes replacement/cancellation, denied Clipboard, reload and region order
-at 1100/1440 px. The CI Local suite selects the import and re-edit scenarios;
-application tests validate parser adaptation and session recovery.
+- ファイル選択・ドラッグ＆ドロップ・クリップボード貼り付けによる KML/KMZ 取込では、元の確定済み経路や前の下書きをいきなり消去せず、まず取込候補として仮保持します。
+- 簡略化前の生座標・並び順（Line / 連結線 / Point / Polygon）をそのまま維持し、自動反転・回転・重複除去・仮想 VREP 追加は行いません。先頭と末尾のみ既存の 5 NM 端点照合で空港へスナップします。
+- 名称は既存の取込規則および RJFM 物理区間スロットの整合に従い、名称欠落点にのみ連番ラベルを付与し、空港端点は ICAO コードを保持します。KML/KMZ から取り込んだ点には取込由来の名称来歴を引き継ぎ（手動 MAP 入力の文字数上限より長い名称もそのまま維持）、後から利用者が改名した後は利用者変更の来歴として扱います。
+- 取込結果は「確定可能」「端点未一致（出発・到着空港が未特定）」「無効（座標や点数が不正）」を区別します。端点未一致でも MAP プレビューは保持しますが、出発空港が欠ける状態では確定できません。未確定の取込候補や複数候補の選択状態は一時作業領域に保持され、同一タブ再読み込み後も再開できます（キャンセル時は直前の下書きへ戻ります）。
+- 有効候補が 1 件なら即座に下書きへ採用し、複数候補がある場合は候補選択ダイアログを表示します。既存の確定済み Project や再編集中には KML/KMZ 置換取込を利用できず、新規作成下書きの置換時は破棄確認を求め、2 つの下書きを統合（マージ）しません。
 
 ## KML/KMZ の経路候補と連結規則
 
@@ -145,4 +53,4 @@ KML/KMZ の取込では、`Point`、`LineString`、`Polygon` の各 Placemark �
 - 選択した経路は、簡略化前の座標で **500 点まで**です。プレビュー用の線の簡略化でこの制限を回避しません。
 - KML の読み取り・候補選択が成功しても、出発地・目的地が判定できない経路は MAP で確認・修正するまで確定できません。
 
-正本となるパーサー実装は `src/autonavlog/importers/kml.py`、取込候補から MAP draft への変換は `web/src/importRouteDraft.ts` です。この節は既存挙動の説明であり、取込アルゴリズムや制限値を変更しません。
+> **参考（検証範囲）**：本機能の自動テスト構成・対象ブラウザ幅（1100 / 1440 px）については [testing.md](testing.md) を参照してください。

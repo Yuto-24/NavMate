@@ -16,7 +16,7 @@ SR22性能値については、Cirrus Design SR22 AFM/POH P/N 13772-006 Revision
 - 西偏差を正として`MC = TC + VAR`、右WCAを正として`MH = MC + WCA`とします。
 - VOR Tracking Modeの第1 Physical Legだけは出発VORの公示DeclinationをVARに使います。RCA・C'k Point・EOCで分割されても同じ偏差と元LegのWGS84初期TCを使い、`MC = TC + VAR`、`MH = MC + WCA`を維持します。WCAはTCと風だけから求めます。第2 Leg以降・Mode OFF・到着処理は従来の緯度別偏差です。
 - 第1 LegのMC/MHは出発VORの磁気基準です。現地の磁気方位計との一致は保証しません。経路上の各点へのVOR Radialは同じ出発点からのWGS84初期方位なので、途中の局所接線方位の変化をMCへ加えません。VOR/DME列の選局はこの基準を変更しません。
-- `variation_deg_east`等の既存フィールド名は保存互換性のため維持しますが、MCに加える値の符号は西正です。
+- 保存済みデータの互換性は維持しつつ、MCに加える磁気偏差の符号は常に西正とします。
 - NAV LOGへ表示するMHは、同じ行に表示する丸め済みMCとWCAから作り、画面上の算術を一致させます。
 - VFR巡航高度候補の方向判定は、NAV LOGへ表示する1°単位のMCを使用します。359.5°以上は表示360°、判定上は0°側とします。
 
@@ -122,13 +122,13 @@ RJFMのRWY09 / RWY27について、NAV LOG本体とは独立した参考経路�
 
 ## 表示モデル
 
-- `CalculationOutcome.sections`は重複しないCalculation Zoneです。
-- `display_rows`は表示専用投影で、Physical Leg summaryとCalculation Zone内訳を分離します。
+- 計算結果は、重複しない計算区間（Calculation Zone）を距離・時間・燃料の唯一の集計元とします。
+- 表示用投影は、Physical Leg サマリーと計算区間の内訳を分離して構成します。
 - Physical Legの表示DISTは0.5 NM単位へ丸め、そのtickを子Zoneへ最大剰余法で配賦します。
 - 親ETEは表示済み子ETEの合計、親SECT FUELは表示済み子Fuelの合計です。
 - REM Fuelは表示TOTALから表示RUN UPを引いた値を起点に、表示SECTを順に減算します。
-- `INHERIT`は計算値を継承しつつ表示を空欄にする状態、`BLANK`は継承しない意図的な空欄、`UNAVAILABLE`は本来必要な値を取得・算出できなかった状態です。
-- NAV LOG SummaryはcanonicalなPhysical Leg / Zone値からサーバー側で生成し、Web側で再集計しません。
+- セルの表示状態として、「計算値を継承しつつ表示を空欄にする状態」「継承しない意図的な空欄」「本来必要な値を取得・算出できなかった状態」の 3 つを区別します。
+- NAV LOG Summaryは正規のPhysical Leg / Zone値から計算コア側で生成し、Web表示層で再集計しません。
 
 ### 30° CUT の参考秒数
 
@@ -150,14 +150,14 @@ NAV LOG右端の `30° CUT (sec)` は、変針点通過から次Legの計画線�
   小さい変針角も計算対象ですが、固定30°では解がない場合があります。
 - RCA/EOCなど同じSectionの内部境界は変針点にしません。複数Sectionを統合した親行も保持し、
   入口の合流は最初のSectionが終わるまでに完了する必要があります。統合内の各変針の秒数は重複表示しません。
-- 派生値 `thirty_degree_cut_seconds` は表示モデルだけに追加します。
+- 30° CUT の秒数は表示専用の派生値としてのみ扱います。
   DIST・ETE・ETO・TTL TIME・燃料・Readiness・経路・RJFMの20° Bank案内は変更しません。
-  旧Last Calculationのフィールド欠落は `null` として受け入れ、再計算せず `—` を表示します。
+  この値を保持しない旧 Last Calculation も再計算なしで読み込み、該当欄は `—` を表示します。
 
 ## 手入力と保存
 
 - 手入力TAS、気温、風はeffective Flight Phase単位で扱います。
-- 入力変更後は、保存済みCalculationとのfingerprintが一致しない場合に再計算を要求します。
+- 入力変更後は、現在の入力が保存済み計算時の入力と異なる場合に再計算を要求します。
 - Projectには最新draftと、明示保存されたcheckpointを保持できます。
 - 最後にBlockerなしで完了したCalculationはProjectごとに1件だけ保持します。
 
