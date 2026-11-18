@@ -319,8 +319,18 @@ def test_cut_is_entry_parent_only_uses_adopted_values_and_preserves_zones(airpor
             wind_direction_deg_from=270, wind_speed_kt=wind, distance_nm=10,
         )
         assert expected is not None
-        assert parents[1].thirty_degree_cut_seconds == round(expected.seconds)
+        assert parents[1].thirty_degree_cut_seconds == round(expected.straight_seconds)
     assert [zone.model_dump() for zone in zones] == original
+    from autonavlog.application.navlog_display import refresh_thirty_degree_cut
+
+    expected_rows = [row.model_dump() for row in rows]
+    for row in rows:
+        row.thirty_degree_cut_seconds = 999
+    outcome = SimpleNamespace(display_rows=rows, sections=zones)
+    refresh_thirty_degree_cut(outcome)
+    assert [row.model_dump() for row in rows] == expected_rows
+    refresh_thirty_degree_cut(outcome)
+    assert [row.model_dump() for row in rows] == expected_rows
     # Both saved JSON with the field and pre-feature JSON without it are accepted.
     parent = parents[1]
     assert NavLogDisplayRow.model_validate_json(parent.model_dump_json()) == parent
@@ -329,7 +339,7 @@ def test_cut_is_entry_parent_only_uses_adopted_values_and_preserves_zones(airpor
     assert NavLogDisplayRow.model_validate(legacy).thirty_degree_cut_seconds is None
 
 
-def test_merged_parent_cut_cannot_use_distance_after_an_internal_course_change():
+def test_merged_parent_cut_cannot_use_distance_after_an_internal_course_change(airports):
     from autonavlog.application.navlog_display import _thirty_degree_cut
 
     node = uuid4()
@@ -353,4 +363,33 @@ def test_merged_parent_cut_cannot_use_distance_after_an_internal_course_change()
     ]
     assert _thirty_degree_cut(1, legs, [before, after, later]) is None
     after.zone_distance_nm = _automatic(5)
-    assert _thirty_degree_cut(1, legs, [before, after, later]) == 57
+    assert _thirty_degree_cut(1, legs, [before, after, later]) == 14
+    from autonavlog.application.navlog_display import refresh_thirty_degree_cut
+
+    for index, zone in enumerate([before, after, later]):
+        zone.sequence = index
+    rows = build_navlog_display_rows(
+        legs, [before, after, later], airports.get("RJFM"), airports.get("RJFO"),
+        None, None, None, total_usable_fuel_gal=90, run_up_included=False,
+    )
+    expected = [row.model_dump() for row in rows]
+    for row in rows:
+        row.thirty_degree_cut_seconds = 999
+    refresh_thirty_degree_cut(SimpleNamespace(display_rows=rows, sections=[before, after, later]))
+    assert [row.model_dump() for row in rows] == expected
+
+
+@pytest.mark.parametrize("seconds", [0.0, 0.49, 0.5])
+def test_cut_rounding_preserves_valid_zero(monkeypatch, seconds):
+    from autonavlog.application import navlog_display
+    from autonavlog.application.thirty_degree_cut import CutSolution
+
+    zone = _summary_zone().model_copy(update={
+        "true_course_deg": _automatic(0), "magnetic_course_deg": _automatic(90),
+        "magnetic_heading_deg": _automatic(90), "variation_deg_east": _automatic(0),
+        "tas_kt": _automatic(120), "wind_speed_kt": _automatic(0),
+        "zone_distance_nm": _automatic(10),
+    })
+    monkeypatch.setattr(navlog_display, "solve_thirty_degree_cut",
+                        lambda **kwargs: CutSolution(60 + seconds, seconds, 1))
+    assert navlog_display._cut_from_zones([zone], [zone]) == (1 if seconds == 0.5 else 0)

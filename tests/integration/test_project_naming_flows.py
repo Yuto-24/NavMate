@@ -55,7 +55,10 @@ def test_local_rename_migration_sync_and_manual_protection(local):  # noqa: F811
                   draft=raw["project"], checkpoint=copy.deepcopy(raw["project"]),
                   lastCalculation=raw["last_calculation"], updatedAt=raw["project"]["updated_at"])
     migrated = migrate_record(record).model_dump(mode="json")
-    assert migrated["lastCalculation"]["outcome"] == record["lastCalculation"]["outcome"]
+    expected_outcome = copy.deepcopy(record["lastCalculation"]["outcome"])
+    for row in expected_outcome["display_rows"]:
+        row["thirty_degree_cut_seconds"] = None
+    assert migrated["lastCalculation"]["outcome"] == expected_outcome
     assert (migrated["lastCalculation"]["calculation_fingerprint"]
             == record["lastCalculation"]["calculation_fingerprint"])
     resolved = json.loads(local.dispatch("prepareSyncResolution", {"record": migrated}))

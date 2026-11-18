@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import json
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -88,3 +90,22 @@ def test_migration_or_corruption_failure_never_modifies_original(damage):
         migrate_record(original)
     assert original == before
     assert migrate_record(record()).schemaVersion == 2
+
+
+@pytest.mark.parametrize("seconds", [0, 14, 999])
+def test_durable_cut_projection_preserves_plan_and_is_readable_by_old_clients(seconds):
+    fixture = Path(__file__).resolve().parents[1] / "fixtures/schema4/ftd.json"
+    original = json.loads(fixture.read_text())
+    model = migrate_record(original)
+    assert model.lastCalculation is not None
+    for row in model.lastCalculation.outcome.display_rows:
+        row.thirty_degree_cut_seconds = seconds
+    before = model.model_dump(mode="python")
+    expected = model.lastCalculation.model_dump(mode="json")
+    for row in expected["outcome"]["display_rows"]:
+        row["thirty_degree_cut_seconds"] = None
+    serialized = model.model_dump(mode="json")
+    assert serialized["lastCalculation"] == expected
+    assert json.loads(model.model_dump_json()) == serialized
+    assert model.model_dump(mode="python") == before
+    assert migrate_record(serialized).model_dump(mode="json") == serialized
