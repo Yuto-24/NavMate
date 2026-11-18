@@ -72,15 +72,36 @@ npm --prefix services/msm-trigger run ops -- observe-cron
 
 - **Secret の段階登録**: `wrangler secret put/delete` は新 version を即時 deploy するため使わず、`stage-secret`（`wrangler versions secret put`）→ `deploy-staged` の 2 段階を維持する。`stage-secret` は **`MODE=observe` かつ Cron 停止中のみ** 実行し、次の Secret を stage する前に必ず `pending version` を `deploy-staged` で配置する。同時管理者による version 変更が検出された場合は停止し、`versions list` で確認する。同じ名前の Secret 更新・期限前更新も同じ手順で上書きし、追加リソースを作らない。
 - **復旧版の事前停止と段階復帰・本番 `dispatch` 有効化**:
-  - 新規・復旧版の配置や変更を行う前に、先に GitHub 側外部 opt-in を `STATIC_EXTERNAL_TRIGGER_ENABLED=false` へ閉じ（元々無効だった場合は無効維持）、本番の元設定（`observability` 等）を明示した隔離テンプレートで `stop`（`MODE=observe`、Cron 空）を実行し、read-back のうえ **Cron 停止伝播（最大 15 分）および進行中実行の終了** を確認する（停止操作は進行中の公開を中断せず、KV も消去・初期化しない）。
+  - 新規・復旧版の配置や変更を行う前に、まず GitHub 側外部 opt-in を `STATIC_EXTERNAL_TRIGGER_ENABLED=false` へ閉じる（元々無効だった場合は無効維持。停止操作は進行中の公開を中断せず、KV も消去・初期化しない）。
 
 ```sh
 # 既存の GitHub 認証を使用。新規 credential 作成を兼ねない
 gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/NavMate --body false
-npm --prefix services/msm-trigger run ops -- stop
 ```
 
-  - 上記の事前停止・read-back・伝播・進行中実行終了を確認したうえで、復旧前に記録した元の MODE・外部 opt-in・Cron 状態と承認範囲に従って段階復帰する。なお、新規有効化時やコード変更時は有効化前確認および下節の限定 observe 実測を行ったうえで別途・個別の承認を得て進む。
+  - 続いて `stop` 実行前に、ローカル（`.state/operator.json` 等）およびリモートに **未配置の `staged_version`（配置待ち Secret version）が残っていないか** を read-only で確認する（`ops.mjs` は `staged_version` が残存している間 `stop` 等のコマンドを拒否するため）。
+    - **配置待ち（`staged_version`）がない場合**: `deploy-staged` は実行せず、そのまま下の `stop` へ進む。
+    - **`staged_version` が残存している場合**: `deploy-staged` はその version を **100% 即時配置** するため、次の 4 条件をすべて read-only で確認できた場合のみ先に `deploy-staged` を実行する。
+      1. 既存の承認対象 version および承認済み Secret 更新の範囲内であること。
+      2. ローカル状態とリモート Worker の双方が `MODE=observe` かつ Cron 停止中であること。
+      3. Cron 停止伝播（最大 15 分）および進行中実行が終了していること。
+      4. 対象 version・設定・現在の配置状態に不整合がないこと。
+      - いずれかを確認できない／不一致／承認範囲外の場合は、**外部 opt-in 閉鎖（`false`）を維持したまま `deploy-staged` を実行せず停止**する（`staged_version` の手動削除やガード迂回は禁止）。
+
+      ```sh
+      # staged_version 残存かつ上記 4 条件をすべて確認できた場合のみ実行
+      npm --prefix services/msm-trigger run ops -- deploy-staged
+      ```
+
+      - `deploy-staged` 実行後は **read-back で配置状態を確認し、かつ `staged_version` が解消されたこと** を確認してから下の `stop` へ進む（未解消・不整合時はここで停止する）。
+
+  - **事前停止（`stop` 実行）**: 配置待ちがないことを確認した場合、または上記 `deploy-staged` 後の read-back と `staged_version` 解消を確認した後に、本番の元設定（`observability` 等）を明示した隔離テンプレートで `stop`（`MODE=observe`、Cron 空）を実行する。
+
+    ```sh
+    npm --prefix services/msm-trigger run ops -- stop
+    ```
+
+  - `stop` 後は read-back で `MODE=observe`・Cron 空・元設定保持を確認し、**Cron 停止伝播（最大 15 分）および進行中実行の終了**を確認してから、復旧前に記録した元の MODE・外部 opt-in・Cron 状態と承認範囲に従って段階復帰する。なお、新規有効化時やコード変更時は有効化前確認および下節の限定 observe 実測を行ったうえで別途・個別の承認を得て進む。
   - **元 `MODE=dispatch` かつ承認範囲内の復旧（または別途承認済みの本番 `dispatch` 有効化）**:
     1. 元設定を保持した隔離テンプレートで `enable-dispatch`（`MODE=dispatch`、Cron 空）を配置する。
 

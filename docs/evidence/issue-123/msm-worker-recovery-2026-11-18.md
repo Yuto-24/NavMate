@@ -21,7 +21,7 @@
    - 2026-10-26 の同様の記録（[msm-worker-readback-2026-10-26.md](msm-worker-readback-2026-10-26.md)）と同様に、既存 `wrangler whoami` の通常 refresh 実行後に GET が復旧した。新規 token・Secret・権限は作成していない。
    - 期限切れが有力原因だが、初回 403 応答の provider 詳細本文は未取得のため原因を断定しない。
 2. **ローカル `.state/operator.json` の復元**:
-   - 元のローカル `.state/operator.json` が探索範囲で見つからなかったため、本番 GET により account、既存 `STATE` KV namespace（固定名 `autonavlog-msm-trigger-state`）、`MODE`、Cron、最新 version、未配置 version 不在を確認し、ローカル状態だけを再構成した。
+   - 元のローカル `.state/operator.json` が探索範囲で見つからなかったため、本番 GET により account、既存 `STATE` binding の KV namespace 再利用、`MODE`、Cron、最新 version、未配置 version 不在を確認し、ローカル状態だけを再構成した。
    - `ensure-kv`、KV の新規作成・初期化、手動の KV キー更新は一切行わず、既存 KV の内容と `GITHUB_TOKEN` Secret をそのまま維持した。
 3. **隔離コンテナでの事前検証と CA 証明書**:
    - 固定 Wrangler `4.152.0` と Node 22 隔離コンテナで `typecheck`、dry-run（`check`）、70 テストが成功した。

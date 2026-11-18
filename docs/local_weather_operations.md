@@ -54,16 +54,26 @@ docker build --target weather-feed -t autonavlog-weather-feed .
 
 ### Reproducible desktop vs. browser differential command
 
-Generate a fresh feed and pass the same `--flight-date` and `--departure-time` to both the reference generator and browser verifier:
+Generate a fresh feed and pass the exact same `--flight-date` and `--departure-time` to both the reference generator and browser verifier. Because WSL `/tmp` is separate from Windows native paths, write the reference JSON to a shared Windows-accessible directory (e.g., `/mnt/c/Temp/navmate-acceptance` in WSL = `C:/Temp/navmate-acceptance` in Windows):
 
-```bash
-python scripts/local_reference.py --feed /tmp/msm-feed --native-cache /tmp/msm-source-cache \
-  --flight-date YYYY-MM-DD --departure-time HH:MM > /tmp/reference.json
-# Run on Windows Node; CDP targets a dedicated loopback Edge/Chromium profile
-node --experimental-strip-types web/scripts/accept-local-weather.mjs \
-  --cdp http://127.0.0.1:9227 --url http://localhost:4179 \
-  --flight-date YYYY-MM-DD --departure-time HH:MM --reference /tmp/reference.json --output /tmp/acceptance.json
-```
+1. **WSL bash (generate reference JSON with Python)**:
+
+   ```bash
+   mkdir -p /mnt/c/Temp/navmate-acceptance
+   python scripts/local_reference.py --feed /tmp/msm-feed --native-cache /tmp/msm-source-cache \
+     --flight-date YYYY-MM-DD --departure-time HH:MM > /mnt/c/Temp/navmate-acceptance/reference.json
+   ```
+
+2. **Windows PowerShell (run native Windows Node against a Windows-accessible repo checkout with dependencies installed, at the repo root)**:
+
+   ```powershell
+   # CDP targets a dedicated loopback Edge/Chromium profile
+   node --experimental-strip-types web/scripts/accept-local-weather.mjs `
+     --cdp http://127.0.0.1:9227 --url http://localhost:4179 `
+     --flight-date YYYY-MM-DD --departure-time HH:MM `
+     --reference C:/Temp/navmate-acceptance/reference.json `
+     --output C:/Temp/navmate-acceptance/acceptance.json
+   ```
 
 ### Physical iPhone/iPad Safari gate and 2026-09-16 evidence
 
@@ -87,9 +97,13 @@ The compute-only backup API (`PUT/GET /api/forecast-backup/jobs/{UUID}`) is **di
 ### Cloudflare Access exposure and rollback
 
 - Only expose `/api/forecast-backup/jobs/*` on the existing host `navlog.yuto24.com` (allowed methods: `GET`, `PUT`, `OPTIONS`; allowed origin: `https://navmate.yuto24.com`; allowed headers: `Content-Type`, `X-AutoNavLog-Request`).
-- **Never** widen Cloudflare Access exceptions to old UI, `/api/session`, editing, saving, or `/api/navmate-migration/*` routes.
+- **Never** widen this backup Access exception to old UI, `/api/session`, `/api/account-link`, or editing/saving routes. Keep the existing independent Legacy migration Bypass (`only for /api/navmate-migration/*`, verifying Firebase tokens directly) intact per [firebase_account_operations.md#cloudflare-access-bypass-and-security-rules](firebase_account_operations.md#cloudflare-access-bypass-and-security-rules); do not weaken existing Access protections or close the active migration path.
 - Verify host/runtime parity, Access exception scope, origin defense, trusted proxy headers, edge rate limits, live MSM fetch & post-prepare coverage, normal recovery, and continued outage monitoring before enabling.
-- **Rollback**: Close the `/api/forecast-backup/jobs/*` Access exception, unset `AUTONAVLOG_FORECAST_BACKUP_ORIGIN` and `VITE_FORECAST_BACKUP_URL`, and revert to normal Local-only behavior without deleting saved data or `autonavlog-data` volumes.
+- **Rollback**:
+  - Close the `/api/forecast-backup/jobs/*` Access exception (keeping the independent `/api/navmate-migration/*` Bypass intact while migration remains active).
+  - Unset `AUTONAVLOG_FORECAST_BACKUP_ORIGIN` on the server and **apply the updated server configuration to the running server environment via the approved procedure**.
+  - Because `VITE_FORECAST_BACKUP_URL` is a **build-time** variable, rebuild the Static Web artifact with `VITE_FORECAST_BACKUP_URL` unset, deploy it via the approved publication procedure, and verify after loading the newly published artifact that no backup URL requests are issued (note: already-open browser tabs may retain the older build until reloaded).
+  - Preserve saved data and `autonavlog-data` volumes. (These rollback notes document the recovery boundary and do not authorize any new production operation.)
 
 ### Backup verification tests
 
