@@ -1,10 +1,11 @@
 # Issue #125: Pyodide Calculation Core
 
+> **位置づけ**: 本番の Static Web 気象取得・キャッシュ・運用仕様の正本は [Local Weather](local_weather.md) と [Static production](static_production.md) です。この文書は #125 で整備した **Pyodide Calculation Core の共有境界・固定 MSM fixture 回帰（`calculationCoreGolden` / `1e-8` 許容差）・2026-09-13 基準計測** を記録します。
+
 通常利用のLegacy FastAPI経路は変更しません。開発設定
 `VITE_CALCULATION_MODE=local` のCalculation Coreを拡張し、FTDと取得済みFORECASTを
 同じPython `CalculationService` で実行します。起動は
 [Local起動手順](local_calculation_poc.md#起動と切替)のままです。
-MSMの実予報取得・TAF取得を含むStatic Webのproduction移行完了を意味しません。
 現行の端末内Project保存は[#124 Local Persistence](local_persistence.md)、同一タブreloadは
 [#119 Application Session](application_contract.md#frontend-application-session--lifecycle-119)を参照してください。
 
@@ -142,13 +143,4 @@ data.zip 10,313,302 bytes、AutoNavLog wheel 250,505 bytes、MSM wheel 27,770 by
 別途CDNからNumPyを取得し、初回の圧縮response bodyは約3.04 MBでした。完全offline・配信/cache最適化・低memory端末回帰は
 後続Issueで扱い、#125の実機Safari FORECAST確認は引き続き未実施です。
 
-実施済みチェックはDocker test stageの747 tests、ruff/mypy、Performance/Reference検証、
-schema整合、sdist/wheel build、Web typecheck・release-notes 6 tests・Legacy/Local build、
-Chromium Local E2E 8件です。Independent Reviewのstrict Python legacy-input指摘を修正後、
-関連37 testsとPyodide代表ケースを再検証しました。
-Local Composeは1.11.6を`127.0.0.1:8123`で起動し、`/healthz`と
-既存`autonavlog_autonavlog-data` volumeの保持を確認しています。
-Safari実機FORECASTとhosted CI/reviewの結果はPRを正本とします。
-
-KML/KMZのcontent / metadata importとBrowser依存機能の境界は
-[#120 Platform Capability](platform_capabilities.md)を参照してください。
+2026-09-14 時点のローカル検証では、Docker test stage 747 tests・Chromium Local E2E 8件・Local Compose（v1.11.6, `127.0.0.1:8123`, `autonavlog_autonavlog-data` 保持）を確認した。KML/KMZ の content / metadata import と Browser 依存機能の境界は [#120 Platform Capability](platform_capabilities.md) を参照。

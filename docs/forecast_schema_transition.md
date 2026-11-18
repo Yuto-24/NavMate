@@ -1,5 +1,9 @@
 # Manual Project schema 4 → 5 transition (#423)
 
+Project schema 4 → 5（`selected_forecast_model` 追加）の手動移行契約と互換検証証拠の正本です。**2026-11-15（JST）に v2.3.2（`f1a5ef49eeab41744635232cddd51c2257871aed`）の本番公開を完了しました**（実行手順と当日の公開結果は [schema431_actions_prepare.md](schema431_actions_prepare.md) を参照）。
+
+以下は該当移行における不変境界・互換確認条件（`old_to_new` / `old_writer_coexistence` / `storage_sync_roundtrip`）・WSL helper の再現手順・WIF readback 境界を残したものであり、別の将来リリースへ本証拠を流用してはなりません。
+
 The manual transition can admit the optional forecast model addition after independent
 compatibility review. It does not authorize publication. Automatic app releases still
 reject any schema difference. Rules and indexes must remain identical; this transition
@@ -12,7 +16,7 @@ cannot be combined with a Rules transition.
 | Current v2.2.2 | `03cc463cf09192e1403f839df4165410c5db8d7b` |
 | Historical candidate v2.3.0 | `1a4cc915d1a871d9044942078d00aea90e37d340` |
 | Historical readback candidate v2.3.1 | `c717ac6baaa3d7556120d2a7f6c9435f165f132b` |
-| Current prepare candidate v2.3.2 | `f1a5ef49eeab41744635232cddd51c2257871aed` |
+| Completed v2.3.2 candidate | `f1a5ef49eeab41744635232cddd51c2257871aed` |
 | Before Project schema blob | `b3bdd7e593eb9a7c6257994762934c35cfdda430` |
 | After Project schema blob | `d19086279b8f903d0c6209ab9e5065974af5d294` |
 | Candidate Local repository blob | `5b6178c23ed9788f08b465d9003088e4ad9e2978` |
@@ -75,7 +79,7 @@ Actions側のcandidate、Release/tag、候補CI、証拠hash・pathをそのiden
 
 helperはActions側のpinやSecretを変更しない。新記録は更新後のpackで元バイトhash・identityと
 転送容量48,000バイトを確認する。旧転送が収まったことは、新報告の容量保証にはならない。
-freshな本番照合、隔離build・static E2E、prepare/publishとその承認は後続工程に残る。
+この後の実際の Actions による v2.3.2 prepare/publish 実施記録（2026-11-15 完了）は [schema431_actions_prepare.md](schema431_actions_prepare.md#2026-11-15の公開結果と次回への知見) を参照。
 
 実行にはPython 3.12と固定toolingのPython依存、Git、既存の `gh` 認証が必要。
 Node.js、Docker、Cloudflare/Google認証は使わない。helperのレビュー済みcommitをcheckoutし、
@@ -221,9 +225,7 @@ may the operator use the existing `publish` command with the same arguments and
 source/configuration/tooling checks, fresh build, upload seal, pause/idle checks and
 canonical verification remain in force. Drift requires new prepare and review.
 
-No real prepare/publish, workflow pause/resume, `STATIC_APPROVED_SHA` change, Rules
-write, Release/tag recreation or production acceptance was performed by this issue's
-implementation. Once authorized publication occurs, complete the existing production
-acceptance and approved-SHA handoff before resuming automation. A failed or uncertain
-operation follows the existing journal/recovery procedure; do not strip forecast
+5. Complete production acceptance and approved-SHA handoff before resuming recurring automation (see [the manual operation window](static_operations.md#wsl-からのアプリ更新-prepare--publish) and [schema431_actions_prepare.md](schema431_actions_prepare.md)).
+
+For the v2.3.2 transition, execution completed via `static-app-release` on 2026-11-15 JST ([result record](schema431_actions_prepare.md#2026-11-15の公開結果と次回への知見)). A failed or uncertain transition operation follows the existing journal/recovery procedure; do not strip forecast
 models, roll back to a schema-4 writer, clear storage or overwrite newer work to recover.

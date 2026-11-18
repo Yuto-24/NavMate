@@ -1,4 +1,6 @@
-# One-way storage transition implementation validation
+# One-way storage transition implementation validation (historical 1.x/2.x probe)
+
+1.x ストレージ移行（[schema_transition.md](schema_transition.md)）の実装時に実施したローカル検証記録であり、本番 PASS 証跡ではありません。**再利用可能な知見**: (1) version 境界を跨ぐ計算鮮度プローブでは、同一環境メタデータの共有ではなく対象版のパッケージをインストールし直す必要があること、(2) `restore_working` は履歴計算を保持し、stale LastCalculation の除去は明示的な `AccountProjectRepository.resolve`（`prepareSyncResolution`）のみで行うこと。
 
 These are local implementation results, not a production PASS attestation. The
 fixed 1.x application is `eeea630f831ecb213e6de46518d70133cf215f3c`

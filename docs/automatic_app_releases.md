@@ -1,5 +1,7 @@
 # Stable Releases to Serverless production
 
+安定版 GitHub Release（`vX.Y.Z`）が公開された際、Rules・indexes・Project schema が不変の通常更新に限り `static-app-release.yml` が `https://navmate.yuto24.com` へ自動公開する契約の正本です（`STATIC_APP_RELEASE_ENABLED == true` で有効化）。
+
 After explicit activation, a published stable `vX.Y.Z` GitHub Release is the app
 publication authorization for unchanged access/data contracts. Ordinary PR merges
 do not publish the app. `release/1.x`, `release/2.x` and `main` target the existing
@@ -95,7 +97,9 @@ Token expiry, cancellation or timeout fails closed; inspect remote state before
 any retry. The safe stage/status/mutation summary goes to the Actions summary.
 Detailed plan and journals are private runner-temp files, not uploaded as public
 artifacts; they may be unavailable after runner teardown, so use read-only provider
-state for recovery when necessary. Do not log tokens or candidate command output.
+state for recovery when necessary. `Journal.finish()` keeps the full journal private
+and prints only `status`, `review_sha256`, and `plan_sha256` to stdout. Do not log
+tokens or candidate command output.
 
 ## Activation prerequisites and first publication (separate authorization)
 

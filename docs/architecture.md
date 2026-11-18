@@ -1,119 +1,51 @@
 # アーキテクチャ
 
-React SPAは共通Application contractを呼び、Legacy HTTPまたはLocal Browser Adapterへ接続します。
-[Frontend Application境界](application_contract.md)を参照してください。以下はLegacy側の構成です。
-WebやMSM固有の型を計算コアへ持ち込みません。
+NavMate の全体構成、Static Web 本番経路と Legacy runtime の位置づけ、計算コアの独立性、永続化と表示投影の責務分担を定めます。
+
+## 実行構成（Static Web 本番と Legacy 検証経路）
+
+- **正式本番経路（Static Web / Local-first）**：**React SPA + ブラウザ内 Python / Pyodide（Local 計算）+ ブラウザ内永続保存**（任意で Google ログイン・アカウント同期）で構成します。通常の画面操作・Project 保存・NAV LOG 計算はブラウザ内で完結し、FastAPI や Docker サーバーを必要としません。
+- **Legacy 経路（移行・検証用）**：従来の FastAPI + Docker Compose 環境は、移行期間中のアカウント連携・移行サービスおよび参照実行系として維持します。
+- **共有計算コア**：航法計算・性能補間・Readiness 判定・NAV LOG 表示投影を担う Python 計算コアは Web 固有型や HTTP / ブラウザ保存 I/O に依存せず、Static Web と Legacy の両方で共有します。同一の入力・性能データ版・方針版・Forecast Run からは決定論的に同一の結果を生成します。
 
 ```text
 React SPA
-        |
-FastAPI Web facade / ProjectService / CalculationService / ForecastService
-        |                                      |
-        |                              DestinationTafProvider
-        |                                      |
-Project / AdoptedValue / CalculationOutcome
-        |
-nav + performance policies
-        |
-WeatherProvider           ProjectRepository
-   |                             |
-Msm/Fake/FTD adapter       Local adapter
+   └─ 共通 Application 契約（Local 実行 / Legacy 接続、失敗時の自動フォールバックなし）
+         ├─ Local: ブラウザ内計算コア + 端末内永続保存 + 静的気象フィード / TAF Proxy
+         └─ Legacy: 検証用サーバーファサード + サーバー永続保存 + 気象取得プロバイダ
+               └─ 共通 Python 計算コア（計画・航法・性能計算・表示投影）
 ```
 
-`CalculationService.calculate()`はProjectをdeep copyし、同じ入力、性能データversion、
-Policy version、Forecast Runから同じ結果を生成します。以下のWeb sessionはLegacy内部の状態です。Frontendのタブ単位reload復元は
-[Application Session](application_contract.md#frontend-application-session--lifecycle-119)を参照してください。
-Legacyでは
-Project入力と最後に正常完了した計算はlocal repositoryにも永続化し、新しいsessionで復元します。
+詳細は [Application 境界と Session](application_contract.md) および [Browser Platform 境界](platform_capabilities.md) を参照してください。
 
-Project保存は4層に分けます。
+## Project 保存と計算結果の分離
 
-- `project.json`: 明示保存したrevision付きcheckpoint。
-- `autosave.json`: server validationを通過した最新draft。読込時はcheckpointより優先します。ownerごとに
-  autosave-only Projectは1件だけ`Latest`として一覧・明示読込・削除の対象にし、次の正常なdraft commit後は
-  古いautosave-only Project directoryを自動削除します。
-- `last-calculation.json`: schema v1の1件固定レコード。計算時Projectのdeep snapshot、
-  `CalculationOutcome`、目的地風、Forecast Run・metadata、計算fingerprint、保存時刻を保持します。
-- `owners/{owner-key}/state.json`: schema v2で、ownerごとの`last_opened_project_id`、
-  `latest_draft_project_id`、削除再試行対象を保持します。owner keyはdomain-separated SHA-256で作り、
-  生identityをpathへ含めません。v1の単一markerは安全に移行します。
+### Local（Static Web）の保存層
 
-Project mutationは、更新後Projectを検証してautosaveへatomic writeし、owner stateのLatest/route-confirm時の
-last-opened更新も同じmarker writeで確定してから、成功した場合だけsessionへcommitします。新しいLatestを
-確定してからだけ旧autosave-only Projectをbest-effortで削除し、失敗時は一覧から隠してmarkerのretry対象へ
-残します。明示保存は同じdraftをautosaveした上でcheckpointのrevisionを進めます。checkpoint確定後の
-Latest marker整理が失敗しても、checkpoint/revisionを巻き戻したり保存APIを失敗扱いにしたりしません。
-計算完了時は、
-effective BlockerのないREADYまたはwarning結果だけをself-containedなlast-goodとしてatomic replaceし、
-同じProjectをautosaveします。例外、中断、blocked outcome、単なる編集は既存last-goodを消しません。
+ブラウザ内の永続保存領域により、一時的な同一タブ再読み込み用復元および破棄可能な気象キャッシュとは独立して、明示保存チェックポイント、検証済み最新下書き、最後に正常完了した計算結果、および単一の自動保存（Latest）を保持します（詳細は [Local Project 永続化契約](local_persistence.md)）。
 
-新sessionはowner marker、owner一致確認、autosaveまたはcheckpoint、last calculationの順で復元します。
-Projectの明示読込も同じ経路を通ります。現在draftのfingerprintが計算時snapshotと異なる場合、
-NAV LOGは直前の正常結果として維持し、`RECALCULATION_REQUIRED`かつ
-`calculationIsCurrent=false`とします。RJFM数値案内はさらに現在の参照identityとも一致する場合だけ
-表示します。markerが欠落・破損・owner不一致ならProjectを自動選択せず、blank sessionとowner内の
-Project一覧を返します。
+### Legacy（サーバー側）の 4 層構造
 
-staleなLast Calculationのissuesは結果内に保持しますが、現在の準備状況には合成しません。
-現在の参照データ・入力・経路・Phaseを検証し、過去のBLOCKERだけで再計算を止めないようにします。
-再計算がBLOCKERを返した場合も、保存済みlast-goodは保持します。場周高度の未反映入力を
-復元した場合は、手動再計算時の厳密な保存・検証で反映します。
+Legacy 環境では、Project 入力と最後の正常計算をサーバー上の永続ボリュームに 4 つの役割へ分けて保持します。
 
-各保存pathはUUIDまたはopaque owner keyから決定し、root逸脱とsymlinkを拒否します。書込は一時fileの
-検証後にreplaceし、read-backも検証します。壊れたautosaveは有効なcheckpointへfallbackし、壊れた
-last calculationは固定名へ隔離してgeneric warningとserver logを残します。Project削除は明示操作だけで、
-一致するowner markerもclearします。
+| 保存する情報 | 目的と振る舞い |
+| --- | --- |
+| 明示保存チェックポイント | 利用者の明示保存ごとにリビジョン管理される確定版 |
+| 自動保存ドラフト | 検証を通過した最新下書き（読込時はチェックポイントより優先）。所有者ごとに未名前付き保存を 1 件だけ `Latest` として管理 |
+| 直前の正常計算記録 | 計算時の計画スナップショット、計算結果、目的地風、気象来歴、入力整合性情報、保存時刻を保持する単一記録 |
+| 所有者状態管理 | 所有者ごとに最後に開いた Project や `Latest`、削除再試行対象を管理（パスに生識別子を含めない） |
 
-Composeの`autonavlog-data` named volumeがProject repositoryを保持します。同じCompose projectで
-`git pull`、image build、`docker compose up -d --force-recreate`を行ってもLast draft、last-opened、
-last-good calculationは復元できます。`docker compose down -v`またはvolumeの明示削除はこの永続状態を
-削除します。
+### 共通の不変条件
 
-MSM / GSMのmodel spec、Run discovery、coverage、GRIB2 decode、補間、provenanceは
-`jma-gpv-weather==0.6.0` の公開APIを正本とします。NavMateのadapterは型、request ID、
-単位境界、既存の入力検査と表示metadataを変換します。地上気温も公開
-`SurfaceTemperatureQuery` を使用し、private compatibility branchは廃止しました。
-Localでは静的供給された `MsmPreparedData` / `GsmPreparedData` をWorkerで必要時に取得・検証し、
-Legacyと同じモデル別Providerへ接続します。MSM優先・coverageだけを理由にしたGSM切替、
-固定model + Runと2クリック更新、最終Requirementでの全体再計算はアプリの責務です。
-[Forecast selection](forecast_selection.md)にpolicy、fingerprint、provenanceを定義します。
-Calculation CoreへHTTP、Browser storage、source URL選択を追加しません。
-[Local Weather Adapterと静的feedの運用](local_weather.md)を参照してください。
+- **失敗時の状態保護**：計算中の例外・中断・ブロッカー判定・単なる入力編集によって、すでに確定保存されている直前の正常計算結果や保存済み Project は上書き・消去されません。
+- **再計算要否（stale 判定）**：現在の作業中入力が保存済みの計算時スナップショットと異なる場合、NAV LOG は直前の正常結果を表示したまま「再計算が必要」として扱います（RJFM 数値案内も現在の参照データと一致する場合のみ表示）。古い計算の課題は現在の準備状況に混入させません。
+- **原子的保存と破損隔離**：保存時は検証を伴う原子的置換を行い、破損した自動保存は有効なチェックポイントへフォールバックし、破損した直前計算記録は隔離して通常操作を妨げません。
 
-ProjectがFTDモードの場合、Web facadeは実気象adapterの代わりにProject内の地上風・
-5,000 ft風から`FtdWeatherProvider`を組み立てます。計算コアは通常の`WeatherProvider`契約だけを
-参照するため、気象要求、反復、手動overrideの経路を分岐させません。
+## 気象・目的地 TAF と表示投影
 
-`DestinationTafProvider`は、計算完了後に目的空港と到着予定時刻を受け取り、
-AviationWeather.govのTAFから卓越風を選びます。結果はWeb sessionとlast-good計算recordへ
-保持するとともに、
-NAV LOGの独立した`DESTINATION_INFO`行へ表示します。到着区間のWCA、MH、GS、ETE、
-燃料には反映せず、同区間はTAF取得成否にかかわらずCALMで計算します。通信やTAF時刻範囲の
-不一致はNAV LOGのBlockerにせず、目的空港情報行の風を`UNAVAILABLE`として表示します。
-FTDモードではTAFを取得せず、同欄へ`FTD_MODE_NO_TAF`を明示します。
+- **気象モデルの共有境界**：MSM / GSM のモデル仕様・探索・復号・補間・来歴は気象ライブラリ（`jma-gpv-weather`）を正本とし、アプリケーションはモデル優先順位・Run 固定・入力不変時の再計算による最新 Run 更新・最終要求条件での再計算を制御します（[気象モデル選択](forecast_selection.md) / [再計算と Run 更新](forecast_refresh.md) / [Local Static 気象運用](local_weather.md)）。計算コア自体は HTTP やブラウザ保存領域へ直接アクセスしません。
+- **FTD モード**：Project が FTD モードの場合、地上風と 5,000 ft 風から固定気象を構成して共通の気象契約へ接続し、計算コア内の分岐を増やしません。
+- **目的地 TAF の独立性**：目的地と到着予定時刻に対応する TAF の卓越風を NAV LOG の独立した目的地情報欄へ参考表示しますが、到着区間の航法計算（WCA・MH・GS・ETE・燃料）は TAF の取得成否にかかわらず CALM 固定で影響を受けません。通信失敗や時刻範囲外は計算ブロッカーにしません（FTD モードでは TAF を取得しません）。
+- **表示専用投影**：重なりのない計算区間（Calculation Zone）が距離・時間・燃料の唯一の集計元です。NAV LOG 表示モデルは計算コア側で生成する表示専用投影（Physical Leg 小計、継承空欄、PA 記号、目的地情報行、区間区切りを含む）であり、フロントエンド側で合計を再集計しません。
 
-`CalculationOutcome.sections`は重複しないCalculation Zoneであり、距離・時間・燃料の
-唯一の集計元です。`display_rows`は`sections`から作る表示専用投影で、Physical Leg小計、
-継承空欄、PA記号、目的空港情報、Leg間区切りを含みます。Reactは
-`NavLogDisplayCell.text`を表示し、display projectionから合計を作り直しません。
-
-Local CalculationはPython / Pyodideを採用し、Static Webを主方式として継続します。
-採用根拠・性能/外部気象の制約・後続Issueは
-[Architecture Decision](local_calculation_poc.md#architecture-decision-2026-09-13)を参照してください。
-上記FastAPI構成は移行中のLegacy runtimeとして維持します。
-
-取得済みFORECASTを含むPyodide Coreの適用範囲・固定MSM fixture・Run固定・
-Reference維持条件は[Calculation Core](local_calculation_core.md)を参照してください。
-
-## Local durable Repository (#124)
-
-Local Browser mode uses the IndexedDB Repository described in [local_persistence.md](local_persistence.md).
-Project checkpoint/draft and Last Calculation are independent of ephemeral tab recovery and disposable
-Weather cache. The server persistence semantics above remain Legacy-only.
-
-## Platform Capability (#120)
-
-[Platform Capability境界](platform_capabilities.md)へFile / Clipboard / 外部URL /
-通信状態と保存先アクセスを集約します。起動時にBrowser実装とfile picker/drop controlを
-注入し、Domain / Calculation Coreは依存させません。Session復元方針と#124の
-Project / Latest / migration / transaction semanticsはそれぞれ既存境界に残します。
+> **参考（PoC 採用判断・固定基準・運用手順）**：Python / Pyodide の採用判断記録は [local_calculation_poc.md](local_calculation_poc.md#architecture-decision-2026-09-13)、固定 MSM 回帰基準は [local_calculation_core.md](local_calculation_core.md)、Static Web 本番配信は [static_production.md](static_production.md) を参照してください。

@@ -7,8 +7,8 @@
 既定はネットワークへ接続しないオフライン事前検査です。次をすべて検査し、不足や不整合を
 `SKIP`にせず終了コード1の`FAIL`にします。
 
-- インストール済みdistribution、import済みmodule、adapterがすべて
-  `jma-msm-wind==0.2.1`
+- インストール済み distribution、import 済み module、adapter がすべて
+  `jma-gpv-weather==0.6.0`（正本実装は `src/autonavlog/weather/real_msm_acceptance.py`）
 
 ```bash
 python scripts/validate_real_msm_release.py \

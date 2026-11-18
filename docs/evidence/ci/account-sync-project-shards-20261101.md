@@ -1,18 +1,14 @@
-# Account Sync project shards
+# Account Sync project shards (2026-11-01)
 
-## Purpose and dependency
+## 結論と適用条件
 
-Split the remaining Account Sync critical path across ordinary GitHub-hosted runners without
-reducing tests. PR #326's readiness/encoding and verified release-base fixes are now in main
-at `b42f1b3c082b60452aa016c807d68000cc3bdf6b` and are inherited unchanged, not duplicated in
-this diff. This PR targets main, which now includes PR #330's Local/Python split and PR #333's MSM forecast coverage. The PR diff itself remains limited to Account Sync sharding. No paid runner, permissions/protection change, main merge, or deployment is part
-of this change.
+Account Sync E2E を `chromium` / `ipad-webkit` / `iphone-webkit` / `contracts` の 4 runner へ分割し、各 runner が独立した Firestore emulator を起動する設計記録である（現行 CI の完全な分割一覧・さらに進んだ 2 分割は [testing.md](../../testing.md#independent-ci-shards) と [impact-selection-20261110.md](impact-selection-20261110.md) を正本とする）。
 
-The main synchronization resolves adjacent workflow job names, documentation, and runtime matrix
-assertions by preserving all three shard configurations. Main's VERSION and CHANGELOG are unchanged.
-The release-source regression suite includes all 109 checks from the merged dependency.
-Fresh hosted CI is required for this synchronized head; earlier stack CI is not evidence for
-the new integrated Local/Python/Account Sync configuration.
+## 設計判断と再現可能な境界
+
+Split the Account Sync critical path across ordinary GitHub-hosted runners without reducing tests, keeping readiness/encoding fixes (`b42f1b3c082b60452aa016c807d68000cc3bdf6b`) and Local/Python/MSM coverage intact. No paid runner or permissions/deployment change is required.
+
+The aggregate `account-sync` check uses `always()` and checks only the `account-sync-tests` matrix results (`account-sync` does not depend on `web`). Shard-union collection parity (`sync`, `sync-component`, and `local` full Playwright collection vs. shard/profile selections) plus non-empty collection-error checks (`notification` and `contracts`: `firestore`, `storage-upgrade`, `migration`) and workflow matrix checks are verified in the `web` job via `web/scripts/check-account-sync-partition.mjs`, so failures propagate through `web` and `ci-required`.
 
 ## Suites and independent state
 
@@ -37,13 +33,7 @@ Sync keeps `--workers=2` without `fullyParallel`; a single project/file can use 
 preserving its internal ordering. This change adds CPU isolation across projects rather than
 increasing same-runner concurrency. Each failure artifact includes its suite name.
 
-The aggregate `account-sync` check retains the previous check name. `always()` makes it evaluate
-failed/cancelled/skipped/missing prerequisites; its first command accepts only success. Proven
-docs-only changes retain the original skip behavior. The aggregate also compares full Playwright
-collection with the union of all three project selections. A new unassigned project, duplicate,
-empty selection, or collection error fails rather than silently shrinking coverage. Contracts
-uses whole configs (not project filters), since storage and migration project names differ from
-sync and migration intentionally has no iPhone project.
+The aggregate `account-sync` check retains the previous check name and inspects only the `account-sync-tests` results (`always()` makes it evaluate failed/cancelled/skipped/missing prerequisites; its command accepts only success, while proven docs-only changes retain the original skip behavior). The `web` job runs `web/scripts/check-account-sync-partition.mjs`, which checks full Playwright collection vs. shard/profile union parity for `sync`, `sync-component`, and `local` (failing on unassigned, duplicate, empty, or collection errors within those suites), checks `notification` and `contracts` (`firestore`, `storage-upgrade`, `migration`) for collection errors and non-empty collections without an execution-target union comparison, and separately verifies the `.github/workflows/test.yml` matrix definitions for `account-sync-tests` and `local-browser-tests`. These failures propagate to `web` and `ci-required`, not to `account-sync`. Contracts uses whole configs (not project filters), since storage and migration project names differ from sync and migration intentionally has no iPhone project.
 
 ## Evidence and verification
 

@@ -1,10 +1,12 @@
-# #123 production activation audit — 2026-09-26 JST
+# #123 initial production activation audit — 2026-09-26 JST
 
-This is an in-progress audit. Do not use it as evidence that production automation
-or the #123 acceptance criteria are complete. The #121 production acceptance
-remains recorded separately in `../issue-121/remote-production-2026-09-24.md`.
+> **過去の初期構築監査（2026-09-26 時点）**: 当日の環境初期設定（`navmate.pages.dev` v1.20.1、シークレット未登録、スケジュール `skipped`、ローカル Wrangler OAuth 期限切れ 401）の観測記録です。現行の運用手順・設定境界は [static_operations.md](../../static_operations.md) を正本とし、本記録を現在の本番設定として参照しないでください。
 
-## Initial state and configured GitHub settings
+**再利用可能な教訓**:
+- GitHub Actions の定期実行が `skipped` で終了した履歴は、実際の MSM 更新・監視成功の証拠にならない。
+- ローカル Wrangler OAuth の期限切れによる 401 時は、新規資格情報を作成せず認証経路の整合を確認する。
+
+## Initial state and configured GitHub settings (2026-09-26)
 
 - At 2026-09-26 02:51 JST, `navmate.pages.dev/release.json` reported clean
   v1.20.1 from `a4de2a226dfa205b8be42fb62a710a1b06271ed8`, matching #121.
@@ -19,17 +21,14 @@ remains recorded separately in `../issue-121/remote-production-2026-09-24.md`.
   `CLOUDFLARE_ACCOUNT_ID`, and the six public `VITE_*` values from the canonical
   release. No secrets were put in repository variables.
 - GitHub environments `static-production`, `static-publication`, and
-  `static-validation` now restrict deployments to branch `main`.
+  `static-validation` were configured on that date to restrict deployments to branch `main`.
   `static-production` has no reviewer so an approved recurring schedule can run
-  unattended. `static-publication` requires owner review for one-off publishing.
-  The workflow change routing one-off publication to that separate environment
-  is pending review and merge; schedules remain disabled.
-- Neither environment has `CLOUDFLARE_PAGES_TOKEN`. `STATIC_QUOTA_REPORT`,
-  `STATIC_MONITOR_ENABLED`, and `STATIC_AUTOMATION_ENABLED` are unset. No
-  production upload or rollback was attempted. The existing Wrangler OAuth
-  credential expired on 2026-09-24 and the Cloudflare API returned HTTP 401.
+  unattended. `static-publication` requires owner review for one-off publishing (subsequently kept unchanged when `static-production` was adopted for forecast-only runs on 2026-10-28).
+  At the 2026-09-26 audit, schedules were disabled and neither environment had `CLOUDFLARE_PAGES_TOKEN`. `STATIC_QUOTA_REPORT`,
+  `STATIC_MONITOR_ENABLED`, and `STATIC_AUTOMATION_ENABLED` were unset, and the local Wrangler OAuth
+  credential had expired on 2026-09-24 (HTTP 401).
 
-## Evidence still required
+## Evidence identified as remaining on 2026-09-26 (subsequently tracked in #123 / #281)
 
 - Current target-bound Cloudflare Free, Firebase Spark and disabled billing,
   plus account-shared usage observations for every quota metric in

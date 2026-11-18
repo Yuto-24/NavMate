@@ -1,14 +1,7 @@
-# Issue #117: Pyodide checkpoint
+# Issue #117: Pyodide checkpoint & Architecture Decision
 
-> #144以降の実MSM取得・cache・静的feed運用は [Local Weather](local_weather.md) を参照してください。
-> 以下の固定fixture記述と計測は #125 時点の履歴です。通常のLocal production経路はfixtureを使いません。
-
-> この文書のcheckpointは履歴です。#125によるFTD/FORECASTの拡張・現行制約・
-> Safari実機確認条件は[Calculation Core](local_calculation_core.md)を参照してください。
-> 現行のSession復元は[#119のApplication境界](application_contract.md)、端末内保存は[#124のLocal Persistence](local_persistence.md)を参照してください。
-
-今回はPython / PyodideによるKML → 経路候補選択・確定 → FTD入力 → 計算 →
-NAV LOG表示の検証用checkpointです。#117を完了・採用決定とは扱いません。
+> **位置づけ（履歴と採用決定）**: 2026-09-13 の Architecture Decision により **Python / Pyodide（Static Web / Local-first）を正式採用** しました（[Architecture Decision: 2026-09-13](#architecture-decision-2026-09-13)）。
+> 本番 Static Web の現在の仕様は [Static production](static_production.md)、実 MSM/GSM 配信は [Local Weather](local_weather.md)、Session 復元は [Application boundary](application_contract.md)、端末内保存は [Local Persistence](local_persistence.md)、Pyodide FORECAST 回帰基準は [Calculation Core](local_calculation_core.md) を正本として参照してください。以下の #117 本文は PoC 時点の開発・計測記録として保持しています。
 
 ## 起動と切替
 
@@ -135,35 +128,11 @@ Python integrationはCalculationServiceの例外時にもlast-goodが保持さ�
 
 ## Checkpoint時点で保留した判断
 
-PR #162時点で保留した実機評価・性能計測・MSM/TAF feasibility・最終採用判断は、
-下記Architecture Decisionで整理しました。Rust/WASM・TypeScript PoCは実施しません。
-#118/#119/#120/#121/#124/#125の本格移行、PWA、完全offline、KMZ、
-進捗UI(#159)、キャンセル(#160)、本番配信はこのcheckpointに含めません。
+## 初期 PoC チェックポイントの検証範囲（#117 初期段階）
 
-## Checkpointで確認した結果
+PR #162 以前の初期 PoC 段階では、Docker test stage（ruff / mypy / pytest 743件 / schema / sdist・wheel ビルド）、Web typecheck・release-notes 6件・Legacy production build、静的 production / Vite での Golden（TTL DIST 125.5 NM, TTL TIME 0:57）・強風 Warning/Blocker（`WIND_TRIANGLE_FAILED` / `ITERATION_NOT_CONVERGED`）・API 遮断下 0 request・1,100/1,440 px 配置を確認した。Local wheel 約 249 KB、同梱 data zip 10,066,340 bytes で、Rust/WASM・TypeScript PoC・本格移行機能（#118/#119/#120/#121/#124/#125 等）は対象外とした。
 
-- Docker test stage: ruff、mypy、pytest 743件、Release source、Performance/Runtime data、
-  schema整合、sdist/wheel buildが成功。Pythonの計算仕様は変更していません。
-- Web typecheck、release-notes 6件、DockerのLegacy production buildが成功。
-- 静的productionとViteのGolden・失敗・配置testsが各5件成功。
-  強風Warning/Blocker差分testも追加し、静的productionとViteで成功しました。
-- GoldenはTTL DIST 125.5 NM、TTL TIME 0:57。全比較項目が上記許容差内で一致。
-  強風caseはWIND_TRIANGLE_FAILEDなどのBlockerとITERATION_NOT_CONVERGEDなどの
-  Warningをそのまま表示し、成功へ置き換えません。
-- APIをabortし、Browser context内のWorkerを含むrequestを監視して0件を確認。
-- Local wheelは約249 KB、同梱data zipは10,066,340 bytes。
-  このほかにPyodide runtimeとpackageのnetwork転送が必要です。
-- 1,100/1,440 pxの座標検証と画面確認を実施。Linux/WSLのPlaywright Chromiumでの
-  自動検証であり、Windows Chromium/iPhone Safariの正式な実機評価ではありません。
-- 別モデルによる独立レビューで指摘されたLegacy favicon欠落と計算後失敗のbrowser
-  coverage不足を修正し、再レビューで未解決指摘なしとなりました。
-
-初期host検証では旧インストールmetadataのversion testが1件失敗しましたが、
-既存uvで1.11.4へ更新後のversion testsは成功しています。root所有の既存web/distへ
-host buildを書き込めなかったため、Legacy buildはDockerで検証しました。
-これらはPyodideの不成立理由ではありません。
-
-
+<a id="architecture-decision-2026-09-13"></a>
 ## Architecture Decision: 2026-09-13
 
 **採用: Python / Pyodide。Static Web / Local-firstを主方式として継続する。**

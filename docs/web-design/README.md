@@ -1,332 +1,40 @@
-# NavMate Web design system
+# NavMate Web デザイン・レイアウト仕様
 
-This directory freezes the implementation reference for the responsive Web UI.
+NavMate のレスポンシブ Web UI における画面構成、レイアウト契約、主要コンポーネント仕様、および表示・通知ルールを定めます。
 
-## Concept images
+> **現在の基本レイアウト契約（#416）**：経路作成・再編集および飛行計画は **「1 つの MAP ＋ 1 つの操作ペイン」** で構成します。画面幅 **700 px 超** では左に MAP・右に操作ペインを並べ（操作ペインの内容のみスクロール）、**700 px 以下** では MAP を操作ペインの前に配置して入力欄へ重ならないようにします。準備状況（Readiness）と計算操作は操作ペインのフッターに置き、NAV LOG（サマリー → 横スクロール表 → TIME / FUEL PLAN → 案内）をワークスペースの下に配置します。
+> 過去の 2026-08-13 コンセプト画像（`primary-workspace.png` / `calculated-review.png`）は、グリーンテーマ導入および #132 / #218 / #416 / #443 改訂前の歴史的参考資料としてのみ保持しています。
 
-- `primary-workspace.png`: KML/KMZ import, flight-plan input, route map, and
-  readiness status in one desktop workspace.
-- `calculated-review.png`: calculated NAV LOG and confirmation items.
+## ビジュアル方針と配色・書体規模
 
-The images are visual references only. All labels, inputs, tables, map markers,
-and actions remain code-native and accessible.
+- **配色分離**：パイングリーンを基調としたブランドカラーを採用し、警告（アンバー）・エラー/ブロッカー（赤）・航空地図/経路ライン（ネイビー）・VREP/手入力/自動成功（ティール）の色分けと明確に分離します。
+- **クリーンな背景**：背景は純白とし、グラデーション・発光効果・装飾用カードは使いません（影は一時オーバーレイ専用）。
+- **フォーカス可視性**：選択中コントロールはチェック記号や下線を保持し、キーボード操作時は高いコントラストのフォーカス枠を常に視認できるようにします。
+- **文字規模の基準**：見出し（ページ 22–24 px、セクション 16–18 px）、操作コントロール（14 px 太字）、表・本文（13–14 px）、補足（12 px・行高 1.5 以上）の階層を維持します。
 
-## Tokens
+## 画面構成とコンポーネント仕様
 
-| Token | Value | Use |
-| --- | ---: | --- |
-| `--brand-950` | `#194638` | headings |
-| `--brand-900` | `#225c4d` | primary actions |
-| `--brand-800` | `#1b4b3f` | action hover |
-| `--brand-accent` | `#225c4d` | selected controls and focus |
-| `--color-navy-950` | `#0b1f33` | aviation point indices and map tooltip text |
-| `--color-navy-800` | `#173b5e` | route line |
-| `--color-teal-700` | `#0c7c78` | VREP/manual values/automatic success |
-| `--color-amber-700` | `#a8660d` | confirmation items |
-| `--color-red-700` | `#b42318` | blockers and unavailable values |
-| `--color-slate-50` | `#f7f9fb` | utility rails |
-| `--color-slate-200` | `#d8e0e8` | borders and dividers |
-| Body text | `#252c35` | charcoal text on white |
-| `--color-white` | `#ffffff` | primary canvas |
-| `--radius-sm` | `6px` | fields and compact controls |
-| `--radius-md` | `10px` | purposeful panels |
+- **スティッキーヘッダー（56 px）**：NavMate アイコン、現在の Project メニュー、Save、New、Account、More（「その他」）を全画面幅（320 px 以上）で **1 行** に収めます（デスクトップでは製品名 `NavMate` も表示）。Project 名はボタン上で省略表示しつつツールチップとパネル内で全文を表示し、パネル内に名前編集・改訂・保存済み Project の開く／削除操作を持ちます（一覧選択だけでは開きません）。**630 px 以下** では製品名と Save/New の文字を隠してアイコン表示（40 px タップ領域およびアクセシブル名は維持）とします。
+- **Account / More パネル**：Account ボタンはログイン状態に応じたアイコンと状態入りラベルを持ち、ダイアログはヘッダーに遮られない最前面へ表示します。More アイコンは通常の未読ドット（緑）または既知の不具合更新ドット（アンバー）を示し、パネル内に「お知らせ」、バージョン、地上準備用ツール説明、保存先案内を含みます（More を開いただけでは既読にならず、「お知らせ」を開いた時点で既読）。キーボードの Escape や外側クリックで閉じ、元のボタンへフォーカスを戻します。
+- **ワークスペースと操作動線**：
+  - 初期 MAP 画面（#174/#416）では、デスクトップ幅で主役の MAP の横にコンパクトな 320 px 下書きカードを配置し（700 px 以下では MAP の下）、48 px の KML/KMZ 取込・貼り付け操作と確定ボタンを揃えます。複数候補がある場合は選択ダイアログを経て共有下書きへ入れます。MAP は全画面表示とキーボード／タッチ復帰に対応し、切替時に表示状態や表示範囲をリセットしません。
+  - 経路確定後は、Planning 画面が表示されたタイミングで計画の `DATE` 入力欄へスクロールおよびキーボードフォーカスを移動します（保存エラーがある場合もエラー表示を視認できる位置を保ちます）。確定済み経路では KML/KMZ の情報とアクセス可能な領域名を保持し、ファイル名と内包ファイル名が完全一致する場合のみ重複見出しを省きます。
+  - 飛行計画欄は `DATE`、`ETD JST`（`HH:mm` 直接入力に加え 24 時間時計ダイアログ選択可、キャンセル／Escape で破棄し AM/PM は不使用）、KML/MAP 由来の `FROM`/`TO`、`FUEL`（既定 90 gal）、`RUN UP`、ノーズフェアリング、`A/C`、`VAR`、`TGL` を持ちます。
+  - 経路タイムラインでは地点と発信 Leg を区別し、TC・MC・距離・巡航高度・Flight Phase は Leg 側に属します。高度は任意値選択時のみ直下に数値入力欄・単位および必要に応じた警告を表示します。
+  - Check Point（#224/#272）は対象 Leg の `CPを追加` → 地図クリック（再クリックで確定前に位置差替可）→ 名称入力（Enter キーと追加/保存ボタンが同一動作。**IME 変換確定中は送信しない**、連続押下や保存中の重複送信を抑止）で登録し、Leg 上の距離順に一覧表示・改名・削除できます（名前欄が上下に揺れる警告ではなく画面高さを変えない通知とし、範囲外地点を別 Leg へ自動付替えしません）。
+  - 操作ペインのフッターにコンパクトな Readiness サマリーと計算ボタンを置き、「詳細」展開で次の操作・参照来歴・ブロッカー（新規発生時は自動展開）・要確認事項・承認操作を表示します。
 
-The green brand palette is separate from warning, error, aviation-map, VREP,
-and manual-value colors. Selected controls retain checked markers or underlines;
-keyboard focus uses a solid pine-green outline on white, and a white inset on selected segments.
-Custom radio controls use `:focus` for their visible focus treatment: WebKit
-can clear `:focus-visible` after arrow-key selection while retaining DOM focus.
-`map-checkpoint.spec.ts` covers Tab entry and arrow-key selection in both engines.
-The historical fidelity ledger below predates the green theme.
+## レスポンシブ配置・文言ロック・お知らせ
 
-The primary background is true white. There are no gradients, glow effects, or
-decorative cards. Shadows are reserved for temporary overlays.
+- **レイアウト境界**：700 px 超（820 / 1100 / 1240 / 1440 px 含む）では左 MAP・右操作ペイン（操作内容のみスクロール）とし、700 px 以下では MAP の後に操作ペインを配置し入力欄の上へ固定表示しません（1,240 px 前後の広い画面遷移でもワークフロー領域の順序を維持）。どの画面幅でもブロッカー・確認操作・必須出典・計算理由・地図上の OpenStreetMap 出典（空マップ時含む）を隠しません。
+- **文言ロック**：初期表示範囲内には製品名、3 ステップのワークフロー、経路取込、飛行計画ラベル、`準備状況`、次の行動、参照来歴、主要アクションのみを置き、宣伝文句や無関係なナビゲーションを禁止します。
+- **お知らせダイアログ（「`NavMateのお知らせ`」）**：`KNOWN_ISSUES.md`（先頭・アンバーパネル、0 件時は節ごと非表示）と `CHANGELOG.md` の利用者向け節（全件展開、公開日は非表示）を入力源として生成します。既読状態は項目内容のハッシュ単位で端末管理し、既知の不具合の追加・更新時のみアンバードットで強調します。
 
-## Typography
+## NAV LOG 表示・地図出典・通知レイアウト
 
-- UI and content: `Inter`, `Noto Sans JP`, system sans-serif fallback.
-- Page title: 22–24 px / 700.
-- Section title: 16–18 px / 700.
-- Controls: 14 px / 600.
-- Table/body: 13–14 px / 400–600.
-- Supporting text: 12 px / 400 with at least 1.5 line height.
+- **NAV LOG 構成（#132 / #276）**：ワークスペースの下に「サマリー（正規の TTL DIST / TTL TIME、目的地 TAF 参考風、四捨五入モード切替）」→「横スクロール可能な別添 8-1 準拠 19 列主表（FROM と TO は水平スクロール時も固定表示、VOR/DME 列はスクロール対象）」→「TIME / FUEL PLAN」→「参考案内」→「JSON ダウンロード／コピー」の順に配置します。
+  - 主表罫線（#276）：外枠およびヘッダ境界は `2 px`、本文行区切りは `1 px 点線`、右側固定の `FUEL` 列を基準に `TO`・`TAS`・`MC`・`MH`・`ZONE/CUM ETE`・`ETO`・`ATE` の右辺を `2 px` 実線（その他内部縦線は `1 px`）とし、Leg 区切り行にも各セルの縦線を連続させます。
+- **参照来歴と地図出典**：Readiness に気象モードおよび「詳細」内のバージョン・来歴（`ftd-fixed-v1` や実 Forecast Run ID）を表示します。地図上の OpenStreetMap 出典および国土地理院の民間訓練試験空域表示時の加工出典「`国土交通省・国土地理院データを加工`」（MLIT / GSI リンク付き）は、規約に基づき地図右下に常時視認可能に表示します（「詳細」内に隠さず、凡例はその上へ配置し狭幅時は折り返します）。
+- **通知・トーストのレイアウト（#443）**：通常の成功・エラーおよび計算完了トーストは画面下部の固定非モーダル領域に表示し、レイアウト位置やページスクロールを変動させず、背後の操作クリックを遮りません。アプリ通知・認証／同期通知は 5 秒経過または手動閉じで消えますが、失敗自体は Header「その他」やアカウントダイアログ内の履歴・再試行導線に保持し、無関係な別操作の成功で消しません。永続ストレージ警告、ブロッキングダイアログ、インライン入力検証、および Project 削除の 10 秒 Undo は一時トーストとは別扱いです。
 
-## Component inventory
-
-- A white, 56 px sticky header keeps the adopted NavMate icon, current Project menu,
-  Save, New, Account and More on one row. Desktop also displays the NavMate name.
-  Project names truncate in the trigger; its title and the wrapping text in the panel
-  expose the full name. The panel contains the existing name input, revision and saved
-  Project selector with separate Open/Delete buttons. Selection alone performs no action.
-  Save/New retain their accessible names and show only icons at 630 px and below.
-- Local Account uses UserRound when signed out and CircleUserRound when signed in;
-  its accessible name includes the state. Local and Legacy dialogs render into the
-  document body so the sticky header cannot constrain their overlay order. Existing
-  authentication, Local-first synchronization and Legacy migration remain unchanged.
-- More carries the normal green unread dot or amber Known Issue update dot and the
-  corresponding accessible notification. Its panel contains Information, the version,
-  existing ground-preparation description and storage location. Opening More does not
-  mark notices read; opening Information does. No `/ Local` suffix is displayed.
-  The form/disclosure panels use native buttons and Tab order (not ARIA menu roles).
-  Escape restores trigger focus; leaving the panel or clicking outside closes it.
-- Draft route confirmation leads to one Planning pane with a compact readiness/calculation footer; no separate numbered progress rail.
-- NAV LOG calculation success uses a non-blocking, polite live-region toast at the
-  bottom right, below modal overlays. It closes after five seconds or via its close
-  button without changing layout, results, or readiness. Ordinary App, authentication
-  and synchronization notices also expire after five seconds; unresolved failures
-  remain in their owning history/dialog. Persistent storage warnings and inline
-  validation are not transient Toasts.
-- KML/KMZ drop zone and paste dialog.
-- Multiple imported route candidates are chosen in a dialog; the resulting ordered points stay in the shared Draft card until route confirmation.
-- Flight-plan fields: DATE, ETD JST, read-only KML-derived FROM/TO, FUEL
-  (default 90 gal), RUN UP, nose fairing, A/C, VAR, and TGL.
-- Route map with airport, waypoint, VREP, RCA, EOC, and CP markers.
-- Check Point creation starts with the corresponding Leg's `CPを追加`, followed by a
-  map click, then a single Add/Save action (with a close icon). Further map clicks
-  can replace the pending coordinate without a second activation button. Each Leg shows its CPs in along-Leg distance order, with rename/delete
-  controls and projection errors. Orphaned CPs remain accessible. No manual coordinate input.
-- Draft and route re-edit maps support full-screen display and keyboard/touch return,
-  without remounting the map or resetting the draft, selection or viewport.
-- The route timeline distinguishes points from their outgoing Legs. TC, MC, distance,
-  cruising altitude and flight phase belong to the Leg between its endpoints. Altitude
-  presets show a numeric field and unit only for a custom value. Fixed altitude rules,
-  VREP passage altitude, arrival airport elevation and adopted pattern altitude remain intact.
-- The operation-pane footer contains a compact readiness summary and calculation button.
-  Details retain next action, provenance, blockers, confirmation and acknowledgement
-  controls. New blockers expand details automatically; warnings remain manually expandable.
-- NAV LOG Summary above the main table with canonical TTL DIST and TTL TIME, plus
-  destination TAF wind as reference data.
-- NAV LOG result table aligned to the 19-column 別添8-1 layout. FROM and TO stay
-  visible while the table scrolls horizontally; VOR/DME remains scrollable.
-- TIME / FUEL PLAN below the main table, outside its horizontal scroll region.
-
-## Container and responsive rules
-
-- The Header remains one row from 320 px through desktop widths. Only the Project
-  name shrinks; Save, New, Account and More keep 40 px targets. At 630 px and below,
-  hide the redundant product name and Save/New text, retaining the adopted icon.
-  Sticky positioning reserves the header's normal-flow height. Root scroll padding
-  keeps focused/scrolled-to content below it. Panels stay within the viewport and
-  scroll vertically on short screens. Header/panels sit above map controls and below
-  modal dialogs and blocking calculation overlays. Persistent message bars stick below the
-  header at 56 px. The redundant workflow step rail is omitted.
-  `web/e2e/header.spec.ts` checks 320/390/1100/1239/1240/1241/1440 px before and after
-  scrolling, including workflow positions, long names, keyboard access and overlay order
-  in Chromium and WebKit. Account and persistence suites cover their existing operations.
-- Above 700 px, Draft/re-edit and flight planning align the map on the left and the
-  operation pane on the right, including 820/1100/1240/1241/1440 px. Only operation
-  contents scroll; imports, Draft actions and the planning calculation footer remain usable.
-- At 700 px and below, the map precedes the operation pane without covering inputs.
-  The Draft point list may scroll, but the map does not stay pinned over the form.
-- NAV LOG remains below the workspace. Its Summary, horizontal table scroll region,
-  TIME / FUEL PLAN and vertical page flow are unchanged.
-- Do not hide blockers, confirmation controls, required sources, or action reasons
-  at any viewport width. Keep revision provenance accessible through Details at every width.
-  Keep linked OpenStreetMap attribution visible even in
-  the empty-map overlay.
-
-## Copy lock
-
-Above the fold may contain only the product identity, the three workflow steps,
-the imported route controls, flight-plan labels, `準備状況`, its next action,
-reference provenance, and the current primary action. Marketing copy, claims,
-metrics, badges, and unrelated navigation are prohibited.
-
-Information is a low-priority utility inside More. The More unread indicator is the only
-copy-lock exception; it must not displace the workflow rail or move a workflow region.
-
-The generated Information snapshot uses a namespaced SHA-256 content ID over every user-visible
-entry, excluding internal IDs, GitHub Issue references and parser source-line metadata, using stable key ordering. The browser stores that
-ID under `autonavlog.information.lastSeenUpdate`. The legacy `lastSeenRelease` value is retained and
-migrates only when the immutable `a4a92da` v1.10.0 baseline ID matches exactly; unknown, malformed,
-or same-version-changed values remain unread. `autonavlog.information.knownIssuesSeen` separately stores
-Known Issue IDs and visible-body hashes. Additions/edits warn in amber and in the accessible name;
-removals/reordering produce only the normal dot. Opening the dialog marks everything read immediately.
-
-The dialog subtitle is `NavMateのお知らせ`. Show `既知の不具合` first (hide the entire section at zero),
-then `更新履歴`, with all historical entries expanded. Known Issues use amber panels, distinct from runtime
-errors. User-facing content comes from `KNOWN_ISSUES.md` and the 利用者向け section of `CHANGELOG.md`, with no developer Issues,
-distribution section or implementation jargon. Release dates are stored by GitHub Releases and are not
-displayed in Information. See [the release workflow](../../README.md#開発).
-
-## NAV LOG layout revision (Issue #132)
-
-The historical calculated-review.png concept predates the NAV LOG Summary and
-separate TIME / FUEL PLAN requirement. The current reference flow is NAV LOG
-Summary, horizontally scrollable main table, TIME / FUEL PLAN, then guidance.
-The 2026-08-13 fidelity ledger below remains historical evidence for the
-earlier calculated view; current Playwright coverage verifies this revised
-layout at 390 px, 1,100 px, and 1,440 px.
-JSON download/copy actions follow the NAV LOG and its applicable guidance, outside the
-horizontal scroll region, with a 1rem top margin and the same content inset and
-maximum width as NAV LOG. Buttons retain their 0.5rem gap and wrap on narrow screens.
-
-## NAV LOG main-table grid (Issue #276)
-
-The paper-derived columns have 2 px right-hand rules after TO, TAS, MC, MH,
-ZONE/CUM ETE, ETO, and ATE; other internal column rules are 1 px. The outer
-frame and header/detail boundary are 2 px, while body-row rules are 1 px dotted.
-Leg separator rows retain their blank content and short height, but render one
-cell per column so vertical rules continue through them. No extra heavy rule
-marks a leg or phase change. TIME / FUEL PLAN is unchanged.
-
-Rules are indexed from the fixed right-hand FUEL column so additional leading
-VOR/DME columns cannot shift them. Separate cell borders keep FROM/TO rules
-attached to those sticky cells during horizontal scrolling. Browser assertions
-in `web/e2e/helpers/navLogGrid.ts` check every column and row type, added/removed
-VOR columns, scrolling, and print media; the existing workflow-order test covers
-1,100 px and 1,440 px. These criteria come from the explicit Issue #276 contract;
-this implementation does not establish visual parity against the original paper
-image, which was not available in the repository or issue attachments.
-
-## Implementation fidelity ledger (verified 2026-08-13 JST)
-
-### Render and inspection method
-
-- Accepted concepts: `primary-workspace.png` and `calculated-review.png`.
-- Verification execution date: 2026-08-13 (`Asia/Tokyo`).
-- Implementation renders: Playwright Chromium against the built FastAPI-served SPA.
-- Native desktop viewport: 1440 × 1000.
-- Native mobile viewport: 390 × 844; the mobile image is a full-page capture.
-- Screenshot evidence is written to the Playwright test output and is not
-  version-controlled in this directory.
-- The requested `agent-browser` binary was not installed, so the documented Playwright
-  Chromium fallback was used. Its screenshot artifacts were inspected at native aspect ratio.
-
-### Concept-to-implementation comparison
-
-| Area | Concept | Implementation | Result |
-| --- | --- | --- | --- |
-| Header | Navy product bar, version, Information, project identity, save/new actions | Explicit one/two-row Header; unread dot at every width, amber only for Known Issue additions/edits | Historical; superseded by Issue #218 above |
-| Workflow | Three numbered stages directly below header | Route, flight plan, review/calculation rail with completed states | Historical; superseded by Issue #416 above |
-| Desktop layout | Input / route / readiness columns | 24% / fluid / 25% three-column workspace | Historical; superseded by Issue #416 above |
-| Route workspace | Map over compact POINT/ROLE/ALT/PHASE table | Leaflet/OSM route, airport/VREP/RCA/EOC markers, editable Leg table | Historical; superseded by Issue #416 above |
-| Readiness | Provenance, next action, blockers/confirmations, primary calculation action | Same order; duplicate causes collapsed by code/Leg/segment | Match |
-| Calculated view | Dense NAV LOG, destination TAF wind, and fuel strip | 19-column NAV LOG plus reference wind and TIME/FUEL tables | Historical; superseded by Issue #132 above |
-| Visual language | White canvas, navy/teal, amber/red status, thin borders, no gradients | Same token family and restrained radii | Match |
-| Mobile | Single-column stack with all safety/status content retained | 390 px stack, full-width controls, no body horizontal overflow | Match |
-
-### Copy and data differences
-
-- Concept project/route values were illustrative; implementation copy comes from the real
-  Project, reference manifest, performance manifest, CalculationOutcome, and Issue models.
-- The initial implementation render shows a purposeful empty map state because no KML has
-  yet been selected; the primary concept showed a populated example route.
-- Destination labels show the 100 ft rounded circuit altitude (`1,000 ft`) and verification
-  status. The VREP row shows the standard 5 NM altitude (`1,500 ft`).
-- The fixed development weather mode and bundled unverified airport references intentionally
-  add fail-closed blockers that were not present in the polished concept.
-
-### Intentional remaining deviations
-
-- The concept map is a generated static geography; implementation uses live OpenStreetMap
-  raster tiles and remains usable when tiles are unavailable.
-- At desktop height, long readiness lists scroll inside the right rail so the calculation action
-  remains reachable.
-- The current bundled RJFM/RJFO reference rows remain `UNVERIFIED`; visual fidelity does not
-  override the primary-source release gate.
-- New work defaults to FORECAST; saved FTD plans retain their selected weather mode.
-
-## Provenance disclosure and map credits
-
-Readiness keeps the weather mode visible. Reference/performance revisions and the
-`ftd-fixed-v1` result ID are available in its native `詳細` disclosure; the stored values,
-calculation fingerprints and real forecast run IDs are unchanged. The duplicated footer
-revisions are removed. Static map-precision/date, altitude-rule and ground-preparation
-explanations are removed from the normal view; conditional warnings and calculation
-conditions remain independent of this display choice.
-
-Map credits are separate from revision metadata. The base layer still displays its
-OpenStreetMap copyright link on the map, as required by the
-[OSM tile policy](https://operations.osmfoundation.org/policies/tiles/).
-The live `kokuarea_minkankunren` GeoJSON is fetched from GSI, validates/extracts the
-approved KS4 features, and renders them over the base map. While those layers are
-displayed, their credit joins the existing bottom-right Leaflet attribution, keeping
-the linked MLIT source page and GSI layer page plus the processing indication.
-There is no separate explanation row below the map. The combined attribution uses
-12 px text and wraps within the map at narrow widths. The legend sits above the
-measured attribution height, including after resizing; the OSM credit stays visible
-when airspace is unavailable. Source links retain the platform external-link behavior.
-This credit is not moved behind Details: both the
-[GSI terms](https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html) and
-[MLIT terms](https://www.mlit.go.jp/link.html) require source identification, with a
-processing indication for edited content. The current GSI tile-list page did not expose
-the individual layer entry to the text reader; this was not treated as permission to
-omit a credit or as proof of a layer-specific exception.
-
-The compact credit text was determined with Gemini CLI (`gemini-3.8-flash-medium`):
-`国土交通省・国土地理院データを加工`.
-This live GSI source is unchanged; the attribution exemption for Shapefile/KML
-from the AIP ZIP does not apply to this implementation.
-
-
-## New MAP routes (Issue #174)
-
-New work uses the #416 accepted compact Draft card: a 320 px card beside the
-predominant desktop MAP, with aligned 48 px file/paste controls and an orange
-route confirmation action. At 700 px and below, the MAP precedes the card.
-KML/KMZ and map selection share the same Draft. Planning and Readiness appear
-only after confirmation, in one right-hand pane above 700 px and below the MAP
-on phones. The final accepted stock prototype defines the visual spacing,
-muted waypoint dots and connecting line. Draft edits do not auto-fit or recenter
-the MAP; fullscreen keeps the same map instance and viewport.
-ETD is a 24-hour HH:mm entry without locale-dependent AM/PM controls.
-
-Confirmation moves the viewport and keyboard focus to the flight-plan DATE input
-after the confirmed Project's Planning DOM is committed. A frame callback may run
-before React mounts that panel, so the focus request is retained until the panel
-exists and consumed once. A committed route with a storage error keeps the error
-message in view while focusing the Planning input. Existing MAP regressions cover
-the frame-before-commit order without replacing the Local Worker or calculation.
-The Local test helper holds renderer host tasks until it observes the requested
-focus frame, including when asynchronous confirmation schedules that frame after
-an earlier renderer task. Deferring a task by one frame alone does not establish
-this order.
-
-
-Checkpoint entry (#224 / #272) uses the same validation and save path for the
-name input's Enter key and the existing Add/Save buttons. Composition state,
-`isComposing`, `keyCode === 229` and repeated keydown events do not submit.
-A synchronous save lock covers Enter/click mixtures until the asynchronous save
-settles; failures retain the draft and permit retry. Each MAP coordinate pick
-focuses the mounted name input once and scrolls it into view; ordinary draft
-updates and manual focus changes do not focus it again. Opening or editing a
-checkpoint without a MAP pick does not request name focus.
-`web/e2e/checkpoint-enter.spec.ts` covers Local and Legacy, including 390/1100/1440px
-MAP-to-name-to-Enter flows. Composition events are simulated; these checks do not
-establish physical IME behavior or mobile software keyboard activation.
-
-### #416 個人確認フィードバック
-
-- 確定済み経路は KML/KMZ の情報とアクセス可能な領域名を保持し、重複する可視見出しを出さない。ファイル名と内包ファイル名は完全一致した場合だけ重複を省く。
-- ETD は `HH:mm` の直接入力を保持し、24 時間の時計ダイアログからも選べる。ダイアログ内の編集は確定まで計画に反映せず、取消・Escape で破棄する。AM/PM は使わない。
-- CP の名称必須・関連 Leg 判定は維持する。入力中に名称欄が動く赤い警告ブロックではなく、画面の高さを変えないスクリーンリーダー向け live status を使用する。範囲外の地点を別 Leg に自動で付け替えない。
-- 高度の任意値選択には直下の注意を表示する。既存の候補外警告が該当する場合はそちらだけを表示し、計算・高度候補の規則を変えない。
-### Notification layout (partial #443)
-
-Ordinary App success/error messages and the calculation-complete Toast share a
-fixed, non-modal region. Showing or closing these messages must not change the
-workflow geometry or page scroll position. Toast text does not intercept clicks on
-underlying planning controls; its explicit buttons remain operable. The region is fixed near the viewport bottom, is bounded by the viewport, and remains behind dialogs. Explicit
-navigation to invalid planning inputs and a newly calculated NAV LOG is separate
-and remains intentional.
-
-App messages and provider authentication/synchronization notices now expire after
-five seconds or manual dismissal. Expiration affects presentation only. Failed App
-operations remain inspectable in the existing Header “その他” panel; auth and sync
-failures remain in the existing account dialog with the existing available recovery
-actions. Operation keys prevent a successful unrelated operation from clearing
-another failure. A cancelled Project load does not count as a successful retry.
-Sync Undo failures are retained separately by item.
-
-Persistent storage warnings, blocking dialogs, inline validation and project
-deletion Undo are not transient Toasts and are unchanged. The focused harness
-checks notification timing, independent failure retention/recovery, layout and
-existing ten-second Undo with a synthetic sync transport. It does not establish
-live account/network behavior, all calculation/focus paths, or every validation
-state; complete repository and copy-review gates are still required before PR.
-
-Focused regression: `npm --prefix web run test:notification`. PR/main CI runs
-all 18 cases in the existing Local `auth` runner after preparing Local assets.
-The dedicated loopback harness
-uses the real App/Application and an in-memory invalid file, not personal data.
+> **参考（実装トークン・保存キー・検証範囲）**：CSS カスタムプロパティ定義・端末保存キー・WebKit/IME 実装注意は [tokens_and_implementation.md](tokens_and_implementation.md)、自動ブラウザ検証および実機受入基準は [testing.md](../testing.md) と [static_web_browser_acceptance.md](../static_web_browser_acceptance.md) を参照してください。

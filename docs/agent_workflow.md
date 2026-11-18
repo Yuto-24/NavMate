@@ -61,11 +61,13 @@ Codex の設定仕様は変更されるため、設定を変更するときは
 
 ## 参照先と確認範囲
 
-調査は変更に関係する資料・既知の不具合・類似実装から始めます。
+調査は変更に関係する資料・既知の不具合・類似実装から始めます。全体の正本一覧は [ドキュメント全体目次](README.md) を参照してください。
 毎回すべての資料やプロジェクト全体を読み直す必要はありません。
 検証は変更した契約を確かめる範囲で選び、必須チェックを終えた後の追加・再実行は、
 修正・失敗・未解決の懸念がある場合に行います。
 
+- 文章規範・ドキュメント統制: [writing-style.md](writing-style.md)
+- 再利用可能な知見: [knowledge/INDEX.md](knowledge/INDEX.md)
 - テストの境界と実データ受入: [testing.md](testing.md)
 - レイアウトと画面順序: [web-design/README.md](web-design/README.md)
 - Static Web の本番公開と受入: [static_production.md](static_production.md)

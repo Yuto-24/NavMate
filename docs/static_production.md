@@ -1,18 +1,10 @@
 # Static production (#121)
 
-正式production pathは **Local Static Web**。標準Vite artifactをHTTPS配信し、
-FastAPI / Docker / Cloudflare FunctionsをApplicationの必須runtimeにしない。
-既存Application、Calculation、Persistence、Account Sync、Weatherの仕様は変更しない。
-Docker Composeは移行中のLegacy runtimeとPython Referenceのサポート構成として継続する。
-旧環境の停止は#146、deployment CI / 継続監視は#123、PWAは#187の責務。
+NavMate の正式本番配信経路は **`https://navmate.yuto24.com`**（Cloudflare Pages / Direct Upload、Local Static Web）です。アプリ実行や保存・計算に FastAPI / Docker / Cloudflare Functions は不要であり、Docker Compose は移行中の Legacy runtime および Python Reference のサポート構成として継続します。
 
-この文書のbuild / dry-runは公開を行わない。**remote deploy、preview公開、DNS変更、
-Firebase Rules変更、TAF Worker変更は個別の公開承認後に行う。**
-Canonical production originは **`https://navmate.yuto24.com`**（#123、2026-09-27決定）。
-Hosting backendはCloudflare Pages / Direct Uploadのまま、Firebase Hostingへは移行しない。
-`navmate.pages.dev` は切替期間の旧入口であり、canonical URLとして使わない。
-[Custom-domain cutover](custom_domain_cutover.md)に設定の正本、切替順序と完了gateを定義する。
-過去の#121 acceptanceは当時のoriginの証跡として保持し、新originの検証と区別する。
+- **関連正本**: 定期運用・アプリ手動更新・クオータ監視は [Static operations](static_operations.md)、ドメイン切替手順は [Custom-domain cutover](custom_domain_cutover.md)、安定版 Release 自動公開は [Automatic app releases](automatic_app_releases.md)、定常ブラウザ受入は [Static browser acceptance](static_web_browser_acceptance.md) を参照してください。
+- **操作承認境界**: この文書の `build:static` / `check:static` / `pages dev` はローカル検証のみを行います。remote deploy、preview 公開、DNS・Firebase Rules・TAF Worker の変更は個別の承認後に行います。
+- **歴史的経緯の区別**: `navmate.pages.dev` および [2026-09-24 監査記録](evidence/issue-121/remote-production-2026-09-24.md) は旧オリジン導入時の証跡であり、現行オリジンでの再検証とは区別します。
 
 ## Buildと配布物
 
@@ -73,6 +65,17 @@ release保管場所へ保存する。artifactはFirebaseの公開識別子を含
 開発用に残し、正式配布には使わない。`npm run build`は移行中のLegacy用。
 Localの気象配信障害だけは、設定済みの計算専用予備APIへ切り替える。
 一般のLocal失敗やstorage障害を旧画面・編集・保存APIへ転送しない。
+
+### NavMate アイコンアセットの再生成（必要時のみ）
+
+承認済みソース PNG（`assets/branding/navmate-adopted-source.png`、SHA-256 `30faff87f7820ae4e62cc4c3b1bca016137b3af041672166472aaf5cf166c3e6`）から `web/public` 配下の PNG / ICO を再生成する場合だけ、隔離した tooling 環境で `Pillow==12.3.0` を用いて実行する（アプリ実行時は Pillow 不要）。仕様は [navmate_branding.md](navmate_branding.md) を参照。
+
+```sh
+python3 -m venv /tmp/navmate-icon-tools
+/tmp/navmate-icon-tools/bin/python -m pip install 'Pillow==12.3.0'
+/tmp/navmate-icon-tools/bin/python scripts/build_navmate_icons.py
+git diff --exit-code HEAD -- web/public
+```
 
 ## MSM feedの手動更新
 

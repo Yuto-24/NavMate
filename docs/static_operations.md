@@ -1,16 +1,14 @@
 # Static build / feed / quota operations (#123)
 
-[Static production](static_production.md) is the manual production contract;
-[#121 acceptance](evidence/issue-121/remote-production-2026-09-24.md) remains its evidence.
-This runbook adds CI orchestration, not an Application runtime. The output is still
-ordinary Vite files with Pyodide wheels/data, served at the same origin. No Functions,
-R2, paid runner, paid plan, billing activation, or automatic paid fallback is required.
+本番オリジン `https://navmate.yuto24.com`（Cloudflare Pages / Direct Upload）の **定常 MSM 配信更新・監視・手動アプリ公開（`prepare` / `publish`）・クオータ検証境界** の運用正本です。
 
-The canonical production origin is **`https://navmate.yuto24.com`**. Pages / Direct
-Upload remains the hosting backend. Follow [custom-domain cutover](custom_domain_cutover.md)
-before activation: publication, retention restore, monitoring and rollback acceptance
-all target this origin. The historical #121 pages.dev evidence is not new-origin acceptance.
-`STATIC_ORIGIN` remains an operator-owned GitHub variable, not a tracked workflow default.
+- **マニュアル公開・無料枠条件・ロールバック**: [Static production](static_production.md)
+- **カスタムドメイン切替**: [custom_domain_cutover.md](custom_domain_cutover.md)
+- **安定版 GitHub Release 自動公開**: [automatic_app_releases.md](automatic_app_releases.md)
+- **MSM 補完起動 Worker（2026-11-18 復旧記録を含む）**: [msm_external_trigger.md](msm_external_trigger.md)
+- **公開工程の監査・Pages 履歴通信上限・計測**: [app_publication_audit.md](app_publication_audit.md)
+
+No Functions, R2, paid runner, paid plan, billing activation, or automatic paid fallback is required. `STATIC_ORIGIN` remains an operator-owned GitHub variable, not a tracked workflow default.
 
 ## Current policy (2026-10-23)
 
@@ -24,6 +22,8 @@ or proof of no billing. Periodic manual report renewal is not a replacement requ
 Catalog freshness, approved publication identity, actual scheduled MSM renewals,
 Auth/Sync/Local and rollback acceptance remain required. Production activation still
 needs explicit authorization; changing this policy does not enable schedules or billing.
+
+> **日付付き状況との区別**: 下の「Unattended collection investigation」「過去の検証根拠: v1.22.7」「2026-10-21 / 10-08」等は過去の監査・移行手順時の観測であり、現在の本番 `STATIC_AUTOMATION_ENABLED` / `STATIC_APPROVED_SHA` / 配信版を示すものではありません。また、`App` 公開経路の `Operator.verify()` が照合するのは `release.json` の inventory（ファイル名・バイト数・SHA-256 の一覧）と `catalog.json`、および配信本体を再取得して照合する `index.html`・`local/manifest.json`（と欠損 404・Pages identity）までであり、JS asset や `MSM` 公開経路が使う `--verify-payloads`（配信 NPZ 全件）の本体の再取得・照合は含みません（詳細は [app_publication_audit.md](app_publication_audit.md#canonical検証の実際の範囲) を参照）。
 
 ## Ownership and activation
 
@@ -44,11 +44,7 @@ needs explicit authorization; changing this policy does not enable schedules or 
   the origin allowlist; never deploy the checked-in empty default allowlist as production.
   Pages never runs `wrangler deploy`.
 
-**Not performed by PR #211:** create/change GitHub environments or variables/secrets,
-Cloudflare/Firebase settings, scheduler activation, deployment, rollback, DNS or billing.
-Before authorization, review the exact target, SHA, public configuration and plan evidence.
-
-After explicit authorization, the operator configures:
+**Setup and activation checklist (operator-configured after authorization; PR #211 delivered the workflow scaffolding only):**
 
 1. GitHub `static-production` environment for all unattended forecast-only updates,
    restricted to `main` without required reviewers. Both preflight and build use it
@@ -694,9 +690,7 @@ SIGKILL 等では RUNNING/ATTEMPTED が残るため、成功扱いせず remote 
 | 承認 SHA 更新 | 新 app が配信済みでも旧承認 SHA の可能性あり。canonical と read-back を照合してから切替・再開。 |
 | workflow/automation 再開 | 新 app/承認 SHA が成功していても定期更新状態は不明。workflow と variable を読んで確認し、必要な操作だけ行う。 |
 
-今回の実装検証では publish、repository variable 更新、workflow disable/enable を実サービスへ
-実行しない。`tests/unit/test_static_app_release.py` は隔離 inventory と provider mock で正常系、
-設定変化、競合、改変/古い成果物、各書き込み前後の失敗、SHA更新・再開失敗を検証する。
+`tests/unit/test_static_app_release.py` は隔離 inventory と provider mock で正常系、設定変化、競合、改変/古い成果物、各書き込み前後の失敗、SHA 更新・再開失敗を検証する（実サービスへの公開や環境変数変更とは別境界）。
 
 ## Rulesが異なる更新だけに必要な検証記録
 
@@ -778,13 +772,11 @@ v1.22.7との次のファイルのgit差分がないことを再確認した:
 実Google認証・本番受入を完了した証拠ではなく、今回PASSの本番用移行記録は作成していない。
 採用候補を変えたら再比較する。
 
-## 過去の検証根拠: v1.22.7 の Rules / Pages 切替
+## 過去の検証根拠: v1.22.7 の Rules / Pages 切替（2026-10-14 基準）
 
-この手順は **実施する対象・回数・停止/再開を別途承認した後だけ** 使用する。
-本PRの実装・mockテスト・レビュー・mergeは本番操作の承認を代用しない。
-固定候補のRulesそのもの、Auth/IAM/indexes/TAF/DNS、旧サーバーと移行URLは変更しない。
-旧 `--rules-transition-v1227` フラグは廃止した。以下は元の検証対象・外部操作と復旧の記録。
-今後の実行には上の候補別 `--rules-transition` 記録を使い、実対象project/SHA/hashに照合する。
+この手順は **実施する対象・回数・停止/再開を別途承認した後だけ** 使用する履歴手順である。
+固定候補の Rules そのもの、Auth/IAM/indexes/TAF/DNS、旧サーバーと移行 URL は変更しない。
+旧 `--rules-transition-v1227` フラグは廃止済みであり、今後の実行には上の候補別 `--rules-transition` 記録を使い、実対象 project/SHA/hash に照合する。
 
 | 固定項目 | 値 |
 | --- | --- |
@@ -894,8 +886,7 @@ publishはworkflowをenableへ戻すが、事前停止を必須としたのでau
 ### 5. 実受入後の定期再開
 
 旧タブを閉じ新版を再読込みする案内を用意する。未同期Localを持つ端末へstorage消去を
-指示しない。削除済み旧Localを新世代へ自動取込しない。配信するUI文言はユーザー提供または
-Gemini CLIで確定する（このPRはproduct copyを変更しない）。
+指示しない。削除済み旧Localを新世代へ自動取込しない。配信するUI文言は [ui_copy_review.md](ui_copy_review.md) に従って確定する。
 実Google認証、2端末保存/同期・削除retry・旧端末再接続・再登録・Legacy移行、実機Safariの
 受入を別途承認された専用試験アカウントと合成Projectで実施する。現ユーザーデータで試験しない。
 受入成功、canonical候補SHA、Rules source、workflow/variables/idleを再確認した後だけ、
@@ -990,64 +981,18 @@ and the collection time budget to 180 seconds (an in-flight socket read can take
 implementation. Offline fixtures verify transport failure/redaction and negative cases;
 they are not recordings of actual account responses.
 
-### Initial Cloudflare credential handoff and capability run
+### Cloudflare read-only probe setup and dispatch
 
-The operator reports creating an account-scoped `AutoNavLog Quota Monitor ReadOnly`
-token with Pages Read, Account Analytics Read and Billing Read, without an expiry.
-This is a reported configuration, not API-verified access or quota evidence.
-The exact application environment variable is `STATIC_CLOUDFLARE_READ_TOKEN`.
-The operator can store its value themselves at repository **Settings > Secrets and
-variables > Actions > New repository secret**, with that exact name. Use the Secrets
-tab, not Variables; keep `CLOUDFLARE_PAGES_TOKEN` unchanged. Do not send the value in
-chat, commit it, or include it in a workflow input. Repository secrets are not
-automatically available to a local/cloud Codex checkout.
+For read-only Cloudflare capability checks, store the account-scoped read token (Pages Read, Account Analytics Read, Billing Read; separate from `CLOUDFLARE_PAGES_TOKEN`) in repository **Settings > Secrets and variables > Actions > New repository secret** as `STATIC_CLOUDFLARE_READ_TOKEN`. Never place it in Variables, commit it, or pass it via workflow inputs.
 
-The prepared `.github/workflows/static-provider-probe.yml` is manual-only and performs
-one Cloudflare capability read. It uses the repository `CLOUDFLARE_ACCOUNT_ID` variable
-and supplies the read token only to the probe step. It has no environment binding,
-so an environment-only secret will not be available there. Existing production jobs
-do use environments; before eventual collector integration, check for environment
-secrets shadowing the repository name without reading their values.
-
-The workflow and probe were merged to `main` in #232. GitHub requires a
-`workflow_dispatch` workflow to exist on the default branch. An authorized initial
-run can use the Actions `static-provider-probe` page: select the reviewed branch, enter its full
-40-character commit as `reviewed_sha`, and select `cloudflare_pages_projects` first.
-The runner checks that SHA against its immutable `github.sha` before checkout or
-the secret-bearing step; a branch advance causes a failure. Checkout is pinned to
-that SHA. Merely pushing a new workflow on a feature branch does not make this initial
-dispatch available. Credential storage by itself does not authorize execution. Initial Cloudflare read-only
-diagnosis has since been authorized; no live result is inferred from that authorization.
-If Codex cannot read the account variable or dispatch the workflow through its permitted
-connection, an operator can perform these same steps in GitHub UI and share only run URLs.
-Confirm the repository account variable against the intended account first; never display
-or copy the secret. Do not bypass an access or network restriction.
-
-The initial execution location is the GitHub-hosted Ubuntu runner, not the current
-Codex environment. No secret retrieval or network workaround is needed. After each
-authorized diagnosis, inspect only the fixed status output; further choices
-are `cloudflare_subscriptions` and `cloudflare_worker_invocations`. Even reachable
-endpoints produce `BLOCKED` and exit 1, so the job remains failed: this is capability
-diagnosis, never healthy-monitor/Free-plan/quota acceptance. Missing data stays unknown;
-raw responses, quantities and billing rows are neither printed nor uploaded. No
-production schedule, deployment or existing monitor workflow is changed.
+The manual-only `.github/workflows/static-provider-probe.yml` workflow (merged in #232 because GitHub requires `workflow_dispatch` on the default branch) uses repository variable `CLOUDFLARE_ACCOUNT_ID` and has no environment binding, so check for shadowing environment secrets without reading their values. Run it on GitHub-hosted Ubuntu runners with the exact 40-character `reviewed_sha` (verified against `github.sha` before checkout) and target probe (`cloudflare_pages_projects`, `cloudflare_subscriptions`, or `cloudflare_worker_invocations`). Even reachable endpoints return `BLOCKED` and exit 1: this diagnoses capability only and never establishes Free-plan/quota acceptance or prints raw billing rows.
 
 References: [GitHub repository secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets),
 [manual workflow/default-branch requirement](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
 
-### Ownership of remaining decisions and evidence work
+### Responsibility split for remaining evidence work
 
-API selection, parsing, aggregation, pagination, clock handling and evidence semantics
-are engineering responsibilities, not questions for the operator to answer. The previous
-list of open API questions describes technical investigation; it is not a request that
-the user select an API. Within follow-up #281, unattended operation,
-zero cost, strict failure on unknown evidence, the outbound exception and publication
-warning behavior retain the requirements originally defined by #123/#230; they are no
-longer prerequisites for catalog monitoring or retirement.
-
-**Operator decisions/approval, when a concrete setup is ready:** authorize the exact
-least-privilege credential/IAM/OIDC/secret changes; later approve live monitor acceptance
-and recurring publication activation. No setup changes or activation have been performed.
+API selection, parsing, aggregation, pagination, clock handling and evidence semantics are engineering responsibilities, whereas the operator approves least-privilege credential/IAM/OIDC/secret changes, live monitor acceptance, and recurring publication activation. Within follow-up #281, unattended operation, zero cost, strict failure on unknown evidence, the outbound exception and publication warning behavior retain the requirements defined by #123/#230 without blocking catalog monitoring or legacy retirement.
 If research establishes that a requirement cannot be met with supported, zero-cost,
 unattended access, report that conflict with evidence. Do not invent a weaker policy,
 paid dependency, periodically renewed manual report or extra unobservable exception.
@@ -1275,34 +1220,18 @@ Additional mapping references:
 [Monitoring database resource labels](https://docs.cloud.google.com/monitoring/api/resources#tag_firestore.googleapis.com/Database),
 [Firestore free quota](https://firebase.google.com/docs/firestore/quotas).
 
-### Exact next read-only checks (2026-10-04)
+### 2026-10-04 時点の read-only プローブ対象と認証境界（#281 参照）
 
-The historical October 4 connector read reported remote `main=56d62a5` and #123 comment
-`5972103619` as the governing unattended-collection decision. The saved local work is
-based on that SHA. GitHub repository metadata reads through the existing connector
-succeeded and confirmed `Yuto-24/AutoNavLog` is public; they did **not** establish billing
-access. The connector explicitly excludes user/billing endpoint families and does not
-expose cache/variable reads. Environment `gh api` failed even for repository metadata
-with `Forbidden` at the request boundary. This is an access-path failure, not evidence
-of a provider 403 response or a diagnosis of the token's actual grants. Do not bypass
-that boundary or retry with broader credentials. The required Cloudflare and Google
-read-token environment variables were not set. No credentials were printed or installed.
-
-The production targets below come from the checked-in
-[#121 account audit](evidence/issue-121/remote-production-2026-09-24.md), not a new
-account query. Before collection acceptance, confirm these still match the existing
-repository variables; a mismatch must stop collection rather than select another scope.
+2026-10-04 の調査では、当時の読み取り境界で `gh api` のメタデータ読取や未設定の Cloudflare / Google 読取トークンが不足しており、以下の対象・最小権限を #281 における次の read-only 確認対象として整理した（production targets は [#121 account audit](evidence/issue-121/remote-production-2026-09-24.md) 由来）。実行前に現在の repository variables との一致を照合し、不一致時は停止する。
 
 | Provider / exact target | Smallest next read | Existing permission needed | What success establishes |
 | --- | --- | --- | --- |
 | Cloudflare account `cae366c3bb569163773b80f4bdff2d8e`, Pages `navmate` | GET `/client/v4/accounts/cae366c3bb569163773b80f4bdff2d8e/pages/projects` on `api.cloudflare.com` | Account-scoped **Cloudflare Pages Read** | API access and native project-list shape; not complete pagination, Free status or monthly builds |
 | Firebase/Google project `navmate-prod` | GET `/v1/projects/navmate-prod/billingInfo` on `cloudbilling.googleapis.com` | Project `resourcemanager.projects.get`; existing OAuth scope `cloud-billing.readonly` or an already authorized compatible scope | Explicit current project billing flag; not Spark identity by itself |
 | GitHub repository `Yuto-24/NavMate` | GET `/repos/Yuto-24/NavMate/actions/cache/usage` on `api.github.com` | Target repository **Actions: read** | Native current cache bytes, not accrued billing |
-| GitHub personal owner `Yuto-24` (a distinct subsequent read) | GET `/users/Yuto-24/settings/billing/usage?year=2026&month=10` on `api.github.com` | Personal-user **Plan: read**, subject to endpoint eligibility | Native current-month product/SKU/unit/gross/discount/net rows kept privately in memory; not included-allowance attribution or billing prevention |
+| GitHub personal owner `Yuto-24` (a distinct subsequent read) | GET `/users/Yuto-24/settings/billing/usage?year=<YYYY>&month=<M>` on `api.github.com`（実行時の UTC 現在年月を指定；2026-10-04 記録時の確認対象） | Personal-user **Plan: read**, subject to endpoint eligibility | Native current-month product/SKU/unit/gross/discount/net rows kept privately in memory; not included-allowance attribution or billing prevention |
 
-Run only the corresponding fixed probe after an **existing approved** credential is
-available through the secure execution mechanism. The selector performs no other
-provider or owner-billing request. Token values are never command arguments:
+Run only the corresponding fixed probe after an **existing approved** credential is available (token values are never command arguments):
 
 ```sh
 CLOUDFLARE_ACCOUNT_ID=cae366c3bb569163773b80f4bdff2d8e \
@@ -1315,28 +1244,7 @@ GITHUB_REPOSITORY_OWNER=Yuto-24 \
   python scripts/static_ops/probe_providers.py --check github_billing_usage
 ```
 
-All probes intentionally exit 1: reachability is never publication authorization.
-Return only their fixed statuses. Inspect any native billing rows privately in the
-approved execution environment; never paste them into chat, a ticket or an artifact.
-The billing probe derives its year/month from the actual UTC clock; the October endpoint
-above is the exact next request for this dated checklist, not a hard-coded future period.
-
-After these reads succeed, engineering continues with existing collectors and the
-remaining native response mappings: Cloudflare subscriptions (`#billing:read` capability,
-actual token eligibility still unverified), Analytics Read and complete Pages history;
-Google `firebase.projects.get`, `datastore.databases.list`,
-`monitoring.timeSeries.list` and `monitoring.metricDescriptors.list` on `navmate-prod`;
-GitHub cache configuration and current owner/shared billing evidence. The historical
-Cloudflare `workers/settings.free_tier` response is not an approved automated mapping:
-the inspected public schema documents `workers/account-settings` with different fields.
-Do not promote an undocumented historical endpoint to production plan evidence.
-
-**Authorization boundary:** existing connected repository reads above are already within
-this task. Using an existing approved read session is distinct from creating or changing
-credentials. Any new token, service account, IAM binding, OIDC trust, secret storage or
-upload needs an exact target/grant/change proposal and explicit approval at that action.
-No such changes, deploy, schedule activation, runtime retirement, push or PR publication
-have been performed. The access failure does not authorize any of them.
+All probes intentionally exit 1 (`reachability` is never publication authorization); inspect any native billing rows privately and never paste them into chat, tickets, or artifacts. The billing probe derives its year/month from the UTC clock. Follow-up adapters cover Cloudflare subscriptions (`#billing:read`), Analytics Read, complete Pages history, Google `firebase.projects.get`/`datastore.databases.list`/`monitoring.*`, and GitHub cache/shared billing; do not promote the undocumented Cloudflare `workers/settings.free_tier` response (`workers/account-settings` differs). Any new token, service account, IAM binding, OIDC trust, or secret requires explicit approval per target/grant.
 
 Permission references:
 [Cloudflare Pages list](https://developers.cloudflare.com/api/resources/pages/subresources/projects/methods/list/),

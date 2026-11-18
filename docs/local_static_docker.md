@@ -1,5 +1,7 @@
 # Local版のDocker起動と自動更新
 
+ローカル開発・検証向けに、`build:static -- --local-runtime` の配布物を Docker Compose（`compose.local.yaml`）で配信し、main 同期と MSM 更新を自動実行する手順です。本番 Pages（[static_production.md](static_production.md)）や Legacy Compose（`compose.yaml`）とは独立しています。
+
 `compose.local.yaml` は、`build:static -- --local-runtime` の配布物をローカルで配信する構成です。
 計算・Project保存はブラウザ内で行い、mainとMSMは別コンテナで自動更新します。
 ルートの `compose.yaml` は引き続きLegacy版です。
