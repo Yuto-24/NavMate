@@ -73,6 +73,11 @@ test("Static Local workflow saves and restores a calculated Project across lifec
   await page.bringToFront();
   await page.goto("/");
   await enterImportWorkflow(page);
+  // Navigating the original tab away tears down its working session. Restore
+  // the durable Project explicitly, rather than asserting auto-recovery.
+  await openProjectMenu(page);
+  await page.getByLabel("保存済み", { exact: true }).selectOption(savedId);
+  await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(page.locator(".nav-log-table")).toHaveText(initialResult, { useInnerText: true });
   expect(legacyRequests).toEqual([]);
 });
