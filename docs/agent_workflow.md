@@ -110,7 +110,9 @@ AGENTS.md に従います。
 - Python suiteが対象なら、サポートするDockerのtest stageでpytest全体を実行します。
   CIと同じworkflowファイルのmount、依存関係、生成物を揃え、
   `scripts/run_ci_checks.sh` のrelease検査・ruff・mypy・pytest・データ/schema検査・package buildを
-  完了させます。`CI_PYTEST_SHARD`を未指定にすれば全件、指定する場合は全shardと集約を確認します。
+  完了させます。引数なしの`run_ci_checks.sh`は共通検査とpytestをすべて実行します。
+  CIではshard 1が共通検査を担当し、shard 2だけ`pytest`引数で共通検査を省略します。
+  `CI_PYTEST_SHARD`を未指定にすれば全件、指定する場合は全shardと集約を確認します。
   選択したファイルだけ、片方のshardだけの成功で「pytest成功」と報告しません。
 - 変更に必要なtypecheck・build等と、AGENTS.mdで必須とする検証も完了させます。
   文書のみ等でPython suiteが非対象なら、該当するsource検証と必須検証を行い、その範囲を記録します。

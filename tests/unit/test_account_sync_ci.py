@@ -171,7 +171,23 @@ def test_local_shards_keep_auxiliary_tests_once_and_auth_separate():
         assert block.count(f"npm --prefix web run test:{suite}\n") == 1
     for output in ["autonavlog-sync-component-browser", "navmate-416-443-test-results"]:
         assert f"/tmp/{output}" in block
-    assert 'if [ "${{ matrix.suite }}" = auth ]; then exit 0; fi' in block
+    server_step = block.split(
+        "      - name: Verify Local persistence and session/calculation "
+        "regression without FastAPI\n"
+    )[1].split("      - name:")[0]
+    assert "if: matrix.suite != 'auth'" in server_step
     assert "if [ '${{ matrix.shard }}' = 1 ]; then" in block
     assert "production artifact rejects a different build manifest and recovers on reload" in block
     assert "name: local-browser-${{ matrix.suite }}-${{ matrix.shard }}-failure" in block
+
+
+def test_migration_harness_is_only_started_for_contracts():
+    source = (ROOT / ".github/workflows/test.yml").read_text()
+    step = source.split(
+        "      - name: Verify real SDK, Rules and cross-device Local-first workflows\n"
+    )[1].split("      - name:")[0]
+    guarded = step.split('if [ "$SUITE" = contracts ]; then\n')[1].split('          fi\n')[0]
+    assert "python -m uvicorn migration_harness:app" in guarded
+    assert "http://127.0.0.1:8186/healthz" in guarded
+    assert step.count("python -m uvicorn migration_harness:app") == 1
+    assert step.index("          fi\n") < step.index("npx --yes firebase-tools")

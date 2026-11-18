@@ -1,6 +1,6 @@
-# Issue #421: 変更影響に応じた CI（2026-11-10 / 2026-11-17 実測）
+# Issue #421: 変更影響に応じた CI（2026-11-10 / 2026-11-17 / 2026-11-18 実測）
 
-**結論・再利用可能な判断**: 変更影響ルーティング（PR #428）と Browser/Sync 並列分割（PR #448）により、同一通常 PR 差分の Hosted CI は 20 分 43 秒 → 11 分 05 秒へ短縮したが、**5 分目標は未達（律速は Python 第 2 分割の 10 分 10 秒）**。Ruleset `20705217` への `ci-required` 必須チェック登録は 2026-11-17 に実施済み。
+**結論・再利用可能な判断**: 変更影響ルーティング（PR #428）と Browser/Sync 並列分割（PR #448）により、同一通常 PR 差分の Hosted CI は 20 分 43 秒 → 11 分 05 秒へ短縮し、2026-11-18 の `main` 受入（[Run 44239461740](https://github.com/Yuto-24/NavMate/actions/runs/44239461740)、29 job 成功、Run 作成〜`ci-required` 完了 10 分 09 秒）も確認済み（Issue #459 の基準記録）。ただし、**5 分目標は未達（律速は Python 第 2 分割）**。Ruleset `20705217` への `ci-required` 必須チェック登録は 2026-11-17 に実施し、2026-11-18 に `main` 適用を再確認済み。
 
 PR の選択とブラウザ準備を変更する。現行のルーティング表と shard 構成の正本は [testing.md](../../testing.md) とする。以下は導入・計測時の観測、失敗原因（独立 runner での生成物依存と component fixture の再読込依存）、および限界の記録である。
 
@@ -113,7 +113,7 @@ Ruleset再取得とmainの適用rulesで反映を確認し、既存ルール・c
 この設定変更はコード外の実施済み操作であり、PRのマージは実施していない。
 
 上記main成功はPR #428の回帰保証であり、今回の分割の成功とは扱わない。
-変更後のHosted計測は下記に記す。今回の構成でのmain成功は、承認されたマージ後に確認する。
+変更後のHosted計測は下記に記す（2026-11-17 時点ではマージ前のため、2026-11-18 の main 受入は下記該当節を参照）。
 
 
 ### 分割の初回Hosted実行で見つかった準備依存
@@ -166,4 +166,22 @@ Playwright image初期化は21〜38秒で、OS/browser追加導入はない。np
 runner性能とqueueのばらつきは残る。一部は実装PRのCIと同時実行しており、平均値や単一要因の
 短縮率ではない。job数は20から28へ増え、準備処理の重複と同時実行枠を使うトレードオフがある。
 
-実装PR #448の[Run 43914399276](https://github.com/Yuto-24/NavMate/actions/runs/43914399276)（`b137fcc1`）も全28 job成功・8分57秒（CI変更を含む全検証のため、通常変更の代表測定にはPR #449を参照）。CodeRabbitレビューで判明したworker数・認証配置・分配検査配置・公式コンテナ利用の旧文書不一致は現行コードに合わせて修正済み。
+実装PR #448の[Run 43914399276](https://github.com/Yuto-24/NavMate/actions/runs/43914399276)（`b137fcc1`）も全28 job成功・8分57秒（CI変更を含む全検証のため、通常変更の代表測定にはPR #449を参照。2026-11-17 時点では main マージ前）。CodeRabbitレビューで判明したworker数・認証配置・分配検査配置・公式コンテナ利用の旧文書不一致は現行コードに合わせて修正済み。
+
+## 2026-11-18: main受入とIssue #459の基準
+
+[#452 / #458を統合したPR #462](https://github.com/Yuto-24/NavMate/pull/462)の
+[main Run 44239461740](https://github.com/Yuto-24/NavMate/actions/runs/44239461740)は
+29 jobすべて成功。上記の「main未確認」は各観測時点の記録であり、現在の未完了条件ではない。
+Issue #459着手時にJobs APIで29件の成功と各jobの開始・終了を再確認した。
+
+- Run作成から`ci-required`完了まで10分09秒（Issue #459の基準記録）。
+- job開始から終了までの合計111分24秒。課金時間やCPU時間ではない。
+- Python shard 2は9分29秒、Docker build 1分12秒、検査本体8分10秒。
+- Python shard 1は8分34秒、Docker build 1分23秒、検査本体7分03秒。
+- 有効Ruleset `20705217`のmain適用ルールを再取得し、GitHub Actions発行の
+  `ci-required`（integration ID `15368`）が必須のままであることを確認した。
+
+5分目標には未達。このRunは#459の変更前であり、変更後の高速化の証拠にはしない。
+#459の共通検査・準備・Python分配の記録は
+[分配証跡](independent-shards-20261101.md#issue-459-shared-checks-and-current-timings)を参照する。
