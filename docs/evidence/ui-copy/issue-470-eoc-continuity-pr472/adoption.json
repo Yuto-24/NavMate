@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "id": "eoc-continuity-infeasible",
+      "text": "計画した経路と高度では、VREPまでの{descent_rate_fpm} fpmの降下と減速1分を満たすEOCを設定できません。",
+      "reason": "Geminiが高度到達不足と経路時間不足の両条件、500/1000 fpmの展開、後続の見直し案内を含め採用可と確認。原因を一方に限定せず両条件を説明できるため採用。",
+      "response_quote": "計画した経路と高度では、VREPまでの{descent_rate_fpm} fpmの降下と減速1分を満たすEOCを設定できません。"
+    },
+    {
+      "id": "eoc-non-monotonic",
+      "text": "前の区間のほうが低いため、連続降下を計算できません。",
+      "reason": "Geminiが前後の区間名・高度比較・修正案内と合わせて採用可と確認。既存の高度条件の不成立を説明する文言を維持。",
+      "response_quote": "前の区間のほうが低いため、連続降下を計算できません。"
+    }
+  ]
+}

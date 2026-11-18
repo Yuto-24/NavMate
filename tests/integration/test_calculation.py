@@ -1962,7 +1962,7 @@ def test_eoc_backtracking_blocks_when_the_profile_precedes_the_route_start(
         if issue.code == "DESCENT_ALTITUDE_CONSTRAINT_INFEASIBLE"
     )
     assert blocker.message == (
-        "EOCまでの高度変更と、EOCからVREPまでの500 fpmの降下・減速1分を両立できません。"
+        "計画した経路と高度では、VREPまでの500 fpmの降下と減速1分を満たすEOCを設定できません。"
         "計画高度、経路、VREP高度を見直してください。"
     )
     assert blocker.metadata["descent_path_section_ids"]
@@ -1988,18 +1988,22 @@ def test_eoc_backtracking_blocks_when_the_profile_precedes_the_route_start(
     assert not any(point.type.value == "EOC" for point in faster_outcome.derived_points)
 
 
+@pytest.mark.parametrize("descent_rate_fpm", [500, 1000])
+@pytest.mark.parametrize("altitudes", [(7_500, 6_500, 5_500), (5_500, 5_500, 5_500)])
 def test_eoc_infeasible_message_uses_selected_descent_rate(
     airports,
     performance_repository,
     project,
+    descent_rate_fpm,
+    altitudes,
 ) -> None:
     routed, _ = _eoc_backtracking_project(
         project,
         leg_distances_nm=(1.0, 1.0, 1.0),
-        altitudes_ft_msl=(7_500, 6_500, 5_500),
+        altitudes_ft_msl=altitudes,
         manual_courses_deg=(0, 90, 180),
     )
-    routed.descent_rate_fpm = 1000
+    routed.descent_rate_fpm = descent_rate_fpm
 
     outcome = CalculationService(airports, performance_repository).calculate(
         routed,
@@ -2012,10 +2016,13 @@ def test_eoc_infeasible_message_uses_selected_descent_rate(
         if issue.code == "DESCENT_ALTITUDE_CONSTRAINT_INFEASIBLE"
     )
     assert blocker.message == (
-        "EOCまでの高度変更と、EOCからVREPまでの1000 fpmの降下・減速1分を両立できません。"
+        f"計画した経路と高度では、VREPまでの{descent_rate_fpm} fpmの降下と"
+        "減速1分を満たすEOCを設定できません。"
         "計画高度、経路、VREP高度を見直してください。"
     )
-    assert blocker.metadata["descent_rate_fpm"] == 1000
+    assert blocker.metadata["descent_rate_fpm"] == descent_rate_fpm
+    assert blocker.metadata["required_seconds"] > blocker.metadata["available_seconds"]
+    assert blocker.metadata["reached_altitude_at_eoc_ft_msl"] is None
 
 
 def test_eoc_backtracking_blocks_a_non_monotonic_turn_altitude_transition(

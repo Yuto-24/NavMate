@@ -2204,7 +2204,7 @@ class CalculationService:
                     self._blocker(
                         "DESCENT_ALTITUDE_CONSTRAINT_INFEASIBLE",
                         (
-                            f"EOCまでの高度変更と、EOCからVREPまでの{descent_rate_fpm} fpmの降下・減速1分を両立できません。"  # noqa: E501
+                            f"計画した経路と高度では、VREPまでの{descent_rate_fpm} fpmの降下と減速1分を満たすEOCを設定できません。"  # noqa: E501
                             "計画高度、経路、VREP高度を見直してください。"
                         ),
                         section.id,
