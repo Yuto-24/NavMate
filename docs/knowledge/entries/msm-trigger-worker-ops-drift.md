@@ -24,9 +24,10 @@
 
 1. **認証確認**: 管理 API で 401/403 が出た場合は新規 token や Secret を作らず、まず既存 `wrangler whoami` による通常 refresh を試す。
 2. **ローカル状態の復元**: `.state/operator.json` が見当たらない場合、本番の読取専用 GET で account、既存 `STATE` KV の固定名・ID、`MODE`、Cron、デプロイ済み／未配置 version を確認してからローカル状態のみ復元する。`ensure-kv` や KV 作成・初期化・キー手動書換えは行わない。
-3. **段階配置と `observability`・元 MODE/Cron の保持**: 現行の `wrangler.jsonc` / `ops.mjs` を変更しない運用では、`.state/wrangler.json` を手修正しても次回上記コマンド実行で上書きされる。本番の元設定（`observability` 等）を保つには、隔離配置用テンプレートに元設定を明示したうえで、ステップ 2 で確認した復旧前の `MODE` と Cron 状態に従って分岐する。
-   - **元 `MODE=dispatch` かつ承認範囲内の復旧のみ**: `enable-dispatch`（Cron なし）→ read-back 差分確認 → 差分がない場合のみ（かつ元 Cron が有効だった場合のみ。元 Cron 停止なら勝手に再開しない）`enable-cron` の順で進める。差分が出たら Cron 再開前に止める。
-   - **元 `MODE=observe` の復旧**: `enable-dispatch` と `enable-cron` は実行しない（`ops.mjs` では両コマンドとも `MODE` を `dispatch` に変更するため）。`deploy-observe`（元 Cron が有効だった場合のみ read-back 確認後に `observe-cron`、元 Cron 停止なら再開しない）等で確認した `MODE` と Cron 状態を保持・復元する。`observe` から `dispatch` への切り替えは、[docs/msm_external_trigger.md](../../msm_external_trigger.md#secret-管理と段階配置の安全制約)の本番 dispatch 有効化と同様に、別途・個別の承認を得てから行う。
+3. **事前停止と段階配置（`observability`・元 MODE/opt-in/Cron の保持）**: 現行の `wrangler.jsonc` / `ops.mjs` を変更しない運用では、`.state/wrangler.json` を手修正しても次回上記コマンド実行で上書きされる。本番の元設定（`observability` 等）を保つには隔離テンプレートに元設定を明示したうえで、必ず **事前停止（外部 opt-in を `false` へ閉鎖 → `stop`・read-back・最大 15 分の停止伝播と進行中実行終了を確認）** を経て、ステップ 2 で確認した元状態と承認範囲に従って分岐する（具体コマンドと停止・KV 保持条件の正本は [docs/msm_external_trigger.md](../../msm_external_trigger.md#secret-管理と段階配置の安全制約)）。
+   - **元 `MODE=dispatch` かつ承認範囲内の復旧のみ**: `enable-dispatch`（Cron 空）→ read-back 差分なし・承認確認 → 元 opt-in が有効だった場合だけ復元（元無効を勝手に有効化しない）→ 元 Cron 有効時だけ `enable-cron`（元停止なら再開しない）。
+   - **元 `MODE=observe` の復旧**: `enable-dispatch` / `enable-cron`・opt-in 有効化は禁止（`ops.mjs` では `MODE` が `dispatch` へ変わるため）。元設定保持の隔離テンプレートで `MODE=observe`（元 Cron 有効時のみ read-back 後に再開）を復元し、`dispatch` 化は別途・個別の承認を得てから行う。
+   - 停止は進行中公開を中断せず、KV 消去・初期化も行わない。
 4. **コンテナ検証**: 隔離コンテナで `workerd` が起動しない場合は TLS 検証を無効化せず、ホストの既存 CA 証明書を read-only mount する。
 5. **観測の切り分け**: 設定 read-back だけで経路受入としない。`FRESH` 判定と `DISPATCH_ACCEPTED`、Actions `msm-request/<request_id>` との一致、provider CPU 集計（10 ms 制限）、WSL 直接 GET と Worker GET の到達経路差を切り分けて記録する。
 

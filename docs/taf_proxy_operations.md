@@ -41,12 +41,26 @@ For the #123 canonical origin (`https://navmate.yuto24.com`), the final value in
 
 ## Local verification commands
 
-```bash
-npm --prefix services/taf-proxy run dev -- --ip 127.0.0.1 --port 8787 --var ALLOWED_ORIGINS:http://127.0.0.1:4145
-VITE_TAF_PROXY_URL=http://127.0.0.1:8787/taf npm --prefix web run build:local
-python3 -m http.server 4145 --bind 127.0.0.1 --directory web/dist-local
-AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4145 npm --prefix web run test:taf
-```
+The local proxy (`wrangler dev`) and static file server (`http.server`) stay running in the foreground, so run them in separate terminals in the following order:
+
+1. **Terminal 1 (TAF Proxy dev server — keep running)**:
+
+   ```bash
+   npm --prefix services/taf-proxy run dev -- --ip 127.0.0.1 --port 8787 --var ALLOWED_ORIGINS:http://127.0.0.1:4145
+   ```
+
+2. **Terminal 2 (build first, then start static server after build completes — keep running)**:
+
+   ```bash
+   VITE_TAF_PROXY_URL=http://127.0.0.1:8787/taf npm --prefix web run build:local
+   python3 -m http.server 4145 --bind 127.0.0.1 --directory web/dist-local
+   ```
+
+3. **Terminal 3 (run tests after both servers are ready)**:
+
+   ```bash
+   AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4145 npm --prefix web run test:taf
+   ```
 
 Note: `test:taf` uses controlled fixtures for responses, quota, timeouts, and outages; it is distinct from live upstream smoke checks. Fixed #125 MSM fixtures may legitimately report `TAF_TIME_OUT_OF_RANGE` against live TAF validity windows.
 

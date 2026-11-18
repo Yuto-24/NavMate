@@ -40,7 +40,7 @@ workflow concurrency `static-production` / `cancel-in-progress: false` を共有
 リポジトリルートから実行する。Wrangler（`4.152.0`）と lockfile は `services/msm-trigger/package.json` で固定し、template（`wrangler.jsonc`）は常に `observe`・Cron 空・ダミー KV で管理し本番へ直接使用しない。
 
 > **重要（`ops.mjs` の `.state/wrangler.json` 上書き仕様）**:
-> 現在の `services/msm-trigger/ops.mjs` は、`configuration()` を呼ぶコマンド（`ensure-kv`、`abandon-pending`、`stage-secret`、`deploy-observe`、`observe-cron`、`enable-dispatch`、`enable-cron`、`stop`）の実行時にリポジトリの `wrangler.jsonc` を読み込み、`.state/wrangler.json` を上書き生成する（`deploy-staged` は既存の `.state/wrangler.json` を再生成せずに使用し、`plan` は JSON を表示するだけでファイルを書かない）。`wrangler.jsonc` には明示的 `observability` 設定がないため、本番に元からある `observability` 詳細設定を保つには、隔離配置用テンプレートへ元設定を明示したうえで **Cron なし配置 → read-back 差分確認 → Cron 再開** の順に進めること。`.state/wrangler.json` だけを手修正しても次回上記 `configuration()` 呼び出しコマンドの実行で上書きされる。
+> 現在の `services/msm-trigger/ops.mjs` は、`configuration()` を呼ぶコマンド（`ensure-kv`、`abandon-pending`、`stage-secret`、`deploy-observe`、`observe-cron`、`enable-dispatch`、`enable-cron`、`stop`）の実行時にリポジトリの `wrangler.jsonc` を読み込み、`.state/wrangler.json` を上書き生成する（`deploy-staged` は既存の `.state/wrangler.json` を再生成せずに使用し、`plan` は JSON を表示するだけでファイルを書かない）。`wrangler.jsonc` には明示的 `observability` 設定がないため、本番に元からある `observability` 詳細設定を保つには、隔離配置用テンプレートへ元設定を明示したうえで **事前停止（外部 opt-in 閉鎖 → `stop`・read-back・伝播/進行中終了確認）→ Cron なし配置 → read-back 差分確認 → 条件一致時のみ opt-in・Cron 再開** の順に進めること（具体順序は [Secret 管理と段階配置の安全制約](#secret-管理と段階配置の安全制約) を参照）。`.state/wrangler.json` だけを手修正しても次回上記 `configuration()` 呼び出しコマンドの実行で上書きされる。
 
 認証不要の開発・検証:
 
@@ -71,29 +71,43 @@ npm --prefix services/msm-trigger run ops -- observe-cron
 ### Secret 管理と段階配置の安全制約
 
 - **Secret の段階登録**: `wrangler secret put/delete` は新 version を即時 deploy するため使わず、`stage-secret`（`wrangler versions secret put`）→ `deploy-staged` の 2 段階を維持する。`stage-secret` は **`MODE=observe` かつ Cron 停止中のみ** 実行し、次の Secret を stage する前に必ず `pending version` を `deploy-staged` で配置する。同時管理者による version 変更が検出された場合は停止し、`versions list` で確認する。同じ名前の Secret 更新・期限前更新も同じ手順で上書きし、追加リソースを作らない。
-- **本番 dispatch 有効化**: 先に有効化前確認および必要な場合は下節の限定 observe 実測を行った上で、個別に承認を得て進む。まず `enable-dispatch`（Cron 空）を配置し、次の `enable-cron` を実行する前に read-back で設定差分（`observability` 等）がないことを確認する。
+- **復旧版の事前停止と段階復帰・本番 `dispatch` 有効化**:
+  - 新規・復旧版の配置や変更を行う前に、先に GitHub 側外部 opt-in を `STATIC_EXTERNAL_TRIGGER_ENABLED=false` へ閉じ（元々無効だった場合は無効維持）、本番の元設定（`observability` 等）を明示した隔離テンプレートで `stop`（`MODE=observe`、Cron 空）を実行し、read-back のうえ **Cron 停止伝播（最大 15 分）および進行中実行の終了** を確認する（停止操作は進行中の公開を中断せず、KV も消去・初期化しない）。
 
 ```sh
 # 既存の GitHub 認証を使用。新規 credential 作成を兼ねない
-gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/NavMate --body true
-npm --prefix services/msm-trigger run ops -- enable-dispatch
-```
-
-read-back で設定差分がないことを確認した場合だけ、Cron を再開する（差分がある場合はここで停止する）。
-
-```sh
-npm --prefix services/msm-trigger run ops -- enable-cron
-```
-
-- **停止と `pending` 整理**:
-  - Cron の追加・変更・削除は反映伝播に **最大 15 分** かかり得る。また、停止操作は **進行中の公開を中断しない**（緊急時は GitHub 側 `STATIC_EXTERNAL_TRIGGER_ENABLED=false` を先に閉じる）。
-  - 停止後も **KV を削除・初期化して試行枠や失敗上限をリセットしない**。同じ Run で 2 回失敗した場合は上流／GitHub／公開ログを調べ、通常は次の新 Run を待つ。
-  - 旧 `pending` を整理する必要がある場合だけ、**別途承認のうえ Cron 停止伝播（最大 15 分）および進行中実行終了を確認して** `abandon-pending` を実行する（日次・同 Run カウンタと cooldown は保持）。
-
-```sh
 gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/NavMate --body false
 npm --prefix services/msm-trigger run ops -- stop
 ```
+
+  - 上記の事前停止・read-back・伝播・進行中実行終了を確認したうえで、復旧前に記録した元の MODE・外部 opt-in・Cron 状態と承認範囲に従って段階復帰する。なお、新規有効化時やコード変更時は有効化前確認および下節の限定 observe 実測を行ったうえで別途・個別の承認を得て進む。
+  - **元 `MODE=dispatch` かつ承認範囲内の復旧（または別途承認済みの本番 `dispatch` 有効化）**:
+    1. 元設定を保持した隔離テンプレートで `enable-dispatch`（`MODE=dispatch`、Cron 空）を配置する。
+
+       ```sh
+       npm --prefix services/msm-trigger run ops -- enable-dispatch
+       ```
+
+    2. read-back で設定差分（`observability` 等）がないことおよび承認内容との一致を確認する（差分または不整合がある場合はここで停止し、以降へ進まない）。
+    3. **復旧前に記録した元の外部 opt-in が有効だった場合だけ**（または個別承認された新規有効化時だけ）GitHub 側の `STATIC_EXTERNAL_TRIGGER_ENABLED` を `true` へ復元する（元 opt-in 無効を勝手に有効化しない）。
+
+       ```sh
+       # 元 opt-in が有効（または新規有効化が個別承認済み）の場合のみ実行
+       gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/NavMate --body true
+       ```
+
+    4. **復旧前に記録した元の Cron が有効だった場合だけ**（または個別承認された新規有効化時だけ）`enable-cron` を実行する（元 Cron 停止なら再開しない）。
+
+       ```sh
+       # 元 Cron が有効（または新規有効化が個別承認済み）の場合のみ実行
+       npm --prefix services/msm-trigger run ops -- enable-cron
+       ```
+
+  - **元 `MODE=observe` の復旧**: `enable-dispatch` と `enable-cron` は実行しない（`ops.mjs` では両コマンドとも `MODE` を `dispatch` へ変更するため）。元設定保持の隔離テンプレートで `deploy-observe`（元 Cron が有効だった場合のみ read-back 確認後に `observe-cron`、元 Cron 停止なら再開しない）により元の `MODE`・Cron を復元し、`observe` から `dispatch` への切替および外部 opt-in 有効化は別途・個別の承認を得てから行う。
+- **停止と `pending` 整理**:
+  - Cron の追加・変更・削除は反映伝播に **最大 15 分** かかり得る。また、停止操作は **進行中の公開を中断しない**（緊急時は上記のとおり GitHub 側 `STATIC_EXTERNAL_TRIGGER_ENABLED=false` を先に閉じる）。
+  - 停止後も **KV を削除・初期化して試行枠や失敗上限をリセットしない**。同じ Run で 2 回失敗した場合は上流／GitHub／公開ログを調べ、通常は次の新 Run を待つ。
+  - 旧 `pending` を整理する必要がある場合だけ、**別途承認のうえ Cron 停止伝播（最大 15 分）および進行中実行終了を確認して** `abandon-pending` を実行する（日次・同 Run カウンタと cooldown は保持）。
 
 ## 有効化前・コード変更時の限定 observe 実測（別途承認後のみ）
 
