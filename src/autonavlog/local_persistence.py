@@ -6,7 +6,13 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    SerializerFunctionWrapHandler,
+    field_serializer,
+    model_validator,
+)
 
 from autonavlog.domain.project import Project
 from autonavlog.web.models import WorkingCalculation
@@ -21,6 +27,18 @@ class LocalProjectRecord(BaseModel):
     draft: Project
     lastCalculation: WorkingCalculation | None
     updatedAt: datetime
+
+    @field_serializer("lastCalculation", mode="wrap", when_used="json")
+    def serialize_last_calculation(
+        self, value: WorkingCalculation | None, handler: SerializerFunctionWrapHandler,
+    ) -> Any:
+        payload = handler(value)
+        if payload is not None:
+            # CUT is rederived on open. Keep durable/synced records readable by
+            # older clients whose row contract rejects zero (and uses total time).
+            for row in payload["outcome"]["display_rows"]:
+                row["thirty_degree_cut_seconds"] = None
+        return payload
 
     @model_validator(mode="after")
     def validate_identity(self) -> LocalProjectRecord:

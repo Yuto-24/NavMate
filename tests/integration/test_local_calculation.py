@@ -1032,3 +1032,31 @@ def test_schema4_recovery_keeps_verified_fingerprint_and_does_not_promote_edits(
     assert restored["workingRecovery"]["last_calculation"]["calculation_fingerprint"] == fingerprint
     restored_last = restored["workingRecovery"]["last_calculation"]
     assert restored_last["outcome"]["sections"] == last["outcome"]["sections"]
+
+
+@pytest.mark.parametrize("old_value", [999, None])
+def test_cut_restore_updates_only_derived_seconds_without_calculation(
+    local, monkeypatch, old_value,
+):
+    calculated = calculate(local)
+    recovery = json.loads(json.dumps(calculated["workingRecovery"]))
+    for outcome in [recovery["outcome"], recovery["last_calculation"]["outcome"]]:
+        for row in outcome["display_rows"]:
+            if old_value is None:
+                row.pop("thirty_degree_cut_seconds", None)
+            else:
+                row["thirty_degree_cut_seconds"] = old_value
+    replacement = LocalApplication(ROOT / "data", forecast_fixture=ROOT / "tests/fixtures/msm")
+    try:
+        def forbidden(*args, **kwargs):
+            raise AssertionError("CUT restoration must not recalculate or fetch weather")
+
+        monkeypatch.setattr(replacement.session.calculation_service, "calculate", forbidden)
+        restored = json.loads(replacement.dispatch("bootstrap", recovery))
+        assert restored["workingRecovery"] == calculated["workingRecovery"]
+        assert restored["outcome"] == calculated["outcome"]
+        # A second save/reload retains only the new definition and all planning data.
+        again = json.loads(replacement.dispatch("bootstrap", restored["workingRecovery"]))
+        assert again["workingRecovery"] == restored["workingRecovery"]
+    finally:
+        replacement.close()

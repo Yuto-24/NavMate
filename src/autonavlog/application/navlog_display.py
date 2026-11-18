@@ -861,6 +861,12 @@ def _thirty_degree_cut(
         return None
     inbound = [zone for zone in sections if zone.section_id in previous.section_ids]
     outbound = [zone for zone in sections if zone.section_id in leg.section_ids]
+    return _cut_from_zones(inbound, outbound)
+
+
+def _cut_from_zones(
+    inbound: list[SectionResult], outbound: list[SectionResult],
+) -> int | None:
     if not inbound or not outbound:
         return None
     before, after = inbound[-1], outbound[0]
@@ -896,7 +902,39 @@ def _thirty_degree_cut(
         wind_speed_kt=wind,
         distance_nm=sum(value for value in distances if value is not None),
     )
-    return int(round_half_up(solution.seconds, 1.0)) if solution else None
+    return int(round_half_up(solution.straight_seconds, 1.0)) if solution else None
+
+
+def refresh_thirty_degree_cut(outcome: CalculationOutcome) -> None:
+    """Replace only CUT seconds from saved adopted zones, without weather or planning.
+
+    Parent source sequences delimit the original physical-Leg groups, including
+    merged parents. Missing provenance clears old seconds rather than relabelling
+    a total manoeuvre time as a straight hold time.
+    """
+    parents = [row for row in outcome.display_rows if row.row_type == "PHYSICAL_LEG_SUMMARY"]
+    positions = {zone.sequence: index for index, zone in enumerate(outcome.sections)}
+    for row in outcome.display_rows:
+        row.thirty_degree_cut_seconds = None
+    for previous, row in zip(parents, parents[1:], strict=False):
+        if row.source_result_sequence is None or previous.source_result_sequence is None:
+            continue
+        start = positions.get(row.source_result_sequence)
+        prior = positions.get(previous.source_result_sequence)
+        if (start is None or prior is None or prior >= start
+                or row.from_node_id is None or previous.to_node_id != row.from_node_id):
+            continue
+        first = outcome.sections[start]
+        if first.section_id != row.section_id:
+            continue
+        outbound = []
+        for zone in outcome.sections[start:]:
+            if zone.section_id != first.section_id:
+                break
+            outbound.append(zone)
+        row.thirty_degree_cut_seconds = _cut_from_zones(
+            outcome.sections[prior:start], outbound,
+        )
 
 
 def build_navlog_display_rows(

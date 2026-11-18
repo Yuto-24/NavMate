@@ -44,7 +44,12 @@ export function restoreProjectDraft(project: Project, draft: ProjectDraft): Proj
     } },
   };
 }
-export interface VorColumn { id: number; stationIdentifier: string | null }
+export interface VorColumn {
+  id: number;
+  stationIdentifier: string | null;
+  automaticStationIdentifier?: string;
+  automaticSelectionKey?: string;
+}
 export interface ApplicationSession {
   editingRouteProjectId?: string | null;
   pendingImportDraft?: boolean;
@@ -92,7 +97,9 @@ export function decodeSession(raw: string): ApplicationSession {
         typeof draft.plannedAltitude === "string" &&
         ["temperatureByPhase", "tasByPhase", "windDirectionByPhase", "windSpeedByPhase"].every(key => strings(draft[key]))) ||
       !Array.isArray(value.vorColumns) || !value.vorColumns.every(column => record(column) &&
-        typeof column.id === "number" && (column.stationIdentifier === null || typeof column.stationIdentifier === "string")) ||
+        typeof column.id === "number" && (column.stationIdentifier === null || typeof column.stationIdentifier === "string") &&
+        (column.automaticStationIdentifier === undefined || typeof column.automaticStationIdentifier === "string") &&
+        (column.automaticSelectionKey === undefined || typeof column.automaticSelectionKey === "string")) ||
       !record(value.checkPointDraft) ||
       !(value.checkPointDraft.id === null || typeof value.checkPointDraft.id === "string") ||
       !["name", "latitude", "longitude", "linkedSectionId"].every(key => typeof (value.checkPointDraft as Record<string, unknown>)[key] === "string") ||
