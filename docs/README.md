@@ -10,6 +10,7 @@
 ## 1. 仕様の正本（設計・計算・データ・UI）
 
 ### 航法計算・経路・地図・地形
+
 | テーマ | 正本 | ここで分かること |
 | --- | --- | --- |
 | NAV LOG 計算・表示 | [calculation_rules.md](calculation_rules.md) | 丸め、VAR/VOR、各 Flight Phase、燃料計画、RJFM Policy、参考表示の規則 |
@@ -22,6 +23,7 @@
 | 地形入力（DEM / KML） | [terrain_inputs.md](terrain_inputs.md) | GSI DEM 復号・被覆判定、地形点 KML の標高基準・障害物除外境界 |
 
 ### 出典・参照データ来歴
+
 | テーマ | 正本 | ここで分かること |
 | --- | --- | --- |
 | 出典公開方針 | [source_policy.md](source_policy.md) | 内部運用資料の非公開境界と公開資料の出典管理方針 |
@@ -32,6 +34,7 @@
 | 旧設計メモ互換入口 | [DESIGN.md](../DESIGN.md) | 旧メモ廃止・現行正本への誘導スタブ |
 
 ### 気象・選択・予備経路
+
 | テーマ | 正本 | ここで分かること |
 | --- | --- | --- |
 | モデル選択（MSM→GSM） | [forecast_selection.md](forecast_selection.md) | モデル優先順位、互換性・天気ライブラリ境界、Schema 拡張の契約 |
@@ -42,6 +45,7 @@
 | WX 雲・湿度検証 | [wx_profile_feasibility.md](wx_profile_feasibility.md) | 雲・湿度プロファイルの技術検証結論、容量概算、上流 API 提案 |
 
 ### アプリケーション・永続化・アカウント・UI
+
 | テーマ | 正本 | ここで分かること |
 | --- | --- | --- |
 | 全体アーキテクチャ | [architecture.md](architecture.md) | Static / Legacy 境界、保存層構造、表示投影、気象 Provider 接続 |

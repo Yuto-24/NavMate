@@ -23,7 +23,7 @@ Catalog freshness, approved publication identity, actual scheduled MSM renewals,
 Auth/Sync/Local and rollback acceptance remain required. Production activation still
 needs explicit authorization; changing this policy does not enable schedules or billing.
 
-> **日付付き状況との区別**: 下の「Unattended collection investigation」「過去の検証根拠: v1.22.7」「2026-10-21 / 10-08」等は過去の監査・移行手順時の観測であり、現在の本番 `STATIC_AUTOMATION_ENABLED` / `STATIC_APPROVED_SHA` / 配信版を示すものではありません。また、`App` 公開経路の `Operator.verify()` は release 全 inventory と catalog を検証しますが、`MSM` 公開経路が使う `--verify-payloads`（配信 NPZ 全件の再取得・照合）は含みません（詳細は [app_publication_audit.md](app_publication_audit.md) を参照）。
+> **日付付き状況との区別**: 下の「Unattended collection investigation」「過去の検証根拠: v1.22.7」「2026-10-21 / 10-08」等は過去の監査・移行手順時の観測であり、現在の本番 `STATIC_AUTOMATION_ENABLED` / `STATIC_APPROVED_SHA` / 配信版を示すものではありません。また、`App` 公開経路の `Operator.verify()` が照合するのは `release.json` の inventory（ファイル名・バイト数・SHA-256 の一覧）と `catalog.json`、および配信本体を再取得して照合する `index.html`・`local/manifest.json`（と欠損 404・Pages identity）までであり、JS asset や `MSM` 公開経路が使う `--verify-payloads`（配信 NPZ 全件）の本体の再取得・照合は含みません（詳細は [app_publication_audit.md](app_publication_audit.md#canonical検証の実際の範囲) を参照）。
 
 ## Ownership and activation
 

@@ -8,7 +8,7 @@ Account Sync E2E を `chromium` / `ipad-webkit` / `iphone-webkit` / `contracts` 
 
 Split the Account Sync critical path across ordinary GitHub-hosted runners without reducing tests, keeping readiness/encoding fixes (`b42f1b3c082b60452aa016c807d68000cc3bdf6b`) and Local/Python/MSM coverage intact. No paid runner or permissions/deployment change is required.
 
-The aggregate `account-sync` check enforces `always()` and compares full Playwright collection against the union of all shard selections via `web/scripts/check-account-sync-partition.mjs`.
+The aggregate `account-sync` check uses `always()` and checks only the `account-sync-tests` matrix results (`account-sync` does not depend on `web`). Full Playwright collection versus the union of all shard selections is verified in the `web` job via `web/scripts/check-account-sync-partition.mjs`, so partition-check failures propagate through `web` and `ci-required`.
 
 ## Suites and independent state
 
@@ -33,11 +33,7 @@ Sync keeps `--workers=2` without `fullyParallel`; a single project/file can use 
 preserving its internal ordering. This change adds CPU isolation across projects rather than
 increasing same-runner concurrency. Each failure artifact includes its suite name.
 
-The aggregate `account-sync` check retains the previous check name. `always()` makes it evaluate
-failed/cancelled/skipped/missing prerequisites; its first command accepts only success. Proven
-docs-only changes retain the original skip behavior. The aggregate also compares full Playwright
-collection with the union of all three project selections. A new unassigned project, duplicate,
-empty selection, or collection error fails rather than silently shrinking coverage. Contracts
+The aggregate `account-sync` check retains the previous check name and inspects only the `account-sync-tests` results (`always()` makes it evaluate failed/cancelled/skipped/missing prerequisites; its command accepts only success, while proven docs-only changes retain the original skip behavior). The `web` job runs `web/scripts/check-account-sync-partition.mjs` to compare full Playwright collection with the union of shard selections, failing on any unassigned project, duplicate, empty selection, or collection error; partition-check failures propagate to `web` and `ci-required`, not to `account-sync`. Contracts
 uses whole configs (not project filters), since storage and migration project names differ from
 sync and migration intentionally has no iPhone project.
 

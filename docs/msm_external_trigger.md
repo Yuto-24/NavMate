@@ -71,12 +71,17 @@ npm --prefix services/msm-trigger run ops -- observe-cron
 ### Secret 管理と段階配置の安全制約
 
 - **Secret の段階登録**: `wrangler secret put/delete` は新 version を即時 deploy するため使わず、`stage-secret`（`wrangler versions secret put`）→ `deploy-staged` の 2 段階を維持する。`stage-secret` は **`MODE=observe` かつ Cron 停止中のみ** 実行し、次の Secret を stage する前に必ず `pending version` を `deploy-staged` で配置する。同時管理者による version 変更が検出された場合は停止し、`versions list` で確認する。同じ名前の Secret 更新・期限前更新も同じ手順で上書きし、追加リソースを作らない。
-- **本番 dispatch 有効化**: 先に有効化前確認および必要な場合は下節の限定 observe 実測を行った上で、個別に承認を得て進む。`enable-dispatch`（Cron 空）を配置し、read-back で設定差分がないことを確認してから `enable-cron` へ進む。
+- **本番 dispatch 有効化**: 先に有効化前確認および必要な場合は下節の限定 observe 実測を行った上で、個別に承認を得て進む。まず `enable-dispatch`（Cron 空）を配置し、次の `enable-cron` を実行する前に read-back で設定差分（`observability` 等）がないことを確認する。
 
 ```sh
 # 既存の GitHub 認証を使用。新規 credential 作成を兼ねない
 gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/NavMate --body true
 npm --prefix services/msm-trigger run ops -- enable-dispatch
+```
+
+read-back で設定差分がないことを確認した場合だけ、Cron を再開する（差分がある場合はここで停止する）。
+
+```sh
 npm --prefix services/msm-trigger run ops -- enable-cron
 ```
 

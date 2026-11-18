@@ -6,7 +6,7 @@
 
 - **原因**: ビルドコンテナ（`USER` 未指定で UID/GID `0:0` 実行）が writable bind mount 上に root 所有で `weather/msm` と `release.json` を作成したため、nonroot の Actions ホスト側 `freshness.py` が書き込みできず権限失敗した（失敗 Run のログには `id`/`stat` が残っておらず、当時の正確な UID/GID と mode bits は復元できない）。
 - **対処**: 認証情報なしのビルドコンテナへホストの数値 UID/GID を渡し、build/E2E 成功後に対象（`release.json`、`weather/msm`、存在時の `weather/msm/freshness.json`）のみへ非再帰 `chown --no-dereference` を適用する。payload やチェックアウト全体の権限・モードは変更しない。
-- **検証境界**: `tests/integration/check_static_artifact_handoff.py` は、実 build イメージを用い、既定・回帰テストの再現条件として root 所有 `0755`/`0644` と `1000:1000` 対 `0:0` を設定して再現・修正確認した検証であり、失敗 Run 当時の実測 mode の証明や実上流 MSM / NPZ 公開の代替証拠ではない。
+- **検証境界**: `tests/integration/check_static_artifact_handoff.py` は、実 build イメージを用い、回帰テストの再現条件として root 所有（`0:0`）`0755`/`0644` と実行ホストの非 root UID/GID（`os.getuid()` / `os.getgid()`）を設定して再現・修正確認した検証であり（特定実行で `1000:1000` 等を観測した場合はその実行結果として区別する）、失敗 Run 当時の実測 mode の証明や実上流 MSM / NPZ 公開の代替証拠ではない。
 
 ## 実施記録と制約（2026-10-27）
 

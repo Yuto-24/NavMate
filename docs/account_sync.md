@@ -60,11 +60,17 @@ Sync must use this codec; fixing only the first import would fail on a later edi
 
 ### Rollout and older clients
 
-When deploying payload compression updates, deploy the NavMate reader/writer before enabling the updated Legacy migration server.
-New code reads existing JSON without a database rewrite. Older browser/Legacy adapters
+When deploying payload compression updates, deploy the NavMate reader/writer before enabling the updated Legacy migration server so browser clients capable of reading `gzip-v1:` payloads are in place before Legacy migration can produce compressed documents.
+New code reads existing JSON without a database rewrite. Older browser and Legacy adapters
 cannot parse `gzip-v1:` as JSON and stop before overwriting that Project. Old tabs may
 therefore report a sync/read failure after a large Project is saved; update them while
-preserving their Local data and any pending edits. A rollback to old code cannot read
+preserving their Local data and any pending edits.
+
+During the window after NavMate is deployed and before the Legacy migration server is updated, Legacy migration reads only the Project IDs in its migration plan. Unrelated compressed Projects in NavMate do not affect migration, but migration fails if an older Legacy adapter reads a `gzip-v1:` document for an ID in that migration plan (for example, on retry after a partial migration if an updated NavMate client wrote or updated one of those IDs).
+
+When that failure occurs, migration returns the account to `LINKED` while keeping Legacy source files, existing Local/remote data, and completed batches intact. After updating the Legacy migration server to support `gzip-v1:`, retry migration through the existing flow in [Legacy migration](legacy_migration.md#data-and-retry) without creating duplicate Project IDs.
+
+Until both the Legacy migration server and old browser tabs are updated, compressed documents remain unreadable to those un-updated components. A rollback to old code cannot read
 compressed documents and is not a transparent recovery procedure. Rules and indexes remain
 unchanged across this format compatibility layer.
 

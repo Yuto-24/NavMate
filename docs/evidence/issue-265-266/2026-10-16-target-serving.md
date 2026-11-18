@@ -4,7 +4,7 @@
 
 **再利用可能な原因知見**:
 - **#265（A/B/B ドリフト）**: `Operator.target()` が初回読取 A を使い、`pages_target.inspect()` が在庫前後の読取 B/B だけを比較すると、A→B 間の設定変更を見逃すため、`expected_project` として A/B/B の 3 回一致を要求する。
-- **#266（Error 1010 と Analytics 挿入）**: Python 標準 `urllib` User-Agent への Cloudflare Error 1010 に対し、所有者承諾済みの `AutoNavLog-StaticOperations/1.0` を共通 `static_request()` で使用する。また、エッジの Web Analytics 挿入により root HTML のバイト長・ETag が変化する。
+- **#266（Error 1010 と Analytics 挿入・ETag 欠落の観測）**: Python 標準 `urllib` User-Agent への Cloudflare Error 1010 に対し、所有者承諾済みの `AutoNavLog-StaticOperations/1.0` を共通 `static_request()` で使用する。また、エッジ応答では Web Analytics スクリプトの挿入に伴う root HTML のバイト長変化と ETag 欠落を観測した（変換の全容および ETag 欠落の原因は未確認）。
 
 ## #265: three project reads must agree
 

@@ -28,6 +28,23 @@ Gemini（Agy）により、個別ファイルの添削ではなく、リポジ�
 
 モデル名は指定値であり、提供者側のモデル実体を独立に認証したものではない。生の対話ログ・認証情報・秘密設定値は公開せず、読者が必要とする判断と対象範囲だけを以下に残す。
 
+## PR #463 レビュー反映の追加編集（2026-11-18）
+
+- **指定モデル・実行範囲**: `gemini-4-hydrogen-high`（会話ID `d7dd7011-8dcf-438c-a97b-f86e40d53c54`、基準 HEAD `4a7dddfd`）。主要編集の実行時刻（UTC）は `2026-11-18T05:42:39.377644+00:00` ～ `2026-11-18T05:44:54.116714+00:00`（依頼文 SHA-256 `91c92a8b5aa7fc08d7b22c1bae743ae6268d04a12f3eb9a2f22d2cf7474d2889`、応答記録 SHA-256 `93cc07a349732c6749b0f75237c16a0606346f3460d0a6796ad45092858ebd6a`）。後続の独立レビュー指摘反映を同会話で継続実施（その終了時刻や確定 commit hash 等の未確定値は記録しない）。
+- **編集対象と採用理由（コード・既存本文と照合した最小修正）**:
+  - [docs/account_deletion.md](../../docs/account_deletion.md): Rules による即時遮断対象を全端末からの Project 書込みへ明確化し、オフライン他端末の再接続前 Local 表示と区別するため。
+  - [docs/account_sync.md](../../docs/account_sync.md): `src/autonavlog/web/legacy_migration.py`、`src/autonavlog/web/migration_remote.py` と [legacy_migration.md](../../docs/legacy_migration.md) に照合し、NavMate 先行配置の理由、Legacy 未更新期間に移行 plan 内 ID の読取で `gzip-v1:` 文書へ遭遇した場合にのみ移行失敗して `LINKED` へ戻る限定条件（無関係な新規 NavMate Project の圧縮だけでは失敗しない）、更新後の既存再試行手順、残存リスクを追記するため。
+  - [docs/evidence/ci/account-sync-project-shards-20261101.md](ci/account-sync-project-shards-20261101.md): `.github/workflows/test.yml` に照合し、2 箇所の記述を「`account-sync` は `account-sync-tests` のみ検査し、分配検査は `web` が実行して失敗が `web` と `ci-required` へ伝播する」事実へ整合させるため。
+  - [docs/evidence/issue-121/remote-production-2026-09-24.md](issue-121/remote-production-2026-09-24.md): [custom_domain_cutover.md](../../docs/custom_domain_cutover.md) と [custom-domain-2026-09-28.md](issue-123/custom-domain-2026-09-28.md) に照合し、`2026-09-27` を決定日として記載し完了日未確認を明示するため。
+  - [docs/evidence/issue-123/msm-artifact-handoff-2026-10-27.md](issue-123/msm-artifact-handoff-2026-10-27.md): `tests/integration/check_static_artifact_handoff.py` が `os.getuid()` / `os.getgid()` を使用する実装に合わせて、再現条件を `1000:1000` 固定ではなく実行ホストの非 root UID/GID として記載するため。
+  - [docs/evidence/issue-265-266/2026-10-16-target-serving.md](issue-265-266/2026-10-16-target-serving.md): 同文書 94 行と整合させ、Analytics 挿入と ETag 欠落を観測事実として分け、ETag 欠落原因を未確認として保つため。
+  - [docs/forecast_refresh.md](../../docs/forecast_refresh.md): `src/autonavlog/web/facade.py` と同文書 35 行に照合し、weather mode 変更時のモデル/Run ピン解除を冒頭要約へ含めるため。
+  - [docs/knowledge/entries/msm-trigger-worker-ops-drift.md](../../docs/knowledge/entries/msm-trigger-worker-ops-drift.md): `services/msm-trigger/ops.mjs` に照合し、元 `MODE=dispatch` かつ承認範囲内の復旧と元 `MODE=observe` 復旧（`enable-dispatch` / `enable-cron` 禁止・元 MODE/Cron 保持・`dispatch` 化の別途承認）を分離するため。
+  - [docs/msm_external_trigger.md](../../docs/msm_external_trigger.md): read-back の設定差分確認前に `enable-cron` が実行されないよう、別コードブロックへ分離するため。
+  - [docs/static_operations.md](../../docs/static_operations.md): `scripts/static_ops/app_release.py`（`Operator.verify()` / `verify_serving()`）と [app_publication_audit.md](../../docs/app_publication_audit.md) に照合し、本体再取得照合の対象が `index.html` と `local/manifest.json`（と欠損 404・Pages identity）であることを明記するため。
+  - [docs/README.md](../../docs/README.md): 本 PR で新設した 4 つの表直前の空行不足（markdownlint MD058）を描画修正として空行のみ補正するため。
+- **結果の確認方法**: 各編集箇所と参照先ソースコード・既存文書の突合せ、および編集後の `git diff --check` による差分・空白検査を実施。
+
 ## 全96件の判定
 
 | 文書 | 判定 | 理由・変更内容 |
