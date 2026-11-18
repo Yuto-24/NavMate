@@ -1,6 +1,7 @@
 import { clickMapCoordinate } from "./helpers/mapCoordinate";
 import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
+import { observeStartupProgress } from "./helpers/startupProgress";
 import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { selectAirport } from "./helpers/mapCandidates";
 import { enterImportWorkflow, expectImportedDraft, confirmImportedDraft } from "./helpers/importWorkflow";
@@ -58,24 +59,12 @@ async function calculated(page: Page) {
 }
 test("#422 one startup bar stays monotonic through assets and validated readiness", async ({ page, context }) => {
   test.skip(!isLocal(), "Local startup progress");
-  await context.addInitScript(() => {
-    const values: number[] = [];
-    Object.assign(window, { startupProgressValues: values });
-    new MutationObserver(records => {
-      for (const record of records) {
-        if (record.target instanceof HTMLProgressElement && record.target.classList.contains("startup-progress")) {
-          values.push(record.target.value);
-        }
-      }
-      const progress = document.querySelector<HTMLProgressElement>(".startup-progress");
-      if (progress) values.push(progress.value);
-    }).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ["value"] });
-  });
+  await context.addInitScript(observeStartupProgress);
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
   await context.route("**/local/data.zip", async route => { await pending; await route.continue(); });
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  const bar = page.getByRole("progressbar", { name: "起動の進み具合" });
+  const bar = page.getByRole("progressbar", { name: "準備の進み具合" });
   try {
     await expect(page.getByRole("status")).toHaveText("計算用プログラムとデータを読み込んでいます", { timeout: 120_000 });
     await expect(bar).toHaveCount(1);
@@ -91,6 +80,8 @@ test("#422 one startup bar stays monotonic through assets and validated readines
   expect(values[0]).toBeLessThanOrEqual(5);
   expect(values.at(-1)).toBe(100);
   expect(values.every((value, index) => value >= 0 && value <= 100 && (index === 0 || value >= values[index - 1]))).toBe(true);
+  const frames = await page.evaluate(() => (window as any).startupProgressFrames as { percent: number; workspace: boolean }[]);
+  expect(frames.some(frame => frame.percent === 100 && !frame.workspace)).toBe(true);
 });
 
 test("#355 startup reload replaces a failed Worker", async ({ page, context }) => {
@@ -108,7 +99,7 @@ test("#355 startup reload replaces a failed Worker", async ({ page, context }) =
   });
   await page.goto("/");
   await expect(page.getByRole("alert").locator("code")).toHaveText("APPLICATION_UNAVAILABLE");
-  await expect(page.getByRole("progressbar", { name: "起動の進み具合" })).toHaveCount(0);
+  await expect(page.getByRole("progressbar", { name: "準備の進み具合" })).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText("private Worker stack and token");
   const firstDocument = await page.evaluate(() => performance.timeOrigin);
   await page.getByRole("button", { name: "起動を再試行", exact: true }).click();

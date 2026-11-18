@@ -449,9 +449,12 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         next = await application.bootstrap();
       }
       if (!active) return;
-      // Commit the final progress value before replacing the startup screen.
-      // This adds no artificial timer or delay to application readiness.
-      if (application.startup) flushSync(() => application.startup!.complete());
+      if (application.startup) {
+        flushSync(() => application.startup!.complete());
+        // Give the completed bar a paint opportunity before replacing it (#467).
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        if (!active) return;
+      }
       applyState(next);
       if (restored) {
         // Canonical project remains the validated Application snapshot; raw UI values stay separate.
@@ -2224,5 +2227,8 @@ export default function ApplicationWorkspace(props: AppProps) {
   // Remount every UI draft/ref and invalidate pending component callbacks, without
   // replacing the same-account Application. Legacy retains its page-reload boundary.
   return <App key={generation} {...props}
-    onNewWork={localMode ? () => setGeneration(value => value + 1) : undefined} />;
+    onNewWork={localMode ? () => {
+      props.application.startup?.restart();
+      setGeneration(value => value + 1);
+    } : undefined} />;
 }

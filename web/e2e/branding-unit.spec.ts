@@ -8,7 +8,7 @@ test("NavMate display name leaves compatibility identities intact", () => {
     ["../index.html", "<title>NavMate</title>"],
     ["../src/components/Header.tsx", '<span className="brand-name" aria-hidden="true">NavMate</span>'],
     ["../src/components/InformationDialog.tsx", "NavMateのお知らせ"],
-    ["../src/components/StartupScreen.tsx", "NavMateの起動"],
+    ["../src/components/StartupScreen.tsx", "NavMateの準備"],
     ["../src/components/StartupScreen.tsx", '<img className="loading-mark" src="/navmate-192.png" width={52} height={52} alt="" />'],
     ["../static/404.html", "NavMateを再読み込み"],
     ["../src/localProjectRepository.ts", '"autonavlog.projects"'],

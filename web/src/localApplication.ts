@@ -214,6 +214,7 @@ export class LocalApplication implements AutoNavLogApplication {
       const state = await this.request<WebState>("bootstrap", recovery ? working : undefined);
       this.startup.update({ stage: "projects", percent: 90 });
       const presented = await this.present(state); // never select or write durable work during session hydration
+      this.assertActive();
       this.startup.update({ stage: "projects", percent: 98 });
       return presented;
     });

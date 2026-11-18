@@ -9,7 +9,7 @@ import type { AutoNavLogApplication, UpdateProjectInput } from "../src/applicati
 import type { WebState } from "../src/types";
 import { LocalApplication } from "../src/localApplication";
 import type { LocalProjectRepository } from "../src/localProjectRepository";
-import { StartupProgressStore, type StartupProgress } from "../src/startupProgress";
+import { authenticationProgress, StartupProgressStore, type StartupProgress } from "../src/startupProgress";
 import { readStartupAsset } from "../src/localStartupAsset";
 
 const originalFetch = globalThis.fetch;
@@ -56,6 +56,24 @@ test("#422 downloads report comparable bytes and preserve the exact asset", asyn
   await expect(readStartupAsset(broken, () => {})).rejects.toThrow("transport failed");
 });
 
+test("#422 migration joins Local startup without regression; new work gets a fresh lifetime", () => {
+  const migration = new StartupProgressStore(authenticationProgress);
+  migration.update({ stage: "migration", percent: 32 });
+  migration.update({ stage: "migration", percent: 0 }); // retry
+  expect(migration.getSnapshot().percent).toBe(32);
+  const local = new StartupProgressStore();
+  local.restart(true);
+  expect(local.getSnapshot().percent).toBeGreaterThan(migration.getSnapshot().percent);
+  local.update({ stage: "projects", percent: 90 });
+  expect(local.getSnapshot().percent).toBe(94);
+  local.complete();
+  expect(local.getSnapshot().percent).toBe(100);
+  local.restart();
+  expect(local.getSnapshot()).toEqual({ stage: "runtime", percent: 5 });
+  local.update({ stage: "projects", percent: 90 });
+  expect(local.getSnapshot().percent).toBe(90);
+});
+
 test("#422 startup waits for Project validation and cannot complete after an account closes", async () => {
   let finishListing!: () => void;
   let listingStarted!: () => void;
@@ -81,7 +99,39 @@ test("#422 startup waits for Project validation and cannot complete after an acc
   expect(app.startup.getSnapshot().percent).toBe(90);
   finishListing();
   await expect(result).rejects.toMatchObject({ code: "ACCOUNT_CONTEXT_CLOSED" });
-  expect(app.startup.getSnapshot().percent).toBeLessThan(100);
+  expect(app.startup.getSnapshot().percent).toBe(90);
+});
+
+test("#422 StrictMode's live subscription receives the first queued bootstrap's progress", async () => {
+  let report!: (value: StartupProgress) => void, finish!: () => void;
+  let initialized = false;
+  const app = new LocalApplication(() => ({
+    list: async () => ({ projects: [], unavailable: [], tokens: {} }),
+  }) as unknown as LocalProjectRepository, () => ({
+    request: async <T>(_operation: string, _body?: unknown, progress?: (value: StartupProgress) => void) => {
+      if (!initialized) {
+        report = progress!;
+        await new Promise<void>(resolve => { finish = resolve; });
+        initialized = true;
+      }
+      return { ...state } as T;
+    }, dispose() {},
+  }));
+  const first = app.bootstrap();
+  const unsubscribeFirst = app.startup.subscribe(() => {});
+  unsubscribeFirst();
+  const values: number[] = [];
+  const unsubscribeLive = app.startup.subscribe(() => values.push(app.startup.getSnapshot().percent));
+  const second = app.bootstrap();
+  await expect.poll(() => !!finish).toBe(true);
+  try {
+    report({ stage: "dependencies", percent: 45 });
+    expect(values).toEqual([45]);
+  } finally {
+    finish();
+    await Promise.all([first, second]);
+    unsubscribeLive(); app.dispose();
+  }
 });
 
 const update: UpdateProjectInput = {

@@ -7,12 +7,15 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from runpy import run_path
 from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from autonavlog.runtime_data import runtime_data_files
-
 root = Path(__file__).resolve().parents[1]
+# Use the checkout's stdlib-only helper without importing the installed package
+# (whose __init__ requires dependencies and distribution metadata before build).
+runtime_data_files = run_path(str(root / "src/autonavlog/runtime_data.py"))["runtime_data_files"]
+
 # This directory is generated and ignored. Start clean so removed public assets and
 # provider control files cannot leak from an earlier checkout into a release.
 public_target = root / "web/public-local"

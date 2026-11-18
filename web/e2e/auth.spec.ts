@@ -1,5 +1,6 @@
 import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
+import { observeStartupProgress } from "./helpers/startupProgress";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expect, test, chromium, type BrowserContext, type Page } from "@playwright/test";
 import { resolve, join } from "node:path";
@@ -449,4 +450,82 @@ test("blocked Google popup reports an actionable error without resetting anonymo
   expect((await authState(page)).account).toBeNull();
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("FUEL gal", { exact: true })).toHaveValue("81");
+});
+
+
+// Exercise the real main.tsx/StrictMode handover and App, with only the external
+// account preparation replaced. No Firebase account or production data is used.
+async function startupHandover(page: Page) {
+  await page.addInitScript(observeStartupProgress);
+  await page.route("**/src/createApplication.ts*", route => route.fulfill({ contentType: "application/javascript", body: `
+    import { createAccountContext } from "/src/accountContext.ts";
+    import { progressOf } from "/src/legacyMigration.ts";
+    export async function startApplication(platform, present, report) {
+      let application, release;
+      const state = { retried: false, signedOut: false };
+      const show = () => {
+        const context = createAccountContext(platform);
+        application = context.application;
+        present(context);
+      };
+      const signOut = () => { state.signedOut = true; show(); };
+      const progress = completed => report({ ...progressOf({ completed, total: 10 }), signOut });
+      window.startupHarness = {
+        state, show,
+        fail: () => report({ percent: 0, message: "", error: "Test migration failure", signOut,
+          retry: () => { state.retried = true; progress(0); } }),
+        pause: () => {
+          const pending = new Promise(resolve => { release = resolve; });
+          const original = application.bootstrap.bind(application);
+          application.bootstrap = async (...args) => { await pending; return original(...args); };
+        },
+        release: () => release(),
+      };
+      progress(8);
+    }
+  ` }));
+  await page.goto("/");
+  await expect(page.getByRole("progressbar", { name: "準備の進み具合" })).toHaveAttribute("value", "32");
+}
+
+test("#422 main handover, retry and StrictMode startup keep one bar; new work resets before validation", async ({ page }) => {
+  await startupHandover(page);
+  await expect(page.getByRole("status")).toHaveText("プロジェクトを引継ぎ・検証中 8 / 10 件");
+  await expect(page.locator(".map-frame")).toHaveCount(0);
+  await page.evaluate(() => (window as any).startupHarness.fail());
+  await expect(page.getByRole("alert")).toHaveText("Test migration failure");
+  await expect(page.getByRole("progressbar")).toHaveCount(0);
+  await page.getByRole("button", { name: "再試行", exact: true }).click();
+  await expect(page.getByRole("progressbar")).toHaveAttribute("value", "32");
+  expect(await page.evaluate(() => (window as any).startupHarness.state.retried)).toBe(true);
+  await page.evaluate(() => (window as any).startupHarness.show());
+  await enterImportWorkflow(page);
+  const values = await page.evaluate(() => (window as any).startupProgressValues as number[]);
+  expect(values.at(-1)).toBe(100);
+  expect(values.every((value, index) => index === 0 || value >= values[index - 1])).toBe(true);
+  const frames = await page.evaluate(() => (window as any).startupProgressFrames as { percent: number; workspace: boolean }[]);
+  expect(frames.some(frame => frame.percent === 100 && !frame.workspace)).toBe(true);
+
+  await page.evaluate(() => { (window as any).startupHarness.pause(); (window as any).startupProgressValues.length = 0; });
+  await openProjectMenu(page);
+  await page.getByRole("button", { name: "新規", exact: true }).click();
+  try {
+    await expect(page.getByRole("progressbar")).toHaveAttribute("value", "5");
+    await expect(page.locator(".map-frame")).toHaveCount(0);
+  } finally { await page.evaluate(() => (window as any).startupHarness.release()); }
+  await enterImportWorkflow(page);
+  const restarted = await page.evaluate(() => (window as any).startupProgressValues as number[]);
+  expect(restarted[0]).toBe(5);
+  expect(restarted.at(-1)).toBe(100);
+});
+
+test("#422 handover preserves sign out while pending and after failure", async ({ page }) => {
+  for (const failure of [false, true]) {
+    await startupHandover(page);
+    if (failure) await page.evaluate(() => (window as any).startupHarness.fail());
+    await page.getByRole("button", { name: "ログアウト", exact: true }).click();
+    await enterImportWorkflow(page);
+    expect(await page.evaluate(() => (window as any).startupHarness.state.signedOut)).toBe(true);
+    await page.unroute("**/src/createApplication.ts*");
+  }
 });

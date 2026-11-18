@@ -115,7 +115,7 @@ test("#355 startup reload recovers after asset failure and preserves saved Proje
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("処理を実行できませんでした。画面を再読み込みしてください。");
   await expect(alert.locator("code")).toHaveText("APPLICATION_UNAVAILABLE");
-  await expect(page.getByRole("progressbar", { name: "起動の進み具合" })).toHaveCount(0);
+  await expect(page.getByRole("progressbar")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText("private initialization details");
   const failedDocument = await page.evaluate(() => performance.timeOrigin);
   await page.getByRole("button", { name: "起動を再試行", exact: true }).click();
