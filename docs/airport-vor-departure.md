@@ -24,7 +24,7 @@ VOR Tracking Mode は、登録済み 14 空港の出発位置を対応する VOR
 <a id="第1-legの磁気基準"></a>
 ## 第1 Legの磁気基準
 
-- 第 1 Physical Leg の全計算区間（Calculation Zone）は、通常VARと出発局の公示 Declination の差をWGS84初期方位から減じたTCを表示します（詳細は [計算規則](calculation_rules.md)）。VARは通常の緯度別偏差のままとし、WCAは補正前の方位と風で求めます。任意の VOR/DME 列の選局は影響しません。
+- 第 1 Physical Leg の全計算区間（Calculation Zone）は、通常VARと出発局の公示 Declination の差を補正前の採用TCから減じた値を表示します（詳細は [計算規則](calculation_rules.md)）。採用TCは手動指定があればその値、なければ元LegのWGS84初期方位です。VARは通常の緯度別偏差を維持し、WCAは補正前の採用TCと風で求めます。任意の VOR/DME 列の選局は影響しません。
 - 公示偏差と出典は単一の VOR 局データ原本（[データ来歴](data_provenance.md#nav-logのvordme基準局)）から供給し、Web 表示と計算コアで共用します。座標の出典と偏差の出典で改訂日が異なる場合があるため、それぞれ独立した出典を保持します。
 - 出発専用局（`OYE` 等）は出発 VOR Tracking 専用として管理し、NAV LOG の VOR/DME 選局一覧には含めません。TCの補正に使う出発局の偏差は公示値（例：`OYE` は 8°W）を採用し、年変化は加算しません。
 - 保存済み Project の局 ID・座標を対応表と照合して偏差を解決します。未知の局・座標や偏差欠落がある場合は第 1 Leg の MC/MH を正常値として出力せず、計算をブロックします。
