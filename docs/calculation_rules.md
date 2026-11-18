@@ -61,10 +61,15 @@ Flight Phaseは`CLIMB`、`CRUISE`、`DESCENT`、`VISUAL_ARRIVAL`を扱います�
 
 ## DESCENT / EOC
 
+> **実装状況**：以下の「高度連続性」に関する改訂は[#470](https://github.com/Yuto-24/NavMate/issues/470)の実装待ちです。仕様を先行記録しており、現行mainの計算挙動が既に修正済みであることは意味しません。
+
 - 降下率は500 fpmを標準とし、利用者が1000 fpmを選択できます。
 - 自動DESCENTではEOC直前の実効CRUISE Calculation ZoneのCASを共通CASとして使用します。
 - EOC以降のDESCENT燃料は12 GPHです。
-- EOCは降下に必要な時間を逆算して経路上へ配置します。
+- EOCは降下に必要な時間をVREPから逆算して経路上へ配置します。まずDESCENT基準Leg自身の計画高度から候補を求め、前Legへの遡りが不要なら従来どおりそのLeg内で確定します。
+- **高度連続性（[#470](https://github.com/Yuto-24/NavMate/issues/470)で実装予定）**：候補EOCより前に高い計画高度のLegがある場合、その高度からDESCENT基準Legの計画高度へ、EOCまでの実際の所要時間で到達できるかも確認します。DESCENT基準LegからVREPまでの時間だけが足りても、EOC時点の高度が連続しない候補は採用しません。
+- 前段の高度変更が未完了なら、必要な時間とLegごとのGSを考慮してEOCを手前のLegへ遡らせ、EOC以降はVREPまで連続した降下として扱います。途中の変針点で降下高度を瞬時に切り替えたり、失われた時間を表示用の降下率変更で補ったりしません。前段の高度変更が完了し、現在Leg内にEOCを置ける場合は不要な遡りをしません。
+- 高度条件を保って経路始点まで遡っても降下を成立させられない場合はBlockerとし、矛盾した計算結果を正常完了として保存しません。
 - EOCとPhysical Turn Pointの経路上距離差が0.5 NM未満なら、内部計算上もTurn Pointへsnapします。ちょうど0.5 NMではsnapしません。
 - snap後も、計画高度差から求めた降下時間とlevel-off後の60秒は保持します。
 - EOC後のTOAT、風、WCA、MH、GSは継承境界として最初のDESCENT行へ明示します。TOATはそのCalculation ZoneのDESCENT phaseの実効値を使い、直前と同値でも省略しません。以後の通常区間は既存の継承表示を維持します。
