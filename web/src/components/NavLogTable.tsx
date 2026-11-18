@@ -1,3 +1,4 @@
+import { resolveVorStations, retainVorStations, selectVorStation as updateVorSelection } from "../vorSelection";
 import type { Dispatch, SetStateAction } from "react";
 import type { VorColumn } from "../applicationSession";
 import { useMemo, useState } from "react";
@@ -11,7 +12,6 @@ import {
   orderVorStationsForRoute,
   VOR_AUTO_SELECTION,
   VOR_DATASET_EFFECTIVE_CYCLE,
-  VOR_STATIONS,
 } from "../vorRadial";
 import { draftFromSection } from "../navLogEditing";
 import { roundHalfUp } from "../displayRounding";
@@ -498,7 +498,7 @@ function DisplayResultCells({
       <DisplayCell cell={row.fuel} />
       <td className="derived-readonly-cell nav-log-cut-cell">
         {row.row_type === "PHYSICAL_LEG_SUMMARY"
-          ? (Number.isInteger(row.thirty_degree_cut_seconds) && (row.thirty_degree_cut_seconds ?? 0) > 0
+          ? (Number.isInteger(row.thirty_degree_cut_seconds) && (row.thirty_degree_cut_seconds ?? -1) >= 0
             ? row.thirty_degree_cut_seconds : "—")
           : ""}
       </td>
@@ -643,36 +643,19 @@ export function NavLogTable({
     const route = [...project.route_nodes].sort((left, right) => left.sequence - right.sequence);
     return orderVorStationsForRoute(route);
   }, [project.route_nodes]);
-  const resolveVorStations = (columns: VorColumn[]) => {
-    const manuallySelected = new Set<string>();
-    const manualStations = columns.map((column) => {
-      if (column.stationIdentifier === null || column.stationIdentifier === "") return null;
-      if (manuallySelected.has(column.stationIdentifier)) return null;
-      const station = VOR_STATIONS.find(
-        (candidate) => candidate.identifier === column.stationIdentifier,
-      ) ?? null;
-      if (station !== null) manuallySelected.add(station.identifier);
-      return station;
-    });
-    const automaticCandidates = [automaticVorStation, ...orderedVorStations]
-      .filter((station, index, stations) => (
-        stations.findIndex((candidate) => candidate.identifier === station.identifier) === index
-      ));
-    const assigned = new Set(manuallySelected);
-    return columns.map((column, index) => {
-      const manualStation = manualStations[index];
-      if (manualStation != null) return manualStation;
-      if (column.stationIdentifier === "") return null;
-      const automaticStation = automaticCandidates.find(
-        (station) => !assigned.has(station.identifier),
-      ) ?? null;
-      if (automaticStation !== null) assigned.add(automaticStation.identifier);
-      return automaticStation;
-    });
-  };
+  const automaticCandidates = useMemo(
+    () => [automaticVorStation, ...orderedVorStations],
+    [automaticVorStation, orderedVorStations],
+  );
+  // Column operations retain assignments, but editing the route starts automatic selection afresh.
+  const vorSelectionKey = useMemo(() => JSON.stringify([
+    automaticVorStation.identifier,
+    [...project.route_nodes].sort((left, right) => left.sequence - right.sequence)
+      .map(node => [node.latitude_deg, node.longitude_deg]),
+  ]), [automaticVorStation, project.route_nodes]);
   const selectedVorStations = useMemo(
-    () => resolveVorStations(vorColumns),
-    [automaticVorStation, orderedVorStations, vorColumns],
+    () => resolveVorStations(vorColumns, automaticCandidates, vorSelectionKey),
+    [automaticCandidates, vorColumns, vorSelectionKey],
   );
   const navLogColumnCount = 20 + vorColumns.length;
   const navLogWidth = BASE_NAV_LOG_WIDTH_PX
@@ -683,29 +666,19 @@ export function NavLogTable({
         id: current.reduce((maxId, column) => Math.max(maxId, column.id), -1) + 1,
         stationIdentifier: "",
       },
-      ...current,
+      ...retainVorStations(current, automaticCandidates, vorSelectionKey),
     ]);
   };
   const removeVorColumn = (columnId: number) => {
     setVorColumns((current) => (
-      current.length === 1 ? current : current.filter((column) => column.id !== columnId)
+      current.length === 1 ? current : retainVorStations(current, automaticCandidates, vorSelectionKey).filter((column) => column.id !== columnId)
     ));
   };
   const selectVorStation = (columnId: number, stationIdentifier: string) => {
-    setVorColumns((current) => current.map((column) => (
-      column.id === columnId
-        ? {
-            ...column,
-            stationIdentifier: stationIdentifier === VOR_AUTO_SELECTION
-              ? null
-              : stationIdentifier === "" || current.some((other) => (
-                other.id !== columnId && other.stationIdentifier === stationIdentifier
-              ))
-                ? ""
-                : stationIdentifier,
-          }
-        : column
-    )));
+    setVorColumns((current) => updateVorSelection(
+      current, columnId, stationIdentifier === VOR_AUTO_SELECTION ? null : stationIdentifier,
+      automaticCandidates, vorSelectionKey,
+    ));
   };
 
   const inputSections = new Map(project.sections.map((section) => [section.id, section]));
@@ -827,11 +800,10 @@ export function NavLogTable({
                   >
                     <option value="">局を選択</option>
                     <option value={VOR_AUTO_SELECTION}>
-                      {`自動 ${resolveVorStations(vorColumns.map((candidate) => (
-                        candidate.id === column.id
-                          ? { ...candidate, stationIdentifier: null }
-                          : candidate
-                      )))[index]?.identifier ?? "未選択"}`}
+                      {`自動 ${resolveVorStations(
+                        updateVorSelection(vorColumns, column.id, null, automaticCandidates, vorSelectionKey),
+                        automaticCandidates, vorSelectionKey,
+                      )[index]?.identifier ?? "未選択"}`}
                     </option>
                     {orderedVorStations.filter((station) => (
                       selectedVorStations[index]?.identifier === station.identifier
