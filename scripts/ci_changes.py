@@ -62,9 +62,19 @@ def is_documentation(change: Change) -> bool:
     if change.path == "README.md":
         # Packaging needs the root README to exist as a regular file.
         return change.new_mode == "100644"
-    return change.path == "AGENTS.md" or (
-        change.path.startswith("docs/") and change.path.endswith(".md")
-    )
+    if change.path == "AGENTS.md":
+        return True
+    # Documentation and review evidence are passive inputs. Keep executable files,
+    # unfamiliar types and documents consumed by code/tests in the full suite.
+    if change.path in {
+        "docs/evidence/airport-vor-departure.json",
+        "docs/reference/vrep-169-confirmed-source.md",
+        "docs/release-2-3-2-copy-request.json",
+    }:
+        return False
+    return change.path.startswith("docs/") and Path(change.path).suffix.lower() in {
+        ".md", ".json", ".txt", ".png", ".xlsx", ".csv", ".sha256", ".gz",
+    }
 
 
 JOBS = frozenset(
