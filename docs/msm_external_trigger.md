@@ -1,145 +1,46 @@
-# MSM補完起動: 軽量WorkerとActions検証
+# MSM 補完起動: 軽量 Worker (`autonavlog-msm-trigger`) と Actions 検証
 
-目的は2026年10月末までのNavMate新環境の提供開始。PR #290はWorkerの軽量化と実行可否の確認に限定する。
-Related #287 / PR #290。アプリ本体、承認済みSHA、TTL、配信origin、TLSとアクセス保護は変更しない。
-Workerは起動の候補を判定し、Actionsが公開可否と公開後の証拠を確認する。
+`autonavlog-msm-trigger` は、`https://navmate.yuto24.com/weather/msm/freshness.json` の鮮度ヒントを 15 分 Cron で監視し、更新候補時に限って `Yuto-24/NavMate` の `static-production.yml` へ `workflow_dispatch` を送る軽量 Cloudflare Worker です。公開可否・予報 Run 発見・全 payload 検証・公開後確認はすべて Actions 側が担い、Worker 自身は公開成功を判定しません。
+
+> **現在の運用位置づけと関連記録**:
+> - **2026-11-18 復旧状態（観測記録）**: `Yuto-24/NavMate` 参照修正版（commit `810be0bbe24511f4da5fdf8b8f2b4a468fc6a97c`）を再配置し、`MODE=dispatch` / 15 分 Cron で自然 Cron 1 回の `FRESH` 判定まで確認済み（[2026-11-18 復旧記録](evidence/issue-123/msm-worker-recovery-2026-11-18.md)）。**`DISPATCH_ACCEPTED` 経路の実証、provider CPU 集計（10 ms 受入）、および本番 MSM の全 payload 整合性・継続更新は未確認**であり、その後の本番状態も本記録からは断定しない。
+> - **設計上の設定上書き制約**: `services/msm-trigger/ops.mjs` の `configuration()` を使う経路は、毎回 `wrangler.jsonc` から `.state/wrangler.json` を上書き生成するため、本番の明示的 `observability` 設定等を省略し得る。手順と回避策は [CLI（設定上書き制約と段階操作）](#cli設定上書き制約と段階操作) および知見 [MSM-TRIGGER-OPS-DRIFT](knowledge/entries/msm-trigger-worker-ops-drift.md) を参照。
 
 ## 鮮度ファイルと起動判断
 
-公開toolingは承認済みアプリのbuild/test後、`weather/msm/freshness.json`を追加し、
-`release.json`のinventoryへ実bytes/hashを登録する。catalogと同じPages deploymentに載せる。
-アプリcheckoutのソースやcommitは変更しない。既存の承認SHAの古いbuild scriptでも移行できる。
+公開 tooling は承認済みアプリの build/test 後、`weather/msm/freshness.json` を追加し、`release.json` の inventory へ実 bytes/hash を登録して catalog と同じ Pages deployment に載せます。
 
-schema 1は `run`（catalog assets中の実在する最新Run）、`generated_at`、`expires_at`、
-`app_commit` を持つ。生成・期限はcatalogから転記し、6時間のTTLを更新・延長しない。
-2,048 bytes以内で、架空のRunや「次に来るはずのRun」を記録しない。
+- schema 1 は `run`（catalog assets 中の実在する最新 Run）、`generated_at`、`expires_at`、`app_commit` を持つ。生成・期限は catalog から転記し、6 時間の TTL を更新・延長しない。2,048 bytes 以内とし、架空の Run や「次に来るはずの Run」を記録しない。
+- Worker はこの 1 ファイルを `no-store`、HTTPS、redirect 拒否、10 秒、2,048 bytes 上限で取得し、schema、UTC 3 時間境界 Run、生成日時、6 時間期限、40 桁 commit 形式を検証する。
+- **残り 3 時間超**: `FRESH` として終了し、GitHub 照会・POST は行わない（`upstream: "NOT_CHECKED"`、`publication: "NOT_VERIFIED"`）。
+- **残り 3 時間以下（有効な古い/期限切れ hint を含む）**: KV の要求回数・90 分 cooldown と、GitHub `Yuto-24/NavMate` の active 5 状態（`queued` / `in_progress` / `waiting` / `pending` / `requested`）・直近 24 時間履歴で要求を抑制する。8 要求/UTC 日の上限を維持し、空振り・失敗・受付不明も枠を消費する。
+- POST 前に KV（キー `trigger-v1`）へ要求数と時刻を記録し、書込失敗時は送信しない。POST は自動 retry しない。旧 `msm-fallback/` と新 `msm-request/` の両方の prefix を会計する。
+- 欠落 404、SPA HTML、JSON 不正、schema 不正、過大、取得失敗は `UNKNOWN` で停止する。欠落を期限切れへ読み替えて起動しない。
+- `request_id` は起動要求の ID（現在時刻ミリ秒文字列）であり予報 Run ではない。`DISPATCH_ACCEPTED` は受付のみを示し、`publication: "NOT_VERIFIED"` のまま Actions 側で公開可否と公開後検査を完結させる。
+- [GitHub API 版 `2026-03-10` の dispatch 成功](https://docs.github.com/en/rest/actions/workflows?apiVersion=2026-03-10#create-a-workflow-dispatch-event)は HTTP 200 を返す。1 MiB 上限内で JSON を読み、正の整数 `workflow_run_id` と `Yuto-24/NavMate` を指す `run_url` / `html_url` を検証して受付結果へ記録する。
+- KV は結果整合性であり分散 lock ではない。古い read や同時 tick による厳密な 8 件上限・rolling 24 時間上限はこの構成で保証しない（Actions 側の concurrency・履歴・同 Run 上限で補う）。厳密な予約を行う Durable Object (`RequestGate`) は後続分離のまま本構成に含めない。
 
-Workerはこの1ファイルをno-store、HTTPS、redirect拒否、10秒、2,048 bytes上限で読む。
-schema、UTCの3時間境界Run、生成日時、6時間の期限、commit形式を確認するだけ。
-残り3時間超なら `FRESH` として終了し、上流は `NOT_CHECKED` のまま。
-残り3時間以下（有効な古い/期限切れhintを含む）の場合、KVの要求回数・90分間隔と
-GitHubのactive 5状態（古い承認待ちを含む）・直近24時間履歴で要求を抑制する。
-8要求/UTC日の抑制を維持する。空振り、失敗、受付不明も枠を消費する。
-POST前にKVへ要求数と時刻を記録し、書込失敗なら送信しない。POSTは自動retryしない。
-旧 `msm-fallback/` と新 `msm-request/` の両方を会計する。
+## CPU と実行の観測
 
-欠落404、SPA HTML、JSON不正、schema不正、過大、取得失敗はUNKNOWNで停止する。
-欠落を期限切れに読み替えて起動せず、次tickでもPOSTしない。
-`request_id` は起動要求のID（現在時刻のミリ秒文字列）であり予報Runではない。
-新Workerは `observed_run` を送らず、実Runの発見を装わない。
-`DISPATCH_ACCEPTED` は受付だけ。`publication: NOT_VERIFIED` で、hintの更新から公開成功を宣言しない。
-[GitHub API版 `2026-03-10` のdispatch成功](https://docs.github.com/en/rest/actions/workflows?apiVersion=2026-03-10#create-a-workflow-dispatch-event)はHTTP 200。既存の1 MiB本文上限内でJSONを読み、
-正の整数 `workflow_run_id` と、同じID・対象repoを指す `run_url` / `html_url` を検証する。
-受付結果には `request_id` とこの3項目だけを追加し、Actionsとの対応確認に使う。
-不正・欠落・過大な応答や通信失敗でも予約した要求枠とcooldownを保持し、POSTを自動再送しない。
-同じWorkerの既存Secretを使用し、新しいSecret・権限は要求しない。
-KVと履歴の当日件数の大きい方を引き継ぎ、POST前に1件加算する。90分に最大送信時間10秒を
-加えた保守間隔を記録する。日跨ぎでも最終要求時刻と旧target/pending記録を保持する。
+- `scheduled` handler は結果と全 HTTP stage の `diagnostics` 配列を 1 件の JSON ログへまとめる（URL 本文・header・Secret 値は出力しない）。
+- `scripts/static_ops/msm_observation.py` は副作用なしで受付・CPU 観測を照合する。enqueue から実行終了までを含む対象 1 件の provider CPU 値で 10 ms 制限を評価し、tail の単発値だけを合格証拠にしない。API 失敗・欠測・曖昧な集計は `UNKNOWN` とする。
 
-KVは結果整合性であり、分散lockではない。古いread・同時tickによる要求の重複や
-厳密な8件上限、rolling 24時間の8件保証はこの構成で保証しない。
-Actions側のconcurrency・履歴・同Run上限・再公開防止を維持する。
-追加していたDOによる厳密な要求予約は後述の後続事項へ分離し、binding・export・migrationを
-今回の配置構成から除く。回数制限を全面撤去する変更ではない。
+## Actions 側の境界
 
-## CPUと実行の観測
+workflow concurrency `static-production` / `cancel-in-progress: false` を共有する。承認済みアプリ SHA 固定を維持し、2026-10-28 の明示承認に基づき予報のみの公開は手動を含め承認待ちにしない（preflight / producer は無人実行用 `static-production` environment、build-only は `static-validation` を使用）。
 
-scheduled handlerは、結果と全HTTP stageの`diagnostics`配列を1件のJSONログにまとめる。
-本文上限、HTTP検査、要求予約、回数・間隔制限は変更しない。失敗時も取得済みの診断を残す。
-ローカルprofileは比較用であり、10 msの受入にはproviderの実dispatch計測を使う。
+1. bounded な完全履歴と全 active 状態を照合し、自 Run 以外の実行中・承認待ち、日次 8、90 分間隔、重複 request ID、rerun、任意 SHA 指定を拒否する。GitHub concurrency API で現在 Run が `static-production` lock を保持することを確認し、同 group で pending と確認できた Run だけを active 競合から除外する。
+2. canonical release・catalog の実 bytes/hash、全 asset inventory と全 payload bytes/hash を検証し、hint と catalog の一致を確認する（hint 非搭載の旧 deployment からの欠落起動は認めない）。
+3. 既存 `preflight_feed.py` で 25 時間を満たす新しい完全な予報 Run を発見する（新 Run なしは健康な既存 catalog・完全予報時のみ `NO_NEW_RUN`）。
+4. 検出した実 Run を job 名 `msm-detected/<Run>` として記録し、先行する同 Run 検出履歴が 2 件以上なら停止する。
+5. restore・生成・全 payload decode/coverage・独立 build/E2E・upload 直前比較・upload 後検査（全 payload 照合を含む）を通過して公開する。
 
-`scripts/static_ops/msm_observation.py`は副作用なしで受付・CPUの観測を照合する。
-自然Cronのenqueue時刻と実際の`request_id`時刻は離れうるため、秒数差で受付を否定しない。
-返された実行ID、要求IDを含むrun-name、event、tooling SHA、run attemptを照合する。
-CPU照会の区間はenqueueから実行終了までを含め、対象1件のprovider値で判定する。
-tailの整数値10 msだけを合格にせず、API失敗・欠測・複数件の曖昧な集計はUNKNOWNとする。
-UNKNOWNはWorkerのexceptionと区別し、既知のCPU超過や実行失敗を隠さない。
+## CLI（設定上書き制約と段階操作）
 
-Workerからcatalog/release取得、catalog SHA-256、全asset inventory照合、上流listing解析、
-予報Run発見、canonical公開完了の判定を取り除いた。
+リポジトリルートから実行する。Wrangler（`4.152.0`）と lockfile は `services/msm-trigger/package.json` で固定し、template（`wrangler.jsonc`）は常に `observe`・Cron 空・ダミー KV で管理し本番へ直接使用しない。
 
-## Actions側の境界
-
-workflow concurrency `static-production` / `cancel-in-progress: false` を共有する。
-既存opt-inと承認済みアプリSHA固定を維持する。2026-10-28の明示承認に基づき、
-予報のみの公開は手動を含め承認待ちにしない。preflightとproducerはともに既存の
-無人実行用`static-production` environmentを使い、build-onlyは`static-validation`を使う。
-`static-publication`の設定・保護やアプリ更新のreviewed-plan承認経路は変更しない。
-preflightのSHAをproducerへ渡し、承認変化があればidentity gateで停止する。
-
-1. boundedな完全な履歴と全active状態を照合し、自分以外の実行中・承認待ち、日次8、90分、
-   重複request ID、rerun、任意SHA指定を拒否する。不明/切詰め/通信失敗は停止する。
-   Actions内のgateは履歴・全active状態を取得後、GitHub concurrency APIで現在Runが
-   `static-production` lockを保持することを確認する。同groupでpendingと確認したRunだけを
-   active競合から除外し、作成時刻の前後では待機順を推定しない。group外の承認待ちや
-   不明/欠落/不完全なlock情報は停止する。Workerの発行前検査では全active状態を止める。
-2. canonical release・catalogの実bytes/hash、全asset inventoryと全payload bytes/hashを検証する。
-   hintがinventoryにあるdeploymentではcatalogのRun・日時・commitとhintを照合する。
-   hintを持たない旧deploymentは移行元として認めるが、Workerによる欠落起動は認めない。
-3. 既存 `preflight_feed.py` で25時間を満たす新しい完全な予報Runを発見する。
-   新Runなしは健康な既存catalog・完全な予報だけNO_NEW_RUN。それ以外は不明/失敗。
-4. 検出した実Runをjob名 `msm-detected/<Run>` としてActionsの履歴へ記録する。
-   起動要求のrun-name `msm-request/<request_id>` と区別する。旧observed_run要求も会計する。
-   先行する同Runの検出履歴が2件ならproducer前に停止し、失敗も含める。
-   検出Run時刻まで遡って履歴を読み、日跨ぎでRun制限を解除しない。
-   producerのlisting発見直後・payload生成前とupload直前に検出Run一致を検査し、
-   待機中のRun変化が会計を迂回しない。
-   履歴・jobsの欠落/切詰め/取得失敗では上限判定を通さない。
-5. 必要な場合だけ既存restore・生成・全payload decode/coverage・独立build/E2E・公開gateへ進む。
-   upload直前にcanonicalとcandidateのRunを比較し、同じ予報の再公開・期限だけの更新を拒否する。
-   upload後はcandidate identity、canonical、鮮度一致と全payloadを検査する。
-
-## 既存公開からの移行（このPRでは実行しない）
-
-1. このtoolingをmergeする承認を別途得る。予報のみの公開に実行ごとの承認は不要。
-   Workerはobserve・Cron停止、外部opt-in無効のまま。SecretやKVを再作成しない。
-2. 既存scheduleまたは手動feed公開で、承認済みアプリcommitを固定したまま
-   同じdeploymentにhintを含める。新Runがなければ待つ。同Runを再公開して移行しない。
-3. canonical catalog/release/payload/hintが同じ候補と一致することをActionsで確認する。
-   404や古いhint、catalogとの不一致がある場合はWorkerを有効化しない。
-4. 以下の限定observe実測を別途承認後に行う。CPUと当該経路の実行可否の確認後までdispatchを許可しない。
-   アカウント全体の無料枠・課金監視は#281であり、今回の公開条件にはしない。
-   旧KVの要求数・Run数・pendingは移行時に消去しない。
-5. 既存Workerをobserve・Cron空で停止した状態から、伝播・進行中実行終了を確認して移行する。
-   既存KVとSecretを再利用し、旧版とdispatchを並行稼働させない。
-   DO namespace追加・migrationは不要。rollbackでも新旧dispatchを同時に有効化しない。
-
-## 実測履歴と次の限定実測
-
-旧526は接続先不明・未解決。初回traceはCPU 38ms / wall 3300ms、outcome exceptionで、
-CPU超過が直接の停止理由と確定したものではない。
-17daa313の限定observe再実測はFRESHでCPU 17ms（provider集計17.232ms）、wall 348ms。
-canonical catalog 733,586 bytes / release 29,909 bytesはともに200。
-GitHub・上流未到達で526は再現せず、過去の原因解決を証明しない。
-18:33 JSTの停止証拠に加え、2026-10-26 20:33 JSTに既存OAuthで管理APIを再取得し、
-MODE=observe・Cron空・停止version `62d08cdc-e151-4240-9b35-68e7dcc51109` を確認した。
-401調査・復旧の確認範囲は [read-back記録](evidence/issue-123/msm-worker-readback-2026-10-26.md) を参照。
-停止後追加tickは観測上0だが約2分のtail欠測がある。このPRでは本番設定を操作しない。
-
-次の実測も**別途承認後のみ**:
-
-1. 対象を既存Worker・既存KV・固定commitに限定し、observe配置、Cron反映待ち最大15分＋
-   観測最大30分・最大2tick、停止とread-backまでを一組にする。opt-inは無効、実dispatchなし。
-2. 先にhint付き公開の証拠と設定・承認済みアプリSHAをread-onlyで確認する。
-   共有無料枠・課金監視の完了は前提にしない（#281）。CPU制限と経路の測定は残す。
-   hint欠落なら欠落経路の確認だけとし、更新候補経路の受入とはしない。
-3. Cloudflare tailとprovider CPU集計で各tickのCPU/wall/outcomeを取得する。
-   固定stage/hostname/status/read bytesだけを記録し、token/header/本文/Secret URLを出さない。
-   新stageは `canonical_freshness`、GitHub 5 active状態・recent、dispatch、heartbeat。
-4. 最初のUNKNOWN、HTTP/IO/BODY_LIMIT、exceededCpu、CPU 10ms超過、想定外設定、期限または
-   2tick到達で停止し、MODE=observe・Cron空をread-backする。停止伝播と遅着ログも確認する。
-5. FRESH・期限切れ・GitHub到達・欠落は異なる経路として記録する。実Runやpendingを捏造せず、
-   未測定経路は未受入。少数サンプルだけで未測定経路も含めたCPU 10ms以内を宣言しない。
-   526は同じ接続先の段階別証拠を得るまで未解決。接続先変更やTLS緩和で回避しない。
-
-#273が天気障害・復旧通知を担当する。任意heartbeatは検査完了のlivenessだけで、公開成功ではない。
-新たなサービス登録・課金変更は含めない。
-
-## CLI（通常設定のコピーは不要）
-
-リポジトリrootから実行。Wranglerとlockfileを固定し、Worker名、公開先、GitHub repo/workflow、
-閾値はコード管理。account/KV ID・段階の記録はignored `.state/` に自動保存する。
-リポジトリ内のtemplateは常にobserve・Cronなし・ダミーKVで、本番deployに直接使わない。
+> **重要（`ops.mjs` の `.state/wrangler.json` 上書き仕様）**:
+> 現在の `services/msm-trigger/ops.mjs` は、`configuration()` を呼ぶコマンド（`ensure-kv`、`abandon-pending`、`stage-secret`、`deploy-observe`、`observe-cron`、`enable-dispatch`、`enable-cron`、`stop`）の実行時にリポジトリの `wrangler.jsonc` を読み込み、`.state/wrangler.json` を上書き生成する（`deploy-staged` は既存の `.state/wrangler.json` を再生成せずに使用し、`plan` は JSON を表示するだけでファイルを書かない）。`wrangler.jsonc` には明示的 `observability` 設定がないため、本番に元からある `observability` 詳細設定を保つには、隔離配置用テンプレートへ元設定を明示したうえで **Cron なし配置 → read-back 差分確認 → Cron 再開** の順に進めること。`.state/wrangler.json` だけを手修正しても次回上記 `configuration()` 呼び出しコマンドの実行で上書きされる。
 
 認証不要の開発・検証:
 
@@ -151,135 +52,74 @@ npm --prefix services/msm-trigger test
 npm --prefix services/msm-trigger run ops -- plan
 ```
 
-以下は**個別承認後のみ**。既存Cloudflare accountを使い、有料planへの変更はしない。
-初回だけ承認済み `CLOUDFLARE_ACCOUNT_ID` と `CLOUDFLARE_API_TOKEN` を安全なshell環境に用意する。
-CLIはtoken内容を記録しない。`set -x`、debug HTTP logging、tokenを引数にする操作は使わない。
+隔離コンテナ等で `workerd` テストが CA 証明書不足により失敗する場合は、TLS 検証を無効化せず、ホストの既存 CA 証明書を read-only mount して再実行する。
+
+管理 API / CLI 操作（**個別承認後のみ**。`set -x`・token 引数・ログ出力は禁止）:
+
+- **認証 refresh**: 保存済み OAuth access token を使う直接 GET が HTTP 401/403 で失敗する場合、まず既存 `wrangler whoami` の通常 refresh 後に再読込を試す。新規 token・Secret・権限を無断で作成しない（[2026-10-26 調査](evidence/issue-123/msm-worker-readback-2026-10-26.md)）。
+- **`.state/operator.json` 喪失時**: 安易に `ensure-kv` や KV 初期化へ進まず、まず本番 GET で account、既存 `STATE` KV（固定名 `autonavlog-msm-trigger-state`）、`MODE`、Cron、最新/未配置 version を確認してローカル状態だけ復元し、既存 KV 内容と `GITHUB_TOKEN` Secret を保持する。
 
 ```sh
-# 全namespaceを列挙して固定名の既存KVを再利用。欠落時だけ作成。再実行可能。
+# 初回構築時（既存環境復旧時は本番 GET で状態確認後にローカル復元を優先）
 npm --prefix services/msm-trigger run ops -- ensure-kv
-# 初回配置。observe、Cronなし、公開HTTP入口なし。
 npm --prefix services/msm-trigger run ops -- deploy-observe
-# 隠しpromptへSecretを入力。値をコマンド履歴やGitに残さない。
 npm --prefix services/msm-trigger run ops -- stage-secret GITHUB_TOKEN
-# 新version IDは自動保存。Secret登録とは別に、そのversionを100%へ配置。
 npm --prefix services/msm-trigger run ops -- deploy-staged
-# 任意heartbeatも同じ2段階。登録承認がなければ省略。
-# npm --prefix services/msm-trigger run ops -- stage-secret HEARTBEAT_URL
-# npm --prefix services/msm-trigger run ops -- deploy-staged
-# observeのままCronを有効化する段階（これもCron承認が必要）。
 npm --prefix services/msm-trigger run ops -- observe-cron
 ```
 
-`wrangler secret put/delete` は新versionを**即時deploy**するため使わない。
-上記は `wrangler versions secret put` で未配置versionだけを作る。
-Secret登録時はobserve・Cron停止を必須にし、次のSecret登録前にpending versionを配置する。
-同時管理者によるversion変更が検出された場合は停止し、version一覧で確認する。
-同じ名前のSecret更新は上書きで、追加リソースを作らない。期限前の更新も同じ手順。
+### Secret 管理と段階配置の安全制約
 
-本番dispatchの明示承認と、後述の有効化前確認後:
+- **Secret の段階登録**: `wrangler secret put/delete` は新 version を即時 deploy するため使わず、`stage-secret`（`wrangler versions secret put`）→ `deploy-staged` の 2 段階を維持する。`stage-secret` は **`MODE=observe` かつ Cron 停止中のみ** 実行し、次の Secret を stage する前に必ず `pending version` を `deploy-staged` で配置する。同時管理者による version 変更が検出された場合は停止し、`versions list` で確認する。同じ名前の Secret 更新・期限前更新も同じ手順で上書きし、追加リソースを作らない。
+- **本番 dispatch 有効化**: 先に有効化前確認および必要な場合は下節の限定 observe 実測を行った上で、個別に承認を得て進む。`enable-dispatch`（Cron 空）を配置し、read-back で設定差分がないことを確認してから `enable-cron` へ進む。
 
 ```sh
-# 既存のGitHub認証を使用する。credentialの新規作成を兼ねない。
+# 既存の GitHub 認証を使用。新規 credential 作成を兼ねない
 gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/NavMate --body true
-# 配置するがCronは空。observe-cron稼働中でも、ここで一度Cronを止める。
 npm --prefix services/msm-trigger run ops -- enable-dispatch
-# 別段階で15分Cronを配置。
 npm --prefix services/msm-trigger run ops -- enable-cron
 ```
 
-停止（既存のGitHub scheduleはそのまま）:
+- **停止と `pending` 整理**:
+  - Cron の追加・変更・削除は反映伝播に **最大 15 分** かかり得る。また、停止操作は **進行中の公開を中断しない**（緊急時は GitHub 側 `STATIC_EXTERNAL_TRIGGER_ENABLED=false` を先に閉じる）。
+  - 停止後も **KV を削除・初期化して試行枠や失敗上限をリセットしない**。同じ Run で 2 回失敗した場合は上流／GitHub／公開ログを調べ、通常は次の新 Run を待つ。
+  - 旧 `pending` を整理する必要がある場合だけ、**別途承認のうえ Cron 停止伝播（最大 15 分）および進行中実行終了を確認して** `abandon-pending` を実行する（日次・同 Run カウンタと cooldown は保持）。
 
 ```sh
 gh variable set STATIC_EXTERNAL_TRIGGER_ENABLED --repo Yuto-24/NavMate --body false
 npm --prefix services/msm-trigger run ops -- stop
 ```
 
-Cronの追加・変更・削除は伝播に最大15分かかりうる。
-停止は進行中の公開を中断しない。緊急時はGitHub側opt-inを先に閉じる。
-停止後もKVを保持し、失敗上限を自動リセットしない。KV削除で再試行枠を作らない。
-同じRunで2回失敗した場合は上流／GitHub／公開ログを調べ、通常は次の新Runを待つ。
-namespace作成応答を失った場合も `ensure-kv` を再実行すればinventoryから再利用する。
-`.state`を失った場合はensure-kvから再構成し、observe配置で安全な状態を確立する。
+## 有効化前・コード変更時の限定 observe 実測（別途承認後のみ）
 
-旧Workerのpendingは新Workerでも成功扱いせず保持する。旧pendingを整理する必要がある場合だけ、
-別途承認のうえCron停止・進行中実行終了を確認して `abandon-pending` を実行する。
-この操作は日次・同Runの旧カウンタとcooldownを保持する。新Workerは公開確認を行わず、
-Actionsのcanonical検証と実公開後の検証を証拠とする。KVは厳密lockではない。
+新規導入、コードや実行基盤の変更後、あるいは未確認経路の受入を行う際は、**設定 read-back のみで完了とせず** 別途承認を得て限定 observe 実測を実施する（2026-11-18 のコード修正再配置では `MODE=dispatch` 復旧後に自然 Cron 1 tick の `FRESH` のみ観測しており、CPU 集計と `DISPATCH_ACCEPTED` 経路は依然未受入）。
 
-## 権限・Secretの承認対象
+1. 対象を既存 Worker・既存 KV・固定 commit に限定し、`observe` 配置（外部 opt-in 無効・実 dispatch なし）→ **Cron 反映待ち最大 15 分** → **観測最大 30 分・最大 2 tick** → 停止と read-back までを一組にする。
+2. 先に hint 付き公開の証拠と設定・承認済みアプリ SHA を read-only で確認する（hint 欠落なら欠落経路の確認のみとし、更新候補経路の受入とはしない）。
+3. Cloudflare tail と **provider CPU 集計** で各 tick の CPU / wall / outcome を取得する（固定 stage / hostname / status / read bytes のみ記録し、token / header / 本文 / Secret URL は出さない）。
+4. 最初の **`UNKNOWN`、HTTP / IO / `BODY_LIMIT`、`exceededCpu`、CPU 10 ms 超過、想定外設定、期限到達、または 2 tick 到達** で停止し、`MODE=observe`・Cron 空を read-back する。停止伝播と遅着ログも確認する。
+5. `FRESH`・期限切れ・GitHub 到達・欠落は別経路として記録し、少数サンプルだけで未測定経路を含めた CPU 10 ms 以内や dispatch 成功を宣言しない。
+
+## 権限・Secret と無料枠境界
 
 | 対象 | 最小権限と制約 |
 | --- | --- |
-| Workerの `GITHUB_TOKEN` | fine-grained PATをYuto-24/NavMateだけに限定、Actions:writeと必須Metadata:read。期限あり。workflow単体への権限限定ではない。他workflow起動・Actions操作も可能な権限であることを承認する |
-| Cloudflare管理CLI | 既存account限定のWorkers Scripts:Edit、Workers KV Storage:Edit（inventory/作成）と必要なAccount Settings:Read。アカウント条件によりAPI適合を確認。Worker runtimeには渡さない |
-| 既存Pages token | GitHubの既存公開environmentのみ。Workerへ渡さず、新規発行しない |
-| `HEARTBEAT_URL` | 任意、Healthchecks ping URLそのものをSecret。閲覧URLやtokenをlogへ出さない。別サービス登録の承認が必要 |
+| Worker `GITHUB_TOKEN` | fine-grained PAT を `Yuto-24/NavMate` のみへ限定（Actions: write、必須 Metadata: read、期限あり）。**workflow 単体への権限限定ではないため、他 workflow 起動・Actions 操作も可能な権限であることを承認する。** 401/403 で別 token へ自動切替せず停止する |
+| 既存 Pages token | GitHub の既存公開 environment のみに保持。**Worker へ渡さず、新規発行もしない** |
+| Cloudflare 管理 CLI | 既存 account 限定の Workers Scripts: Edit、Workers KV Storage: Edit（inventory/作成）、必要な Account Settings: Read。Worker runtime には渡さない |
+| `HEARTBEAT_URL` | 任意、Healthchecks ping URL（`https://hc-ping.com/<uuid>`）。閲覧 URL や token をログへ出さず、**別サービス登録・Secret 登録は別途承認** を要する |
 
-期限・更新担当をtoken作成時に決める。401/403は自動で別tokenへ切り替えず停止する。
-漏洩・失効時はGitHub opt-inを閉じ、対象tokenを失効し、承認後に新tokenを同手順で登録。
-GitHub App installation tokenを使う場合は有効期限が短いため外部発行機構が必要となり、
-この実装はPAT更新を基本とする。長期App秘密鍵の新規管理を暗黙に追加しない。
+- **無料枠境界**: 通常 `FRESH` 経路は鮮度ファイル 1 取得、更新候補経路は最大 9 HTTP 取得（KV は tick ごと 1 read、予約時 1 write）。既存 TAF・他 Worker と account 日次枠を共有する。Actions 側は最大 8 要求/日で保守的上界 440 runner 分/日。アカウント全体の共有クオータ・課金監視は #281 に分離済み。
+- **Free CPU 10 ms 境界**: ローカルテスト・bundle サイズ・HTTP 回数・tail の単発値からは合格宣言せず、実 dispatch を含む provider CPU 集計で確認する。
 
-## 無料枠と未受入の境界
+## 運用観測の履歴（詳細根拠は各証跡を参照）
 
-15分tickは起動判断だけ。無条件dispatchをしない。Workerの通常FRESH経路は鮮度ファイル1取得、
-更新候補経路は鮮度1＋GitHub active 5状態＋履歴1、dispatchと任意heartbeatを含め最大9 HTTP取得。
-鮮度ファイルは2,048 bytes、GitHub各応答は1 MiBで停止する。KVはtickごと1 read、
-要求予約時1 write（方針上最大8/日）。既存TAF、管理操作、重複tickも共有枠に加算する。
-Actionsはpreflight最大10分＋producer最大45分、最大8要求なら440 runner分/日が保守的上界。
-空振りも要求枠を消費し、永続artifact/cacheを追加しない。実Run記録は既存Actions jobs metadata。
-Public repoの標準runner以外を認めない既存identity gateを維持する。
+- **2026-11-18 復旧再配置と自然 Cron 観測**: [2026-11-18 復旧記録](evidence/issue-123/msm-worker-recovery-2026-11-18.md) および知見 [MSM-TRIGGER-OPS-DRIFT](knowledge/entries/msm-trigger-worker-ops-drift.md)。301 原因コード修正反映と自然 Cron 1 tick の `FRESH` 判定まで確認済みだが、`DISPATCH_ACCEPTED` 実証（`github_queued=200` と `msm-request/<request_id>` 一致）・provider CPU 集計・本番 MSM 継続更新は未実証（`FRESH` を dispatch 成功へ読み替えない）。また WSL 直接 GET（403）と Worker GET（200）の経路差を確認。
+- **2026-10-26 以前の観測**: 旧版 `17daa313` の observe 測定は `FRESH` で CPU 17 ms（provider 集計 17.232 ms）/ wall 348 ms。2026-10-26 20:33 JST の read-back では `MODE=observe`・Cron 空・停止 version `62d08cdc-e151-4240-9b35-68e7dcc51109` を確認（[msm-worker-readback-2026-10-26.md](evidence/issue-123/msm-worker-readback-2026-10-26.md)）。
 
-Free CPU 10msは実測による別gate。ローカルテスト、bundleサイズ、HTTP回数から合格と宣言しない。
-アカウント全体の共有使用量・無料枠・Pages保存枠・課金監視は既存#281に分離済み。
-未確認をゼロや適合済みに読み替えないが、#281の完了や定期手入力reportを今回の公開条件に戻さない。
-有料planへの変更はこのPRに含めない。
+## 公式資料・別件メモ
 
-## 後続: 厳密な起動回数管理（今回の配置条件にしない）
-
-追加していた `RequestGate` のDO永続予約・直列化は後続へ分離する。
-設計資料は旧commit `70f91aeb` の `services/msm-trigger/request-gate.ts` とテストを参照できる。
-今回の構成・bundleにDOは含まれず、namespace追加・migration・DO移行受入は不要。
-
-後続で扱うのは古いKV、重複tick、並行要求、再起動、日跨ぎ、受付不明時の厳密な上限、
-既存KV/履歴の取り込み、永続台帳、rollbackの検証。必要なresource・認証・権限変更は操作前に明示する。
-この分離によってKVの回数記録・90分間隔・8要求/UTC日の抑制やActions側の再公開防止は外さない。
-
-
-公式資料:
-
-- [GitHub workflow jobs metadata](https://docs.github.com/en/rest/actions/workflow-jobs)
-
-- [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
-- [Cron管理・伝播](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
-- [KV pricing](https://developers.cloudflare.com/kv/platform/pricing/) / [整合性](https://developers.cloudflare.com/kv/concepts/how-kv-works/)
-- [Pages limits](https://developers.cloudflare.com/pages/platform/limits/) / [Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/)
-- [Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
-- [dispatch権限](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event) / [実行状態API](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs)
-- [Secret登録の副作用](https://developers.cloudflare.com/workers/configuration/secrets/)
-
-## 有効化までの残作業と受入
-
-1. PRのCI・独立レビュー後、別途merge承認。
-2. 対象Worker/KV・既存認証・既存環境保護と承認済みアプリSHAを読み取り確認。
-   共有無料枠・課金監視の完了は#281へ分離し、今回の条件に戻さない。
-3. 既存credentialで進める。新しいtoken発行・Secret登録・権限変更が必要なら、
-   操作と必要性を示して停止する。通常のOAuth refreshと新規credentialの作成を区別する。
-4. Worker observe配置・Cron監視段階を個別承認し、設定read-back、CPU/応答サイズ、
-   hint HTTPS到達、GitHub履歴API、KV、非dispatchを確認。上流listingはActions側で確認する。任意heartbeatは別承認。
-5. GitHub opt-in、dispatch mode、Cron有効化を個別承認して実施。予報のみの各実行はenvironment承認不要。
-6. schedule欠落を補完した実Run、catalog期限・全payload整合性・アプリcommit不変、
-   旧期限を跨ぐ継続更新を記録し#123へ戻す。ここまではfixture試験では代用できない。
-
-人手が必要なのは権限/Secretの変更、merge・有効化・アプリ更新の承認、初回のprovider確認。
-通常の15分判定・要求・待機・Run確認に値やコマンドのコピペは不要。
-
-## 取得元timeoutの別件提案
-
-外部CronはGitHub schedule欠落を補うだけで、京都大学listing/GRIB通信のtimeoutは解決しない。
-既存 `acquire_listings` は60秒socket timeout。調査時は失敗phase（listing/GRIB/decode）、
-対象Run・ファイル種別/forecast span、HTTP status、開始/経過時間、試行数を秘密情報なしで記録する。
-別件で取得GETだけ最大2回、短いjitter付きbackoff、総wall-clock deadline内のretryを検討する。
-401/403、不正データ、hash不一致にはretryしない。dispatch POSTの自動retryと混ぜず、
-全失敗時はUNKNOWN/FAILEDを維持する。旧サーバの停止やTTL延長は行わない。
+- [GitHub workflow jobs metadata](https://docs.github.com/en/rest/actions/workflow-jobs) / [dispatch 権限](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event) / [実行状態 API](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs) / [Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
+- [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits/) / [Cron 管理・伝播](https://developers.cloudflare.com/workers/configuration/cron-triggers/) / [KV pricing](https://developers.cloudflare.com/kv/platform/pricing/) / [KV 整合性](https://developers.cloudflare.com/kv/concepts/how-kv-works/) / [Secret 登録の副作用](https://developers.cloudflare.com/workers/configuration/secrets/)
+- [Cloudflare Pages limits](https://developers.cloudflare.com/pages/platform/limits/) / [Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/)
+- **取得元 timeout の別件提案**: 外部 Cron は GitHub schedule 欠落を補うだけで、京都大学 listing / GRIB 通信の timeout（現行 `acquire_listings` 60 秒 socket timeout）は解決しない。調査時は失敗 phase・Run・ファイル種別・HTTP status・経過時間・試行数を秘密情報なしで記録し、401/403・不正データ・hash 不一致では retry せず、dispatch POST の自動 retry とも混ぜない。

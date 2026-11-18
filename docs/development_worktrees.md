@@ -1,12 +1,8 @@
 # Codex Worktree 開発環境
 
-モデル選択と独立レビューの運用は [agent_workflow.md](agent_workflow.md) を参照してください。
-この文書は、モデルに依存しないローカル実行環境の設定を扱います。
+Codex の Worktree ごとに Compose project、Docker image、host port（20000〜59999）、named volume を分離し、主環境 `autonavlog`（8123 番、`autonavlog-data`）を保護します。通常の Worktree では `AUTONAVLOG_MSM_PREWARM=false` / `restart: "no"` となり、48 時間分の自動 prewarm を抑止します。
 
-Codex の Worktree で複数の変更を並列に進める場合、通常の NavMate runtime と別 Worktree の runtime を共有しません。
-Worktree ごとに Compose project、Docker image、host port、named volume を分離します。
-
-この仕組みは Codex のローカル環境向けです。通常 checkout の `autonavlog` project、`autonavlog:local` image、8123番 port、既存の `autonavlog-data` は変更しません。
+モデル選択と独立レビューの運用は [agent_workflow.md](agent_workflow.md) を参照してください。この文書はモデルに依存しないローカル実行環境の設定と資源整理を扱います。
 
 ## Codex のローカル環境設定
 

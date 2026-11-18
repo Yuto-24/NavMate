@@ -1,18 +1,14 @@
-# Account Sync project shards
+# Account Sync project shards (2026-11-01)
 
-## Purpose and dependency
+## 結論と適用条件
 
-Split the remaining Account Sync critical path across ordinary GitHub-hosted runners without
-reducing tests. PR #326's readiness/encoding and verified release-base fixes are now in main
-at `b42f1b3c082b60452aa016c807d68000cc3bdf6b` and are inherited unchanged, not duplicated in
-this diff. This PR targets main, which now includes PR #330's Local/Python split and PR #333's MSM forecast coverage. The PR diff itself remains limited to Account Sync sharding. No paid runner, permissions/protection change, main merge, or deployment is part
-of this change.
+Account Sync E2E を `chromium` / `ipad-webkit` / `iphone-webkit` / `contracts` の 4 runner へ分割し、各 runner が独立した Firestore emulator を起動する設計記録である（現行 CI の完全な分割一覧・さらに進んだ 2 分割は [testing.md](../../testing.md#independent-ci-shards) と [impact-selection-20261110.md](impact-selection-20261110.md) を正本とする）。
 
-The main synchronization resolves adjacent workflow job names, documentation, and runtime matrix
-assertions by preserving all three shard configurations. Main's VERSION and CHANGELOG are unchanged.
-The release-source regression suite includes all 109 checks from the merged dependency.
-Fresh hosted CI is required for this synchronized head; earlier stack CI is not evidence for
-the new integrated Local/Python/Account Sync configuration.
+## 設計判断と再現可能な境界
+
+Split the Account Sync critical path across ordinary GitHub-hosted runners without reducing tests, keeping readiness/encoding fixes (`b42f1b3c082b60452aa016c807d68000cc3bdf6b`) and Local/Python/MSM coverage intact. No paid runner or permissions/deployment change is required.
+
+The aggregate `account-sync` check enforces `always()` and compares full Playwright collection against the union of all shard selections via `web/scripts/check-account-sync-partition.mjs`.
 
 ## Suites and independent state
 

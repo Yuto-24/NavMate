@@ -7,7 +7,10 @@
 NavMate の表示内容は非公式の地上準備資料です。運航資料、完成帳票、別添 8-1 の原本としては使えません。航空大学校の公式様式や計算規則への準拠を保証するものではなく、航空情報・気象・性能データ・警告は利用者が確認してください。
 
 - [現在のバージョン](VERSION) / [変更履歴](CHANGELOG.md) / [既知の不具合](KNOWN_ISSUES.md)
+- [ドキュメント全体目次](docs/README.md) / [再利用可能な知見](docs/knowledge/INDEX.md)
 - [計算規則](docs/calculation_rules.md) / [一次資料の確認状況](docs/primary_source_audit.md)
+
+> **案内**：`CHANGELOG.md`（利用者向け節）と `KNOWN_ISSUES.md` はアプリ内「お知らせ」生成の入力源です。仕様・運用・開発手順・証跡の正本一覧は [docs/README.md](docs/README.md) を参照してください。
 
 ## 主な機能
 

@@ -1,8 +1,8 @@
 # アーキテクチャ
 
-React SPAは共通Application contractを呼び、Legacy HTTPまたはLocal Browser Adapterへ接続します。
-[Frontend Application境界](application_contract.md)を参照してください。以下はLegacy側の構成です。
-WebやMSM固有の型を計算コアへ持ち込みません。
+本番の正式経路は **React SPA + Python/Pyodide（Local Calculation）+ IndexedDB（任意で Firebase Auth / Firestore Sync）** です。FastAPI + Docker Compose は移行・検証用の Legacy runtime として維持しています。計算コア（`CalculationService`、航法・性能ポリシー）は Web 固有型や気象取得 I/O を持たず、両経路で共有します。
+
+React SPA は共通 Application contract を呼び、Legacy HTTP または Local Browser Adapter へ接続します。[Frontend Application 境界](application_contract.md) を参照してください。以下は Legacy 側の構成と共通の計算・表示モデルです。
 
 ```text
 React SPA

@@ -1,7 +1,8 @@
-# Issue #421: 変更影響に応じた CI
+# Issue #421: 変更影響に応じた CI（2026-11-10 / 2026-11-17 実測）
 
-PR の選択とブラウザ準備を変更する。検証結果・性能値は確認できた範囲で記録し、
-新しい構成での main 成功と通常 PR の5分目標は別々に評価する。
+**結論・再利用可能な判断**: 変更影響ルーティング（PR #428）と Browser/Sync 並列分割（PR #448）により、同一通常 PR 差分の Hosted CI は 20 分 43 秒 → 11 分 05 秒へ短縮したが、**5 分目標は未達（律速は Python 第 2 分割の 10 分 10 秒）**。Ruleset `20705217` への `ci-required` 必須チェック登録は 2026-11-17 に実施済み。
+
+PR の選択とブラウザ準備を変更する。現行のルーティング表と shard 構成の正本は [testing.md](../../testing.md) とする。以下は導入・計測時の観測、失敗原因（独立 runner での生成物依存と component fixture の再読込依存）、および限界の記録である。
 
 ## 変更前の観測
 
@@ -28,10 +29,7 @@ Web は全 browser / sync を残すため、5分を超える可能性が高い�
 
 ## マージ条件
 
-2026-11-10 に GitHub API で確認した active Ruleset `20705217` は、削除・force push 禁止、
-code quality、Copilot review、PR と会話解決を要求するが、required status checks は未設定。
-legacy branch protection は404。したがって既存設定だけでは CI 失敗によるマージ禁止を保証できない。
-既存規則を維持した上で `ci-required` を必須にする必要がある。設定変更は未実施。
+- **2026-11-10 時点の観測**: 有効な Ruleset `20705217` で `required status checks` が未設定であったため、`ci-required` 登録までは CI 失敗によるマージ阻止を保証できていなかった（その後 2026-11-17 に登録実施、下記参照）。
 
 ## 計測・受入
 
@@ -73,13 +71,7 @@ pip install は16〜34秒だった。OS/browser の追加導入 step はない�
 69 passed / 1 skipped、予報 backup は5 passed。skip は既存の Legacy 専用 pending-save
 テスト（`web/e2e/checkpoint-enter.spec.ts:119`）で、Local の選択や assertion を減らしていない。
 
-律速は Local 回帰本体で、10ファイルにわたる実計算・保存・復元を2 workersで実行している。
-次の候補は、ファイル内の順序を維持した Local の file-level shard と、Chromium sync 後の
-共有開発検証の分離。採用する場合は全件の exact-once 分配と Hosted 時間を検証する。
-今回の証拠だけで worker 数増加や重要なテストの削除を正当化しない。
-
-この時点では通常変更の Hosted Run、必須チェックの登録、新構成の main run は未確認だった。
-その後の再確認は下記に記す。
+律速は Local 回帰本体で、10ファイルにわたる実計算・保存・復元を2 workersで実行していた。ファイル内順序を維持した file-level shard と、Chromium sync 後の共有開発検証分離を次候補とした（PR #428 時点では通常変更の Hosted Run と main run は未計測だったため、下記 2026-11-17 で再確認した）。今回の証拠だけで worker 数増加や重要テストの削除は正当化しない。
 
 
 ## 2026-11-17: 残る律速の確認と分割
@@ -174,11 +166,4 @@ Playwright image初期化は21〜38秒で、OS/browser追加導入はない。np
 runner性能とqueueのばらつきは残る。一部は実装PRのCIと同時実行しており、平均値や単一要因の
 短縮率ではない。job数は20から28へ増え、準備処理の重複と同時実行枠を使うトレードオフがある。
 
-実装PR #448の[Run 43914399276](https://github.com/Yuto-24/NavMate/actions/runs/43914399276)
-（`b137fcc1`）も全28 job成功、8分57秒。これはCI変更を含む全検証であり、通常変更の代表測定には
-上記PR #449を用いる。mainでの成功とマージは未実施。
-
-CodeRabbitは`b137fcc1`を初回レビューして承認し、worker数・認証の配置・分配検査の配置に関する
-旧文書の不一致1件を指摘した。現行コードを正本に該当節を修正した。旧browser追加導入の説明も
-公式コンテナ利用と不一致だったため修正した。後続の文書変更は独立diffレビューで確認し、
-機能を変えない計測記録の追記だけを理由とした追加レビューは依頼しない。
+実装PR #448の[Run 43914399276](https://github.com/Yuto-24/NavMate/actions/runs/43914399276)（`b137fcc1`）も全28 job成功・8分57秒（CI変更を含む全検証のため、通常変更の代表測定にはPR #449を参照）。CodeRabbitレビューで判明したworker数・認証配置・分配検査配置・公式コンテナ利用の旧文書不一致は現行コードに合わせて修正済み。

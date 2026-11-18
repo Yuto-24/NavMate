@@ -1,6 +1,8 @@
-# Cloudflare TunnelでNavMate Webを公開する
+# Cloudflare TunnelでLegacy NavMate Webを公開する
 
-NavMateはローカルoriginを `127.0.0.1:8123` で起動し、既存の
+> **対象範囲**: この手順は **Legacy FastAPI / Docker Compose 版（`compose.yaml`、port 8123）** を Cloudflare Tunnel + Access 経由で公開するためのものです。本番の Static Web 版（Cloudflare Pages）には FastAPI / Tunnel は不要です（[static_production.md](static_production.md)）。
+
+NavMate Legacy版はローカルoriginを `127.0.0.1:8123` で起動し、既存の
 Cloudflare Tunnel connectorから同じhostの `http://localhost:8123` へ転送します。
 originをInternetへ直接listenさせません。
 

@@ -1,12 +1,14 @@
-# Issue #123 implementation and activation gates
+# Issue #123 initial automation tooling validation (2026-09-24)
 
-## Scope
+> **日付付き初期実装検証（2026-09-24）**: #123 自動化ツール導入時点のローカル検証・独立レビュー記録です。現行の運用手順と最新クオータ方針（#281 分離後）は [static_operations.md](../../static_operations.md) を正本とします。
 
-The implementation preserves #121's portable production artifact/manual rollback and
-#145's independent Worker configuration/deploy/rollback. The existing GitHub Release
-workflow and Application runtime are unchanged. Release: not-required (CI/operations/docs).
+## 再利用可能な境界・レビュー指摘
 
-## Local evidence
+- **no-new-Run の拒否**: 既存の保持資産のみを再パックして更新日時だけ延長した結果を、新 Run の公開成功として扱わない。
+- **TAF の独立性**: TAF Worker の手動配備契約（#145）と `static-production.yml` の自動公開を混ぜない。
+- **クオータ集計範囲**: 課金・無料枠の証拠は対象 account / project / owner および現在期間ウィンドウに厳密に一致させる。
+
+## Local evidence (2026-09-24)
 
 - Operational tests cover unknown/non-finite/stale/exhausted quota, wrong account/period,
   paid/billing state, retained payload corruption/traversal, expired catalog restoration,
@@ -26,19 +28,6 @@ publication, and quota account/window misattribution. The publication wrapper no
 no-new-Run results, TAF remains on #145's manual production contract, and quota evidence
 is checked against configured account/project/owner and current provider windows.
 
-## Separate production gates (not executed)
+## 2026-09-24 時点の未実施・残ゲート
 
-No environments/secrets/variables, provider configuration, scheduler settings, production
-uploads, rollback, DNS, Firebase Rules or billing settings were changed. The new schedules
-are opt-in and remain inactive until explicitly authorized/configured after merge.
-
-Required operator evidence remains: current target-bound Free/Spark plan and quota audit,
-protected recurring-publishing authorization, least-privilege credential installation,
-live notification delivery, two scheduled renewals spanning the old catalog expiry,
-canonical inventory/cache/real browser checks and a paused-scheduler rollback with Local
-storage retention. Quota polling evaluates supplied operator/collector evidence; this PR
-does not claim that unavailable provider counters were automatically measured.
-
-#123 and parent #116 must remain open/incomplete for these production gates. Local build,
-CI, review, merge and production acceptance are separate states. See the task PR for the
-final commit, clean artifact/browser results and hosted CI conclusions.
+本実装検証時点では本番環境・Secret/Variable・scheduler・Pages デプロイは未変更であり、実アカウントの Free/Spark クオータ監査、通知到達、旧期限を跨ぐ 2 回の定期更新、および同一オリジンロールバックは後続の本番承認ゲートとして残された（現行の運用・#281 分離方針は [static_operations.md](../../static_operations.md) を参照）。

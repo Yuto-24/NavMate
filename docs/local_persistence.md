@@ -1,5 +1,7 @@
 # Local Project persistence (#124)
 
+Local モードの永続保存契約の正本です。IndexedDB（`autonavlog.projects`、DB version 2 / payload schema 2）で明示保存 checkpoint・最新 draft・最後正常計算 `Last Calculation`・単一 `Latest` を CAS トークン付きトランザクションで管理し、容量超過時は `autonavlog.weather.` Cache Storage のみを退避します。
+
 Local mode uses the browser's IndexedDB database `autonavlog.projects`, object store
 `projects`, keyed by Project UUID. `LocalProjectRepository` in
 `web/src/localProjectRepository.ts` is the storage contract: list, read, atomic write,

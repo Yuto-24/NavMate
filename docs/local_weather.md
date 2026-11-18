@@ -34,9 +34,13 @@ AUTONAVLOG_MSM_FEED=/tmp/msm-feed npm --prefix web run build:local
 既定はlibrary既定bounds、現在UTC正時から24時間、最新のcompatible Runを2つ。
 `--start`、`--hours`、`--bounds`、`--max-runs`で明示変更できる。
 本番更新とアプリ公開は`--full-run`を指定する。25時間のadmissionを満たす最新Runを
-維持し、各Runについてlibraryが認める予報末尾まで生成する。最新2 Runが短期Runでも、
-予報末尾が最も遠いRunを追加するため、長期日時の要求を失わない。
-通常は最大3 Runを生成する。上限は一律72時間ではなく、libraryのRun別coverageによる。
+維持し、各Runについて生成可能な予報末尾まで生成する。ただし現在の
+`scripts/prepare_msm_feed.py` の `full_run_requirements()` は MSM 由来の
+`MAX_FORECAST_HOURS`（78 時間）を走査上限としており、GSM の長期予報末尾
+（132/264 時間）には対応しない（コード照合済み、詳細は
+[wx_profile_feasibility.md](wx_profile_feasibility.md#現行コード文書の相違と後続)）。
+最新2 Runが短期Runでも、予報末尾が最も遠いRunを追加するため、長期日時の要求を失わない。
+通常は最大3 Runを生成する。上限は一律72時間ではなく、libraryのRun別coverage（最大78時間）による。
 明示的な`--hours`だけの呼出しは、fixture生成などの限定時間帯として引き続き使える。
 全範囲生成に失敗した場合も、短縮したpayloadで成功を装わず既存catalogを維持する。
 Run/product/fileの選択はlibraryへ委譲する。payload formatは独自化しない。

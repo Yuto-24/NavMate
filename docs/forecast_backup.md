@@ -1,6 +1,6 @@
 # 計算専用予備サーバー
 
-通常MSM配信が期限切れ・取得不能・必要データ不足の場合、Localアプリは予備サーバーで気象取得と計算を行う。未ログインでも利用する。コードは既定で無効であり、この文書は本番設定の変更や公開承認を意味しない。
+通常 MSM 配信が期限切れ・取得不能・必要データ不足の場合、Local アプリが未ログインでも気象取得と計算を補完する独立 API（`PUT/GET /api/forecast-backup/jobs/{UUID}`）の境界仕様です。コード上は既定無効であり、有効化には別途承認と公開前検証が必要です。
 
 ## 独立した境界
 
@@ -33,7 +33,7 @@ NAT共有利用者は同じclient制限を共有する。IPv4/IPv6分散攻撃�
 
 別途承認が必要な公開対象は、既存の旧server-host `navlog.yuto24.com` の`/api/forecast-backup/jobs/*`のみ。許可methodはGET/PUT/OPTIONS、許可originは`https://navmate.yuto24.com`、許可headerはContent-Type/X-AutoNavLog-Request。旧画面・session・編集・保存・migration pathにAccess例外を広げない。host/runtimeの現在値照合、Access exception、origin防御、proxy header信頼、edge制限、同一engine/data、実MSM取得と最終coverage、正常復帰、監視が配信異常を引き続き検出することを承認/検証してから有効化する。
 
-rollbackは専用pathの公開例外を閉じ、server origin設定とbrowser backup URLを解除して通常Local経路に戻す。保存dataとvolumeは削除しない。本PRはlive設定変更・merge・deploymentを実施しない。
+rollbackは専用pathの公開例外を閉じ、server origin設定とbrowser backup URLを解除して通常Local経路に戻す。保存dataとvolumeは削除しない。本設定の有効化は本番承認・配置計画を伴う別操作とする。
 
 ## 再現可能な検証
 

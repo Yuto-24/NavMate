@@ -2,7 +2,10 @@
 
 This directory freezes the implementation reference for the responsive Web UI.
 
-## Concept images
+> **Current layout summary**: Route creation/re-edit and flight planning use **one map and one operation pane** (#416). Above 700 px, the map sits on the left and the operation pane on the right (only operation contents scroll); at 700 px and below, the map precedes the operation pane without pinning over inputs. Readiness and calculation sit at the operation footer, with NAV LOG (Summary → horizontal table → TIME/FUEL PLAN → guidance) below the workspace.
+> The 2026-08-13 fidelity ledger and concept images below predate the green theme and #132/#218/#416/#443 revisions and are retained as historical baseline only.
+
+## Concept images (historical 2026-08-13 baseline)
 
 - `primary-workspace.png`: KML/KMZ import, flight-plan input, route map, and
   readiness status in one desktop workspace.
@@ -147,7 +150,7 @@ The dialog subtitle is `NavMateのお知らせ`. Show `既知の不具合` first
 then `更新履歴`, with all historical entries expanded. Known Issues use amber panels, distinct from runtime
 errors. User-facing content comes from `KNOWN_ISSUES.md` and the 利用者向け section of `CHANGELOG.md`, with no developer Issues,
 distribution section or implementation jargon. Release dates are stored by GitHub Releases and are not
-displayed in Information. See [the release workflow](../../README.md#開発).
+displayed in Information. See [the release workflow](../release_lines.md).
 
 ## NAV LOG layout revision (Issue #132)
 
@@ -324,7 +327,7 @@ deletion Undo are not transient Toasts and are unchanged. The focused harness
 checks notification timing, independent failure retention/recovery, layout and
 existing ten-second Undo with a synthetic sync transport. It does not establish
 live account/network behavior, all calculation/focus paths, or every validation
-state; complete repository and copy-review gates are still required before PR.
+state; complete repository suites and UI copy-review gates cover those separate boundaries.
 
 Focused regression: `npm --prefix web run test:notification`. PR/main CI runs
 all 18 cases in the existing Local `auth` runner after preparing Local assets.

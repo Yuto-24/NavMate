@@ -1,5 +1,7 @@
 # NavMate Account deletion (#181)
 
+アカウント削除の契約正本です。`googleAccounts/{subject}` の `ACTIVE → DELETING → DELETED` 状態遷移、他端末の即時遮断、明示再登録時の新世代 `account_v2_…` 分離（削除済み Legacy 引継ぎの遮断）、および #393 の文言短縮（Gemini 確認記録付き）を規定します。
+
 The Account dialog starts deletion only after an explicit confirmation. The
 browser requires a current Google identity, a fresh Firebase token, and a
 server read of the corresponding account record. Offline or expired credentials

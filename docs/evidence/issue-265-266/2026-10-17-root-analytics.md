@@ -1,11 +1,8 @@
-# Root HTML Analytics verification (#266)
+# Root HTML Analytics verification (#266 — 2026-10-17 historical failure)
 
-Historical snapshot of the initial single-version change and 2026-10-17 failure.
-The later script was subsequently fetched, hash-verified and explicitly approved;
-see [2026-10-18 two-version evidence](2026-10-18-two-analytics-versions.md) for the
-current allowlist and actual serving completion. The failure below remains historical evidence.
+> **歴史的失敗記録（2026-10-17）**: 単一バージョンの Cloudflare Web Analytics スクリプト許可では、新しい `beacon.min.js` ハッシュへ切り替わった本番 root HTML で停止したことを示す観測記録です。その後、直接 JS GET + SHA-512 照合を経て 2 版許可リストが承認されました（[2026-10-18-two-analytics-versions.md](2026-10-18-two-analytics-versions.md)）。
 
-## Scope and dependency
+## Scope and dependency (2026-10-17 snapshot)
 
 This incremental change starts at PR #268 HEAD
 `0a7add84c2616c80846ff9aea40723b48040ec3e`, which depends on unmerged Draft
@@ -109,8 +106,4 @@ HTTP failures, redirects, MIME/cache violations and oversize. Manifest mismatch
 or missing ETag and missing-asset 200/403 still stop the real sequence after a
 successful root. The newly observed provider script is a separate rejection fixture.
 
-Keep #266 open. Current root drift and expired MSM remain production blockers.
-After renewed approval of any insertion change, revalidate with an authorized fresh
-GET. Before publication, obtain explicit merge approval for all required PRs, reflect
-them in main, pin the final tooling SHA, and then update the publication procedure.
-Do not prepare from #267, #268 or this unmerged branch alone.
+At this 2026-10-17 snapshot, root drift and expired MSM remained production blockers. Before any publication or procedure update after insertion changes, revalidate with an authorized fresh GET, verify merged tooling SHAs on `main`, and update the pinned tooling SHA explicitly rather than relying on an unmerged branch snapshot.

@@ -1,5 +1,7 @@
 # Static Web browser acceptance (#122)
 
+HTTPS Static Web ページに対するブラウザ・実機受入基準（engine / OS・viewport / physical の 3 区分）と最小実機チェックリストの正本です。2026-09-27/28 に必須 5 環境（Windows Chromium、Linux Chromium、iPhone Safari、Android Chrome phone、および PR #223 修正後の iPad Safari）で #122 実機ゲートを完了しています（Apple Silicon macOS と Android Chrome tablet は検査端末不在等のため完了ゲート対象外）。
+
 The target is the ordinary HTTPS Static Web page, not an installed PWA. Record the
 origin, release/source SHA, browser and OS versions, device model, date, result and
 any failure for each run. Use a fresh test Project name in the browser's normal

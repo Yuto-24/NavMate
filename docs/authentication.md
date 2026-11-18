@@ -1,5 +1,7 @@
 # Local Account authentication (#184)
 
+Firebase Authentication（Google ログイン）と決定論的アカウント識別子 `account_v1_…`、アカウント単位の IndexedDB / Session 名前空間分離、トークン更新と失効時遮断の正本です。未ログインの Local 利用では Firebase 設定・サーバともに不要です。
+
 Local mode supports Firebase Authentication + Google Sign-In through `AuthProvider`.
 Anonymous Local-only use does not require Firebase configuration, an account, or a server.
 Remote Project/Last Calculation synchronization and anonymous-data import are described in [Account Sync](account_sync.md);
@@ -35,11 +37,10 @@ Cloudflare Access owner linking and first-use activation are described in
    popup flow; if blocked, permit popups for this site and retry. Close/cancel preserves
    the current Local work. An unconfigured build explains that sign-in is unavailable.
 
-A Firebase project was not available during implementation. Automated verification uses
-real Firebase SDK credential exchanges with an intercepted test backend; it does **not**
-prove live Google consent, authorized-domain configuration, or physical Safari acceptance.
-After provisioning, verify login, browser restart, logout, and reauthentication on the
-actual PC/iPad deployment. No remote deployment is performed by this change.
+### Verification boundary at implementation (#184)
+
+Automated verification in CI (`test:application`, `test:auth`, `test:local`) uses the real Firebase SDK credential exchanges against an intercepted test backend/emulator; it does **not** by itself prove live Google consent, authorized-domain configuration, or physical Safari acceptance.
+After provisioning or host changes, verify login, browser restart, logout, and reauthentication on the actual PC/iPad deployment.
 
 ## Identity and ownership
 

@@ -1,6 +1,11 @@
-# Issue #257: worktree MSM cache validation and reclamation
+# Issue #257: worktree MSM cache validation and reclamation (2026-10-13 JST)
 
-Measured on `matsu2-Win11Pro` (WSL Ubuntu), 2026-10-13 JST. This is one observed host, not a fleet-wide measurement.
+> **適用範囲と再利用知見**: 2026-10-13 JST に単一ホスト（`matsu2-Win11Pro` / WSL Ubuntu）で観測した、並列 Codex worktree の MSM キャッシュ肥大原因と安全な回収手順の実測記録です。現在の Worktree 運用・容量診断・整理手順の正本は [development_worktrees.md](../development_worktrees.md#msm-キャッシュと並列運用) を参照してください。
+
+**判明した原因と教訓**:
+- 各 worktree の分離 volume に対し既定の 48h prewarm（15 分周期）＋ `unless-stopped` が動いていたため、per-cache の 20 GiB・7 日上限では並列合計量を抑制できなかった。
+- worktree override で `AUTONAVLOG_MSM_PREWARM=false` と `restart: "no"` を指定しても、**旧イメージのコンテナは新環境変数を解釈しない**ため、旧コンテナの停止・再作成が必要になる。
+- Linux 上で `msm-cache`（計 103.286 GiB）を削除しても、WSL の `ext4.vhdx` 長さや Windows C ドライブ空き容量は自動縮小しない。
 
 ## Cause and change
 
@@ -84,5 +89,5 @@ Get-Volume -DriveLetter C | Select-Object DriveLetter, SizeRemaining
 
 - Six held caches still occupy approximately 65.0 GiB and require positive task/ownership confirmation before deletion.
 - Older worktree branches/images still contain the old prewarmer. Leave their containers stopped until updated and rebuilt; editing only the override cannot disable an old image.
-- Live MSM download/forecast acceptance and host VHDX compaction were not performed. Existing MSM adapter/calculation tests passed; fixture prewarm and real-container idle behavior are separate evidence.
-- Hosted CI and PR review results are recorded on the task PR. No merge or remote production action is authorized by this delivery.
+- Live MSM download/forecast acceptance and host VHDX compaction were not performed in this scope; existing MSM adapter/calculation tests passed, and fixture prewarm vs. real-container idle behavior remain separate evidence.
+- These runtime checks are bounded to local worktree Compose isolation and do not imply remote production deployment.

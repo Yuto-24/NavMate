@@ -1,5 +1,7 @@
 # Frontend Application boundary (#118)
 
+UI は `web/src/application.ts` が定める `AutoNavLogApplication` 契約のみを呼び出し、`LocalApplication`（Comlink + Pyodide Worker）と `LegacyApplication`（FastAPI HTTP）の差を意識しません。本契約は同一タブ reload 復元（#119）、エラー正規化、更新・計算の直列化を規定し、失敗時に Legacy へ自動フォールバックしません。
+
 `web/src/application.ts` defines `AutoNavLogApplication`, operation inputs, progress,
 and `ApplicationError`. `main.tsx` composes the chosen implementation and supplies it
 as an App prop. UI code only calls operations; it does not construct endpoint paths,

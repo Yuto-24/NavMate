@@ -1,17 +1,11 @@
 # #123 無人収集・監視の受入準備（2026-10-22 JST）
 
-> **過去の監査記録です。** 以下の設定・未承認・未完了の記述は2026年10月22日時点の観測結果であり、現在の運用状態ではありません。10月23日の方針変更以降、quota監視は[#281](https://github.com/Yuto-24/AutoNavLog/issues/281)で扱い、#123の運用受入・#146の廃止判断を妨げません。現行仕様は[運用文書](../../static_operations.md)と各Issueを優先してください。
+> **過去の監査記録（2026-10-22 時点）**: 本記録内の環境設定・未承認・未完了の記述は 2026-10-22 時点の観測結果であり、現在の本番状態ではありません。2026-10-23 の方針変更により、クオータ監視は [#281](https://github.com/Yuto-24/AutoNavLog/issues/281) へ分離され、#123 の運用受入および #146 の廃止前提から除外されています。現行仕様は [static_operations.md](../../static_operations.md) を正本とします。
 
-
-**監視・定期公開の有効化はまだ受入可能な状態ではない。**
-単発MSM復旧と無人quota収集は別のgateである。今回の調査・修正は後者の準備で、
-Cloudflare Pages / Direct Upload、承認済みアプリSHA、Zero-cost方針を維持する。
-本番設定、IAM、secret、billing、監視・定期公開のswitchは変更していない。
-PR merge、Pages公開、TAF deploy、rollback、#123/#116の完了更新、#146着手も行わない。
-
-正本は [#123](https://github.com/Yuto-24/AutoNavLog/issues/123)、
-[AGENTS.md](../../../AGENTS.md)、[Static operations](../../static_operations.md)。
-調査のbaseは `3224beb3c443e53afe38d005247dae5dc94a232e`（#264 merge後）。
+**この監査から引き継ぐ再利用可能な技術知見**:
+- **GitHub cache storage-limit API の 402**: 支払方法未登録アカウントで `GET .../actions/cache/storage-limit` が HTTP 402 を返す実測を確認した。取得不可時は既定 10 GiB や課金額 0 へ暗黙変換しない。
+- **`verify_limits.py` HTML パーサーの境界**: Firestore の可視 `<aside>` 注記と GitHub のインラインリンク終端空白の扱いで誤判定（`limits_clause_changed`）が生じるため、親ブロック文脈（旧制限注記等）を保ったパースへ修正した。
+- **Google WIF と Spark の境界**: WIF 構築手順の「billing enabled 前提」を Spark プロジェクト承認へ流用せず、無課金条件と運用経路を分けて検証する。
 
 ## 再利用する有効な受入証拠
 
@@ -123,39 +117,11 @@ billingを有効化しない認証経路（既存認証基盤の利用可否も�
 権限・trust条件・secret寿命を含む設定差分を作る。これはWIFの全利用が有料という断定ではない。
 短命access tokenをsecretへ手動更新する方式では#123の無人要件を満たさない。
 
-## 承認が必要な操作と順序
+## 2026-10-22 時点の判断順序と限界（歴史的記録）
 
-**現時点ではmonitor有効化の承認は求めない。** providerから取得できない事実を
-policyの例外追加・billing有効化で解決しない。API選択・adapter実装は実装担当の仕事とし、
-operatorへ数値の手入力や未検証の認証方式の選択を依頼しない。
+2026-10-22 時点では、上記の #281 相当の無人収集アダプターと資格情報・4 source live `verify_limits.py` 完走・`STATIC_MONITOR_ENABLED=true` を経てから `STATIC_AUTOMATION_ENABLED=true` へ進む7段階順序を置いていた。その後 **2026-10-23 の方針変更により、無料枠・課金監視の無人収集は #281 へ分離** され、#123 の運用受入・#146 の廃止前提からは除外されている（現行の運用・#281 境界は [static_operations.md](../../static_operations.md) を正本とする）。
 
-1. 今回の修正PRのmergeは別途明示承認。mergeだけで本番アプリSHAは変わらない。
-2. credential準備は別の設定変更承認。GitHubはtarget repository `Actions: read`と
-   owner `Plan: read`が最小候補。Googleはtarget projectの
-   `resourcemanager.projects.get`、`firebase.projects.get`、`datastore.databases.list`、
-   `monitoring.timeSeries.list` / `monitoring.metricDescriptors.list`が読取対象。
-   Google認証の無課金成立とGitHub 402の解決は未確定なので、IAM/OIDC/API enablementの
-   実行コマンドを承認済み扱いしない。credential値をchat/PRへ出さない。
-3. 全adapterと認証が揃ったら、まず**非公開のprovider応答を外へ出さない単発read-only収集**を
-   承認済みrunner/credentialで検証。全plan/metric/limitsの有効性、日/月境界、
-   provider失敗・欠測・stale・80%超過でのfail closed、秘匿、古いreport不使用を確認。
-   fixture成功だけではこのlive gateを通さない。
-4. healthyな無人収集が成立した後に、`STATIC_MONITOR_ENABLED=true`の設定変更を明示承認。
-   実際のscheduleでcredential手作業なしの更新とredacted summaryを確認する。
-   通知経路を変えない限り10/3の通知到達受入を再利用する。
-5. 別途`STATIC_AUTOMATION_ENABLED=true`の定期公開を明示承認。
-   approved SHA、6公開設定、Pages target/Free、Git builds/preview停止、in-flightなしを再確認。
-   feedが失効していれば、承認された手順でfreshなMSMを再生成し、全artifactをbuild/checkする。
-   10/22のartifactや過去のbuild-only成功をfresh候補として再利用しない。
-6. hourly preflightの`NO_NEW_RUN`やskipped、manual dispatchを更新成功に数えず、
-   **旧catalog期限を跨ぐ実scheduleの成功公開を少なくとも2回**観測する。
-   各runのevent、SHA、deployment、catalog生成/期限/hash/bytes、whole-inventory一致、
-   独立freshness check、canonical continuityを記録。受入中も古い予報を成功扱いしない。
-   既存rollback/Local保持証拠を再利用し、変更していない受入を繰り返さない。
-7. 全gateの証拠が揃ってから#123の各AC、親#116、#146の依存状態を更新する。
-   今回は完了checkboxを変更しない。
-
-## #123 Acceptance Criteriaとの対応
+## #123 Acceptance Criteriaとの対応（2026-10-22 時点スナップショット）
 
 | AC | 根拠 / 残ること |
 | --- | --- |

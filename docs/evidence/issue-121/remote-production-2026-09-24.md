@@ -1,5 +1,7 @@
 # #121 remote production acceptance audit — 2026-09-24
 
+> **歴史的記録（旧オリジン `navmate.pages.dev` / v1.20.1）**: 本記録は 2026-09-24 時点の初回 Static Web 本番受入（Pages Direct Upload、同一オリジンロールバック、Free/Spark 初期利用量ベースライン）を保存します。本番オリジンは 2026-09-27 に `https://navmate.yuto24.com` へ切り替え済みであり（[custom_domain_cutover.md](../../custom_domain_cutover.md)）、この記録は現在の配信状態や異なるアプリ schema 間のロールバック互換性を証明しません。
+
 The private source record is
 `.autonavlog-data/release-artifacts/issue-121/v1.20.1-msm-20260924/acceptance.json`.
 This note records safe identifiers and results only. It does not include Firebase Web

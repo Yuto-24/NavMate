@@ -1,7 +1,6 @@
 # Account Sync (#185)
 
-NavMate Account deletion and generation isolation are documented in
-[Account deletion](account_deletion.md).
+Google ログイン済み端末間で Project と Last Calculation を Firestore へ同期する契約の正本です。`gzip-v1:` による大容量ペイロードの可逆圧縮（1,000,000 UTF-8 bytes 上限）、CAS 競合時の明示選択（Local / Remote / Both）、削除 Undo と `PENDING_DELETE` 期限を規定します。アカウント削除と世代分離は [Account deletion](account_deletion.md) を参照してください。
 
 Local mode composes `AccountProjectRepository` with `AccountSyncController` and
 `AccountSyncRepository`. The initial remote adapter uses the existing Firebase SDK's
@@ -61,13 +60,13 @@ Sync must use this codec; fixing only the first import would fail on a later edi
 
 ### Rollout and older clients
 
-Deploy the NavMate reader/writer before enabling the updated Legacy migration server.
+When deploying payload compression updates, deploy the NavMate reader/writer before enabling the updated Legacy migration server.
 New code reads existing JSON without a database rewrite. Older browser/Legacy adapters
 cannot parse `gzip-v1:` as JSON and stop before overwriting that Project. Old tabs may
 therefore report a sync/read failure after a large Project is saved; update them while
 preserving their Local data and any pending edits. A rollback to old code cannot read
-compressed documents and is not a transparent recovery procedure. Rules and indexes are
-unchanged; this PR does not deploy either application or rerun any real migration.
+compressed documents and is not a transparent recovery procedure. Rules and indexes remain
+unchanged across this format compatibility layer.
 
 Verification covers a shared Python/browser wire vector, byte-for-byte restoration,
 size limits and corrupt input, compressed REST lost-ACK retry with existing receipts,

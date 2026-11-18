@@ -1,6 +1,8 @@
 # RJFM inbound west-extension guidance
 
-This is a diagnostic for an RJFM inbound route whose authoritative NAV LOG has already applied the `OMARU → UMK = 4,500 ft` operational-descent profile. It never adds a virtual route node or changes NAV LOG physical distance, course, ETE, fuel, project status, or issue severity.
+**現行契約（Inbound Policy V3）**: RJFM 帰路（`OMARU→RJFM` / `OMARU→ARITA→RJFM`）では欠落した UMK（4,500 ft）と ARITA（1,500 ft）を物理経路として補完し、親 Leg 1 行へ統合表示します。一方、西側延長案内（KS4-3 回避・20° バンク等）は計算完了後の最新入力に対してのみ生成される独立した参考カードであり、物理経路・NAV LOG の DIST/ETE/燃料・Readiness を変更しません。
+
+This diagnostic applies only when an RJFM inbound route's authoritative NAV LOG has already applied the `OMARU → UMK = 4,500 ft` operational-descent profile. It never adds a virtual route node or changes NAV LOG physical distance, course, ETE, fuel, project status, or issue severity.
 
 The solver derives its duration, TAS, wind, UMK, VREP, selected descent rate, and adopted VREP altitude from that completed authoritative profile. The card is transient: it is generated for the current calculation-input fingerprint and is not saved in project UI state. A stale authoritative plan prevents numeric guidance; an unavailable solver/reference produces only a warning diagnostic.
 

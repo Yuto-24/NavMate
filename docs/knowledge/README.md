@@ -1,6 +1,6 @@
 # Reusable project knowledge
 
-This directory is the shared entry point for Codex, Claude Code, and other agents. Existing design documents, decisions, troubleshooting guides, and evidence remain canonical; link to them rather than copying their contents.
+This directory is the shared entry point for Codex, Claude Code, and other agents. Existing design documents, decisions, troubleshooting guides, and evidence remain canonical (see [the documentation hub](../README.md) for the full map); link to them rather than copying their contents. Use [writing-style.md](../writing-style.md) for the repository-wide documentation governance rules.
 
 ## Before work
 1. Read [INDEX.md](INDEX.md) and search relevant existing docs using the task, affected paths, tools, or error text.

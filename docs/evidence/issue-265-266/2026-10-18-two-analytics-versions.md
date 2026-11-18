@@ -1,12 +1,10 @@
-# Two fixed Analytics versions and actual serving completion (#266 / #269)
+# Two fixed Analytics versions and actual serving completion (#266 / #269, 2026-10-18)
 
-## Authorization and provenance
+> **適用条件と限界**: 2026-10-18 時点の `Operator.verify_serving()` 実本番通過記録、および `ROOT_ANALYTICS_INSERTIONS`（2 版の完全リテラル許可）の根拠です。実行時応答から許可リストを自動学習することは禁止されており、将来 Cloudflare がスクリプト版や設定を変更した場合は再取得・SHA-512 照合・再レビューが必要です。なお、当時の公開前オリジナル HTML 自体は取得不能であるため、本確認は直近取得した `release.json` inventory との照合に留まります。
 
-PR #269 extends #268 HEAD `0a7add84c2616c80846ff9aea40723b48040ec3e`, which depends
-on #267 HEAD `1f04cd3adc406df6d21ba8cf1eeb56d03af7f969`. All three were still open
-Drafts when this follow-up started. The previous #269 HEAD was
-`f8f82e5a8bebef66c78031c0466188f8da90adff`; existing checkouts were preserved.
+## Authorization and provenance (2026-10-18)
 
+PR #269 extended #268 (`0a7add84c2616c80846ff9aea40723b48040ec3e`) and #267 (`1f04cd3adc406df6d21ba8cf1eeb56d03af7f969`).
 On 2026-10-18, after reviewing the direct script GET and SHA-512 result, the owner
 explicitly authorized adding the new saved script alongside the old one. Only
 these two complete src/integrity/attributes/beacon/position/newline combinations
@@ -97,19 +95,11 @@ serving verification against the freshly observed inventory, not direct comparis
 with an independently retained original, full production acceptance, or a new
 candidate's publication. No reconstructed body is presented as an original.
 
-## Validation and merge decision boundaries
+## Validation boundaries
 
 Regressions exercise exact HTML with/without ETag and both fixed insertions through
 the real serving sequence. Both versions retain mutation/status/MIME/cache/redirect
 and downstream failure coverage, including crossed pairs and mixed double insertion.
 Exact test counts, CI and independent/CodeRabbit review results are recorded on #269.
 
-Review the stack in dependency order **#267 -> #268 -> #269**. Merge remains
-unperformed and requires explicit approval. After each parent merge, retarget and
-revalidate the child against main; do not regard today's stacked checks as proof of
-the future integration SHA. Once all necessary changes are merged and reflected,
-pin the final tooling SHA before updating prepare/publication instructions.
-
-MSM expiry stays a separate blocking item. Fresh generation, prepare/publish,
-Rules/settings/billing/credential changes, schedules and approved-SHA changes
-were not performed or authorized by this implementation follow-up.
+MSM expiry and candidate publication remain separate operational gates (see [static_operations.md](../../static_operations.md)).

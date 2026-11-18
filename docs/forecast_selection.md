@@ -1,5 +1,7 @@
 # Forecast model selection (#161)
 
+FORECAST モードのモデル優先順位（`MSM → GSM`）、Run 固定と更新境界、および Project Schema 5（`selected_forecast_model`）の正本です。上流 `jma-gpv-weather==0.6.0` がモデル仕様・discovery・補間を担い、アプリが優先順位と再計算意図を管理します。
+
 The application owns the priority `MSM → GSM` and explicit refresh intent.
 The weather library owns model specifications, discovery, acquisition, cache,
 decode, interpolation and post-prepare altitude coverage. A successful discovery

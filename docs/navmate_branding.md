@@ -1,30 +1,13 @@
 # NavMate branding integration (#199)
 
-The **v2.0.0 naming/icon change** was merged in
-[PR #285](https://github.com/Yuto-24/NavMate/pull/285) on 2026-10-24. It was based
-on main `58127b3` (1.22.9) and branding commit `dfef4ba`; #282 and #283 features
-were excluded from that minimal release boundary. PR #200 was superseded and
-closed without merging; it remains historical reference.
+プロダクト名 `NavMate`・リポジトリ `Yuto-24/NavMate` と、既存パッケージ／保存キー／環境変数名 `autonavlog` の互換境界、および承認済みアイコン派生アセットの再生成手順を定めます。
 
-The repository is now `Yuto-24/NavMate`, with the same repository ID `1314030412`.
-[Issue #199](https://github.com/Yuto-24/NavMate/issues/199) tracks the remaining
-reference alignment and records existing-data acceptance. Implementation, merge,
-publication and user acceptance remain separate evidence.
+## Summary and dated rollout records
 
-The user-approved name `NavMate` replaces the human-facing product name in the
-Web header, browser title, startup/information/disclaimer text, static 404 page,
-server fallback, API metadata, CLI help and current product documentation.
-Existing wording otherwise remains unchanged. The user approved the source PNG
-on 2026-10-23. Its SHA-256 is
-`30faff87f7820ae4e62cc4c3b1bca016137b3af041672166472aaf5cf166c3e6`.
-The exact original is retained at `assets/branding/navmate-adopted-source.png`.
-User-authorized deterministic crop `(26, 28, 1228, 1230)` removes extraneous
-outer edges, preserving the rounded tile and aircraft. No alpha cleanup,
-flattening, recoloring or image generation is performed.
-`scripts/build_navmate_icons.py` reproduces PNG (32/180/192/512 px) and ICO
-(16/32/48 px) derivatives using Pillow 12.3.0 and checks the original checksum first.
-The manifest declares `purpose: any`, not an unverified maskable safe area;
-no service worker or offline capability is added.
+- **v2.0.0 branding merge (2026-10-24)**: [PR #285](https://github.com/Yuto-24/NavMate/pull/285) merged the **v2.0.0 naming/icon change** based on main `58127b3` (1.22.9) and branding commit `dfef4ba` (#282/#283 features excluded; PR #200 superseded and closed).
+- **Repository identity**: `Yuto-24/NavMate` (repository ID `1314030412`). [Issue #199](https://github.com/Yuto-24/NavMate/issues/199) tracks reference alignment and existing-data acceptance. Implementation, merge, publication and user acceptance remain separate evidence.
+- **Adopted icon source (2026-10-23)**: User-approved source PNG at `assets/branding/navmate-adopted-source.png` (SHA-256 `30faff87f7820ae4e62cc4c3b1bca016137b3af041672166472aaf5cf166c3e6`). `scripts/build_navmate_icons.py` uses Pillow 12.3.0 with deterministic crop `(26, 28, 1228, 1230)` to reproduce PNG (32/180/192/512 px) and ICO (16/32/48 px) derivatives. The manifest declares `purpose: any` (no service worker or offline capability).
+- **Human-facing product name**: `NavMate` replaces the product name in the Web header, browser title, startup/information/disclaimer text, static 404 page, server fallback, API metadata, CLI help and current product documentation.
 
 ## Reproduce icon assets
 
@@ -61,35 +44,22 @@ against the committed PNG/ICO assets; it does not discard changes.
   from the redirect-rejecting Actions HTTP clients. It does not require a local
   runtime replacement for this change.
 
-## Current verification and remaining acceptance
+## Dated verification observations (2026-11-04 / 2026-11-08)
 
 - [#187 home-screen/icon acceptance](https://github.com/Yuto-24/NavMate/issues/187#issuecomment-6630050367)
-  was closed as completed on 2026-11-04 following the user's acceptance. Its
-  earlier unchecked body is not the latest status. No offline support is implied.
+  was closed as completed on 2026-11-04 following the user's acceptance (no offline support implied).
 - [#199](https://github.com/Yuto-24/NavMate/issues/199) records completed product-name
-  updates in current Open Issues. [PR #377](https://github.com/Yuto-24/NavMate/pull/377)
-  corrected the static publication preflight; the remaining release/probe workflow,
-  app-release, external-trigger and dispatch-receipt checks use the new repository.
-  Public-repository checks, reviewed SHA, runner, origin/configuration checks,
-  redirect rejection and publication verification remain in place.
-- A read-only observation on 2026-11-08 JST returned HTTP 200 for the canonical
-  root, `/release.json` and `/manifest.webmanifest`. The title and manifest names
-  were NavMate; release metadata reported clean v2.2.0 at
-  `2d344ce45a8a1a0ab25c659247afd4aef853977c`. This is the observed serving version,
-  not evidence that the repository-alignment changes have been deployed or that
-  the full inventory/payload publication gate passed.
+  updates. [PR #377](https://github.com/Yuto-24/NavMate/pull/377)
+  corrected the static publication preflight; release/probe workflows,
+  app-release, external-trigger and dispatch-receipt checks use `Yuto-24/NavMate`.
+  (Note: the `autonavlog-msm-trigger` Worker itself was updated to the `Yuto-24/NavMate` fix commit on 2026-11-18; see [msm_external_trigger.md](msm_external_trigger.md).)
+- Read-only observation on 2026-11-08 JST returned HTTP 200 for the canonical
+  root, `/release.json` and `/manifest.webmanifest` (observed serving version: clean v2.2.0 at
+  `2d344ce45a8a1a0ab25c659247afd4aef853977c`, dated snapshot only).
 - Existing branding and persistence tests cover unchanged identifiers and
-  synthetic Saved/Latest/Last Calculation records, including IndexedDB versions
-  1 and 2 and server-side storage/import. Separately, on 2026-11-08 JST the user
-  confirmed that both pre-rename Projects and Last Calculation open without
-  problems in the current NavMate. This is user-reported acceptance in their
-  storage context, not a new claim of automated real-device coverage.
-
-This alignment does not change `VERSION`, `CHANGELOG.md`, v1.x branding, storage
-schemas/keys or runtime identifiers. It introduces no branding migration.
-The Worker must be deployed through a separately authorized operation before its
-updated GitHub targets are live. No production, Rules or scheduler changes are
-authorized by this implementation; Legacy import remains enabled.
+  synthetic Saved/Latest/Last Calculation records (IndexedDB v1/v2 and server storage/import). Separately, on 2026-11-08 JST the user
+  confirmed that pre-rename Projects and Last Calculation open without
+  problems in NavMate in their storage context.
 
 ## Separate production publication gate
 

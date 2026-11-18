@@ -1,5 +1,7 @@
 # Platform Capability boundary (#120)
 
+Browser 固有のファイル入出力・Clipboard・3D KML 出力・外部リンク・接続状態ヒント・ストレージハンドル取得を `web/src/platform.ts` に集約し、Domain / Calculation Core をブラウザ API から分離する契約の正本です。
+
 `web/src/platform.ts` is the runtime contract. `main.tsx` supplies `browserPlatform`
 and `BrowserFileInput` to the existing application/React composition. There is no
 platform detection in feature components, DI container, registry, Native adapter,

@@ -1,5 +1,7 @@
 # テストの責任とCI
 
+PR・main の CI ルーティング（`test.yml` / `scripts/ci_changes.py`）、#458 以降の現行テスト担当境界、Browser E2E の標準入口（`test:e2e`）、テスト配置規則、および過去の性能・shard 計測基準を定めます。
+
 ## PR と main の CI
 
 `test.yml` は PR、main / release/1.x / release/2.x への push、手動実行で起動します。
@@ -194,7 +196,7 @@ GitHub Actionsのpytest jobにはDocker build、ruff、mypy、pytest、データ
 package buildが含まれます。job全体、`docker run` step、pytest自身のログ時間を区別し、
 異なるマシンのローカル時間と直接比較しません。hosted CIは実際の完了状態を記録します。
 
-## Issue #142の棚卸し（2026-09-09）
+## Issue #142 の棚卸し（2026-09-09・歴史的記録）
 
 基準はmain `a32a649`。WSL Ubuntu / Python 3.12.3 / pytest 8.4.2 /
 pytest-cov 6.3.0、coverage付きの逐次実行で754件が331.44秒で成功しました。
@@ -249,7 +251,7 @@ coverageは前後とも10,144 / 11,334行（89.5006%、表示90%）、missing 1,
 branch coverageや実データの正しさまでこの数値だけで証明するものではないため、
 主要golden・数値回帰も削除せず全suiteで実行しています。
 
-## Issue #154: inbound solverの関数profile（2026-09-11）
+## Issue #154: inbound solver の関数 profile（2026-09-11・歴史的記録）
 
 基準はmain `aab2dab`（#142 / #151と#152のRelease契約移行を含む）。
 Python 3.12.3 / pytest 8.4.2 / pytest-cov 6.3.0 / coverage 7.15.4 /

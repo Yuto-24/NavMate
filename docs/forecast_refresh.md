@@ -1,5 +1,7 @@
 # Forecast recalculation (#356 / corrected #277)
 
+再計算時の Run 固定・更新契約の正本です。FORECAST モードでは **DATE / ETD の変更で保存済みモデル/Run ピンを解除**し、その他の入力変更では `forecast_selection_fingerprint` を前回成功計算と比較して「入力不変の再計算で最新正常 Run へ更新・入力変更時は既存 Run を維持」します。
+
 DATE or ETD changes in FORECAST mode invalidate the saved model/Run pin.
 The next calculation selects the newest healthy Run covering the new requirements
 (MSM first, with the existing coverage-based GSM fallback). This also applies

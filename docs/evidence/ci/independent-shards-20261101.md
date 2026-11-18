@@ -1,12 +1,12 @@
-# Independent CI shards
+# Independent CI shards (2026-11-01 baseline)
 
-## Purpose and boundary
+## 結論・適用範囲と限界
 
-Reduce the elapsed time of Local browser and Python checks without removing tests or checks.
-Account Sync is a separate change; this PR alone does not establish a ten-minute workflow.
-No paid/larger runner, repository permission, merge rule, release version or deployment changes.
+Python 2 shard 分割（計測時間による最長優先・ファイル単位）と Local ブラウザ分割の初期導入記録である。現行の 4 shard Local 分割および Account Sync 2 分割への拡張は [testing.md](../../testing.md#independent-ci-shards) と [impact-selection-20261110.md](impact-selection-20261110.md) に引き継がれている。
 
-## Hosted baseline
+**再利用可能な制約**: Python はファイル単位で分割するため、単一の重いファイル（当時 `tests/unit/test_rjfm_inbound_guidance.py` がローカル 145.99 秒 / Hosted 約 398 秒）がクリティカルパスになる。重みファイル（`scripts/pytest_file_durations.json`）は配置バランス専用であり、テストの取捨選択には使わない。
+
+## Hosted baseline (2026-11-01)
 
 The latest completed main run when implementation began was
 [41256028478](https://github.com/Yuto-24/AutoNavLog/actions/runs/41256028478)

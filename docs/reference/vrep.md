@@ -18,10 +18,9 @@ These are derived reference positions, not published latitude/longitude coordina
 - The existing arrival-plan `VISUAL_REPORTING_POINT` role remains the penultimate arrival point. Registered VREP identity is a separate snapshot property, so en-route VREPs do not acquire arrival calculation semantics.
 - Consecutive repeated selections are retained. Existing route/readiness checks still apply to zero-distance legs; selecting a point again does not promise a calculable leg of zero length.
 
-## Pending acceptance and boundaries
+## Historical #169 rollout boundary and UI copy
 
-Main currently provides new MAP routes, but no confirmed-route re-edit entry point. #175 / #283 re-edit acceptance (redisplaying candidates and retaining snapshots through re-edit) is pending their integration. This partial implementation does not close #169. #282 / #283 are not included.
+- **Initial #169 slice note**: At initial #169 delivery (2026-10-26), `main` supported new MAP routes only; confirmed-route re-edit (#175) and the integrated workspace (#416) were subsequently merged separately (see [map_route_builder.md](../map_route_builder.md)).
+- UI copy was determined by Gemini CLI (`gemini-3-flash-preview`, 2026-10-26). The caution, cluster accessible title, VREP title, and release note use that output.
 
-UI copy was determined by Gemini CLI (`gemini-3-flash-preview`, 2026-10-26). The caution, cluster accessible title, VREP title, and release note use that output.
-
-Use the isolated WSL worktree runtime for dev acceptance. Preserve all existing volumes. Merging and applying to matsu require confirmation after dev acceptance; this change does not alter Cloudflare publication, MSM configuration, authentication, or server retirement.
+Use the isolated WSL worktree runtime for dev acceptance. Preserve all existing volumes, Cloudflare publication, MSM configuration, authentication, and server retirement boundaries.

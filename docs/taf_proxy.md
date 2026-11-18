@@ -1,8 +1,9 @@
 # Destination TAF Serverless Proxy (#145)
 
+Local Static Web の目的地 TAF 取得（`GET /taf?icao=XXXX`）のみを Cloudflare Workers Free へ分離する契約と運用・検証手順の正本です。取得失敗は目的地参考欄の `UNAVAILABLE` のみにとどまり、NAV LOG の航法値計算・Project 保存を妨げません。
+
 Local Static Webの目的地TAF取得だけをCloudflare Workers Freeへ分離する。
 NAV LOG計算・Project / Last Calculation・認証・MSM取得はProxyに持たせない。
-#144の実MSM取得、#121のStatic production切替、#123の配信CI、Account Syncは本変更の対象外。
 Legacy runtimeのTAF取得は移行期間中そのまま残す。
 
 ## Boundary and failure contract

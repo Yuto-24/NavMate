@@ -1,5 +1,7 @@
 # Legacy account link and NavMate activation (#186)
 
+Cloudflare Access 保護下の Legacy アカウントを Firebase Google アカウントへ 1 対 1 で連携し、`UNLINKED → LINKED → MIGRATING → NAVMATE_ACTIVE` の状態機械で Project・Last Calculation を一括移行する契約の正本です。旧サーバ廃止手順は [server_retirement.md](server_retirement.md) を参照してください。
+
 ## Authority and ownership
 
 `UNLINKED → LINKED → MIGRATING → NAVMATE_ACTIVE` is a server-persisted state machine.

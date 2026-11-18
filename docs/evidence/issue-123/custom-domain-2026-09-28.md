@@ -1,11 +1,13 @@
-# Custom-domain repository handoff (2026-09-28)
+# Custom-domain cutover pre-check — 2026-09-28
 
-Scope: #123 canonical-origin contract and regression coverage. This is not a production
-deployment or completed automation acceptance. [Cutover runbook](../../custom_domain_cutover.md)
-contains the ordered operator actions. No Cloudflare/Firebase/GitHub settings, production
-environment files, Worker deployment or scheduler enable switches were changed.
+> **日付付き切替前観測（2026-09-28）**: `https://navmate.yuto24.com` 切替作業中の読み取り確認記録であり、現在の本番設定（TAF 許可オリジンや `pages.dev` リダイレクト状態）を示すものではありません。現行の切替・運用手順は [custom_domain_cutover.md](../../custom_domain_cutover.md) を参照してください。
 
-## Read-only production observations
+**再利用可能な教訓と検証境界**:
+- `services/taf-proxy` の `ALLOWED_ORIGINS` は `.split(",")` で読むため JSON 配列ではなくカンマ区切り文字列を設定する（チェックイン済みテンプレートは空文字の fail-closed を維持）。
+- Python `urllib` による直接 GET が一律 403 になっても、curl（Honest 識別子等）の結果と切り分けて判定し、403 の推測で仕様を変更しない。
+- Legacy `/api/navmate-migration/status` の CORS `OPTIONS` 200 は公開 CORS 境界のみを検証し、実 Google トークン認証や 303 リダイレクトの代替証拠にならない。
+
+## Read-only production observations (2026-09-28 10:34–10:37 UTC)
 
 Checked with curl without following redirects at approximately 10:34–10:37 UTC:
 
@@ -28,37 +30,10 @@ quota were not verified in this task. An initial Python urllib probe received un
 403 responses, including for the release file; the curl observations above supersede
 that inconclusive probe and must not be confused with it.
 
-## Remaining operator gates
+## 2026-09-28 時点の残ゲートと境界
 
-- **matsu:** confirm the active environment file and container's canonical NavMate URL,
-  loopback/Access and preserved volume. Public CORS already matches the decision;
-  recreate only if configuration needs changing. Verify completed-account 303 and
-  fresh-browser migration/Sync according to the runbook.
-- **TAF / Cloudflare:** deploy the ignored CSV-string allowlist; canonical TAF currently
-  fails. Complete real TAF/cache acceptance. If both origins are temporarily permitted,
-  remove pages.dev after old-entry acceptance and verify old-origin denial.
-- **Cloudflare / Firebase:** confirm existing custom domain and Authorized domains;
-  resolve unsynced old-origin data, then activate the old-host Bulk Redirect and retire
-  the old Auth domain when recovery needs allow. Leave Legacy hostname in place for #146.
-- **GitHub Dashboard:** set/verify canonical `STATIC_ORIGIN` and absence of environment
-  overrides; keep approved deployed SHA distinct from this docs/test commit. Verify
-  protections, Pages-only token and current quota evidence. The expired weather requires
-  an approved fresh-feed publication, not a freshness exception.
-- Complete canonical monitor/publication, notification receipt, two scheduled renewals
-  crossing the prior catalog expiry, and paused-scheduler same-origin rollback with
-  Local retention. #123 and #116 automation checkboxes / #146 dependency remain open.
+- **matsu / Legacy**: `AUTONAVLOG_NAVMATE_URL=https://navmate.yuto24.com/`・loopback・Access 境界の確認、および完了済みアカウント 303 と新規ブラウザ移行/Sync の実機確認。
+- **TAF / Cloudflare / Firebase**: `services/taf-proxy` の ignored `wrangler.local.jsonc` へ CSV 許可オリジンを反映（チェックイン済みテンプレートは空文字のまま維持し、作業コピーの配列形式編集に注意）。切替受入後に旧 `navmate.pages.dev` Bulk Redirect と旧 Auth ドメイン整理へ進む。
+- **GitHub / MSM**: `STATIC_ORIGIN` 整合確認、承認済み SHA の分離、および 2026-09-24 失効カタログに対する承認済み新規フィード公開・2 回以上の定期更新・ロールバック確認（いずれも本調査時点では未完了）。
 
-## Repository boundaries
-
-The checked-in Worker allowlist stays the empty string. Compose and Pages configuration,
-workflow variable injection, runtime code, Application / Calculation / Project schemas,
-VERSION and CHANGELOG are unchanged. Existing operator changes in the primary checkout
-were preserved, including its incompatible array-valued Wrangler edit and `.env.prod`.
-The corrected production string belongs in ignored `wrangler.local.jsonc`, not that
-tracked template. This PR is `Release: not-required` (operations docs and tests only).
-
-Independent review by GPT-6 Sol identified a missing explicit loopback override in the
-initial recreation instructions. The runbook now validates resolved Access/origin/bind
-settings and explicitly binds recreation to loopback. Re-review found no remaining
-actionable issues. No UI/browser automation is required for these docs/test-only changes
-under AGENTS.md; live browser acceptance remains an operator gate.
+当時の PR レビュー（GPT-6 Sol）では初期再作成手順の明示的 loopback bind 欠落が指摘され、runbook 側で `AUTONAVLOG_BIND_ADDRESS=127.0.0.1` と事前 `config` 検証を必須化した。

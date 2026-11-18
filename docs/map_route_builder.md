@@ -1,4 +1,6 @@
-# MAP Route creation (#174)
+# MAP Route creation and editing (#174 / #175 / #176)
+
+新規経路作成（#174）・確定済み経路の再編集（#175）・KML/KMZ の Map Draft 統合（#176）を規定します。すべて 1 つの大画面 MAP と共通の `ConfirmRouteRequest` / `importCandidateToMapDraft` 契約を用い、ブラウザ保存や Project/Phase 規則は既存境界を共有します。
 
 New work begins with the airport markers on a large MAP. The first airport is FROM;
 subsequent map clicks and airport selections append occurrences in flight order.
@@ -35,10 +37,10 @@ Import uses unsimplified route coordinates, not display-only preview geometry;
 routes above the existing 500-point MAP limit are explicitly rejected.
 Undo, search, reorder and marker dragging are not implemented here.
 
-Verification: `test_map_route.py` exercises validation, repeated airports, direct
-routes, existing calculation Golden and recovery. `map-route.spec.ts` exercises the
-real browser workflow at 1100/1440 px, occurrence deletion, discard confirmation,
-viewport restoration, saved Project reopening and Local storage failure recovery.
+Coverage: `test_map_route.py` exercises validation, repeated airports, direct
+routes, calculation Golden, and recovery. `map-route.spec.ts` exercises the
+browser workflow at 1100/1440 px, occurrence deletion, discard confirmation,
+viewport restoration, saved Project reopening, and Local storage failure recovery.
 
 
 ## Confirmed-route editing (#175)
@@ -70,11 +72,10 @@ The MAP retains Check Point display while editing, but hides Check Point/leg edi
 and KML replacement controls. Entry invalidates and drains pending recalculations
 before taking the draft; asynchronous state updates use the current edit owner.
 
-Verification adds backend identity, no-op, calculated snapshot, selective planning
+Coverage adds backend identity, no-op, calculated snapshot, selective planning,
 and Check Point tests; pure frontend occurrence/session tests; and browser
-reload/cancel/reconfirm plus region-order coverage at 1100/1440 px. Browser tests
-must run in an environment permitting the browser/server sockets; adding them is
-not evidence that they passed. Release version/changelog are owned by integration.
+reload/cancel/reconfirm plus region-order coverage at 1100/1440 px (browser tests
+require an environment permitting browser/server sockets).
 
 ## KML/KMZ Draft integration (#176)
 
@@ -117,12 +118,12 @@ weakening `validMapDraft`. Actual points are derived from the recovered parser p
 not persisted as an invalid Draft. Pending import may be cancelled to return to the
 previous Draft. A recognized legacy pending import resumes in the new Map workflow.
 
-Verification includes all parser candidate kinds, occurrence order, endpoint matching,
-invalid geometry and session validation, plus the imported parser geometry routed
-through Map confirmation to the existing FTD calculation golden. Focused browser
-coverage includes replacement/cancellation, denied Clipboard, reload and region order
-at 1100/1440 px. The CI Local suite selects the import and re-edit scenarios;
-application tests validate parser adaptation and session recovery.
+Coverage includes all parser candidate kinds, occurrence order, endpoint matching,
+invalid geometry, and session validation, plus the imported parser geometry routed
+through Map confirmation to the FTD calculation golden. Browser coverage includes
+replacement/cancellation, denied Clipboard, reload, and region order at 1100/1440 px
+(the CI Local suite selects import and re-edit scenarios; application tests validate
+parser adaptation and session recovery).
 
 ## KML/KMZ の経路候補と連結規則
 

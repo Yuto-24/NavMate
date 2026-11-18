@@ -1,12 +1,13 @@
 # MSM recovery publication preparation — 2026-10-21 JST
 
-Scope: #123 MSM restoration using the existing Cloudflare Pages / Direct Upload
-whole-artifact path. The application remains **v1.20.1**, approved SHA
-`a4de2a226dfa205b8be42fb62a710a1b06271ed8`. No VERSION/CHANGELOG, application,
-Rules, TAF Worker, provider settings, production deployment or scheduler changes
-were made. #270 delivery separation and #273 independent monitoring are excluded.
+> **日付付き復旧準備監査（2026-10-21 時点）**: 2026-10-15 失効後の単発復旧準備と #250 Pages 診断・#264 カタログ検証修正の事前検証記録です。当時の未反映・未マージ状態を現在の本番状態として扱わないでください（現行手順は [static_operations.md](../../static_operations.md)）。
 
-## Canonical state
+**再利用可能な教訓と検証境界**:
+- **#250 観測の `missing` vs 空マップ**: Pages API で non-env binding キーが `missing`（欠落）のとき、空マップと同一視せず `UNKNOWN` として記録する。また、GET 棚卸しは排他ロックではないため、公開直前に再取得する。
+- **#264 公開後検証**: `release.json` の一致だけでなく、実取得した `catalog.json` 応答のバイト/SHA-256 と鮮度を同一応答で検証する必要がある（従来の 300/30/10 秒予算の根拠）。
+- **独立レビューのモデル独立性**: 実装と同じモデルの別読み取りセッション（Astra → Astra）は同一モデル確認に留まり、相手モデル（GPT-6.1 Sol）での読み取り専用レビューを別途実施した。
+
+## Canonical state (2026-10-21 09:34 JST)
 
 Read at 09:34 JST, using the existing `static_request` HTTPS/no-cache/no-redirect
 contract and existing GitHub access. Values of secrets were never retrieved.
@@ -87,61 +88,7 @@ completed **successfully** at 09:36 JST, on tooling `ae606ff`, with
 - The runner does not retain a reusable production artifact. A later approved
   publication generates fresh weather again; never reuse this expired evidence.
 
-PR #264's catalog fix was integrated with current main locally without changing
-its behavior. The regression verifies an old or different catalog cannot pass
-even when `release.json` matches, and evaluates freshness on the same received
-catalog. Existing 300/30/10-second polling budgets remain unchanged.
-The implementation chat uses GPT-6 Astra. Its separate Astra read-only review
-found no actionable issue but is same-model review, not independent acceptance.
-Explicitly selected **GPT-6.1 Sol** subsequently reviewed all six changed files
-and the relevant request, polling and workflow boundaries: no actionable findings,
-289 focused tests passed, and no checkout changes. Full local Docker CI passed
-1,904 tests, Ruff, mypy (77 source files), release/data/schema checks and package
-build; Web typecheck and the release/PR-body contract also passed. Historical
-PR #264 HEAD `687709f` has GPT-6.1 Sol review, CodeRabbit approval, no review
-threads and passing hosted checks; those do not substitute for final updated-HEAD
-CI/review. Final test/review results are recorded on PR #264.
+## PR #264 検証と 2026-10-21 時点の公開引き継ぎ境界
 
-The isolated local Compose project `autonavlog-wt-07e29e1c` was rebuilt and is
-healthy at `http://127.0.0.1:42376/healthz`, version 1.22.8 (tooling checkout).
-Its named data volume is retained. Primary checkout/runtime/volume were not
-changed. Local Compose health is not Static Web production acceptance.
-
-## Publication handoff and remaining gates
-
-1. Review updated PR #264 and explicitly authorize its merge after final hosted
-   CI, independent review, CodeRabbit and unresolved-thread checks. No merge was
-   performed during preparation. Do not change the approved application SHA.
-2. Immediately before an approved one-off publication, reread canonical identity,
-   GitHub switches/configuration, complete Actions run history, and #250 Pages
-   inventory. Resolve unknown target facts and any concurrent work; prevent other
-   operators from publishing during this window. Old observations are not a lease.
-3. Authorize one `static-production.yml` dispatch on reviewed merged `main`,
-   `source_sha=a4de2a226dfa205b8be42fb62a710a1b06271ed8`, `publish=true`.
-   Reviewer `Yuto-24` approves the `static-publication` environment. This rebuilds
-   fresh MSM and the existing app, then uses Pages Direct Upload. Leave automation
-   false and monitor unset. No app-release/Rules transition is required.
-4. Check canonical release inventory and actual catalog hash/bytes/freshness with
-   #264, then independently monitor. Verify HTTPS/cache/ETag/404 and one live
-   FORECAST with destination TAF, saved Project/Last Calculation and reload on
-   the canonical origin. Auth/Sync remain enabled and unchanged; verify live
-   behavior without treating isolated E2E as a substitute.
-5. If post-upload checks fail, the deployment may already have changed. Inspect
-   the recorded deployment/catalog and keep recurring publication paused. Do not
-   automatically rollback or renew timestamps. An old Pages deployment containing
-   expired MSM does not itself restore weather.
-6. Recurring publication/monitor activation requires separate authorization and
-   acceptance. Healthy unattended optional-service collection remains incomplete;
-   UNKNOWN usage/billing is not zero. Keep the historical notification and
-   same-origin rollback/Local retention evidence from October 3, without claiming
-   a new test. Observe at least two actual scheduled renewals across the previous
-   catalog expiry before completing #123/parent #116; #146 remains gated.
-
-Official policy rechecked October 21: [Pages limits](https://developers.cloudflare.com/pages/platform/limits/)
-still specify 20,000 files and 25 MiB per asset for this Free-path budget;
-[static asset requests](https://developers.cloudflare.com/pages/functions/pricing/)
-are free/unlimited when no Function is invoked. The repository is public and uses
-standard `ubuntu-latest`, consistent with [GitHub's public-runner policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
-These public limits and the artifact checks do not establish current account-wide
-plans, shared usage or billing controls. No subscription, permission or billing
-change is proposed for this MSM-only restoration.
+- **PR #264 のカタログ検証修正**: `release.json` の一致だけでなく実応答の `catalog.json` のバイト/SHA-256 と鮮度を同一応答で検証する回帰テストを追加し（300/30/10 秒予算維持）、GPT-6.1 Sol による読み取り専用独立レビュー（指摘なし）、Docker CI 1,904 テスト・Ruff・mypy・Web 型検査・隔離 Compose `autonavlog-wt-07e29e1c`（port 42376, v1.22.8）の起動を確認した。
+- **2026-10-21 時点の残条件**: 上記 `Run 39521789417` は `publish=false` のため実際の公開後検査は未実施であり、当時の本番復旧には PR #264 マージ後の本番再読取・`static-production.yml` 実行・実オリジン受入（#123 定期更新 2 回）が残っていた。また Cloudflare Pages / Workers / GitHub public-runner の公式制限値は 2026-10-21 再確認時点の参照であり、アカウント全体の利用量・課金制御の証明ではない。
