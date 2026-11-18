@@ -350,6 +350,7 @@ jobs:
       - run: npm --prefix web run build:local
         env:
           AUTONAVLOG_TEST_FIXTURES: "1"
+          VITE_FORECAST_BACKUP_URL: ""
       - name: Verify auth, browser components and notification recovery
         if: matrix.suite == 'auth'
         run: |

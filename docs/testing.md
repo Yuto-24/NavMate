@@ -130,7 +130,7 @@ CI jobの共通準備やPython分配は[#459 PR/mainの重複・分配改善](ht
 Composeの自動起動を廃止する。Local suiteは配信済みbuildを使い、harness suiteは既存Viteを起動する。
 
 ```bash
-AUTONAVLOG_TEST_FIXTURES=1 npm --prefix web run build:local
+AUTONAVLOG_TEST_FIXTURES=1 VITE_FORECAST_BACKUP_URL= npm --prefix web run build:local
 python -m http.server 4174 --bind 127.0.0.1 --directory web/dist-local
 # 別terminalで実行。reference用Pythonはアプリの依存を導入した3.12を指定する。
 AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4174 AUTONAVLOG_REFERENCE_PYTHON=python3 npm --prefix web run test:e2e
@@ -139,6 +139,10 @@ npm --prefix web run test:notification
 ```
 
 `test:local:full`はLocal configの全ケースを収集する手動の拡張確認。
+固定MSMの取得失敗ケースは予備API未設定のbuildで実行する。catalogの503はWorkerの
+`WEATHER_DISCOVERY_FAILED`となり、予備API未設定の通知を表示する。Pythonの予報準備で
+発生する`FORECAST_PREPARE_FAILED`とは異なる。通知と計算終了を待ってからNAV LOGと
+Last Calculationの保持を確認する。
 移管前の混在UIを調べる場合だけ、既存の[Worktree手順](development_worktrees.md)で隔離した
 Legacy runtimeを用意し、`AUTONAVLOG_WEB_URL=<隔離URL> npm --prefix web run test:legacy`を使う。
 `test:legacy`自体はComposeを起動せず、通常PR/mainやStatic公開の成功条件には使わない。

@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { compare } from "./helpers/compare";
 import { calculationCoreGolden } from "./helpers/localGolden";
+import { backupMessages } from "../src/forecastBackupMessages";
 
 const fixture = resolve("../tests/fixtures/msm-portable");
 const frozen = JSON.parse(readFileSync(resolve(fixture, "catalog.json"), "utf8"));
@@ -108,14 +109,16 @@ test("portable real MSM: cold, warm after reload, Python reference and saved NAV
   await page.reload();
   await expect(page.locator(".nav-log-table")).toBeVisible();
   expect((await record(page)).lastCalculation.outcome.summary).toEqual(before.outcome.summary);
-  // A fixed feed exercises acquisition failure without depending on live MSM.
+  // This Local build has no forecast backup URL; catalog failure reaches the
+  // Worker error path before Python forecast preparation, then the backup notice.
   const saved = (await record(page)).lastCalculation;
   const navlog = await page.locator(".nav-log-table").innerText();
   await context.route("**/weather/msm/catalog.json", route => route.fulfill({ status: 503, body: "outage" }));
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-  await expect.poll(async () => (await state(page))?.readiness?.issues.map((issue: any) => issue.code))
-    .toContain("FORECAST_PREPARE_FAILED");
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect.poll(async () => (await calculationState(page))?.error?.code)
+    .toBe("WEATHER_DISCOVERY_FAILED");
+  await expect(page.getByRole("alert")).toContainText(backupMessages.not_configured);
+  await expect(page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ })).toBeEnabled();
   await expect(page.locator(".nav-log-table")).toHaveText(navlog, { useInnerText: true });
   expect((await record(page)).lastCalculation).toEqual(saved);
   // Draft inputs can diverge from the retained NAV LOG before recalculation.

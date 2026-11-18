@@ -171,7 +171,7 @@ Map resize observers disconnect during layout cleanup. Detached or zero-size map
 must not invalidate and overwrite the viewport that the new workspace restores.
 
 Verification: e2e/session.spec.ts runs against the production Local build
-(npm --prefix web run test:local -- session.spec.ts).
+(npm --prefix web run test:local:full -- session.spec.ts).
 Local blocks /api/** and retains KMZ document selection and reload continuation.
 Adapter/codec tests run in test:application; Python integration verifies parsed import
 continuation, last-good hydration without calculation, separate Legacy handles and no
