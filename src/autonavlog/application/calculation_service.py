@@ -2895,7 +2895,7 @@ class CalculationService:
                 variation_decision = variation_for_departure_latitude(
                     geometry.start.latitude_deg
                 )
-                if is_vor_first_leg:
+                if departure_vor is not None and segment.source_index == 0:
                     origin_gap = geodesic_leg(
                         departure_vor.latitude_deg,
                         departure_vor.longitude_deg,
@@ -2934,7 +2934,11 @@ class CalculationService:
                     else (manual_course - course_correction_deg) % 360
                 ),
                 metadata={
-                    "method": "source physical leg WGS84 initial bearing",
+                    "method": (
+                        "WGS84 initial bearing corrected for departure VOR CRS"
+                        if vor_variation is not None
+                        else "source physical leg WGS84 initial bearing"
+                    ),
                     "phase_segment": True,
                     "source_section_id": str(section.id),
                     **({
@@ -2944,10 +2948,12 @@ class CalculationService:
                 },
                 warnings=("MANUAL_TRUE_COURSE",) if manual_course is not None else (),
             )
+            displayed_course = course_value.adopted()
             magnetic_course = (
                 None
-                if variation_deg_east is None or (is_vor_first_leg and vor_variation is None)
-                else (course_value.adopted() + variation_deg_east) % 360
+                if displayed_course is None or variation_deg_east is None
+                or (is_vor_first_leg and vor_variation is None)
+                else (displayed_course + variation_deg_east) % 360
             )
 
             wind_direction = wind_environment.wind_direction_deg_from
