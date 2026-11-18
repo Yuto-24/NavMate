@@ -1,0 +1,27 @@
+{
+  "tool": "agy",
+  "requested_model": "gemini-4-argon-high",
+  "model_identity_note": "Requested model only; backend identity is not independently verified.",
+  "started_at": "2026-11-18T10:13:23.854124+00:00",
+  "command": [
+    "agy",
+    "--model",
+    "gemini-4-argon-high",
+    "--mode",
+    "plan",
+    "--sandbox",
+    "--output-format",
+    "json",
+    "--print",
+    "<prompt.txt>"
+  ],
+  "status": "response-received",
+  "returncode": 0,
+  "finished_at": "2026-11-18T10:14:49.233017+00:00",
+  "sha256": {
+    "request.json": "d0e0ae9bf5e267ee2d5f59c144438014053df6f47293fc73a3b3ee51b47307c5",
+    "prompt.txt": "4ae434de668c3c7020b79a698e3daed0276bcad5956fcc60ce41315cc75c74aa",
+    "stdout.json": "a440dfffd333622d67d6d1af02cdf39b4eae4f1961df98de72d1b2da5a73a885",
+    "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

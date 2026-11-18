@@ -40,7 +40,12 @@ with TemporaryDirectory() as temporary:
     shutil.copyfile(wheel, target / wheel.name)
     application_wheel = wheel.name
 with ZipFile(target / "data.zip", "w", ZIP_DEFLATED) as archive:
-    for folder in ("performance", "reference"):
+    # Match LocalApplication's runtime inputs. AIP source archives are evidence
+    # for future map data, not runtime assets. Keep the complete inbound pack:
+    # its PDF is required by the existing source-integrity checks.
+    for folder in (
+        "performance", "reference/default", "reference/rjfm", "reference/rjfm-inbound-guidance"
+    ):
         for path in sorted((root / "data" / folder).rglob("*")):
             if path.is_file():
                 archive.write(path, path.relative_to(root))

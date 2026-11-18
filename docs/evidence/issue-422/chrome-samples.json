@@ -1,0 +1,379 @@
+{
+  "environment": {
+    "base_commit": "1b188c29",
+    "browser": "Google Chrome 158.0.8127.36 (headless)",
+    "container": "mcr.microsoft.com/playwright:v1.62.1-noble",
+    "viewport": "1440x1000",
+    "origin": "loopback Python HTTP server",
+    "auth": "anonymous; Firebase configuration unset",
+    "network": "unthrottled; real jsDelivr/PyPI; no request interception",
+    "cache": "clearBrowserCache before each cold navigation; immediate warm navigation on the same context",
+    "projects": "0 or 10 synthetic saved Projects with FTD Last Calculation; same KML Golden seed"
+  },
+  "runs": [
+    {
+      "label": "chrome-baseline",
+      "browser": "158.0.8127.36",
+      "project_count": 0,
+      "samples": [
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 100,
+          "interactive_ms": 3878.199999988079,
+          "authentication_ms": 6.800000011920929,
+          "worker_phases_ms": {
+            "pyodide": 1199.9000000059605,
+            "packages": 874.3000000119209,
+            "assets": 476.2999999821186,
+            "application": 1163.2000000178814
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 63.400000005960464
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 56,
+          "interactive_ms": 3275.100000023842,
+          "authentication_ms": 20.30000001192093,
+          "worker_phases_ms": {
+            "pyodide": 873.2999999821186,
+            "packages": 610.5,
+            "assets": 457.0,
+            "application": 1241
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 34.70000001788139
+        },
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 48,
+          "interactive_ms": 3699.9000000059605,
+          "authentication_ms": 9.199999988079071,
+          "worker_phases_ms": {
+            "pyodide": 1252.9000000059605,
+            "packages": 724.7000000178814,
+            "assets": 445.2999999821186,
+            "application": 1195.6000000238419
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 26.599999994039536
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 64,
+          "interactive_ms": 3258.9000000059605,
+          "authentication_ms": 24.700000017881393,
+          "worker_phases_ms": {
+            "pyodide": 904,
+            "packages": 611.5,
+            "assets": 452.30000001192093,
+            "application": 1198.5
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 42.599999994039536
+        },
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 64,
+          "interactive_ms": 3779.5,
+          "authentication_ms": 9.799999982118607,
+          "worker_phases_ms": {
+            "pyodide": 1190.7000000178814,
+            "packages": 777.6999999880791,
+            "assets": 484.69999998807907,
+            "application": 1246.300000011921
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 23.69999998807907
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 76,
+          "interactive_ms": 3315,
+          "authentication_ms": 27.299999982118607,
+          "worker_phases_ms": {
+            "pyodide": 905.9000000059605,
+            "packages": 636.5999999940395,
+            "assets": 452.5,
+            "application": 1209.0
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 45.29999998211861
+        }
+      ]
+    },
+    {
+      "label": "chrome-final",
+      "browser": "158.0.8127.36",
+      "project_count": 0,
+      "samples": [
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 92,
+          "interactive_ms": 3665.800000011921,
+          "authentication_ms": 12.300000011920929,
+          "worker_phases_ms": {
+            "pyodide": 1175.9000000059605,
+            "packages": 557.5999999940395,
+            "assets": 562.0,
+            "application": 1199.300000011921
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 71.30000001192093
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 48,
+          "interactive_ms": 3105.4000000059605,
+          "authentication_ms": 30.5,
+          "worker_phases_ms": {
+            "pyodide": 953.1999999880791,
+            "packages": 414.19999998807907,
+            "assets": 431.0,
+            "application": 1186.9000000059605
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 51.80000001192093
+        },
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 48,
+          "interactive_ms": 3385.5999999940395,
+          "authentication_ms": 9.5,
+          "worker_phases_ms": {
+            "pyodide": 1123.5999999940395,
+            "packages": 492.69999998807907,
+            "assets": 448.5,
+            "application": 1211.199999988079
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 50.599999994039536
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 52,
+          "interactive_ms": 2954.300000011921,
+          "authentication_ms": 23.799999982118607,
+          "worker_phases_ms": {
+            "pyodide": 853.4000000059605,
+            "packages": 377.09999999403954,
+            "assets": 417.7999999821186,
+            "application": 1189.5999999940395
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 52.400000005960464
+        },
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 48,
+          "interactive_ms": 3329.699999988079,
+          "authentication_ms": 11.900000005960464,
+          "worker_phases_ms": {
+            "pyodide": 1193.2000000178814,
+            "packages": 438.7999999821186,
+            "assets": 424.80000001192093,
+            "application": 1161.4000000059605
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 50.19999998807907
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 52,
+          "interactive_ms": 3002.5999999940395,
+          "authentication_ms": 23.30000001192093,
+          "worker_phases_ms": {
+            "pyodide": 909.5,
+            "packages": 389.39999997615814,
+            "assets": 409.10000002384186,
+            "application": 1177.9000000059605
+          },
+          "project_validation_ms": 0,
+          "post_bootstrap_ms": 52.70000001788139
+        }
+      ]
+    },
+    {
+      "label": "chrome-baseline-10",
+      "browser": "158.0.8127.36",
+      "project_count": 10,
+      "samples": [
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 64,
+          "interactive_ms": 3712.2000000178814,
+          "authentication_ms": 6.5999999940395355,
+          "worker_phases_ms": {
+            "pyodide": 1128.5999999940395,
+            "packages": 709.3000000119209,
+            "assets": 476.19999998807907,
+            "application": 1154.800000011921
+          },
+          "project_validation_ms": 159.69999998807907,
+          "post_bootstrap_ms": 187.90000000596046
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 52,
+          "interactive_ms": 3324.5999999940395,
+          "authentication_ms": 22.69999998807907,
+          "worker_phases_ms": {
+            "pyodide": 857.5,
+            "packages": 585.8000000119209,
+            "assets": 480.5,
+            "application": 1154.0999999940395
+          },
+          "project_validation_ms": 160.30000001192093,
+          "post_bootstrap_ms": 191.2999999821186
+        },
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 64,
+          "interactive_ms": 3652.7000000178814,
+          "authentication_ms": 14.5,
+          "worker_phases_ms": {
+            "pyodide": 1118.5999999940395,
+            "packages": 682.0,
+            "assets": 440.60000002384186,
+            "application": 1163.199999988079
+          },
+          "project_validation_ms": 158.29999995231628,
+          "post_bootstrap_ms": 186.80000001192093
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 48,
+          "interactive_ms": 3368.199999988079,
+          "authentication_ms": 22.900000005960464,
+          "worker_phases_ms": {
+            "pyodide": 863.5,
+            "packages": 626.1999999880791,
+            "assets": 454.40000000596046,
+            "application": 1189.800000011921
+          },
+          "project_validation_ms": 151.9000000357628,
+          "post_bootstrap_ms": 186.40000000596046
+        },
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 52,
+          "interactive_ms": 3706.0999999940395,
+          "authentication_ms": 12.800000011920929,
+          "worker_phases_ms": {
+            "pyodide": 1153.7999999821186,
+            "packages": 682.0999999940395,
+            "assets": 452.80000001192093,
+            "application": 1180.4000000059605
+          },
+          "project_validation_ms": 157.7000000178814,
+          "post_bootstrap_ms": 187.19999998807907
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 52,
+          "interactive_ms": 3313.800000011921,
+          "authentication_ms": 22.19999998807907,
+          "worker_phases_ms": {
+            "pyodide": 866.7999999821186,
+            "packages": 591.1000000238419,
+            "assets": 457.19999998807907,
+            "application": 1155.0999999940395
+          },
+          "project_validation_ms": 155.90000000596046,
+          "post_bootstrap_ms": 187.90000000596046
+        }
+      ]
+    },
+    {
+      "label": "chrome-final-10",
+      "browser": "158.0.8127.36",
+      "project_count": 10,
+      "samples": [
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 56,
+          "interactive_ms": 3494.4000000059605,
+          "authentication_ms": 13.0,
+          "worker_phases_ms": {
+            "pyodide": 1141.9000000059605,
+            "packages": 460.59999999403954,
+            "assets": 439.90000000596046,
+            "application": 1175.0999999940395
+          },
+          "project_validation_ms": 154.7000000178814,
+          "post_bootstrap_ms": 210.69999998807907
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 52,
+          "interactive_ms": 3120,
+          "authentication_ms": 30.80000001192093,
+          "worker_phases_ms": {
+            "pyodide": 854.3999999761581,
+            "packages": 394.40000000596046,
+            "assets": 417.80000001192093,
+            "application": 1180.0
+          },
+          "project_validation_ms": 167.2999999821186,
+          "post_bootstrap_ms": 216
+        },
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 56,
+          "interactive_ms": 3603.800000011921,
+          "authentication_ms": 9.400000005960464,
+          "worker_phases_ms": {
+            "pyodide": 1169.7000000178814,
+            "packages": 453.69999998807907,
+            "assets": 548.2000000178814,
+            "application": 1162.7999999821186
+          },
+          "project_validation_ms": 159.99999994039536,
+          "post_bootstrap_ms": 216.69999998807907
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 52,
+          "interactive_ms": 3120.5,
+          "authentication_ms": 23.400000005960464,
+          "worker_phases_ms": {
+            "pyodide": 861.0,
+            "packages": 379.30000001192093,
+            "assets": 408.89999997615814,
+            "application": 1169.699999988079
+          },
+          "project_validation_ms": 183.69999998807907,
+          "post_bootstrap_ms": 239.60000002384186
+        },
+        {
+          "cold_http_cache": true,
+          "first_contentful_paint_ms": 40,
+          "interactive_ms": 3408.7999999821186,
+          "authentication_ms": 14.900000005960464,
+          "worker_phases_ms": {
+            "pyodide": 1108.5,
+            "packages": 431.69999998807907,
+            "assets": 435.90000000596046,
+            "application": 1169.5
+          },
+          "project_validation_ms": 157.19999995827675,
+          "post_bootstrap_ms": 206.09999999403954
+        },
+        {
+          "cold_http_cache": false,
+          "first_contentful_paint_ms": 48,
+          "interactive_ms": 3152.5999999940395,
+          "authentication_ms": 26.80000001192093,
+          "worker_phases_ms": {
+            "pyodide": 895.2999999821186,
+            "packages": 387.0,
+            "assets": 410.10000002384186,
+            "application": 1187.199999988079
+          },
+          "project_validation_ms": 163.9000000357628,
+          "post_bootstrap_ms": 214.2999999821186
+        }
+      ]
+    }
+  ]
+}

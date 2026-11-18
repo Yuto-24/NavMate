@@ -11,6 +11,7 @@ Read [the workflow](README.md) before adding or applying lessons. Search by the 
 - [CI変更影響と所要時間](../evidence/ci/impact-selection-20261110.md): Issue #421。PR #428を出発点に、2026-11-17の通常PR・main実測、Localと同期本体の律速を確認。Rulesetにci-requiredを登録し再取得済み。同一通常PR差分のHostedは20分43秒→11分05秒、5分未達の律速はPython。独立runnerの生成物依存とcomponent fixtureのreload依存を修正。2026-11-18のmain Run 44239461740は29 job成功、必須checkまで10分09秒・runner合計111分24秒。#459の変更後比較は別途必要。
 - [現行保証とLegacyテストの境界](../testing.md#issue-458-現行保証の担当とlegacy専用テストの廃止): Issue #458。共有facade・数値・移行・予備APIを維持し、旧通常adapter / queueだけを廃止。KML・GSI・同期componentの移管先と、通知・Static回復のCI担当を記録。
 - [Existing evidence](../evidence/)
+- [Local起動の配布量と工程](../evidence/issue-422/startup-20261118.md): Issue #422。未使用AIP原本をLocal ZIPへ含めない。RJFM inboundの原本PDFは実行時照合に必要なので保持。Chromeの0件／計算結果付き10件・cold/warmの比較、検証維持と計測限界。
 - [Static browser acceptance](../static_web_browser_acceptance.md#observation-startup-after-reload-2026-11-14): PR #438のiPhone WebKit traceで確認した、reload後のPyodide初期化と結果検証の待機上限の不一致。起動待ちと保存結果の完全一致検証を分ける。起動性能の改善は#422。
 - [App publication audit](../app_publication_audit.md): prepare/publish重複、排他、部分失敗、診断境界。#440で共通の期限表示・確認記録・工程計測を追加。2026-11-15の既存Runのstep計測ではArtifact uploadは2秒／4秒。build-onceは保留。
 - [Pages履歴とpreflightの通信上限](../app_publication_audit.md#2026-11-17-pages履歴取得の通信上限によるpreflight停止): v2.4.0のRun 43944939018。失敗時刻以前の保持履歴769件が旧20件指定では最低42GETを要し、40回上限で停止。25件指定で全件照合を実API確認済み。926件では引き続き停止し、履歴削除や上限緩和は含めない。

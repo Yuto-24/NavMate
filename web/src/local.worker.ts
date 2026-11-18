@@ -1,3 +1,5 @@
+import { readStartupBytes } from "./startupDownload";
+import type { StartupProgress } from "./startupProgress";
 import { fetchDestinationTaf } from "./destinationTaf";
 import { expose } from "comlink";
 import { loadPyodide } from "pyodide";
@@ -5,18 +7,23 @@ import { LocalWeatherTransport, WeatherError } from "./localWeather";
 import type { PreparedAsset } from "./localWeather";
 
 async function initialize() {
+  let lastPercent = -1;
+  const report = (percent: number, stage: StartupProgress["stage"]) => {
+    const rounded = Math.floor(percent);
+    if (rounded <= lastPercent) return;
+    lastPercent = rounded;
+    self.postMessage({ type: "startup-progress", progress: { percent: rounded, stage } });
+  };
+  report(5, "runtime");
   const pyodide = await loadPyodide({
     indexURL: `https://cdn.jsdelivr.net/pyodide/v${__PYODIDE_VERSION__}/full/`,
   });
   await pyodide.loadPackage(["pydantic", "micropip", "tzdata", "numpy"]);
-  await pyodide.runPythonAsync(`
-import micropip
-await micropip.install(["defusedxml==0.7.1", "geographiclib==2.1"])
-`);
+  report(40, "download");
   const assetUrl = (name: string) => new URL(`${import.meta.env.BASE_URL}local/${name}`, self.location.origin);
   const manifestResponse = await fetch(assetUrl("manifest.json"), { cache: "no-cache" });
   if (!manifestResponse.ok) throw new Error(`Local asset: manifest (${manifestResponse.status})`);
-  const manifestBytes = new Uint8Array(await manifestResponse.arrayBuffer());
+  const manifestBytes = await readStartupBytes(manifestResponse, fraction => report(40 + fraction, "download"));
   pyodide.globals.set("manifest_bytes", manifestBytes);
   pyodide.globals.set("manifest_hash", __LOCAL_MANIFEST_SHA256__);
   pyodide.runPython(`
@@ -26,11 +33,15 @@ if hashlib.sha256(bytes(manifest_bytes.to_py())).hexdigest() != manifest_hash:
 del manifest_bytes, manifest_hash
 `);
   const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as { wheels: string[]; data: string; sha256: Record<string, string> };
-  for (const filename of [...manifest.wheels, manifest.data]) {
+  const filenames = [...manifest.wheels, manifest.data];
+  const wheelPaths: string[] = [];
+  let dataBytes: Uint8Array | undefined;
+  for (const [index, filename] of filenames.entries()) {
     if (!/^[a-zA-Z0-9_.-]+$/.test(filename)) throw new Error("Invalid Local asset name");
     const response = await fetch(assetUrl(filename), { cache: "no-cache" });
     if (!response.ok) throw new Error(`Local asset: ${filename} (${response.status})`);
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const bytes = await readStartupBytes(response, fraction =>
+      report(41 + 19 * (index + fraction) / filenames.length, "download"));
     // hashlib works on plain HTTP localhost as well as HTTPS (Safari acceptance uses HTTPS).
     pyodide.globals.set("asset_bytes", bytes);
     pyodide.globals.set("asset_hash", manifest.sha256[filename]);
@@ -42,13 +53,26 @@ del asset_bytes, asset_hash
 `);
     if (filename.endsWith(".whl")) {
       pyodide.FS.writeFile(`/tmp/${filename}`, bytes);
-      pyodide.globals.set("wheel_path", `/tmp/${filename}`);
-      await pyodide.runPythonAsync(`await micropip.install("emfs:" + wheel_path, deps=False)`);
-      pyodide.FS.unlink(`/tmp/${filename}`);
+      wheelPaths.push(`/tmp/${filename}`);
     } else {
-      pyodide.unpackArchive(bytes, "zip", { extractDir: "/home/pyodide" });
+      dataBytes = bytes;
     }
   }
+  report(61, "packages");
+  pyodide.globals.set("wheel_paths", wheelPaths);
+  try {
+    await pyodide.runPythonAsync(`
+import micropip
+await micropip.install(["defusedxml==0.7.1", "geographiclib==2.1"])
+await micropip.install(["emfs:" + path for path in wheel_paths.to_py()], deps=False)
+`);
+  } finally {
+    pyodide.globals.delete("wheel_paths");
+    for (const path of wheelPaths) pyodide.FS.unlink(path);
+  }
+  if (!dataBytes) throw new Error("Local data archive is missing");
+  pyodide.unpackArchive(dataBytes, "zip", { extractDir: "/home/pyodide" });
+  report(75, "application");
   pyodide.runPython(`
 from pathlib import Path
 from autonavlog.local import LocalApplication

@@ -1,3 +1,4 @@
+import type { StartupProgressListener, StartupProgress } from "./startupProgress";
 import { ApplicationError } from "./application";
 import type { ApplicationErrorDetails } from "./application";
 import { wrap } from "comlink";
@@ -6,11 +7,17 @@ import type { LocalWorker } from "./local.worker";
 export class LocalClient {
   private worker = new Worker(new URL("./local.worker.ts", import.meta.url), { type: "module" });
   private remote = wrap<LocalWorker>(this.worker);
+  private startupListeners = new Set<StartupProgressListener>();
   private failed: Promise<never>;
   private terminalError: Error | undefined;
   private fail!: (error: Error) => void;
 
   constructor() {
+    this.worker.addEventListener("message", (event: MessageEvent) => {
+      if (event.data?.type !== "startup-progress") return;
+      const progress = event.data.progress as StartupProgress;
+      for (const listener of this.startupListeners) listener(progress);
+    });
     this.failed = new Promise((_, reject) => {
       this.fail = (error) => {
         this.terminalError = error;
@@ -23,8 +30,9 @@ export class LocalClient {
     void this.failed.catch(() => undefined);
   }
 
-  async request<T>(path: string, body?: unknown): Promise<T> {
+  async request<T>(path: string, body?: unknown, onStartupProgress?: StartupProgressListener): Promise<T> {
     if (this.terminalError) throw this.terminalError;
+    if (onStartupProgress) this.startupListeners.add(onStartupProgress);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const json = await Promise.race([
@@ -48,6 +56,7 @@ export class LocalClient {
       return payload as T;
     } finally {
       clearTimeout(timer);
+      if (onStartupProgress) this.startupListeners.delete(onStartupProgress);
     }
   }
 

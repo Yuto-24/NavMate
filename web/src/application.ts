@@ -1,3 +1,4 @@
+import type { StartupProgressListener } from "./startupProgress";
 import type { AuthProvider } from "./auth";
 import type { ArrivalPlan, CheckPointInput, NavSection, Project, WebState, WorkingRecovery } from "./types";
 
@@ -58,7 +59,7 @@ export interface AutoNavLogApplication {
   readonly auth?: AuthProvider;
   readonly sync?: import("./accountSync").AccountSyncControl;
   refreshProjects?(): Promise<ApplicationSnapshot>;
-  bootstrap(recovery?: WorkingRecovery): Promise<ApplicationSnapshot>;
+  bootstrap(recovery?: WorkingRecovery, onStartupProgress?: StartupProgressListener): Promise<ApplicationSnapshot>;
   importRoute(input: ImportRouteInput): Promise<ApplicationSnapshot>;
   confirmRoute(input: ConfirmRouteInput): Promise<ApplicationSnapshot>;
   updateProject(input: UpdateProjectInput): Promise<ApplicationSnapshot>;

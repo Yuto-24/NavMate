@@ -1,3 +1,5 @@
+import { StartupStatus } from "./components/StartupStatus";
+import { advanceStartup, type StartupProgress } from "./startupProgress";
 import { TransientMessage } from "./components/TransientMessage";
 import { useNotificationState } from "./useNotificationState";
 import { localMode, localAccountScope } from "./executionMode";
@@ -184,6 +186,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const [projectName, setProjectName] = useState("未保存の新規作業");
   const [pendingKmz, setPendingKmz] = useState<PendingKmz | null>(null);
   const [selectedKmzDocument, setSelectedKmzDocument] = useState("");
+  const [startupProgress, setStartupProgress] = useState<StartupProgress>({ percent: 5, stage: "runtime" });
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
   const [bootstrapErrorCode, setBootstrapErrorCode] = useState<string | null>(null);
   const navLogRef = useRef<HTMLDivElement | null>(null);
@@ -436,17 +439,26 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       let restored = recovery.session;
       let failed = recovery.failed;
       let next: WebState;
+      const reportStartup = (progress: StartupProgress) => {
+        if (active) setStartupProgress(current => advanceStartup(current, progress));
+      };
       try {
-        next = await application.bootstrap(restored?.working);
+        next = await application.bootstrap(restored?.working, reportStartup);
       } catch (reason) {
         if (!restored || !(reason instanceof ApplicationError) ||
             !["VALIDATION_FAILED", "SESSION_RECOVERY_INVALID", "PROJECT_NOT_FOUND"].includes(reason.code)) throw reason;
         restored = undefined;
         failed = true;
         clearSession(platform.session.storage);
-        next = await application.bootstrap();
+        next = await application.bootstrap(undefined, reportStartup);
       }
       if (!active) return;
+      if (localMode) {
+        reportStartup({ percent: 100, stage: "ready" });
+        // Let the completed bar paint once before replacing the loading screen.
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        if (!active) return;
+      }
       applyState(next);
       if (restored) {
         // Canonical project remains the validated Application snapshot; raw UI values stay separate.
@@ -1706,8 +1718,10 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   if (!state) {
     return (
       <main className="loading-screen">
-        <img className="loading-mark" src="/navmate-192.png" width={52} height={52} alt="" />
-        <strong>NavMateを起動しています</strong>
+        {localMode ? <StartupStatus progress={startupProgress} /> : <>
+          <img className="loading-mark" src="/navmate-192.png" width={52} height={52} alt="" />
+          <strong>NavMateを起動しています</strong>
+        </>}
         {error && (
           <>
             <p role="alert">{error}<br /><code>{bootstrapErrorCode}</code></p>

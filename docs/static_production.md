@@ -107,6 +107,13 @@ fresh feedが用意できないときは通常リリースgateを止める。
   manifestを同時生成する。ViteはVERSION / Pyodide pin不一致ならbuildを拒否する。
   JS Workerへmanifest全体のSHA-256を埋め込み、取得時にその値と照合する。
   各wheel / data.zipも既存SHA-256検査で照合してから使用する。
+  `data.zip`はLocalApplicationが読む`performance`、`reference/default`、`reference/rjfm`、
+  `reference/rjfm-inbound-guidance`を同梱する。最後の領域の原本PDFも実行時照合に必要。
+  MAP用AIP原本archiveはRepositoryに保持し、runtime未使用のまま配布物へ含めない。
+  起動中は認証・計算環境・データ取得・展開・Project確認を1本の目安バーで表示する。
+  一覧検証を終えるまで操作を有効にせず、既存の失敗・再試行の挙動を維持する。
+  [#422のChrome計測と再計測手順](evidence/issue-422/startup-20261118.md)を参照。
+
   同じversion番号の異なるbuildも混在させない。これは整合性検査であり署名ではない。
 - 全same-origin responseは`Cache-Control: no-cache`とし、browserは再利用前にrevalidateする。
   PagesのETag / 圧縮を使い、独自Cache RuleやCache Everythingを追加しない。

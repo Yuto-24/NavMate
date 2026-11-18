@@ -1,3 +1,4 @@
+import { StartupStatus } from "./components/StartupStatus";
 import { flushSync } from "react-dom";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -21,6 +22,9 @@ if (!root) {
 
 const view = createRoot(root);
 let generation = 0;
+if (localMode) view.render(<main className="loading-screen">
+  <StartupStatus progress={{ percent: 0, stage: "authentication" }} />
+</main>);
 startApplication(browserPlatform, ({ application, platform }) => {
   // Unmount the previous account immediately, including dialogs and pending UI work.
   flushSync(() => view.render(

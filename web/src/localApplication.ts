@@ -1,3 +1,4 @@
+import type { StartupProgressListener } from "./startupProgress";
 import { ForecastBackupTransport, permitsForecastBackup, type BackupInput, type BackupTransport } from "./forecastBackup";
 import { backupMessages } from "./forecastBackupMessages";
 import { accountBoundaryClosed, type AuthProvider } from "./auth";
@@ -12,6 +13,10 @@ export class LocalApplication implements AutoNavLogApplication {
   readonly checkpointLoads = true;
   sync?: import("./accountSync").AccountSyncControl;
   private active = true;
+  private startupListeners = new Set<StartupProgressListener>();
+  private reportStartup: StartupProgressListener = progress => {
+    for (const listener of this.startupListeners) listener(progress);
+  };
   private generation = 0;
   private pendingBackup?: AbortController;
   private client: Pick<LocalClient, "request" | "dispose"> | undefined;
@@ -30,6 +35,7 @@ export class LocalApplication implements AutoNavLogApplication {
   dispose() {
     this.invalidatePending();
     this.active = false;
+    this.startupListeners.clear();
     this.client?.dispose();
     this.client = undefined;
   }
@@ -42,7 +48,7 @@ export class LocalApplication implements AutoNavLogApplication {
   private async request<T>(operation: string, input?: unknown): Promise<T> {
     this.assertActive();
     try {
-      const result = await (this.client ??= this.createClient()).request<T>(operation, input);
+      const result = await (this.client ??= this.createClient()).request<T>(operation, input, this.reportStartup);
       this.assertActive();
       return result;
     }
@@ -201,15 +207,22 @@ export class LocalApplication implements AutoNavLogApplication {
       }
     });
   }
-  bootstrap(recovery?: WorkingRecovery) {
+  bootstrap(recovery?: WorkingRecovery, onStartupProgress?: StartupProgressListener) {
     this.invalidatePending();
+    // Subscribe before queueing: StrictMode can queue a live bootstrap behind
+    // the first effect's initialization after that effect has been cleaned up.
+    const listener: StartupProgressListener = progress => onStartupProgress?.(progress);
+    this.startupListeners.add(listener);
     return this.serial(async () => {
       const { durableToken, repositoryRecovery: _repository, ...working } = recovery ?? {};
       if (recovery) await this.repository.restoreWorking?.(recovery);
       if (recovery?.project && durableToken) this.tokens.set(recovery.project.id, durableToken);
       const state = await this.request<WebState>("bootstrap", recovery ? working : undefined);
-      return this.present(state); // never select or write durable work during session hydration
-    });
+      this.reportStartup({ percent: 90, stage: "projects" });
+      // Never select or write durable work during session hydration. Validate the
+      // complete listing before allowing the UI to operate on saved Projects.
+      return this.present(state);
+    }).finally(() => { this.startupListeners.delete(listener); });
   }
   importRoute(input: ImportRouteInput) { return this.execute("importRoute", input); }
   confirmRoute(input: ConfirmRouteInput) { return this.execute("confirmRoute", input); }
