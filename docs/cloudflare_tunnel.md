@@ -121,5 +121,5 @@ Cloudflare Tunnelはoriginから外向き接続を作るため、originへの受
 
 Account linkはAccess保護下のLegacy UIから開始します。初回NavMate利用の移行APIだけに
 限定したAccess path設定、Google認証、CORS、成功後の自動転送は
-[Legacy migration](legacy_migration.md#configure-the-migration-period)を参照してください。
+[Firebase・Legacy 移行の運用設定](firebase_account_operations.md#configure-the-migration-period)および[Legacy アカウント連携・移行仕様](legacy_migration.md)を参照してください。
 通常のProject APIやlink APIをAccess保護から外さないでください。

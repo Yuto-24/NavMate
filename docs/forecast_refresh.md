@@ -1,78 +1,28 @@
-# Forecast recalculation (#356 / corrected #277)
+# 再計算と Run 更新
 
-再計算時の Run 固定・更新契約の正本です。FORECAST モードでは **DATE / ETD または weather mode（FORECAST / FTD）の変更で保存済みモデル/Run ピンを解除**し、その他の入力変更では `forecast_selection_fingerprint` を前回成功計算と比較して「入力不変の再計算で最新正常 Run へ更新・入力変更時は既存 Run を維持」します。
+FORECAST モードにおける再計算時の Forecast Run 固定・更新規則、および旧 Run 注意表示の仕様を定める正本です。
 
-DATE or ETD changes in FORECAST mode invalidate the saved model/Run pin.
-The next calculation selects the newest healthy Run covering the new requirements
-(MSM first, with the existing coverage-based GSM fallback). This also applies
-to an old Project loaded without a successful calculation baseline.
+## 基本規則
 
-For other edits, an explicit calculation compares Forecast inputs with the **last
-successful calculation**, using `forecast_selection_fingerprint`. Changed
-inputs keep that Run. Unchanged inputs select the newest usable normal Run in
-that single action; if no newer normal Run exists, the same usable Run remains
-selected.
+- **DATE / ETD または気象モード（FORECAST / FTD）の変更**：FORECAST モードで DATE または ETD を変更した場合、および気象モードを変更した場合は、保存済みのモデル／Run ピンを解除します。次の計算では新しい条件を満たす最新の正常 Run を選択します（MSM 優先、範囲外時は GSM）。成功計算ベースラインを持たない旧 Project を開いた場合も同様に適用します。
+- **その他の入力変更と入力不変の再計算**：明示的な再計算では、現在の計画入力を**最後に正常完了した計算結果**の入力と比較します。
+  - **入力が変わっている場合**：従来の固定 Run を維持します。
+  - **入力が変わっていない場合**：その 1 回の再計算操作で利用可能な最新の正常 Run へ更新します（より新しい正常 Run がなければ、同じ Run を維持します）。
+- **連続操作の例**：Run A で計算成功 → 高度を変更 → 再計算（Run A を維持）→ 変更せず再度再計算（利用可能な最新正常 Run を選択）。警告の表示を事前条件にせず、変更して元に戻した場合も操作回数ではなく前回成功ベースラインとの比較で判定します。
+- 失敗した計算は比較ベースラインや保存済み計算結果を置き換えません。
 
-For example: success with Run A → altitude edit → calculate with A → calculate
-again without edits → select the newest normal Run. A warning is not required to
-arm this behavior. Failed calculations do not replace the comparison baseline or
-Last Calculation. Editing away and back compares the resulting inputs with that
-same baseline, rather than maintaining a click counter.
+## 入力比較の範囲と状態維持
 
-## Identity and persistence
+- 比較対象となる入力には、Project 識別子、日時、空港、経路、区間の高度・Phase・手入力気象、TGL、降下率、機体設定、計画／参照状態（採用済み出発 VOR を含む）、および四捨五入モードを含めます。選択済み Forecast、保存・改訂管理項目、確認済み状態は除外します。四捨五入モードの切り替えも入力変更として扱います。
+- 実際に計算へ採用したモデル・Run の識別は別に記録し、過去スナップショットの履歴を書き換えません。
+- Project を開く・復元する・保存する・表示するだけでは新たな Forecast Run を取得しません。次の明示的な再計算で復元済み成功スナップショットと比較します（DATE / ETD 編集時を除く）。成功ベースラインを持たない場合も、DATE / ETD または気象モードが変わるまで保存済みピンを維持します。FTD モードでは Forecast 更新を要求しません。
+- 予備計算 API を利用する場合も、同じ明示更新判断と固定モデル／Run 識別子を引き継ぎ、採用時は Project・計算結果・来歴を一体で保存します。
+- 再計算で固定 Run が変更後入力の範囲外になっていた場合でも、単にその失敗計算を繰り返しただけでは Run を更新しません。また、欠損・不正な MSM 候補は探索中にスキップできますがモデル除外の根拠にはせず、固定 Run の取得失敗だけで別 Run へ黙って差し替えません。
 
-The existing fingerprint covers Project identity, timing, airports, route,
-section altitude/phase/manual inputs, TGL, descent rate, aircraft settings,
-planning/reference state (including adopted departure VOR), and rounding mode.
-It excludes selected Forecast, save/revision bookkeeping and acknowledgements.
-Typed planning normalization preserves equality across browser JSON number
-roundtrips. The calculation fingerprint remains separate and identifies the Run
-actually used; historical snapshot hashes are not rewritten.
+## 旧 Run 注意表示
 
-Opening, restoring, saving and displaying a Project never acquire another Run.
-The next explicit calculation compares with the restored successful snapshot,
-unless DATE or ETD was edited. Without a successful Forecast baseline, a saved
-pin remains pinned until DATE/ETD or weather mode changes. FTD never requests
-Forecast refresh. A rounding change counts as an input change;
-restored rounded results retain the existing rounding recovery rules.
+- 有効なサーバーカタログと検証済みの完全なデータによって対象要件の最新利用可能 MSM Run を確定できた場合に限り（キャッシュのみ、または期限切れカタログの取得だけでは最新状態を確定しない）、固定中の MSM Run が最新から **3 時間間隔で 3 回分（9 時間）以上古い** 場合に旧 Run 注意を付与します（それより新しい Run には付与しません）。
+- 比較結果（選択 Run、確認済み最新 Run、間隔数、確認時刻）は保存される課題メタデータに記録します。以降、最新状態が「不明」になった場合でも、同じ Run に対する検証済み注意表示は元の根拠とともに維持できます（不明なだけでは新規に付与しません）。
+- この注意は通常文字色で警告欄および NAV LOG 燃料表の横に表示され、計算をブロックせず確認操作も要求しません。
 
-Local acquisition replays the same user action after each requested catalog or
-payload. Replay does not change the baseline or become a new user click. The
-existing compute-only backup receives the same explicit refresh decision and
-fixed model/Run identity. Adoption preserves Project, outcome, provenance and
-Last Calculation together.
-
-The calculation service defaults to pinned selection. Explicit refresh uses the
-shared MSM→GSM policy. Missing or invalid MSM candidates may be skipped while
-seeking a usable MSM Run; they never establish model exclusion. A missing fixed
-Run is not replaced because acquisition failed. Actual model coverage exclusion
-retains the existing MSM→GSM policy. A fixed Run outside changed inputs cannot be
-updated simply by repeating that failed calculation.
-
-## Old-Run Advisory
-
-A current server catalog plus complete, library-validated data establishes the
-latest usable MSM Run for the request. Cache-only or expired-catalog acquisition
-does not establish current latest status. A pinned MSM Run at least three
-3-hour intervals (9 hours) older receives `FORECAST_STALE_RUN`; newer Runs receive
-no additional Advisory. The comparison records the selected Run, verified latest
-Run, interval count and check time in the saved issue metadata. If latest status
-becomes unknown, an existing verified Advisory for the same Run can remain with
-its original evidence. Unknown status alone adds nothing.
-
-The same Advisory appears in the Warning area in normal text color and next to
-the NAV LOG fuel table. It does not block calculation or require acknowledgement.
-
-## Regression coverage
-
-- `test_project_fingerprints.py`: relevant inputs and excluded bookkeeping
-- `test_local_calculation.py`: success baseline, edits/edit-back, Save, restore,
-  failure continuity, rounding and FTD
-- `test_local_forecast.py` / `test_msm_continuity.py`: portable replay, expired and
-  cached catalogs, healthy older candidates, fixed-Run failures, model policy,
-  Advisory boundaries and persisted evidence
-- `local-weather-unit.spec.ts` / `local-weather.spec.ts`: bounded cache transport,
-  real portable MSM, browser recalculation, saved NAV LOG and workflow layout
-
-Catalog monitoring and publication gates remain separate; see
-[Local Weather](local_weather.md) and [Static operations](static_operations.md).
+> **参考（回帰・運用監視）**：自動テスト範囲は [testing.md](testing.md)、カタログ監視および静的フィード運用は [local_weather_operations.md](local_weather_operations.md) と [static_operations.md](static_operations.md) を参照してください。

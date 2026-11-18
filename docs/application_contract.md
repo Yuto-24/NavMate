@@ -1,194 +1,35 @@
-# Frontend Application boundary (#118)
+# Frontend Application 境界と Session ライフサイクル
 
-UI は `web/src/application.ts` が定める `AutoNavLogApplication` 契約のみを呼び出し、`LocalApplication`（Comlink + Pyodide Worker）と `LegacyApplication`（FastAPI HTTP）の差を意識しません。本契約は同一タブ reload 復元（#119）、エラー正規化、更新・計算の直列化を規定し、失敗時に Legacy へ自動フォールバックしません。
+UI と実行バックエンド（ブラウザ内 Local / Legacy サーバー）の境界契約（#118）、および同一タブ再読み込み時の作業復元ライフサイクル（#119）を定めます。
 
-`web/src/application.ts` defines `AutoNavLogApplication`, operation inputs, progress,
-and `ApplicationError`. `main.tsx` composes the chosen implementation and supplies it
-as an App prop. UI code only calls operations; it does not construct endpoint paths,
-choose HTTP methods, inspect session status, or invoke Worker RPC.
+## Application 契約とバックエンド分離（#118）
 
-- `LegacyApplication` owns HTTP serialization, Cookie credentials, session bootstrap,
-  a single retry after 401, and calculation job polling. The same mutation payload is
-  retried once after session recreation, preserving the existing Legacy behavior.
-- `LocalApplication` uses `LocalClient` and the serialized Comlink Worker queue.
-  Python `LocalApplication` dispatches operation names to the existing facade.
-  FTD and real MSM FORECAST use the same Python CalculationService. The Local Worker acquires
-  portable Weather data before synchronous calculation; see [Local Weather](local_weather.md).
-  Destination TAF acquisition uses the [bounded Browser adapter / Serverless Proxy](taf_proxy.md)
-  before FORECAST calculation; records are interpreted by the shared Python provider.
-  TAF unavailability never rejects calculation or persistence.
-  No failure switches to the Legacy implementation.
-- `ApplicationError` exposes `code`, `message`, and `details`, plus optional `committedState`
-  when an operation fails after committing a draft. UI applies that canonical recovery
-  without replacing raw drafts, while still showing the error. Domain codes and
-  messages are preserved. KMZ selection candidates live in `details.candidates`.
-  Only request-model validation is `VALIDATION_FAILED`, with neutral message and field issues
-  (`location`, `message`, `type`). HTTP's body/path/query prefix and Python traceback/context
-  are excluded. Connection/runtime failures use `APPLICATION_UNAVAILABLE`.
-  HTTP status and retry policy are internal to Legacy. Local Python failures are
-  serialized explicitly because exception transport would discard custom fields.
-- Unexpected execution failures, including internal Pydantic validation, never expose
-  exception messages as input errors. Both runtimes use `CALCULATION_JOB_FAILED` /
-  `計算に失敗しました。` for calculation and `REQUEST_FAILED` / `処理に失敗しました。`
-  for synchronous operations. Explicit application errors keep their code/message/details.
-- Calculation progress is a callback with percent/message. Legacy forwards existing
-  job progress; Local reports start and completion only, without invented intermediate
-  percentages. Failures reject and never emit successful completion. Finer progress
-  UI (#159) and cancellation (#160) are not implemented here.
+- **統一操作境界**：UI は共通の操作契約を通じて実行系を利用し、通信経路や内部セッション方式を意識しません。起動時に Local または Legacy のいずれか 1 つを接続し、**Local 実行の失敗時に Legacy へ自動フォールバックしません**。
+- **処理の直列化と原子性**：入力の確定・計算実行・保存・読込・削除・新規作業の各操作は競合しないよう直列化されます。入力更新を伴う再計算では、まず検証済み下書きを確定したうえで気象データと目的地 TAF を取得し計算を実行します（TAF 取得不可は計算・保存を妨げません）。計算時の例外や失敗では、すでに確定した下書きと直前の正常計算結果の両方を保持し、下書きを巻き戻しません。
+- **エラーの正規化**：
+  - 入力規則違反のみ項目単位の検証指摘として返し、内部のスタックトレースや通信詳細を利用者向けメッセージへ露出させません。
+  - 接続・実行基盤の障害、想定外の計算失敗（「`計算に失敗しました。`」）、想定外の操作失敗（「`処理に失敗しました。`」）を明確に区別します。
+  - 下書き確定後に後続の計算等が失敗した場合は、確定済みの最新状態だけを安全な復旧情報として同期し、UI 上の未確定な手入力内容を上書きせずにエラーを表示します。
+  - KMZ に複数候補がある場合は、候補一覧を返して利用者に選択させます。
+- **進捗通知**：計算の開始・進行・完了を通知します（Legacy はサーバー進捗を転送し、Local は開始と完了のみを通知して架空の中間パーセントを作らず、細かな進捗 UI #159 や実行キャンセル #160 は未実装です）。
+- **操作の共有と境界**：ファイル内容の取得や外部操作は [Browser Platform 境界](platform_capabilities.md) を経由し、計算コアへ OS のファイルパス等を送りません。
 
-## Preserved operation semantics
+<a id="frontend-application-session--lifecycle-119"></a>
+## 同一タブ Session 復元とライフサイクル（#119）
 
-`updateProject` commits a validated draft. `updateAndRecalculate` remains one Application
-operation: persist the validated draft, then calculate. Legacy holds the facade lock.
-Local serializes the whole RPC in its Worker queue and stages the validated draft through
-`updateProject`, acquires Weather asynchronously, then invokes the same facade calculation.
-No other operation enters between these phases. The original public operation determines
-unexpected-error codes, including `REQUEST_FAILED` for update/recalculate.
-A calculation exception retains that draft and the previous last-good outcome; it
-**does not roll back the draft**. UI debounce, stale-result generation guards, draft
-flush before save/load/calculation, and explicit reset/reload behavior stay in place.
-Renaming, checkpoints, and acknowledgements keep their existing facade behavior.
+| 復元対象に含まれる情報 | 保持の目的 |
+| --- | --- |
+| 作業中 Project と直前正常計算結果 | 再読み込み直後に作業画面と NAV LOG 表示を復元するため |
+| 取込済み経路データ（確定用の全座標・候補選択状態） | 未確定の KML/KMZ 取込や候補選択を再読み込み後も継続するため |
+| 未確定の UI 生入力（計画文字入力、区間編集、Check Point 入力、VOR 選択、貼り付け KML 等） | 入力途中の文字や不正値の入力状態も含めて失わないため |
 
-`saveProject`, `loadProject`, `deleteProject`, and `newWork` belong to the same
-contract. Local persistence now uses the IndexedDB Local Project Repository from #124;
-see [durable storage semantics](local_persistence.md). The Pyodide facade remains a
-transient working runtime. New work disposes that runtime and clears tab recovery;
-its previously persisted Latest follows the Repository's replacement/explicit-open rules.
+- **恒久保存との分離**：この一時作業状態は同一タブ再読み込み専用のコピーであり、保存済み Project や直前正常計算の正本（[Local Project 永続化契約](local_persistence.md)）ではありません。ブラウザにより保存が拒否された場合や容量超過時は保存成功を装わず利用者へ通知します。
+- **復元の優先順位とタブ独立性**：
+  1. ブラウザが **再読み込み** と判定した起動でのみ、同一タブの一時作業状態を復元します（新規ページ遷移やタブ複製時は引き継がず消去して干渉を防ぎます）。
+  2. タブごとに一時状態と実行ランタイムは独立しており、タブを閉じた後やブラウザ再起動後の復元は保証しません（別タブで同一 Project を開いても未保存編集は混ざりません）。
+  3. 復元優先順位は **「同一タブ一時復元 → 永続保存データ（利用者の明示選択で開く）→ 空白の新規作業」** であり、新規タブが保存済み Project や `Latest` を自動選択して開くことはありません。
+- **再計算を抑止した安全な復元**：起動復元時は常に待機状態で立ち上がり、ダイアログ・進捗表示・スクロール・自動再計算タイマーを引き継いだり、再計算・自動保存・計算結果上書きを自動発火したりしません。計算途中の再読み込みでは進行中計算を破棄し、直前の下書きと正常計算結果を保持します（古い実行の応答が復元後画面へ書き込まれるのを防止します）。
+- **新規作業と競合分離**：明示的な「新規作業」は保留中の自動保存を完了・破棄し、現在タブの一時復元だけを消去して作業状態を安全に初期化します（同一アカウント内では初期化した計算環境を再利用し、アカウント切替時は破棄します）。ストレージ削除が拒否された場合は初期化前に失敗を報告し、初期化に失敗した場合は復元コピーを戻して作業消失を防ぎます。同期処理の待機中に新規作業が実行された場合は古い同期継続を無効化し、画面と実体の不整合を防ぎます。
+- **破損・接続障害時の振る舞い**：形式不正や非互換バージョンの一時復元データの場合は、通知を出したうえで安全な空白状態から開始します。接続障害時は再試行画面と復元データを保持し、作業を黙って失いません。
 
-`ApplicationSnapshot` aliases the current `WebState` solely as a **transitional
-snapshot**. This is not a durable storage contract. The reload lifecycle below is shared by both adapters;
-#124 owns Local persistence and #120 owns platform capabilities.
-The composition root injects [Browser Platform capabilities](platform_capabilities.md).
-File bytes and metadata converge on the existing Importer contract; Application receives
-no filesystem paths or DOM File objects. Local and Legacy both support KML/KMZ.
-The existing development-only mode label/default weather remain unchanged.
-Local save/name controls are enabled by #124. There is no UI redesign, new default mode, or calculation rewrite.
-
-## Verification
-
-- `npm --prefix web run test:application`: no-browser contract/adapter tests, also in CI.
-- `pytest tests/integration/test_local_calculation.py`: Python dispatch, errors,
-  last-good/draft behavior and the existing FTD/FORECAST regressions.
-- `test:e2e`は現行Local Browser suiteの標準入口。残る混在UIテストは、隔離したLegacy URLを
-  指定する`test:legacy`で保持する。通常CIの担当と移管理由は[Testing](testing.md)を参照。
-- Production Local Browser suite: `npm --prefix web run build:local`, serve dist-local,
-  then `AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4174 npm --prefix web run test:local`.
-  Existing differential tests retain canonical result/Golden tolerances, API blocking,
-  Python validation failure, Worker failure, and corrupt/failed asset coverage.
-
-## Frontend Application Session / lifecycle (#119)
-
-applicationSession.ts defines a versioned, ephemeral working snapshot. It contains
-the Application's working Project and last-good result, parsed importer content (including
-full coordinates needed for confirmation, not just the map preview), and raw UI drafts:
-planning text, section altitude/phase edits, NAV LOG edits, route name/Check Point input,
-VOR selection, pasted KML, and pending KMZ bytes/document choice. Validity of an input is
-not a condition for retaining it. The canonical validated Project remains separate from
-raw edits; existing autosave and update/update-and-recalculate semantics remain in use.
-
-Browser recovery uses only the dedicated sessionStorage key
-autonavlog.working-session.v1. It is a temporary copy, not the source of truth for saved
-Projects or Last Calculation. The session codec itself introduces no durable repository or calculation core.
-#124 supplies the separate IndexedDB repository described in local_persistence.md.
-Storage denial/quota exhaustion is visible to the user; a failed write is not reported as
-saved. Large imports/results remain subject to the browser's sessionStorage quota.
-
-Only navigation classified by the browser as **reload** adopts a stored snapshot.
-A fresh navigation clears only this key, including the sessionStorage copy browsers may
-give an opener-created/duplicated tab. Tabs have separate UI snapshots and separate
-Adapter working runtimes. Tab-close or browser-restart recovery is not guaranteed.
-Browser history/focus/scroll and modal visibility are not session data. Pending KMZ and
-Check Point inputs have explicit continuation controls while their editors start closed.
-
-On startup, bootstrap(recovery) hydrates the Application without replaying operations:
-Legacy creates a new private working session, Local hydrates its new transient Python
-runtime. Existing domain/importer models validate the recovery and existing readiness
-evaluation computes the presentation. Snapshot hydration performs no calculation, autosave,
-last-good write, marker update, or index repair. The existing Legacy saved-Project listing
-may still repair its own index or retry pending cleanup while assembling the presentation.
-Legacy's working handle stays inside its Adapter and travels in its own request header;
-Cookie-based endpoints remain for Legacy compatibility, but do not select the UI's work.
-Owner checks remain Legacy authorization behavior, not a new frontend identity contract.
-A 401 retry creates a private session using the Adapter's latest working copy.
-
-Frontend Legacy sessions keep edits, autosave updates, and calculated results in their
-own working runtime. They do not implicitly write the shared repository, its autosave,
-last-good file, or owner marker. An abandoned calculation may finish on the server, but
-can only update its abandoned runtime. No cancellation protocol is required for this
-isolation (#160 still owns cancellation). Two tabs may independently edit/calculate the
-same Project without either tab's unsaved work becoming the other's saved input.
-
-Frontend drafts are therefore not published as the old owner-wide Latest entry in the
-saved-Project list. Reload uses the tab snapshot; explicit load lists shared saved data.
-Only explicit Legacy save commits this work to the existing repository. Its existing
-revision check runs before canonical autosave or last-good writes; a stale save reports
-PROJECT_REVISION_CONFLICT and leaves the tab's working copy intact. Checkpoint and
-associated snapshot writes are serialized across explicit saves. The recovery also
-retains the last successful calculation's original Project and forecast metadata, so
-saving a subsequently edited draft does not relabel its old result as a new calculation.
-The old Cookie-session API retains its compatibility autosave behavior; Frontend
-Application sessions do not use that path. This is Legacy adapter behavior, not #124
-durable Local storage.
-
-
-Recovery priority is: **same-tab ephemeral session, then #124 durable data, then new work**.
-Absent recovery starts blank; #124 durable Local Projects are opened only by explicit selection.
-Legacy saved Projects remain available by explicit load; a fresh tab does not implicitly
-adopt another tab's owner-wide Latest. Existing server repository storage is unchanged.
-
-Restored execution is always idle: no busy/progress, dialogs, notices, errors, focus, or
-scroll state are saved. NAV LOG and destination-pattern automatic recalculation timers
-are not armed by hydration. Reload during calculation abandons that execution and keeps
-draft plus last-good; it never starts or resends a calculation. The next user edit or
-explicit calculation follows the normal workflow. New page execution and a new Legacy
-working handle prevent old responses/jobs from writing into restored UI state. Existing
-input generations and autosave guards still reject superseded edits; action results do
-not canonicalize input edited while they were in flight.
-
-Explicit new work drains/discards pending autosave, clears only this tab's recovery,
-then resets the Adapter. Local replaces the complete Python Application (including its
-transient storage, forecast providers and session) and remounts the UI while retaining
-the initialized interpreter within the same account. Legacy still reloads. Account
-changes still dispose the Worker. If storage refuses removal, it reports the failure
-before resetting work; a failed Adapter reset restores the recovery copy. It does not delete saved Projects, Last Calculation, another
-tab, or #124 data. Malformed/version-incompatible UI snapshots or invalid Application
-recovery start a safe blank session with a visible recovery-failure notice. Connection
-failures keep the retry screen and the recovery data, rather than silently losing work.
-
-The Python replacement must produce and serialize its initial state before removing
-the previous transient storage or replacing its Application, session and weather state.
-If presentation or serialization fails, the candidate is closed and the previous work
-remains usable. Failure-injection coverage verifies both boundaries and recalculation
-of the retained work; tab recovery is an additional safeguard.
-
-Sync resolution captures the work generation before its asynchronous resolver starts.
-New invalidates waiting resolution/refresh continuations, including when New fails.
-Only the state-changing sync phase and its UI commit share a queue with New: a load
-already in progress commits its matching UI before New can fail, while a paused
-resolver or refresh never locks New. This keeps the displayed Project and the retained
-Application consistent without rejecting New during synchronization.
-While New suppresses recovery writes, rendered work still updates the in-memory
-snapshot so an asynchronous reset failure restores the matching Project on reload.
-Map resize observers disconnect during layout cleanup. Detached or zero-size maps
-must not invalidate and overwrite the viewport that the new workspace restores.
-
-Verification: e2e/session.spec.ts runs against the production Local build
-(npm --prefix web run test:local:full -- session.spec.ts).
-Local blocks /api/** and retains KMZ document selection and reload continuation.
-Adapter/codec tests run in test:application; Python integration verifies parsed import
-continuation, last-good hydration without calculation, separate Legacy handles and no
-persistence writes during restore.
-
-### Same-account New performance (2026-10-27)
-
-The representative 1,100 px MAP → calculation → save/reopen test retained the same
-assertions and diagnostic instrumentation on GitHub-hosted Ubuntu 24.04 / Chromium.
-[Before](https://github.com/Yuto-24/AutoNavLog/actions/runs/40465795483), it took
-57.285 s with eight completed runtime initializations; [after](https://github.com/Yuto-24/AutoNavLog/actions/runs/40468089756),
-45.287 s with six. Both New requests in the latter run took approximately 0.166 s.
-This is one matched before/after observation (about 12 s / 21% for this test), not
-an estimate for the entire CI workflow or a guarantee for physical devices.
-The authentication, sync and account-deletion representatives retained their
-initialization counts (10, 4 and 6); cross-account runtime reuse is not implemented.
-The same after run passed repeated/cancelled New, retained-Worker, reload/other-tab
-recovery, and delayed sync-resolution/New regression assertions.
+> **参考（検証境界・再起動性能観測）**：自動検証スイートおよび 2026-10-27 の同一アカウント再起動性能観測は [testing.md](testing.md) を参照してください。

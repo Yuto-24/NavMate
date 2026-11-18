@@ -1,26 +1,25 @@
-# Registered VREP selection (#169)
+# 登録 VREP カタログと地図選択仕様（#169）
 
-The source of this initial catalog is [the confirmed Issue comment](https://github.com/Yuto-24/AutoNavLog/issues/169#issuecomment-6415872164), transcribed in [the source record](vrep-169-confirmed-source.md).
-`data/reference/vrep.json` contains exactly 115 points from 16 airports. The 17th scoped airport, RJFY, has no Visual REP table in the supplied AD2 and contributes no inferred positions. RJDU is excluded; its points shared with RJFU must not be registered a second time. The airport catalog is unchanged.
+初期 VREP カタログの範囲・位置導出方針、および MAP 上での選択・表示・永続化ルールを定めます。
 
-Run `python scripts/reference/build_vrep_catalog.py` to reproduce the JSON from that approved record. Tests validate counts, source schema, and WGS84 direct solutions from each original true bearing and NM distance. A table bearing of 360 degrees is retained verbatim. File dates and table/ARP effective dates are independent.
+## 対象範囲と導出座標の性質
 
-These are derived reference positions, not published latitude/longitude coordinates. Six decimals preserve reproducibility, not meter-level precision. The rounded source bearings/distances bound their usefulness. No magnetic variation is added. No source PDFs need re-uploading.
+- 本カタログの原典は [承認済み原典表（vrep-169-confirmed-source.md）](vrep-169-confirmed-source.md) です（確認元：[Issue #169 コメント](https://github.com/Yuto-24/AutoNavLog/issues/169#issuecomment-6415872164)）。
+- 対象 17 空港のうち **16 空港・115 点** を登録しています。17 番目の鹿屋（RJFY）は提供された AD2 に Visual REP 表がないため 0 点とし、推測座標は追加しません。大村（RJDU）は長崎（RJFU）との重複登録を防ぐため除外し、空港カタログ自体は変更していません。
+- 登録座標は公式に公開された緯度経度ではなく、原表の ARP からの真方位と NM 距離を WGS84 楕円体で順解した導出値です（磁気偏差は加算せず、表中の `360°` もそのまま保持します）。小数第 6 位までの丸めは再現性のための表記であり、メートル級の測量精度や元表の丸められた方位・距離以上の精度を意味しません。ファイルの更新日付と表・ARP の有効日は独立して扱います。
 
-## Selection and persistence
+## MAP 上の選択・表示・永続化
 
-- Only route creation mounts candidate layers. Unselected airports and VREPs use the same 40-screen-pixel clustering algorithm; clicking a cluster zooms without appending a point.
-- The approved candidate symbols are a 20 px double circle for VREP and a 28 px airplane circle with a 2 px outline for airports (both sizes include the outline), centered in a 28 px click target. Dev acceptance restored the airport's original size and increased VREP from 16 px to 20 px for readability; its inner ring is 10 px so both circles have the same CSS pixel alignment rather than a half-pixel offset from mixed odd/even diameters. Unselected symbols are white; selected VREPs are teal and selected airports navy, with white inner marks. Selection persists while any route occurrence remains. Avoid a square-plus-diamond symbol or a wide text badge: both were rejected during dev acceptance for map readability or similarity to navigation-facility symbols.
-- A selected reference is removed from candidate clustering and rendered individually. Clicking it appends a new route occurrence. A plain background click remains an arbitrary waypoint with no snapping.
-- An empty route can start only at an airport, and confirmation requires airport endpoints.
-- Draft IDs and Project RouteNode UUIDs identify occurrences. `reference_snapshot.reference_id` identifies the common reference. The full source record, selected coordinates, bearing, distance and derivation are copied with each occurrence, including consecutive repeats.
-- A snapshot is never resolved against the current catalog while restoring a draft or Project. Existing Projects with no snapshot remain valid. This addition is optional in the existing schema; it does not perform a migration or rewrite saved files.
-- The existing arrival-plan `VISUAL_REPORTING_POINT` role remains the penultimate arrival point. Registered VREP identity is a separate snapshot property, so en-route VREPs do not acquire arrival calculation semantics.
-- Consecutive repeated selections are retained. Existing route/readiness checks still apply to zero-distance legs; selecting a point again does not promise a calculable leg of zero length.
+- 候補レイヤーは経路作成（および再編集）時にのみ表示します。未選択の空港と VREP は共通の **40 画面ピクセル単位クラスタリング** を用い、クラスタをクリックすると地点追加せずズームします。
+- **承認済みシンボル**：VREP は外枠込み **20 px の二重円**（内輪 10 px、選択時はティール `#0c7c78`、白抜きの内マーク）、空港は **2 px 枠線込み 28 px の飛行機円**（選択時はネイビー、白抜きの内マーク）、いずれも 28 px のクリック領域中心に配置します。未選択シンボルは白色です（識別性および航法施設記号との誤認防止のため、四角＋ダイヤや幅広テキストバッジは不採用）。
+- 選択済みの参照点はクラスタリング対象から外して個別描画し、再クリックすると同じ点の新たな出現を経路へ追加します。背景地図の何もない場所をクリックした場合は、スナップしない任意 Waypoint を追加します。
+- 空の経路は空港からしか開始できず、経路確定には始点・終点ともに空港が必要です。
+- 経路内の各地点（連続する重複選択を含む）は個別の地点識別子で管理しつつ、参照点としての共通識別子および選択時の全出典情報（座標・方位・距離・導出根拠）を地点ごとにスナップショット保存します。
+- 保存済み下書きや Project の復元時は、保存スナップショットを現在のカタログで暗黙に上書き解決しません。スナップショットを持たない既存 Project もそのまま有効であり、データ移行や既存ファイルの書き換えは行いません。
+- 到着計画における最終 VREP としての役割は引き続き到着直前の最終点のみを指します。経路途中に選んだ登録 VREP は参照点スナップショットとして区別され、到着計算の特別な意味は持ちません。
+- 連続した同一地点の選択自体は保持されますが、ゼロ距離 Leg が計算可能であることは保証せず、既存の経路・Readiness 検査がそのまま適用されます。
 
-## Historical #169 rollout boundary and UI copy
+## 初期展開の履歴と参照
 
-- **Initial #169 slice note**: At initial #169 delivery (2026-10-26), `main` supported new MAP routes only; confirmed-route re-edit (#175) and the integrated workspace (#416) were subsequently merged separately (see [map_route_builder.md](../map_route_builder.md)).
-- UI copy was determined by Gemini CLI (`gemini-3-flash-preview`, 2026-10-26). The caution, cluster accessible title, VREP title, and release note use that output.
-
-Use the isolated WSL worktree runtime for dev acceptance. Preserve all existing volumes, Cloudflare publication, MSM configuration, authentication, and server retirement boundaries.
+- #169 初回反映時（2026-10-26）は新規 MAP 経路のみが対象でしたが、その後に確定済み経路の再編集（#175）と 1 画面統合（#416）が統合済みです。最新の MAP 操作仕様は [MAP での経路作成・再編集・KML/KMZ 取込](../map_route_builder.md) を参照してください。
+- 登録地点の元資料・座標導出の記録は [承認済み原典表（vrep-169-confirmed-source.md）](vrep-169-confirmed-source.md) を参照してください。

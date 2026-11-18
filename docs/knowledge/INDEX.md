@@ -4,7 +4,7 @@ Read [the workflow](README.md) before adding or applying lessons. For the full m
 
 ## Existing canonical sources
 - [Agent workflow](../agent_workflow.md)
-- [Large Account Sync payloads](../account_sync.md#large-project-payloads): Legacy移行のバッチ容量制限とFirestoreの1文書上限は別。Project・checkpoint・Last Calculationを欠落なく保存する可逆圧縮、旧クライアントの停止、NavMate先行更新、再試行記録の互換性。ローカル合成データで検証し、本番反映・再移行は別途承認。
+- [Large Account Sync payloads](../firebase_account_operations.md#3-large-payload-gzip-v1-rollout-and-compatibility): Legacy移行のバッチ容量制限とFirestoreの1文書上限は別。Project・checkpoint・Last Calculationを欠落なく保存する可逆圧縮（[仕様正本](../account_sync.md#large-project-payloads)）、旧クライアントの停止、NavMate先行更新、再試行記録の互換性。ローカル合成データで検証し、本番反映・再移行は別途承認。
 - [Local StaticのMSMキャッシュ](../local_static_docker.md#msm取得キャッシュの容量管理): 2026-11-17の1環境で約44 GB。Legacyの20 GiB・7日の整理と#257のWorktree対策は別経路。取得cacheと配信Runの保持を分け、updaterの排他区間で整理する。開発用backup・終了時の資源整理は[Worktree手順](../development_worktrees.md#作業終了時の整理)を参照。
 - [Forecast schema 4 → 5 transition](../forecast_schema_transition.md): Issue #423（2026-11-15 v2.3.2 完了）。旧版生成データ、旧タブとの共存、同一端末 Latest 置換の了承範囲、手動公開の証拠と制約。WSL helper、remote tag照合、受理済み記録を再生成しない運用。
 - [Releaseの期限・受渡し・再実行の知見](../schema431_actions_prepare.md#操作窓を始める前の確認): planとprepared feedの別々の30分条件、取得・レビューの事前準備、v2.3.2の公開結果と検証限界。2026-11-15、tooling `64225b82` / driver `2394d59d`で確認。未実装の改善はリンク先Issueへ。
@@ -18,7 +18,7 @@ Read [the workflow](README.md) before adding or applying lessons. For the full m
 - [MSM 補完起動 Worker](../msm_external_trigger.md): `autonavlog-msm-trigger` 仕様、段階CLI、`ops.mjs` による `.state/wrangler.json` 上書きと `observability` 差分、2026-11-18 復旧観測。
 
 - [MAP background imagery](../map_background.md): Issue #243の配信元・出典、倍率と欠損時の表示、端末保存の境界。
-- [Terrain inputs](../terrain_inputs.md): Issue #313のDEM10B PNG復号、画素被覆、欠損と標高基準、実タイル確認の限界。
+- [Terrain inputs](../terrain_inputs.md): Issue #313のDEM10B PNG復号、画素被覆、欠損と標高基準（実タイル確認の限界と検証コマンドは [testing.md](../testing.md#地形入力gsi-dem10b--地形点-kmlの検証)）。
 
 - [WX cloud/RH feasibility](../wx_profile_feasibility.md): Issue #374。指定KML経路のMSM/GSM実GPV、雲高推定の限界、portableの追加コストとAPI境界。2026-11-09確認、Safari実機は未検証。
 

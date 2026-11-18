@@ -1,159 +1,35 @@
-# Forecast model selection (#161)
+# 気象モデル選択（MSM → GSM）
 
-FORECAST モードのモデル優先順位（`MSM → GSM`）、Run 固定と更新境界、および Project Schema 5（`selected_forecast_model`）の正本です。上流 `jma-gpv-weather==0.6.0` がモデル仕様・discovery・補間を担い、アプリが優先順位と再計算意図を管理します。
+FORECAST モードにおける気象モデルの優先順位（`MSM → GSM`）、モデル／Run の固定と更新境界、および Project へのモデル識別保持を定める正本です。気象ライブラリ（`jma-gpv-weather`）がモデル仕様・探索・取得・復号・補間・高度範囲判定を担い、アプリケーション側がモデル優先順位と再計算意図を管理する役割分担を採用しています。
 
-The application owns the priority `MSM → GSM` and explicit refresh intent.
-The weather library owns model specifications, discovery, acquisition, cache,
-decode, interpolation and post-prepare altitude coverage. A successful discovery
-with missing source files or an unavailable static payload is an acquisition
-failure, not evidence that a model is out of coverage.
+## 責任分担とモデル切替の条件
 
-`application/forecast_selection.py` evaluates candidates in adapter-provided
-newest-first order. MSM selection can also skip explicitly unavailable/invalid data to find another
-healthy MSM candidate. If no healthy candidate remains, a data failure stops
-selection rather than becoming evidence for GSM. Model changes require affirmative
-coverage exceptions with nonempty reason codes. Other exceptions stop selection. `REQUIRES_HGT` must
-proceed to prepare; only `ALTITUDE_OUTSIDE_HGT_RANGE` from the public post-prepare
-API permits an altitude fallback. `SOURCE_VALUE_UNAVAILABLE` is a processing
-failure. Adapters must check the complete request before accepting a candidate.
-Native adapters expand the library's default data crop to include requested route
-and weather-sample coordinates. That crop is not a model-domain definition; the
-library still decides specification coverage, grid cropping and interpolation
-halos. Local delivery boundaries remain explicit: a payload missing requested
-points is a processing/delivery failure, not a model exclusion.
+- **アプリケーションの責務**：`MSM → GSM` の優先順位制御、Run 固定、明示的な再取得意図の管理。
+- **気象ライブラリの責務**：モデル仕様、Run 探索（discovery）、取得・キャッシュ・GRIB 復号、補間、およびデータ準備後の高度範囲（HGT）判定。
+- 候補は新しい順（newest-first）に評価します。MSM の探索において、個別 Run のデータ欠損・不正が明示された場合はスキップして別の正常な MSM Run を探しますが、**全 MSM 候補の取得に失敗した場合でも GSM への切替根拠にはせず、データ取得障害として停止**します。
+- **取得失敗と仕様範囲外の明確な区別**：モデルを MSM から GSM へ切り替えるのは、理由付きの**明示的な仕様範囲外（高度・領域・時刻など）**と判定された場合のみです。データ準備後に高度範囲外となった場合のみ高度理由による GSM 切替を許可し、元データの値欠損や配信ペイロードの地点欠落は取得／処理失敗として扱い、モデル除外の根拠にしません。
+- 要求全体の時刻・地点・高度を検査したうえで候補を受理します（Local 環境で要求範囲に応じて切り出し範囲を拡張する場合も、モデル仕様領域の定義権は気象ライブラリ側に残ります）。
 
-A fixed MSM Run remains selected until explicit refresh if another MSM Run can
-satisfy the request. Editing DATE or ETD in FORECAST mode clears the saved model
-and Run selection, so the next calculation chooses a healthy Run for the new time.
-If no MSM candidate satisfies it, selection immediately tries GSM. A fixed GSM Run never moves back to MSM without explicit refresh.
-An unavailable latest comparison does not block an otherwise validated fixed Run;
-latest status remains unknown. Failure to obtain the required fixed Run retains
-the last successful calculation and never silently replaces that Run.
+## Run の固定・更新と失敗時の保持
 
-The dedicated `forecast_selection_fingerprint` includes flight timing, airports,
-route, altitude/phase/manual inputs, TGL, descent rate and relevant planning
-state. It excludes the selected Forecast and save/revision bookkeeping.
-Each explicit recalculation compares this fingerprint with the last successful
-calculation. Unchanged inputs permit refresh in one action; changed inputs other
-than DATE/ETD keep the Run. See [the corrected refresh contract](forecast_refresh.md).
-It is distinct from the calculation fingerprint,
-which also identifies the model and Run actually used. Its historical MSM and
-FTD encoding remains byte-identical; GSM and an explicitly unknown forecast model
-extend that encoding. Existing snapshot hashes are not rewritten or promoted.
-Changed inputs, policies or a non-FTD library version still require recalculation.
+- 固定された MSM Run が別条件を満たせる間は、明示的な更新操作まで同じ Run を維持します。
+- FORECAST モードで **DATE または ETD を変更すると、保存済みのモデル／Run ピンが解除**され、次の計算で新しい日時に適合する最新の正常 Run（MSM 優先、範囲外時のみ GSM）を選び直します。
+- いったん GSM Run が固定された場合、明示的な更新意図がない限り MSM へ自動で戻しません。
+- 最新 Run との比較ができない場合（カタログ比較不能など）は最新状態を「不明」とみなし、すでに検証済みの固定 Run の利用を妨げません。
+- 必要な固定 Run の取得に失敗した場合は、**最後に正常完了した計算結果（Last Calculation）を保持**し、別 Run へ黙って差し替えません。
 
-Project schema 5 adds `selected_forecast_model` independently of the existing
-Run ID. Schema 4 Run-only records migrate to MSM; the FTD fixed-weather identifier
-does not represent a forecast model. CalculationOutcome and Last Calculation
-carry model identity as well. Migration uses the existing Local/Legacy validation
-and transaction boundaries; it must not replace a historical calculation or
-delete an invalid record.
+## 入力比較・モデル保存・旧 MSM 計画との互換
 
-Installer version boundaries follow the separate tooling/app checkout contract.
-Tooling and the current application use the vendored 0.6.0 wheel. A build of an
-already approved application uses that application's single vendored weather wheel
-and resolves it together with its own exact `pyproject.toml` pin. Do not impose
-the newer tooling pin on an older approved app during a forecast-only rebuild.
-Missing or multiple candidate wheels stop the build; pip rejects pin mismatches.
-`test_candidate_weather_dependency.py` exercises 0.5/0.6 candidate selection and
-missing/ambiguous delivery across the Static and Local build paths.
+- **再計算入力の比較範囲**：日時、空港、経路、高度・Phase・手入力気象、TGL、降下率、機体設定・丸め等の計画入力を比較対象とし、選択済み Forecast や保存・改訂管理項目は除外します。再計算時は前回成功時の入力と比較し、入力不変なら 1 回の操作で最新 Run へ更新、DATE/ETD 以外の入力変更時は既存 Run を維持します（詳細は [再計算と Run 更新](forecast_refresh.md)）。
+- **使用モデル・Run の識別**：計算結果側の識別には実際に採用した気象モデルおよび Run を含めます（従来の MSM / FTD 符号化との互換性を保ちつつ、GSM や不明モデルを区別し、過去の保存スナップショットは書き換えません）。
+- **モデルと Run の保存および旧計画の互換読込**：Project には Run ID とは独立して選択モデルを保存します。Run ID のみを保存していた従来の MSM 計画は互換読込によって MSM として引き継ぎます（FTD は固定気象であり予報モデルに含めません）。計算結果および `Last Calculation` も採用モデルを保持し、互換変換時は過去の正常計算を置き換えたり不正レコードを削除したりしません。
 
-## Upstream boundary
+## 上流境界と配信失敗時の扱い
 
-Legacy and Local share selection, success-based refresh, final-requirement restart,
-persistence and provenance semantics. GSM portable preparation uses the public
-API delivered in [jma-gpv-weather PR #19](https://github.com/Yuto-24/jma-gpv-weather/pull/19)
-for [upstream Issue #18](https://github.com/Yuto-24/jma-gpv-weather/issues/18),
-merged as `208f288fc95bcd1d1e951e7b62046b490d1b7958` (version 0.6.0).
+- Local（Static Web）と Legacy（FastAPI）は、モデル選択・成功基準の更新・最終要求条件での再計算・永続化・来歴の意味を共有します。
+- 生 GRIB の解釈は気象ライブラリ側に一本化し、アプリケーション側で気象ロジックを重複実装しません（Browser 向け配信境界は [Local Static 気象運用とキャッシュ境界](local_weather.md) を参照）。
+- 静的配信における目録不足や対象 Run 未配信は取得障害として扱い、設定済みの予備計算経路を利用できる場合でも、それ自体は GSM 切替の理由になりません。予備計算で採用したモデル変更が許容されるのは、明示的な MSM→GSM 範囲外フォールバックが結果に記録された場合に限ります。
+- NAV LOG の気象出典表示は、編集中の下書き気象モードではなく、保持されている計算結果（FTD Run 識別子を含む）に追従します。
+- 上流のソース一覧が静的配信側の生成済み Run より多くの Run を公開していても、未生成の古い Run が要件を満たし得るため、配信済み資産だけで候補一覧を事前に絞り込みません。モデル全体の範囲外を確定するのに十分な過去 Run を配信する責務は運用側が負います。
 
-Inspection on 2026-09-25 found that the vendored `jma-gpv-weather 0.5.0` and its
-upstream GSM client exposed desktop prepare only. Unlike MSM, that version had no
-public portable-data codec, prepared-data injection or acquired-listing discovery.
-Its prepare path performed filesystem acquisition/native decode, which the Local
-adapter could not call in Pyodide.
-
-The upstream change adds the GSM equivalents of the public MSM portable
-boundary. AutoNavLog consumes that boundary without duplicating
-meteorological logic or creating an AutoNavLog-specific weather format. The
-existing static feed architecture and its source-CORS evidence are documented
-in [Local Weather](local_weather.md). Raw GRIB processing must remain upstream;
-adding a server-calculation fallback would violate Local-first semantics.
-
-Sources: [AutoNavLog #161](https://github.com/Yuto-24/AutoNavLog/issues/161),
-[library GSM support #13](https://github.com/Yuto-24/jma-gpv-weather/issues/13),
-[MSM browser boundary #16](https://github.com/Yuto-24/jma-gpv-weather/issues/16),
-[upstream GSM client](https://github.com/Yuto-24/jma-gpv-weather/blob/main/src/jma_gpv_weather/gsm/client.py).
-
-
-## Acceptance coverage
-
-| Contract | Regression evidence |
-| --- | --- |
-| Newest actually covered MSM; older MSM before GSM; both outside; fail closed on acquisition/processing | `test_forecast_selection.py`, `test_forecast_candidates.py` |
-| Public post-prepare HGT vs unavailable source values; no weather implementation in core | Adapter contract tests and upstream portable runtime tests |
-| Fixed model/Run, one-action update from unchanged successful inputs | `test_forecast_calculation.py`, `test_project_fingerprints.py`, Local replay integration |
-| Final requirements restart the entire calculation or wait for explicit Run update | `test_forecast_calculation.py` |
-| Model/Run migration and persistence; last-good survives failure/wait | `test_local_persistence.py`, `test_storage_import.py`, Local/Legacy integration |
-| Real portable MSM regression and synthetic GSM canonical parity | `test_local_forecast.py`, `local-weather.spec.ts` |
-| Model identity, informational reason, workflow order at 1100/1440px | `web.spec.ts`, `local-weather.spec.ts` |
-
-The Local transport exposes a bounded acquisition suspension at the Worker
-boundary. Python replays the same user action after each requested catalog or
-Run; suspension is not a processing exception or a second user click. No partial
-calculation is persisted. An earlier action's arrays are cleared before the next
-one; warm acquisition remains subject to the ordinary disposable browser cache.
-
-Local and the existing compute-only backup wrap each model with
-`CompleteForecastProvider`, keeping `ForecastWeatherProvider` visible at the
-application boundary. Wrapping the selector itself would bypass the model policy
-because selection checks its provider type. Missing listing URLs and absent
-source Runs map to `WEATHER_DISCOVERY_FAILED` / `WEATHER_RUN_UNAVAILABLE` for both
-models; they can use the existing backup path, but never justify a model change.
-Payload corruption and source-value processing failures retain their blocking
-classification. `test_local_forecast.py` covers both models' discovery failures
-and backup selection/adoption.
-
-Refresh uses the shared typed-planning and rounding fingerprint from #277/#356.
-Save does not change the successful comparison baseline; changed planning or
-rounding inputs keep the previous Run unless DATE/ETD changed.
-The backup input identity also includes the fixed model and Run. Backup adoption
-accepts an unrequested model change only for the explicit MSM-to-GSM coverage
-fallback recorded in the result. NAV LOG source labels follow the retained result,
-including the FTD Run identifier, rather than the editable draft weather mode.
-
-The source catalog may advertise more Runs than the static publisher has built.
-Do not filter discovery to published assets: an unevaluated older Run can still
-satisfy the requirement. Missing delivery permits another healthy MSM candidate, but prevents concluding
-that every MSM candidate is outside coverage. Sufficient publication for that
-model-exclusion decision remains an operator responsibility (Local Weather).
-
-
-## Delivery and validation evidence (2026-09-26 JST)
-
-Upstream PR #19 was merged only after all eight hosted checks passed, independent
-review findings were fixed and re-reviewed, and CodeRabbit approved the reviewed
-head. The merge tree matches that head. The vendored 0.6.0 wheel records the merged
-commit and SHA-256 in `vendor/README.md`.
-
-The upstream suite passed 239 tests (two opt-in tests excluded). A separate live
-RISH GSM run checked eight source files and forecast hours through 264, including
-native/portable round-trip queries and post-prepare HGT coverage. Node and Chromium
-ran the actual pinned Pyodide runtime for both GSM and the existing MSM boundary.
-The live source checks used a small Miyazaki-area crop; they do not establish
-full-domain payload sizes or physical mobile memory limits.
-
-Nine AutoNavLog Local integration cases cover acquisition suspension/replay,
-fixed Forecast behavior and Last Calculation preservation on failure.
-The browser GSM fixture exercises actual Pyodide calculation, complete canonical
-Legacy parity, model/provenance persistence across reload, explicit return to MSM,
-and workflow positions at 1100 and 1440 pixels. Captured real MSM data supplies the
-existing browser regression; GSM policy fixtures are explicitly synthetic and are
-not production weather. See `tests/fixtures/forecast-policy-README.md`.
-
-The implementation and final verification record are tracked in
-[AutoNavLog PR #217](https://github.com/Yuto-24/AutoNavLog/pull/217). Parent roadmap
-[#116](https://github.com/Yuto-24/AutoNavLog/issues/116) records this follow-up as
-awaiting the AutoNavLog merge; it remains non-blocking for Local-first and #146.
-The isolated worktree Compose runtime uses the root `VERSION` release with library 0.6.0 and
-retains its existing named volume. Remote production publication and scheduled
-GSM generation are outside this delivery.
+> **参考（運用・ビルド境界・導入証跡）**：静的フィード生成手順、気象ライブラリ wheel のビルド固定境界、例外・スキーマ識別詳細、および上流 v0.6.0 導入時の検証記録は [local_weather_operations.md](local_weather_operations.md) を参照してください。

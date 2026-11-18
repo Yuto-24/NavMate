@@ -1,161 +1,52 @@
-# Platform Capability boundary (#120)
+# Browser Platform 境界
 
-Browser 固有のファイル入出力・Clipboard・3D KML 出力・外部リンク・接続状態ヒント・ストレージハンドル取得を `web/src/platform.ts` に集約し、Domain / Calculation Core をブラウザ API から分離する契約の正本です。
+ブラウザ固有のファイル入出力、クリップボード、3D KML エクスポート、外部リンク、接続状態ヒント、および永続化アクセスを分離・集約し、計算コアや業務ルールをブラウザ依存から切り離す境界契約です（#120）。
 
-`web/src/platform.ts` is the runtime contract. `main.tsx` supplies `browserPlatform`
-and `BrowserFileInput` to the existing application/React composition. There is no
-platform detection in feature components, DI container, registry, Native adapter,
-or PWA requirement. A future shell supplies the same capabilities and its file-open
-control at this composition point. Domain and Calculation Core do not import this
-contract; Python/Pyodide still uses the existing Importer and CalculationService.
+## 責務の分担
 
-| Responsibility | Owner |
+| 責務 | 担当 |
 | --- | --- |
-| File content acquisition, download, Clipboard, external URL, connectivity hint | Browser Platform |
-| File picker/drop DOM events and file selection cancellation | `BrowserFileInput`, supplied by the composition root |
-| KML/KMZ parsing, archive limits, document selection and route candidates | Existing `import_kml_or_kmz` / `import_kml_text` |
-| Operations, working state, draft commit, calculation and error meaning | #118 Application |
-| Reload-only adoption, snapshot validation, raw edits, recovery failure policy | #119 Application Session |
-| Project / Latest / checkpoint / revision / Last Calculation, migration, transactions and conflict/quota policy | #124 Local Project Repository |
-| Browser storage handles and creation of the existing IndexedDB Repository | Platform persistence access |
-| Information read markers and fallback to in-memory markers | Information feature, using injected key/value storage |
+| ファイル読取、ダウンロード保存、クリップボード、外部リンク、接続状態ヒント | Browser Platform |
+| ファイル選択ダイアログ・ドロップ操作・選択キャンセル | ファイル入力制御 |
+| KML/KMZ 解析、アーカイブ上限、文書選択、経路候補抽出 | 共通 Python 取込処理 |
+| 操作実行、作業状態、下書き確定、計算、エラーの意味付け | [Application 境界](application_contract.md) |
+| 再読み込み限定の作業復元、未確定生入力保持、復旧失敗方針 | [Session ライフサイクル](application_contract.md#frontend-application-session--lifecycle-119) |
+| Project / `Latest` / チェックポイント / 改訂 / 直前正常計算 / 容量退避 | [Local Project 永続化契約](local_persistence.md) |
+| ブラウザ保存領域へのアクセスとリポジトリ生成 | プラットフォーム永続化アクセス |
+| お知らせ既読管理とインメモリ代替 | お知らせ機能 |
 
-## Files and Importer
+## ファイル取込と Importer 境界
 
-Picker and drop both provide a content source to `files.read`. The result is
-`PlatformFile { name, mediaType, content: Uint8Array }`; no filesystem path crosses
-into Application or Importer. `fileInput.ts` only serializes bytes into the existing
-`ImportRouteInput` contract (`filename` plus `content_base64`, or pasted `kml_text`,
-and optional `kmz_kml_filename`). Filename identifies the format/source and the
-selected KMZ member identifies a document inside the archive, never a local path.
+- ファイル選択・ドラッグ＆ドロップのいずれでも、読取結果は「ファイル名・種別・内容バイト列」のみを渡し、OS のローカルファイルパスなどを計算・取込処理へ渡しません。
+- ブラウザ側で明らかに過大な選択ファイルを読み取り前に拒否し、アーカイブ上限・展開後容量上限・XML 安全性・座標・点数上限の最終判定は共通の取込処理が担います。
+- 圧縮 KMZ で複数 KML が含まれる場合は候補一覧を返して利用者に選択させます。選択キャンセル時は何もしません（再選択も可能で、読取失敗時も直前の候補・下書きを保持します）。
 
-The Browser rejects oversized selected files before reading them. The shared Python
-Importer remains authoritative for archive, expanded-content, XML, coordinate and
-route limits. Local and Legacy both call it; Local now supports compressed KMZ and
-returns `KMZ_DOCUMENT_SELECTION_REQUIRED` with the same `details.candidates` as
-Legacy. Pending bytes and document selection still belong to #119 reload recovery.
-Picker cancellation is a no-op, reselecting the same file remains possible, and a
-failed read/import preserves the previous candidates. No ZIP/XML parser was added.
+## 計算結果エクスポートとクリップボード
 
-## Result export and Clipboard
+### JSON 出力・コピー
 
-The NAV LOG actions serialize the displayed `CalculationOutcome` and destination
-wind into UTF-8 JSON (`format: autonavlog.navlog`, `version: 1`). Edited Project
-inputs are deliberately excluded: they may no longer describe that calculation.
-This is a result document, not a Project backup or a second Repository schema.
-It does not trigger calculation, checkpoint, revision or durable Project writes.
-The existing Session lifecycle may still save its ephemeral working snapshot.
+- NAV LOG の JSON ダウンロードおよびクリップボードコピーは、現在表示中の計算結果と目的地風のみを出力します。
+- 計算後に編集された未計算の Project 入力は含めません。本 JSON は計算結果の持ち出し用であり、Project のバックアップや復元の正本ではありません。出力操作は計算・チェックポイント更新・永続保存を発生させません。
 
-3D KML uses `project_vertical_profile` in
-`src/autonavlog/application/vertical_profile.py`, shared with the future #55
-time/altitude chart. The facade derives it exclusively from `last_calculation.project`
-and `last_calculation.outcome`; it is not persisted as a new schema. The KML
-serializer accepts only that projection and a stale flag, and saves through
-`platform.files.save` as `<calculation-time Project name>.kml` (characters invalid
-in filenames are replaced). The action is labelled "Google Earth 用にエクスポート".
-Normal results have no explanatory paragraph; stale/unavailable results retain
-their status notice. Editing or a failed recalculation leaves this projection's
-source unchanged. A new successful calculation replaces it. Missing legacy
-geometry or descent metadata disables KML export and asks for recalculation.
-When an effective BLOCKER prevents a new Last Calculation, the displayed NAV LOG,
-JSON flight values and destination wind retain the same last successful snapshot
-as KML. `outcome.issues` retains the current attempt's diagnostics, also available
-in readiness and working recovery. Corrective RJFM guidance is taken from the
-current attempt, with the existing freshness and reference checks still applied;
-it does not replace the saved flight path. An initial failure without a last
-success keeps its prior failure display behavior.
+### 3D KML エクスポート（「Google Earth 用にエクスポート」）
 
-The projection preserves calculation-zone time, distance, geometry and phase.
-Climb uses the saved departure elevation and the first CLIMB target, interpolated
-over its calculated elapsed time. Ordinary CRUISE Leg altitude transitions start
-after the turn at the Leg's origin, at 900 fpm up / 500 fpm down, and remain level
-after reaching the target. These user-selected drawing rates are independent of
-the EOC descent-rate setting and do not change NAV LOG time, distance or fuel.
-Transitions use saved elapsed time without restarting at Check Point splits;
-short Legs retain the reached altitude rather than forcing the target early.
-The preceding Leg is not retargeted to anticipate a following altitude or EOC.
-Descent uses the existing
-metadata reader, inserts level-off, and retains the saved deceleration duration
-(including zero). Visual arrival descends from the VREP altitude to the saved
-destination Field Elevation, interpolated by distance so Check Point splits and
-different zone speeds do not bend the slope. This drawing uses the calculation-time
-airport snapshot and preserves NAV LOG timing, fuel and the VISUAL_ARRIVAL phase;
-missing destination elevation disables export instead of using a live master.
-Dedicated RJFM return geometry stays on its saved
-physical route and operational time; the exporter does not add a route extension.
+- 最後に正常完了した計算の Project と結果のみから導出し、保存ファイル名には計算時の Project 名（ファイル名に使えない文字は置換）を付けた `.kml` を使用します。
+- **導出規則**：
+  - **CLIMB**：保存された出発標高から最初の CLIMB 目標高度へ、計算済み所要時間に沿って補間します。
+  - **CRUISE**：通常 Leg の高度変更は起点の変針後に **上昇 900 fpm / 降下 500 fpm** で遷移し、到達後は水平維持します（この描画レートは EOC 降下率設定とは独立であり、NAV LOG の時間・距離・燃料を変更しません）。短い Leg で到達前に次点へ着く場合は到達高度までを描画し、手前の Leg を先読み変更しません。
+  - **DESCENT / VISUAL ARRIVAL**：保存された降下情報（水平維持・減速時間を含む）を反映し、Visual Arrival 区間は VREP 高度から計算時の目的空港標高へ距離按分で降下します。
+  - **RJFM 帰路**：物理経路と運用時間に沿って出力し、参考案内用の西側延長経路は追加しません。
+  - **地球曲面補正と形式**：RCA / EOC および Check Point 正横投影点は保存境界を使用し（地上 Check Point は高度付き経路点と分離し、付属データに時刻・高度・距離を記録）、長い直線が地球内部を貫通しないよう **1 NM 以下の間隔** で測地線サンプリングします。高度は ft MSL から m へ変換し、絶対高度・地上への延伸表示を付帯します。
+- 入力変更で計算結果が古い状態（stale）の場合や、空港標高・降下情報が欠落している場合（有効な計算結果がない初回失敗を含む）は 3D KML エクスポートを無効化し、再計算を求めます（計算の成功・失敗・stale に応じて、直前の正常結果に基づく表示と警告が一致します）。
 
-RCA/EOC and Check Point abeam positions use the saved calculation boundaries.
-Ground Check Points are separate from altitude-bearing route points, including
-VREP. Their ExtendedData describes the abeam time/altitude/distance. Geodesic
-sampling at intervals no greater than 1 NM prevents long absolute line chords
-from cutting through the globe; it does not replace adopted zone distances.
-The serializer converts feet MSL to meters and uses KML `absolute` altitude mode
-with `extrude=1` to extend the Flight Path to the ground,
-following the [Google KML reference](https://developers.google.com/kml/documentation/kmlreference#linestring).
-Browser download/XML regression is automated; actual Google Earth rendering
-requires a separate acceptance check.
+### ブラウザ保存・クリップボードの操作制約
 
-Browser save uses a Blob URL and the standard anchor download attribute; it cleans
-up the element immediately and revokes the URL after the browser can consume it.
-Success means the download was initiated, not that the user accepted a save dialog
-or the OS durably wrote a file. Clipboard write copies the same JSON text.
+- ブラウザでのファイル保存はダウンロード開始成功をもって完了とみなします（OS の保存ダイアログ承認やディスク書込完了までは保証しません）。
+- クリップボード読み書きはユーザー操作（クリック）の文脈内で直接呼び出し、事前の権限プローブを行いません。非対応・拒否・キャンセル時（Safari の貼り付け確認 UI でのキャンセルを含む）は、読み取りなら手動 KML 貼り付けダイアログ（およびファイル選択への導線）へ案内し、書き込み失敗時はコピー成功を装わず失敗を通知します。
 
-Clipboard read/write are invoked directly within the user's click activation,
-without an earlier async permission probe. Unsupported and denied access produce
-`PlatformError` with capability and `UNSUPPORTED` / `FAILED` codes. Read failure
-opens the existing manual KML paste dialog; write failure is visible and never
-reports a successful copy. Clipboard generally requires a secure context and
-Browser permission; file input/download use standard Browser controls.
-On Safari, WebKit may show its own Paste UI before resolving the read. The Browser
-Platform still calls the native API directly on the click; the application does not
-probe permission or bypass WebKit's confirmation. Rejected reads, including a
-cancelled platform Paste UI, open manual paste with a direct route to the existing
-Browser file picker. Automated WebKit checks can exercise the pending/rejected
-promise path but cannot prove the physical iPhone/iPad Paste UI itself.
+## 外部リンク・接続状態ヒント
 
-External reference links use a shared link component and `openExternalUrl`, allow
-only HTTP(S), and open with `noopener noreferrer`. Standard anchor affordances
-(modifier clicks, context menus and URL copying) are retained. Leaflet's map
-attribution remains Leaflet-owned native link markup.
-Opening a reference does not enter or finish an Application operation, so it cannot
-clear another operation's busy/progress state or unlock a pending Project save.
+- 外部参照リンクは HTTP / HTTPS のみを許可し、元画面へ干渉しない独立した別タブで安全に開きます（地図の出典リンクは地図ライブラリの標準挙動を維持）。外部リンクを開いても進行中の計算状態や保留中の保存を解除・干渉しません。
+- ブラウザから得られるオンライン／オフライン／不明の接続状態は最小限の参考ヒントにとどめ、サーバー疎通確認やバックグラウンド監視、Local 計算・保存の可否判定には使用しません。
 
-## Storage and network
-
-Platform supplies the sessionStorage-backed key/value handle, the localStorage
-handle for existing Information markers, best-effort retention, and a factory for
-the **existing** `IndexedDbProjectRepository`. `LocalApplication` receives only the
-Repository factory. IndexedDB transaction mechanics stay inside that adapter.
-Platform never lists Projects, manages Latest, advances revisions, validates
-records, migrates schemas or decides transaction/quota retry policy.
-
-Only #119 decides whether to adopt a session (same-tab reload), what key to remove,
-and how to report failed recovery. Only #124 decides when to evict the disposable
-Weather cache and retry a transaction. `browserStorage.ts` implements that existing
-dedicated cache eviction callback; #144 still owns actual Weather cache data/TTL.
-Unavailable storage does not trigger a Legacy fallback or delete Project data.
-
-`networkAvailability()` is the requested minimal `online` / `offline` / `unknown`
-hint from Browser connectivity, not a service health probe. It does not gate Local
-import, calculation, storage or export, and does not report weather acquisition
-success. Feature-specific fetch/error handling remains with its adapter. No
-background polling, connectivity UI, share sheet or preference framework is added.
-
-## Verification
-
-- `npm --prefix web run test:application`: capability errors, byte preservation,
-  injected Session/Information storage, existing Repository transactions, and
-  architecture dependency checks.
-- `platform.spec.ts` runs in both Legacy and production Local Browser suites:
-  compressed KMZ picker, KML drop, cancellation/failure preservation, Clipboard
-  activation and manual fallback, actual download/copy and denial, external links,
-  pending-save isolation, and workflow positions at 1100/1440 px. Local blocks `/api/**` and also exercises
-  calculation/export offline after assets have loaded.
-- `session.spec.ts` covers KMZ selection/reload in both runtimes, with no Local skip.
-- Existing Local calculation/IndexedDB and Legacy Clipboard/Session regressions
-  remain in use. Python integration compares KMZ candidates with plain KML and
-  checks explicit selection errors; existing Importer security tests retain limits.
-
-These automated checks cover Chromium. They do not claim physical iPad/Safari,
-Native shell, PWA installation, offline first-load, or production Static hosting
-acceptance; those remain separate runtime/roadmap work.
+> **参考（自動検証範囲）**：Chromium / WebKit における本契約の自動テスト構成および実機検証境界は [testing.md](testing.md) と [static_web_browser_acceptance.md](static_web_browser_acceptance.md) を参照してください。

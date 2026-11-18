@@ -1,134 +1,28 @@
-# Local Account authentication (#184)
+# Google ログインとアカウント認証境界
 
-Firebase Authentication（Google ログイン）と決定論的アカウント識別子 `account_v1_…`、アカウント単位の IndexedDB / Session 名前空間分離、トークン更新と失効時遮断の正本です。未ログインの Local 利用では Firebase 設定・サーバともに不要です。
+Static Web（Local モード）における Google ログイン（#184）、アカウント単位のデータ分離、および認証失効時の遮断仕様を定めます。未ログインの Local 利用にはアカウント設定・サーバーいずれも不要です。
 
-Local mode supports Firebase Authentication + Google Sign-In through `AuthProvider`.
-Anonymous Local-only use does not require Firebase configuration, an account, or a server.
-Remote Project/Last Calculation synchronization and anonymous-data import are described in [Account Sync](account_sync.md);
-Cloudflare Access owner linking and first-use activation are described in
-[Legacy migration](legacy_migration.md). Legacy retains its identity until verified activation.
+Account Sync は [Account Sync](account_sync.md)、アカウント削除と世代分離は [アカウント削除](account_deletion.md)、Legacy 環境との連携・移行は [Legacy アカウント連携・移行](legacy_migration.md) を参照してください。
 
-## Configure Google Sign-In
+## 認証方式と制限
 
-1. Create a Firebase project on the free Spark plan and register a Web app. The current
-   account lifecycle requires Firestore and the [account deletion rules](account_deletion.md),
-   including its account-generation records. Cloud Functions and a billing upgrade are not required.
-2. In Authentication → Sign-in method, enable Google and set the support email. Enable
-   only Google for ordinary account mode; password authentication and provider linking are not implemented.
-   The optional [shared development mode](local_static_docker.md#開発用firestoreでprojectを共有する任意)
-   additionally uses anonymous authentication in a separate Firebase app for its common workspace.
-3. Add each UI host to Authentication → Settings → Authorized domains. Add `localhost`
-   explicitly for local testing when it is absent. Serve the deployed UI over HTTPS.
-4. Put the Web app's **public** config in ignored `web/.env.local`, or provide the same
-   build variables in the static build environment:
+- 対応するログイン方式は **Google ログインのみ** です（メール・パスワード認証や複数認証プロバイダの紐付けは未実装）。
+- 任意の共有開発環境（[Local 版 Docker 自動更新](local_static_docker.md#開発用firestoreでprojectを共有する任意)）では、共有ワークスペース専用の匿名認証と開発用 Google 認証を本番と分離して利用します。
 
-   ```dotenv
-   VITE_FIREBASE_API_KEY=your-web-api-key
-   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your-project
-   VITE_FIREBASE_APP_ID=your-web-app-id
-   ```
+## アカウント識別とデータ空間の隔離
 
-   These identify the Web app; never put a service-account private key or admin credential
-   in a `VITE_` variable. Configure the API key and authorized domains for this Web app.
-5. Build/serve Local mode using [the existing Local instructions](local_calculation_poc.md#起動と切替).
-   Build-time settings require a rebuild. The standard Compose Legacy UI does not use them.
-6. Open the header's 「アカウント」 button, then 「Googleでログイン」. Sign-in uses the SDK's
-   popup flow; if blocked, permit popups for this site and retry. Close/cancel preserves
-   the current Local work. An unconfigured build explains that sign-in is unavailable.
+- **安定したアカウント識別**：同じ Google アカウントであれば端末やブラウザをまたいで同一のアカウント所有者として認識し、メールアドレスや表示名を変更しても所有権は変わりません。なお、クライアント側から渡された識別子だけを信頼せず、リモート側では必ず検証済み認証トークンで本人照合を行います。
+- **削除後の再登録世代分離**：[アカウント削除](account_deletion.md)後に同じ Google アカウントで明示的に再登録した場合は、サーバー管理の世代記録により新しい独立したアカウント世代として扱われ、削除前のデータは復元されません。
+- **端末内保存領域の隔離**：未ログイン領域、各 Google アカウント領域、および共有開発環境の個人領域は端末内で明確に分離され、別アカウントの Project ID や操作からアクセスできません（Account Sync 有効時はログイン時に匿名データを 1 回取り込みます）。
+- **アカウント境界切替時の即時遮断**：ログイン・ログアウト・アカウント切替・認証失効の際は、旧アカウントの実行コンテキスト・待機中処理・進行中保存を直ちに閉じ、画面を再構築してフォーム入力や直前計算結果が別アカウントの画面へ混入しないようにします（閉鎖前に確定済みの保存は元のアカウントに残ります）。
+- これらはアプリケーション上の可視性・分離境界であり、同一ブラウザプロファイルや開発者ツールを操作できる環境に対する端末暗号化ではありません。
 
-### Verification boundary at implementation (#184)
+## 認証維持・オフライン動作・失効遮断
 
-Automated verification in CI (`test:application`, `test:auth`, `test:local`) uses the real Firebase SDK credential exchanges against an intercepted test backend/emulator; it does **not** by itself prove live Google consent, authorized-domain configuration, or physical Safari acceptance.
-After provisioning or host changes, verify login, browser restart, logout, and reauthentication on the actual PC/iPad deployment.
+- **認証状態の永続化**：認証基盤標準のブラウザ永続化のみを使用し、アプリ独自のトークンキャッシュは持ちません。UI・実行アセットがキャッシュ済みであれば、認証サーバー一時不通時でもキャッシュ済み認証状態で起動し、該当アカウントの端末内コピーを開いて Local 作業を継続できます（ただし初回読込や未キャッシュ時は配信経路が必要であり、完全オフライン起動は保証しません）。
+- **起動時の一時障害保護**：起動時の認証確認において、通信障害や一時的なサーバー過負荷・タイムアウトではキャッシュ済みログイン状態を即座に消去せず保護します（明示的なアカウント無効・取消応答は従来どおり失効扱い）。
+- **定期更新と失効検出**：再接続・ウィンドウフォーカス時および **60 秒ごと** に認証状態を更新確認します。アカウント無効化・トークン失効・他タブでのログアウトを検出した場合は即座にアクセスを遮断します。
+  - オフライン端末は再接続までリモート側のアカウント無効化を検知できません。また、Google アカウント側の連携解除直後の即時遮断ではなく、認証基盤が失効を確定した時点で遮断します。
+- **ログアウト失敗時の安全側動作**：ログアウト操作時は先に画面アクセスを閉じて遮断し、ログアウト永続化に失敗した場合は再読込で再ログインされる可能性を通知し再試行手段を提供します（端末内コピーは残ります）。
 
-## Identity and ownership
-
-`AuthProvider` exposes only `{ account_id, displayName }` and account state/operations.
-Firebase API/types remain inside its adapter. Application and Project do not receive
-Firebase UID, email, tokens, or Firestore paths.
-
-The initial mapping is deterministic, versioned, and independent of the device and Firebase
-UID: `account_v1_` followed by the lowercase SHA-256 hex digest of the UTF-8 JSON array
-`["autonavlog.account.v1","https://accounts.google.com",googleSubject]`.
-`googleSubject` comes from the authenticated SDK user's single `google.com` provider identity.
-Email/display-name changes do not change ownership. No random local account is minted on
-another device; no mapping server or provider-linking framework is required. Treat this
-mapping as an identity contract, not a replaceable display hash. A future provider change
-must explicitly preserve this account_id mapping. The ID is not an authentication credential;
-#185 must enforce remote ownership against verified authentication, never trust a client-supplied ID.
-After Account deletion, a server-held [generation record](account_deletion.md)
-assigns a new internal account ID on explicit re-registration. The original
-deterministic ID is never restored by the current client.
-
-Shared development mode uses its own development Firebase configuration for Google login.
-Its personal IndexedDB, session, viewport and identity-cache keys are scoped to `dev_navmate-6b281`;
-shared Projects are not imported into a Google account. Account deletion preserves shared and older
-production-backed browser data. See [Local Docker](local_static_docker.md) for setup and switching.
-
-Anonymous data continues to use `autonavlog.projects`. Each ordinary account uses
-`autonavlog.projects.<account_id>` with the unchanged #124 records and transactions. The
-namespace expresses ownership without changing the Python Project schema. All list/read/
-write/open/delete and Latest cleanup operate inside that namespace. A Project ID/token
-from another namespace does not grant access. Each namespace keeps its own Latest; no
-cross-account cleanup occurs. With Account Sync enabled, anonymous data is claimed once by the login account; cross-device Latest follows [Account Sync](account_sync.md).
-
-Each authentication lifetime gets a new Application/Worker and Repository handle. Closing
-that context rejects queued work, late responses and subsequent storage operations, and
-aborts its still-active IndexedDB transactions. A provider subject change closes the old
-context before asynchronous account_id derivation starts. A save
-already committed before closure remains in its original account; it cannot be retargeted.
-The UI is unmounted on a boundary change so raw form values, dialogs and Last Calculation
-cannot survive in another account's view.
-
-Session keys use the same account scope. Only initial same-tab reload can restore that
-scope's ephemeral session. Logout/switch clears the outgoing ephemeral session, never its
-Repository. Reauthentication and fresh tabs require explicit selection from saved Projects.
-These are application visibility boundaries, not encryption against someone controlling the
-browser profile or developer tools.
-
-## Persistence, offline and revocation
-
-The SDK's `browserLocalPersistence` owns credential persistence and cross-tab auth changes.
-No application token cache is added. When the UI/runtime assets are available, cached
-Firebase identity can initialize without the auth backend and open that account's Local
-copies. Network/provider failures during refresh preserve the account and Local work.
-This does not add an offline application shell or Service Worker (#187); uncached UI/Pyodide
-assets still require their existing delivery path.
-
-Firebase 12.19.0's startup `reloadAndSetCurrentUserOrClear` clears a cached user for errors
-other than `auth/network-request-failed`. A narrow fetch guard exists **only during SDK
-initialization**, only for `identitytoolkit.googleapis.com` / `securetoken.googleapis.com`,
-and only for HTTP 429/5xx or explicit transient 400 codes (`TOO_MANY_ATTEMPTS_TRY_LATER`,
-`QUOTA_EXCEEDED`, `INTERNAL_ERROR`). It makes those transient responses network failures
-and restores the original fetch afterwards. Terminal 400 responses remain unchanged.
-This avoids a second credential store or custom refresh implementation. Reassess the guard
-when upgrading the pinned SDK, with the startup outage regression tests.
-
-The provider requests a fresh ID token on reconnect/focus and every 60 seconds. Explicit
-`auth/user-disabled`, `auth/user-token-expired`, `auth/invalid-user-token` and
-`auth/user-not-found` responses close access; SDK sign-out propagates to other tabs. Offline
-clients cannot discover remote revocation until connectivity returns. Google consent removal
-is not a signal Firebase necessarily delivers immediately; this adapter closes access when
-Firebase confirms credential invalidation. It does not claim to poll Google's permission page.
-
-Explicit logout closes the context immediately and asks the SDK to persist sign-out. If
-persistence fails, a provider-level notice in the new view explains that a reload may
-restore login and offers a logout retry; access remains closed meanwhile. Local
-copies remain. The same Google identity reopens the same namespace; anonymous/other accounts
-cannot access it through Application. Site-data deletion remains outside persistence guarantees.
-
-## Verification
-
-- `npm --prefix web run test:application`: identity stability, every Repository operation,
-  namespace isolation, queued saves, transaction closure and Session scope.
-- `npm --prefix web run test:auth`: real SDK + browser IndexedDB + Local Application/UI,
-  intercepted auth backend; persisted login, outages at startup/refresh, revocation,
-  logout, cross-tab closure, account switching, reauthentication and responsive flow.
-- `npm --prefix web run test:local`: existing anonymous persistence/session/calculation regressions.
-- Legacy and Local builds/typecheck; release checks; isolated Compose health check.
-
-Official references: [Google sign-in](https://firebase.google.com/docs/auth/web/google-signin),
-[auth persistence](https://firebase.google.com/docs/auth/web/auth-state-persistence),
-[session revocation](https://firebase.google.com/docs/auth/admin/manage-sessions),
-[Auth SDK](https://firebase.google.com/docs/reference/js/auth).
+> **参考（Firebase 設定・技術契約・検証境界）**：Firebase Spark プロジェクト設定、公開設定変数、アカウント識別子の導出契約、起動時ガード詳細、および自動検証・実機確認手順は [firebase_account_operations.md](firebase_account_operations.md) を参照してください。

@@ -1,227 +1,39 @@
-# Local Forecast Weather Adapter (#144 / #161)
+# Local Static 気象運用とキャッシュ境界
 
-Local FORECASTは固定fixtureを使わず、同一originの`weather/msm/catalog.json`または
-`weather/gsm/catalog.json`と、library-produced `MsmPreparedData` / `GsmPreparedData`を
-取得し、Pyodide内で検証・補間・計算する。
-`jma-gpv-weather 0.6.0`のpublic APIがRun discovery/selection、model/time/area/altitude
-coverage、decode、補間、provenanceの正本。Legacyも同じ公開`SurfaceTemperatureQuery`を使う。
-旧private surface-temperature compatibility branchは削除した。
+Local（Static Web）モードの FORECAST において、何を用いて気象を取得し、どの条件でモデル・予備経路の切替や停止を行うかを定めます。
 
-## 配信境界と運用
+## 利用するデータと配信境界
 
-2026-09-16、実Windows Edge 153からRISHのHTTP/HTTPS listing・GRIBをGETし、
-`Range: bytes=0-1023`あり/なしを測定した。全組合せでCORSによりresponseを読めなかった。
-通常の証明書検証を有効にしたWindowsでも再現する。HTTPS化やRangeでは解消しない。
-ブラウザがresponseを公開しないためredirect chain/Range応答の成功は確認できていない。
-[source実測](evidence/issue-144/windows-source.json)を参照。
+- 上流の公開気象データ配布元（RISH 等）はブラウザからの直接取得で CORS により応答を読み取れないため、バッチ処理で生成した**同一オリジンの静的気象カタログおよび検証済み予報データ**を取得し、ブラウザ内の計算環境で検証・補間・計算します。
+- 気象データの生成処理へ利用者の Project や経路情報は送信しません。公開配信パスにはログイン認証や Cookie を要求しません。
+- 運用目安は **3 時間ごとの更新**、カタログ有効期間（lifetime）は **6 時間** とし、**7 日以内の旧 Run アセット**と元一覧を保持します（ただし全過去時間帯の再計算を保証するものではありません）。生成失敗時は既存カタログを維持し、短縮・不完全なデータで成功を装いません。
+- **通常経路優先**：まず静的配信および正常な端末キャッシュから先に試行し、配信障害時のみ後述の計算専用予備経路へ切り替えます。
 
-このため採用した追加componentは**batchによる静的MSM feed生成**。
-通常経路はstatic feedを維持する。配信障害時のみ、後述の計算専用APIへ自動切替する。
-既存のdesktop libraryがGRIB取得/decodeを行い、public `MsmPreparedData.to_bytes()`を
-content-addressed fileへ出力する。Browserはそのfileを検証して気象値を求める。
-producerへProjectや経路を送らず、固定範囲・時間帯を定期生成する。
-無料の既存マシン/runnerとstatic hostingで運用可能で、有料proxyは不要。
-production buildと手動feed更新は[Static production](static_production.md)、定期deploy自動化は#123を参照する。
+## ブラウザ内キャッシュの容量・保持境界
 
-```sh
-# 通常の依存をinstallしたPython環境（pygrib等のnative依存を含む）
-python scripts/prepare_msm_feed.py --output /tmp/msm-feed --cache /tmp/msm-source-cache
-AUTONAVLOG_MSM_FEED=/tmp/msm-feed npm --prefix web run build:local
-```
+ブラウザはモデルごとにカタログと検証済み予報データを Cache Storage へ保持します。
 
-再現可能なproducer runtimeは`docker build --target weather-feed -t autonavlog-weather-feed .`。
-出力とcacheをbind mountし、`--output /output --cache /cache`を渡す。
-既定はlibrary既定bounds、現在UTC正時から24時間、最新のcompatible Runを2つ。
-`--start`、`--hours`、`--bounds`、`--max-runs`で明示変更できる。
-本番更新とアプリ公開は`--full-run`を指定する。25時間のadmissionを満たす最新Runを
-維持し、各Runについて生成可能な予報末尾まで生成する。ただし現在の
-`scripts/prepare_msm_feed.py` の `full_run_requirements()` は MSM 由来の
-`MAX_FORECAST_HOURS`（78 時間）を走査上限としており、GSM の長期予報末尾
-（132/264 時間）には対応しない（コード照合済み、詳細は
-[wx_profile_feasibility.md](wx_profile_feasibility.md#現行コード文書の相違と後続)）。
-最新2 Runが短期Runでも、予報末尾が最も遠いRunを追加するため、長期日時の要求を失わない。
-通常は最大3 Runを生成する。上限は一律72時間ではなく、libraryのRun別coverage（最大78時間）による。
-明示的な`--hours`だけの呼出しは、fixture生成などの限定時間帯として引き続き使える。
-全範囲生成に失敗した場合も、短縮したpayloadで成功を装わず既存catalogを維持する。
-Run/product/fileの選択はlibraryへ委譲する。payload formatは独自化しない。
-catalogはsource listing本文、Runとpayload hash/size/file、生成/失効日時のみを保持する。
+- **カタログ保持**：計算ごとにサーバーを確認し、検証済みの現行・直前 2 スナップショットを **最大 7 日** 保持して取得不能時の候補として使います。
+- **データ保持**：内容ハッシュで検証した予報データを **TTL 7 日** で保存します。
+- **容量制限**：モデルあたり合計 **128 MiB**、1 ペイロード **32 MiB**、カタログ **4 MiB**（受信中も上限検査し、超過時は古いエントリから破棄）。
+- **破損・保存拒否時の扱い**：破損キャッシュを検出した場合は削除して 1 回だけ再取得を試み、再取得にも失敗した場合はエラーとして停止します。ブラウザ側の保存拒否・容量不足時は計算済み値自体は利用可能ですが、再計算時のキャッシュ再利用は保証しません。また、Project 保存側の容量不足退避では気象キャッシュのみを一括解放します（Project データや直前の正常計算結果、作業中入力は消去しません）。
 
-運用では3時間ごとを目安に生成し、payloadを先に配信してcatalogを最後に置換する。
-catalog lifetimeは6時間。失敗した生成は既存catalogを更新しない。
-producerと端末の時計ずれによる未来の生成時刻だけでは、Local計算を禁止したり予備APIへ切り替えたりしない。
-生成・失効日時の形式、timezone、失効が生成より後であることは検証する。6時間の失効期限は公開・更新監視に維持する。
-MSMのLocal計算は期限切れだけでは禁止せず、catalogとNPZを通常どおり検証して利用する。
-生成・失効日時を書き換えず、実データのcoverageとsource/Run identityを維持する。
-7日以内の旧Run assetとそのsource listingを保持し、再利用前にlibraryでhash/formatを検証する。
-新listingを取得したURLは新しい内容を優先する。参照されなくなったpayloadも7日間の猶予後に除去する。
-static hostはcatalogをrevalidateし、hash付きpayloadをimmutableとして配信できる。
-feedのcatalogとpayloadはcookie・HTTP認証などのcredential不要で取得できるpathへ配信する。
-Browser transportは`credentials: "omit"`を使用するため、ログイン必須pathや
-認証画面へのredirectは利用できない。#121でこの公開配信契約を維持する。
-認証が必要になる場合は#121側でtransport契約を明示的に見直す。
-`prepare_local.py`はfeed省略時に古い生成済みfeedを除去する。サーバー配信も正常な端末キャッシュも利用できない場合は、設定済みの予備計算経路を検討する。
+## 切替・継続・停止の境界
 
-配信範囲/時間の不足はmodelの範囲外とは異なる。初回選択または入力不変の明示再計算では、
-配信・端末catalogの候補から利用可能な最も新しい正常なMSM Runを選ぶ。新しい候補の
-欠損・不正は同じモデルの旧候補を試す根拠になるが、GSMへ切り替えるcoverage根拠にはならない。
-入力変更時の固定Runは取得失敗だけで置き換えない。操作条件は[再計算仕様](forecast_refresh.md)を参照。
-旧Runのasset保持は全過去時間帯の再計算保証ではない。再計算に必要な配信時間帯が
-ない場合も`WEATHER_PREPARED_UNAVAILABLE`から計算専用APIを試す。両経路が失敗しても保存済みNAV LOGは閲覧できる。
-consumerはlibraryにpreparedの実収録範囲を確認させてからsource identityを照合する。
-不足を破損として再取得し続けない。Run違い、hash破損、source identity不一致の
-`WEATHER_PAYLOAD_INTEGRITY_FAILED`は維持する。
-
-## Cacheと失敗
-
-Browserはcatalogとportable payloadをモデル別の`autonavlog.weather.msm.v1` /
-`autonavlog.weather.gsm.v1` Cache Storageへ保存する。
-raw/normalized cacheはproducer側libraryにのみ存在する。
-
-| 項目 | 契約 |
+| 条件・事象 | アプリの振る舞い（切替・継続・停止） |
 | --- | --- |
-| catalog | 各計算でサーバーを確認。検証済みの現行・直前の2 snapshotを最大7日保持し、取得不能時も候補にする |
-| payload | SHA-256名、TTL 7日、library integrity検証後に保存 |
-| 容量 | モデルごとのcache合計128 MiB、payload 32 MiB、catalog 4 MiB。stream中も上限確認 |
-| invalidation | hash変更/TTL/不正cache。古いentryからevict |
-| corruption | 不正entryを削除し1回再取得。失敗時は明示error |
-| storage拒否/quota | 計算済み値は使えるがwarm reuseは保証しない |
-| #124 eviction | 既存`autonavlog.weather.*` callbackで全Weather cacheを解放 |
+| **GSM への切替** | 全 MSM 候補がモデル・時刻・領域・高度の仕様範囲外である場合のみ切替（両モデル範囲外なら取得不可エラーで停止）。 |
+| **GSM オンデマンド取得** | GSM は常時事前取得せず、MSM 範囲外確定時または保存済み GSM Run 再計算時のみ取得。GSM 配信不在・期限切れ・アセット欠落時は取得障害として停止し、範囲外と偽って続行しない。 |
+| **配信不足・取得失敗** | 配信範囲・時間帯の不足や HTTP・通信・一覧探索失敗はモデルの仕様範囲外とはみなさず、同じ MSM の別正常候補を試すか取得障害として扱う（GSM 切替の根拠にしない）。入力変更時の固定 Run も取得失敗だけで差し替えない。 |
+| **MSM カタログ期限切れ・時計ずれ** | MSM カタログが期限切れという事実単独では Local 計算や予備切替を行わず、検証済みデータが揃っていれば利用する。生成時刻が端末時計より未来に見えても停止せず、形式・タイムゾーン・生成と失効の前後関係のみ検証する。 |
+| **GSM カタログ期限切れ** | GSM カタログが期限切れの場合は停止する。 |
+| **計算専用予備経路への切替** | 通常の静的配信と正常キャッシュで必要 Run・時間帯を取得・到達できない配信系障害時のみ、未ログイン状態でも計算専用予備サーバーへ切り替える（MSM 期限切れ単独、入力不正、カタログ構文・日時前後異常、ハッシュ・復号整合性異常、一般処理異常では切り替えず停止する）。 |
+| **予備経路のプライバシー・採用条件** | 計算に必要な Project・スキーマ・エンジン／参照ハッシュ・丸め・更新意図のみ送信し、氏名・機体識別・所有者・保存トークン・保存一覧は送らない。現在の入力世代・アカウント・チェックサム・Readiness を検証できた場合のみ採用し、予備利用の出典を保存する（次回通常計算の成功で警告は消える）。応答不明時は同一依頼の再照会のみ行い、ページ再読み込みをまたぐ再開は行わない（詳細は [計算専用予備サーバー](forecast_backup.md)）。 |
+| **保存済み結果の保護** | 取得・計算・予備経路のいずれが失敗しても、保存済みの直前正常計算結果および編集中の入力は保持する。また、保存済み NAV LOG の閲覧には気象フィードを不要とする。 |
 
-Project/Last CalculationはIndexedDBの既存#124 contractを維持する。失敗計算では
-Last Calculationを置換しない。`updateAndRecalculate`の入力commitと失敗時の保持も維持する。
-通信中もWorkerのmutation queueを直列化する。UI/Calculation Coreにfetchは置かない。
-`networkAvailability()`はsource health判定に使わない。予備経路は独立した計算専用APIで、Legacyの画面・編集・保存APIは呼ばない。
+## CALM 正規化と RJFM 固定 RCA 境界
 
-| 失敗 | 表現 |
-| --- | --- |
-| libraryのmodel/time/area coverage | アプリの候補評価。全MSM候補の明示coverage外のみGSMへ。両モデル外は`FORECAST_UNAVAILABLE` |
-| post-prepare altitude/point coverage | `ALTITUDE_OUTSIDE_HGT_RANGE`のみ高度coverage除外。他のUnavailableは処理失敗 |
-| listing HTTP/discovery | `WEATHER_DISCOVERY_FAILED` |
-| fetch/timeout/CORS | `WEATHER_COMMUNICATION_FAILED` |
-| source file 404/503 | `WEATHER_SOURCE_UNAVAILABLE` |
-| download中断/取得HTTP失敗 | `WEATHER_TRANSPORT_FAILED` |
-| サイズ超過/読取不可 | `WEATHER_DOWNLOAD_FAILED` |
-| Run不在/未配信 | `WEATHER_RUN_UNAVAILABLE` / `WEATHER_PREPARED_UNAVAILABLE` |
-| catalog schema/日時の形式・前後関係 | `WEATHER_CATALOG_INVALID`。端末時計より未来の生成時刻だけでは停止しない |
-| GSM catalog失効 | `WEATHER_CATALOG_EXPIRED`。MSMの失効だけでは停止しない |
-| payload hash/format/decode | `WEATHER_PAYLOAD_INTEGRITY_FAILED` |
-| 不正cacheの再取得失敗 | `WEATHER_CACHE_CORRUPT` |
-| その他端末内処理 | `WEATHER_PROCESSING_FAILED` |
+- **CALM 正規化**：上空気象が取得可能であり、風向未定義かつ有限非負の風速が **0.1 m/s 未満** の場合のみ、航法計算用の風速を **0 kt** へ正規化します（元の風ベクトル・風速・気温・警告は来歴に保持）。通常の風で風向が欠落している場合や取得失敗を CALM 扱いにはしません。
+- **検証済み RJFM 固定 RCA**：風による通常 RCA 探索を経ずに固定境界を適用し、POH 上昇時間・燃料、上昇代表高度の気温と TAS、各実効区間の表示風・手入力上書きを維持します。固定境界以降の物理区間には上昇気象を要求せず、仮想 UMK が物理区間内にある場合は同区間に上昇と巡航の両方を保持します。古い・不整合な計画や経路外固定 RCA には通常の検証・RCA 処理を適用します。
 
-native GRIB decode/prepared生成はproducerの責務で、失敗時は非zero終了と
-library exceptionの`error_type`/messageを出力する。Browserに不完全なcatalogを公開しない。
-取得/生成失敗をcoverageに変換しない。正常な既存MSMデータによるLocal計算を先に試す。
-producerの非zero終了、freshness/admission gate、`static-monitor.yml`の異常判定とCI Fail通知は
-変更しない。管理者通知は既存の監視経路を使い、独立した通知サービスを追加しない。
-
-## 配信障害時の計算専用API
-
-通常のstatic feedと正常な端末キャッシュでLocal計算を毎回先に試す。MSMの期限切れだけでは
-予備サーバーへ切り替えない。必要なRun/coverageを正常に取得できない場合に、既存の対象エラーに
-限って未ログインでも予備サーバーで気象取得と計算を行う。入力不正、catalog schema/日時の形式・前後関係の異常、hash/identity/format不一致、一般のプログラム例外は自動切替しない。
-
-Workerが計算前に共通エンジンの入力検証を行う。初期要求に加え、反復後の最終時刻・地点・高度・変数をpublic weather providerで検証する。不足を外挿や手入力値で隠さない。固定Runと成功計算からの入力比較で決まる更新意図を転送し、同じRunを再取得できない結果は採用しない。
-
-APIには計算用Projectとschema/capability、Python engine・参照/性能dataのhash、rounding・更新意図だけを送る。氏名、機体識別、owner、durableToken、repositoryRecovery、保存済みProject一覧は送らない。旧バージョンの結果はhash不一致で拒否する。現在の入力世代とアカウントが維持され、結果checksum・Project/Run identity・readinessを検証できた場合だけLocalへ採用する。予備利用の理由コード・選択Run・契約identityをLast Calculationへ保存し、reload/syncでも出典が残る。次回の通常計算成功で予備利用の警告は消える。
-
-Project保存と同期は既存Local repositoryで行う。失敗・取消・入力やアカウント変更時は既存Last Calculationを置換しない。応答不明時は同じID・capabilityをGETで照会し、404時だけ同一内容のPUTを再送する。再読込をまたぐ進行中jobの再開は行わず、保存済み入力とLast Calculationを復元する。
-
-serverの構成、資源制限、未実施の本番有効化条件は[計算専用予備サーバー](forecast_backup.md)を参照する。下記2026-09-16のacceptanceは通常経路の過去実測であり、新しい予備APIの本番受入ではない。
-
-## 実データacceptance（2026-09-16）
-
-通常CIはchecked-in portable実データsnapshotをrouteで供給し、Weather sourceへの通信を禁止する。
-Pyodide/npm等の依存取得は別であり、完全air-gap CIを意味しない。
-fixture packagingは`AUTONAVLOG_TEST_FIXTURES=1`のテストbuildのみ。
-実データacceptanceはfixtureなしのStatic production buildを実Windows Edge
-153.0.4234.32（Win32）から検証した。`/api/**`はabortし、呼出し0件。
-
-- Run: `20260915210000`、valid window: 2026-09-16 03Zから24時間。
-- bounds: library既定29.7–35.2N / 128.5–134.8E。
-- RJFM→米ノ津→玉名→RJFT、ETD 12:00 JST、6,500/7,500/6,500/2,500 ft。
-- このNAV LOGの要求時間に必要なのはpall/surfaceのFH00-15、
-  24時間の共有feedでは加えてpall FH18-33 / surface FH16-33を取得。
-  元URLは[producer report](evidence/issue-144/producer.json)とpayload provenanceに保持。
-- cold Weather body: **5,629,561 bytes**（catalog+payload）、warm reload後: **0 bytes**。
-  アプリ/CDN assetsやHTTP headerを含まない。
-- cold計算: **1,744 ms**、warm: **424 ms**。
-- Windows browser process treeのRSS sample最大: cold **1,147,670,528 bytes**、
-  warm **1,175,248,896 bytes**。専用profileのbrowser全体で、WASM heap単独でも厳密peakでもない。
-- native decode/prepared生成: 2 Run / 36.8秒、`/usr/bin/time -v`最大RSS **308,048 KiB**。
-- 独立desktop GRIB/NetCDF pathと、風・気温・NAV LOGを絶対誤差1e-8以内、
-  表示値とprovenanceを一致確認。OOM、page crash、予期しないreloadなし。
-
-[Windows計測詳細](evidence/issue-144/windows-acceptance.json)。単一host/単一試行で、
-低memory端末の上限保証や長時間leak検証ではない。
-
-再実行はfresh feedを生成し、同じ日付/ETDを両方に指定する。
-
-```sh
-python scripts/local_reference.py --feed /tmp/msm-feed --native-cache /tmp/msm-source-cache \
-  --flight-date YYYY-MM-DD --departure-time HH:MM > /tmp/reference.json
-# Windows Nodeで実行。CDPは専用Edge/Chromium profileのloopback endpointを使用
-node --experimental-strip-types web/scripts/accept-local-weather.mjs \
-  --cdp http://127.0.0.1:9227 --url http://localhost:4179 \
-  --flight-date YYYY-MM-DD --departure-time HH:MM --reference /tmp/reference.json --output /tmp/acceptance.json
-```
-
-**Merge gate: 物理iPhone/iPad Safariでfresh実MSM FORECASTを少なくとも1回完走し、
-OOM/予期しないreload/crashがないこと。** 2026-09-16に物理iPad Safariで、
-fixtureなしのfresh実MSMを使ったHTTPS Static Local buildをcold/warmとも完走し、
-Weather失敗時のProject/Last Calculation保持と、OOM/予期しないreload/page crashがないことを確認した。
-[実機確認記録](evidence/issue-144/ipad-safari-acceptance.md)を参照。
-今後再確認する場合もOS/browser、Run、日時、cold/warm、失敗時のProject/Last Calculation保持を記録する。
-WindowsやPlaywright WebKitの結果をこのgateの代替にしない。
-
-#144のMSM transport境界を#161でモデル別に接続する。優先順位、固定Run、更新意思、
-最終Requirementの再計算は[Forecast selection](forecast_selection.md)を参照。
-
-## GSMのon-demand取得
-
-GSMは常時prewarmしない。LegacyはMSMのcoverage不足が確定した計算、または保存済み
-GSM Runの再計算でのみ上流GSM clientをprepareする。既存MSM prewarmerはMSM専用のまま。
-Local WorkerもPythonの要求に応じて必要なcatalog / 正確なRun assetだけを取得する。
-候補評価に必要な複数Runを順番に取得でき、取得中断時には計算結果・Last Calculationを
-更新しない。同一actionを再実行し、全体が完了してから既存の
-persistenceへ反映する。取得の再実行は128回、モデル切替を伴う全体再計算は4回で制限する。
-
-静的配信のGSM payloadは運用者が必要な範囲・時間帯を明示して生成する。
-既存のMSM定期feed workflowにGSM生成は加えない。GSM公開がない・期限切れ・要求する
-assetがない場合は取得障害として停止し、モデルcoverage外と偽って計算を続けない。
-保存済みNAV LOGの閲覧にはWeather feedを必要としない。
-高度を理由に「全MSM候補がcoverage外」と確定するには、discoveryが返した候補をすべて
-評価できる配信が必要になる。通常の2 Run feedだけで不足する場合は、MSM producerの
-`--max-runs 32`等で対象候補を配信する。未生成の古いRunを候補から隠してGSMへ進めない。
-モデル全体のoffline仕様外なら、そのモデルのpayload取得は不要。
-
-```sh
-python scripts/prepare_msm_feed.py --model GSM --output /tmp/gsm-feed --cache /tmp/gsm-cache \
-  --start YYYY-MM-DDTHH:00:00+00:00 --hours 24 --bounds 29.7 35.2 128.5 134.8
-AUTONAVLOG_MSM_FEED=/tmp/msm-feed AUTONAVLOG_GSM_FEED=/tmp/gsm-feed npm --prefix web run build:local
-```
-
-`--model`省略時は従来どおりMSM。両モデルとも取得、GRIB decode、cache、portable生成は
-公開library APIへ委譲する。同じ配信catalogの形式を再利用し、独自気象formatやHTTP
-計算endpointを追加しない。GSM catalogを含むStatic artifactはMSMと同じhash・期限・
-assetサイズ検証を必須とする。実際の外部公開は通常のproduction承認手順に従う。
-
-#161のsynthetic GSM / 改変MSM acceptance fixtureは
-[生成条件](../tests/fixtures/forecast-policy-README.md)を参照。ライブGSM配信の容量や
-物理iOS端末のmemory確認を過去のMSM受入実績で代替しない。
-
-## CALMとRJFM固定RCAの計算境界
-
-LegacyとLocalは共通の`MsmWeatherProvider`で気象値を投影します。
-上空気象がAVAILABLEで、ライブラリの`CALM_WIND_DIRECTION_UNDEFINED`警告があり、
-風向なし・有限かつ非負の風速が0.1 m/s未満の場合だけ、航法計算用の風速を0 ktへ
-正規化します。元のvector・風速・気温は`calm_normalization.original_values`へ保持し、
-provenanceと警告も残します。通常風の風向欠落や取得失敗はCALMとして扱いません。
-
-検証済みRJFM固定RCAは通常の風によるRCA探索を経ずに適用します。POH上昇時間・燃料、
-上昇代表高度の気温とTAS、および各実効区間の表示風・手動overrideは従来どおりです。
-固定境界以降の物理区間にはCLIMB気象を要求しません。仮想UMKが物理区間内にある場合は
-同区間のCLIMBとCRUISEの両方を保持します。古い・不整合な計画と経路外固定RCAは
-既存の検証・通常RCA処理に従います。
-
-Issue #204の固定fixtureは診断時の代表気象値と経路を保持しています。全時空間のMSM
-予報archiveではなく、未記録の気象はテスト用値です。実データのライブ受入とは区別します。
+> **参考（運用コマンド・エラーコード・実機受入）**：静的フィード生成コマンド、`--full-run` の 78 時間上限、キャッシュキー・内部エラーコード分類、リプレイ上限、iPhone/iPad Safari 実機受入ゲートおよび 2026-09-16 実測記録は [local_weather_operations.md](local_weather_operations.md) と [real_msm_acceptance.md](real_msm_acceptance.md) を参照してください。

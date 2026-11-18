@@ -1,40 +1,32 @@
 # 計算専用予備サーバー
 
-通常 MSM 配信が期限切れ・取得不能・必要データ不足の場合、Local アプリが未ログインでも気象取得と計算を補完する独立 API（`PUT/GET /api/forecast-backup/jobs/{UUID}`）の境界仕様です。コード上は既定無効であり、有効化には別途承認と公開前検証が必要です。
+通常の静的 MSM 配信が期限切れ・取得不能・必要データ不足の場合に、Local アプリが未ログイン状態でも気象取得と計算を補完するための独立した計算専用機能の上流仕様です。初期状態では無効化されており、本番有効化には別途の承認と公開前検証が必要です。
 
-## 独立した境界
+## 独立した境界とセキュリティ隔離
 
-`PUT /api/forecast-backup/jobs/{UUID}`で計算を登録し、`GET`で同じjobを照会する。各jobはbrowser生成256-bit capabilityを`X-AutoNavLog-Request` headerで渡す。URL・結果・ログ・DBには生capabilityを残さない。別capabilityでの結果照会は404となる。Origin/CORSは追加制限であり、認証や濫用防止の代用ではない。
+- 計算ジョブの登録と結果照会のみを提供し、ブラウザがジョブごとに発行する照合鍵（同じ計算の登録と結果の再照会に共通で使う鍵）によって結果を隔離します。URL・結果・ログ・DB には生の照合鍵を残さず、別の照合鍵による結果照会は拒否します。Origin / CORS は補助的な制限であり、認証や濫用防止の代替とはみなしません。
+- Legacy セッション、保存済み Project、およびアカウント移行記録を読み書きしません。Cloudflare Access、既存編集機能の所有者照合、移行中・移行完了ロックも変更しません。Firebase ID や移行後アカウントの権限を借りず、ログイン済み利用者も同じ隔離された計算専用境界を利用します。
 
-このendpointはLegacy session、saved Project、migration recordを読書きしない。Cloudflare Access、既存編集APIのowner照合、MIGRATING/NAVMATE_ACTIVEの操作lockは変更しない。Firebase identity/ACTIVE世代の権限を借りず、ログイン利用者も同じ隔離された計算専用境界を使う。Local側のアカウント境界はそのまま維持する。
+## 処理上限・保持・プライバシー制約
 
-## 制限
-
-| 対象 | 上限・動作 |
+| 対象 | 上限・振る舞い |
 | --- | --- |
-| request | 256 KiB、body受信10秒、Project 240 KiB、route/section各64、visual reference128、TGL20 |
-| 同時処理 | worker processあたり2計算。DB全体で実行/待機8件、clientごと2件 |
-| 新規計算頻度 | clientごと10分6件・24時間20件。capabilityを変更しても共通 |
-| HTTP頻度 | clientごと1分120要求。rate table最大4096行 |
-| client key | 接続元IP（IPv6は/64）をserver固有秘密でHMAC。生IPはledgerに保存しない |
-| result/ledger | result 2 MiB、全体64件、24時間保持。期限後は410/404、古いrequestを再実行しない |
-| 実行 | child自身のalarmと親supervisorの両方でwall120秒、CPU110/115秒、address space2 GiB、1 file256 MiB、FD128 |
-| 依頼期限 | 登録600秒。失われた実行を再起動後に再実行しない。browserは610秒まで同じjobを照会 |
-| 一時data | job単位directory、完了/強制終了後に親が削除。server自体の異常終了で残った600秒超のdirectoryは次回計算前に除去 |
+| リクエスト入力 | 全体 **256 KiB**、受信 **10 秒**、Project **240 KiB**、経路／区間 各 **64**、視覚参照点 **128**、TGL **20** |
+| 同時処理 | ワーカーあたり **2 計算**、全体で実行・待機合計 **8 件**、クライアントあたり **2 件** |
+| 新規計算頻度 | クライアントあたり **10 分 6 件・24 時間 20 件**（トークンを変えても共通集計） |
+| HTTP 頻度 | クライアントあたり **1 分 120 要求**（管理上限 4,096 件） |
+| クライアント識別 | 接続元 IP（IPv6 は `/64`）をサーバー固有秘密で不可逆ハッシュ化。生 IP は保存しない |
+| 結果・台帳保持 | 結果最大 **2 MiB**、全体最大 **64 件**、保持 **24 時間**。期限後は無効とし古い要求を再実行しない |
+| 計算実行制限 | 実時間 **120 秒**、CPU **110 / 115 秒**、アドレス空間 **2 GiB**、1 ファイル **256 MiB**、FD **128** |
+| 依頼期限・再起動 | 登録後 **600 秒**（ブラウザ照会 **610 秒**まで）。サーバー停止等で失われた実行は再起動後に自動再実行しない |
+| 一時データ | ジョブ単位に隔離し完了・強制終了後に削除。異常終了で残った 600 秒超の一時領域は次回計算前に除去 |
 
-NAT共有利用者は同じclient制限を共有する。IPv4/IPv6分散攻撃への完全な防御ではないため、origin到達制限とedgeの追加rate limitは公開前に確認する。新規capabilityが全体queue上限を回避することはない。request/response本文やheaderをaccess logへ追加しない。
+- NAT 共有環境では同一のクライアント制限を共有します。また、IPv4 / IPv6 分散リクエストへの完全防御ではないため、本番有効化前には到達制限とエッジ側の追加レート制限を確認します。リクエスト／レスポンス本文やヘッダはアクセスログへ出力しません。
 
-## 設定と未実施の本番有効化
+## 有効化境界とロールバック方針
 
-- Server: `AUTONAVLOG_FORECAST_BACKUP_ORIGIN=https://navmate.yuto24.com`。未設定ならrouteを登録しない。
-- Browser build: `VITE_FORECAST_BACKUP_URL=https://navlog.yuto24.com/api/forecast-backup/jobs/`。未設定なら通常経路の失敗時に未設定を表示する。
-- Proxy: `AUTONAVLOG_FORECAST_BACKUP_TRUSTED_PROXIES`は既定空。指定CIDRからの接続だけ`CF-Connecting-IP`を信頼する。gatewayがheaderを上書きし、originへの直接接続を遮断できる場合にのみ設定する。未設定ではsocketの接続元に制限が掛かるため、proxy配下で利用者が同一clientに集約される。
-- Runtimeはnative MSM依存を含む同一revision・同一参照/性能dataが必要。旧release/1.xを無変更で使えるという互換性保証はない。
+- 予備サーバーはネイティブ MSM 依存を含む同一リビジョンおよび同一参照・性能データを必要とします（旧 `release/1.x` を無変更で流用する互換性は保証しません）。
+- 本番有効化の対象は旧サーバーホスト上の計算専用パスのみに限定し、旧画面・セッション・編集・保存・移行パスへ Access 例外を広げません。
+- ロールバック時は専用パスの公開例外を閉じ、サーバー側およびブラウザ側の予備 URL 設定を解除して通常の Local 単独経路へ戻します（保存済みデータやボリュームは削除しません）。
 
-別途承認が必要な公開対象は、既存の旧server-host `navlog.yuto24.com` の`/api/forecast-backup/jobs/*`のみ。許可methodはGET/PUT/OPTIONS、許可originは`https://navmate.yuto24.com`、許可headerはContent-Type/X-AutoNavLog-Request。旧画面・session・編集・保存・migration pathにAccess例外を広げない。host/runtimeの現在値照合、Access exception、origin防御、proxy header信頼、edge制限、同一engine/data、実MSM取得と最終coverage、正常復帰、監視が配信異常を引き続き検出することを承認/検証してから有効化する。
-
-rollbackは専用pathの公開例外を閉じ、server origin設定とbrowser backup URLを解除して通常Local経路に戻す。保存dataとvolumeは削除しない。本設定の有効化は本番承認・配置計画を伴う別操作とする。
-
-## 再現可能な検証
-
-`tests/integration/serve_forecast_backup_fixture.py`はloopback専用のテストserverで、通常のAPI/計算エンジンと歴史的portable MSMを使う。本番の気象取得成功を意味しない。`web/e2e/forecast-backup.spec.ts`は実browser adapter、Pyodide、server、Local保存/reload、正常復帰を通す。`tests/unit/test_forecast_backup.py`と`web/e2e/forecast-backup-unit.spec.ts`で隔離、上限、deadline、互換性、不正結果、応答喪失と入力/アカウント変更を検証する。
+> **参考（環境変数設定・Access 例外条件・検証スイート）**：具体的なエンドポイント形式・環境変数名、Cloudflare Access 設定条件、および自動検証スイートは [local_weather_operations.md](local_weather_operations.md#4-compute-only-forecast-backup-server-configuration-and-verification) を参照してください。

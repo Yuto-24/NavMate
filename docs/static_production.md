@@ -66,6 +66,17 @@ release保管場所へ保存する。artifactはFirebaseの公開識別子を含
 Localの気象配信障害だけは、設定済みの計算専用予備APIへ切り替える。
 一般のLocal失敗やstorage障害を旧画面・編集・保存APIへ転送しない。
 
+### NavMate アイコンアセットの再生成（必要時のみ）
+
+承認済みソース PNG（`assets/branding/navmate-adopted-source.png`、SHA-256 `30faff87f7820ae4e62cc4c3b1bca016137b3af041672166472aaf5cf166c3e6`）から `web/public` 配下の PNG / ICO を再生成する場合だけ、隔離した tooling 環境で `Pillow==12.3.0` を用いて実行する（アプリ実行時は Pillow 不要）。仕様は [navmate_branding.md](navmate_branding.md) を参照。
+
+```sh
+python3 -m venv /tmp/navmate-icon-tools
+/tmp/navmate-icon-tools/bin/python -m pip install 'Pillow==12.3.0'
+/tmp/navmate-icon-tools/bin/python scripts/build_navmate_icons.py
+git diff --exit-code HEAD -- web/public
+```
+
 ## MSM feedの手動更新
 
 [既存MSM producer / 運用契約](local_weather.md)をそのまま使う。

@@ -24,13 +24,13 @@
 
 ## NAV LOGのVOR/DME基準局
 
-`src/autonavlog/nav/data/vor_stations.json`の`stations`は、JCAB AIP AD 2 / ENR 4.1から転記した、
-RJFM ARPから540 km圏内の基準局データです。既存32局の基準サイクルは2026-08-06です。
-トップレベルの`effective_cycle`はその基準サイクルで、局ごとの`effective_cycle`がある場合は
-その局だけの確認サイクルを示します。NAV LOGの選択欄も選択局のサイクルを表示します。
+VOR/DME 基準局カタログは、JCAB AIP AD 2 / ENR 4.1から転記した、
+RJFM ARPから540 km圏内の基準局データです。カタログ全体の基準サイクル（2026-08-06）に加え、
+個別局ごとに異なる確認サイクルを保持している場合はその局だけの確認サイクルを示します。
+NAV LOGの選択欄も選択局のサイクルを表示します。
 各局に元PDF名・1始まりのPDFページ番号・偏差の出典を保持します。
-このJSONをWebとPythonで共用します。`departure_only_stations`のOYEは出発VOR Tracking専用で、
-VOR/DME一覧には含めません。配布と保守の詳細は[出発VORの磁気基準](airport-vor-departure.md#第1-legの磁気基準)を参照してください。
+この単一カタログをWebとPythonで共用します。出発専用局のOYEは出発VOR Tracking専用で、
+VOR/DME一覧には含めません（`OYE`は保存済み`RJOB__AD2_20260806.pdf` p.7、AD 2.19〔ページ有効日 2025-03-20〕にて`VOR (8°W/2016) OYE`、座標`344501.38N/1335006.20E`を2026-11-15に確認）。配布と保守の詳細は[出発VORの磁気基準](airport-vor-departure.md#第1-legの磁気基準)を参照してください。
 
 天草（AKE）は同サイクルの`AD2_Combine/RJDA__20251201.pdf`、PDF 6ページの
 RJDA AD2-6 / AD 2.19（ページ適用日2018-01-04）で照合しました。
@@ -53,8 +53,8 @@ CH-99X / 1186 MHz、TACAN AZM unusableの000°–020° / 160°–180° / 290°�
 VOR座標・周波数・局偏差に混ぜません。現行schemaと距離計算の意味は従来どおりで、
 VOR座標からTOへのWGS84地表距離を表示し、別のTACANアンテナ位置やslant rangeは計算しません。
 
-SUCだけに2026-10-01の`effective_cycle`、`source_effective_date`、`source_section`、
-`source_sha256`を記録します。既存32局を2026-10-01確認済みと扱うものではありません。
+SUCだけに2026-10-01の確認サイクルおよび出典の記録（適用日・節・元PDFのSHA-256）を保持します。
+既存32局を2026-10-01確認済みと扱うものではありません。
 この追加はAIPの当該ページに基づく参照データ更新であり、ライブNOTAM / SUPの確認、
 現在の供用状態や電波受信可能性の保証は含みません。
 
@@ -74,7 +74,7 @@ SUCだけに2026-10-01の`effective_cycle`、`source_effective_date`、`source_s
 
 UMK / OVER FIELD / OMARUの同梱座標は`UNVERIFIED_MAP_DIGITIZATION`として扱い、推定誤差を保持します。一致するKML座標がある場合は、同梱値より利用者のKMLを優先します。
 
-RJFM参照パックはmanifestのpayload SHA-256で検証します。payload変更時は参照fingerprintも変わります。
+RJFM参照パックはmanifestのpayload SHA-256で検証します。参照データの内容が変更された場合は採用参照値の違いを検出し、以前の計算結果と区別して扱います。
 
 ## 公開資料
 
@@ -88,11 +88,11 @@ MSMの上空風・気温と地上気温にはForecast Run、元URL、source hash
 
 目的地風はAviationWeather.govのTAFを出典とします。採用したTAFは目的空港情報として表示しますが、VREPから目的空港までの航法計算はCALM固定です。
 
-## Project / Calculation
+## Project と計算結果の保存
 
-Projectは入力、手動値、選択した参照データを最新draftとして保存します。明示保存時にはcheckpointを更新します。
+Project は入力、手動値、選択した参照データを最新の作業中下書きとして保存し、明示保存時にはチェックポイントを更新します。
 
-最後にBlockerなしで完了したCalculationはProjectごとに1件だけ保持し、計算時Project snapshot、CalculationOutcome、Forecast Run等の来歴とともに保存します。履歴を無制限に蓄積する方式ではありません。
+最後にブロッカーなしで完了した計算結果は Project ごとに 1 件だけ保持し、計算時の計画スナップショット、計算結果、Forecast Run 等の来歴とともに保存します。履歴を無制限に蓄積する方式ではありません。
 
 ## AIP地図表示用データ（2026-10-29有効）の取込準備
 

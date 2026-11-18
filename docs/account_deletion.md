@@ -1,76 +1,29 @@
-# NavMate Account deletion (#181)
+# アカウント削除と世代分離
 
-アカウント削除の契約正本です。`googleAccounts/{subject}` の `ACTIVE → DELETING → DELETED` 状態遷移、全端末からの Project 書込み即時遮断（オフラインの他端末は再接続時の検査・削除までキャッシュ済み Local コピーを表示可能）、明示再登録時の新世代 `account_v2_…` 分離（削除済み Legacy 引継ぎの遮断）、および #393 の文言短縮（Gemini 確認記録付き）を規定します。
+Google ログインアカウントにおけるデータ削除の状態遷移、全端末からの書き込み即時遮断、および再登録時の世代分離を定める正本です（#181）。（個別 Project の削除および約 10 秒 Undo は [Account Sync](account_sync.md#削除と-undo-pending_delete) の別操作です。）
 
-The Account dialog starts deletion only after an explicit confirmation. The
-browser requires a current Google identity, a fresh Firebase token, and a
-server read of the corresponding account record. Offline or expired credentials
-do not queue a deletion. Project deletion and its offline Undo remain the
-separate #185 operation.
-The Account dialog disables both deletion confirmation steps and deletion retry
-while offline, with a persistent reason beside the control. Reconnecting updates
-the control; the fresh-token and server-identity preflight remains mandatory.
+## 削除の開始条件とオンライン要件
 
-The `googleAccounts/{subject}` record stores an internal account ID and one of
-`ACTIVE`, `DELETING`, or `DELETED`. The first ID preserves the #184 deterministic
-`account_v1_…` mapping and the existing #185/#186 Project path. Deletion first
-commits `DELETING`; Firestore Rules then reject Project writes from every device.
-The deleting device removes the account's remote Project documents in small
-idempotent batches, removes its account IndexedDB namespace and anonymous
-originals claimed by that ID, then marks the account `DELETED`. A failed cleanup
-leaves `DELETING` in place and offers a retry after reconnect/re-authentication;
-the old generation never reopens for normal syncing.
+- アカウントダイアログで明示的な確認操作を行った場合のみ削除を開始します。
+- 実行には **有効な現在の Google 本人確認・最新の認証資格情報・サーバー上のアカウント記録確認** が必須です。オフライン時や認証期限切れ時に削除を予約キューへ積むことはできません。
+- オフライン中は削除確認ボタンおよび削除リトライ操作を無効化し、理由を近接表示します（オンライン復帰時に操作可能へ戻り、事前の認証・サーバー照合を行います）。
 
-On another device, the next successful online account check closes its old
-Application context, marks the cached generation unusable offline, and removes
-that account's Local copies. Until connectivity
-returns, the already cached Local copy can remain visible on that device, but
-Rules prevent it from uploading. A deleted identity does not automatically
-create a new NavMate account on token refresh. Detecting `DELETED`, or discovering
-that the cached generation has been replaced, signs out this device's Firebase
-session. A successor created on another device cannot reconnect it automatically.
-The retired cache marker is retained until explicit login, so failed logout
-persistence cannot reconnect a successor after reload. Logout failure keeps access
-closed and offers the existing logout retry. `DELETING` still offers deletion
-retry for the same generation rather than reporting completion. A replaced
-generation closes authentication even if its successor is already `DELETING`.
-If Local cleanup fails after confirmed deletion, authentication still ends and
-the notice directs the user to close other tabs and explicitly log in to retry
-cleanup before entry. An explicit Google login may
-register a new `account_v2_…` ID. Its Project documents have a separate
-generation path and cannot import Local rows claimed by an older account.
-Other Google identities and their namespaces are unaffected. The Google Account
-and Firebase Authentication user are not deleted.
+## 状態遷移と端末ごとの挙動
 
-The #186 Legacy link is tied to the original account ID. A newly registered
-generation skips that migration so it cannot inherit deleted Legacy data. The
-link dialog itself remains an authentication-only operation. #182 Share is not
-implemented yet; a future Share adapter must gate access on the issuer's active
-account generation and drain all snapshots before marking it `DELETED`.
+アカウント記録は「有効 → 削除処理中 → 削除完了」の状態を保持します。
 
-The account record and Rules must be deployed together before exposing this UI
-in a Local build. The first online login creates the account record; a returning
-device with a cached ID may continue Local work during a transient outage.
-Deleting account data is irreversible. Physical browser/production acceptance
-must use a real Google account, deployed Rules, and two devices, and separately
-verify the old device after reconnect plus a deliberate re-registration.
+1. **削除開始（削除処理中へ遷移）**：まずアカウント状態を削除処理中へ遷移させます。この時点でサーバー側アクセス制御により **全端末からの Project 書き込みが即時遮断** されます。
+2. **データ消去と削除完了の確定**：削除実行端末がリモートの Project データを小バッチで冪等に削除し、端末内の該当アカウント保存領域および取込済み匿名元データを削除したうえで削除完了を確定します。途中で失敗した場合は削除処理中のまま残り、再接続・再認証後のリトライを案内します（旧世代が通常同期へ復帰することはありません）。
+3. **他端末での検知と保護**：
+   - 他端末は次回のオンラインアカウント確認時に旧コンテキストを閉じ、キャッシュ済み世代を使用不可としてローカルコピーを削除します。
+   - ただし、**オンライン確認が戻るまでのオフライン状態では、その端末に既にキャッシュ済みのローカルコピーが表示可能なまま残る場合があります**（再接続してもサーバー側でアップロードは拒否されます）。
+   - 削除完了または新世代への置換を検知した端末はサインアウトし、別端末で新世代が作成されても旧端末が自動接続されるのを防ぎます（再読込による再接続も防止）。
+   - 確定済み削除後のローカル清掃に失敗した場合でも認証は終了し、他タブを閉じて明示的にログインし直し清掃を再試行するよう案内します。
+4. **明示的再登録（新世代の分離）**：削除完了後、同じ Google アカウントで明示的に再ログインすると新しい独立したアカウント世代が発行されます。旧世代が取り込んだローカルデータや [Legacy アカウント連携](legacy_migration.md) を引き継がず、他の Google アカウントおよび元の Google アカウント自体は削除されません。
+5. **世代整合と将来の共有境界**：認証世代を追跡し、削除開始時に未完了の解決処理や同一所有者の自動トークン更新を抑止します。将来実装予定の共有機能（#182）も発行者の有効世代を条件とし、完了前にスナップショットを整理したうえで削除完了へ遷移する契約とします。
 
-Account resolution carries the provider's current authentication generation.
-Deletion invalidates outstanding resolutions before preflight and suppresses
-same-owner token/focus refresh until cleanup finishes. Each asynchronous lifecycle
-lookup checks that generation before changing the ownership cache or registering
-a successor. External logout or an identity switch still closes the old
-Application immediately; the new identity is resolved after cleanup finishes.
+## 注意事項
 
-For #393, completion and deletion-detected notices omit the Google-account
-explanation and re-use guidance. Pre-deletion warnings and `DELETING` retry
-notices are unchanged. Gemini (`agy`, `gemini-4-argon-high`, 2026-11-08, conversation
-`cb7e2200-aaaa-4ae4-b352-39ba7308e45d`) confirmed the three requested shortenings,
-selected the offline explanation, and reviewed that wording scope.
-The same model confirmed the signed-out Local-cleanup failure guidance separately
-in conversation `356ec4f3-568e-47a9-94cf-54d472202cac`.
+- アカウントデータの削除は **不可逆** です。
 
-These automated checks do not complete #181 production acceptance. After a
-separately authorized deployment, verify the changed two-device authentication
-boundary, offline control, and notices with a dedicated test identity. Keep #181
-open until its remaining production checks and roadmap update are complete.
+> **参考（Rules 同時配備・技術契約・実機検証）**：アクセス制御ルールの同時配備条件、内部状態コード・文言確認記録、および実 Google アカウント・2 端末を用いた受入検証条件は [firebase_account_operations.md](firebase_account_operations.md) を参照してください。

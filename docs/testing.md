@@ -559,3 +559,9 @@ Node、Python、Java、npm / pip の導入と現在の checkout のビルドは�
 公式 image の説明は [Playwright Docker](https://playwright.dev/docs/docker) を参照してください。
 コンテナ取得と npm / pip / Firebase emulator の外部取得は残ります。コンテナ利用だけから
 高速化を断定せず、Hosted Run の Initialize containers、依存導入、テスト本体を分けて比較します。
+
+### 地形入力（GSI DEM10B / 地形点 KML）の検証
+
+- `npm --prefix web run test:application -- terrain-unit.spec.ts`：PNG 復号、領域境界、凹 polygon、欠損・未取得・不正入力、通信およびキャッシュ契約を検証します（`dem-signed.png` は独立した合成 RGB fixture です）。
+- `npm --prefix web run test:terrain`：Chromium / WebKit 上で PNG 数値復号、KML の有効・不正・標高基準未確認・障害物除外、境界判定、外部通信抑止を検証します。
+- 実データ限定確認（2026-11-09）：`dem_png/14/14174/6668.png`（HTTP 200、102,668 bytes、CORS `Access-Control-Allow-Origin: *`、SHA-256 `c30fad6bc8ca2ce64e4d6cb297425ba507ac0f3bec709bebfc7713387da396b4`）について、Python 標準ライブラリの独立復号と Chromium / WebKit で全 65,536 画素（うち欠損 2,942 画素）の一致を確認済み。これは 1 タイルの取得・復号確認であり、経路全域の被覆や SEA の正確さを保証するものではありません。仕様は [terrain_inputs.md](terrain_inputs.md) を参照してください。

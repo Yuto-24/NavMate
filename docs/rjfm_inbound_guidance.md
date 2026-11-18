@@ -1,113 +1,50 @@
-# RJFM inbound west-extension guidance
+# RJFM 帰路補完と西側延長参考案内
 
-**現行契約（Inbound Policy V3）**: RJFM 帰路（`OMARU→RJFM` / `OMARU→ARITA→RJFM`）では欠落した UMK（4,500 ft）と ARITA（1,500 ft）を物理経路として補完し、親 Leg 1 行へ統合表示します。一方、西側延長案内（KS4-3 回避・20° バンク等）は計算完了後の最新入力に対してのみ生成される独立した参考カードであり、物理経路・NAV LOG の DIST/ETE/燃料・Readiness を変更しません。
+**現行契約（Inbound Policy V3）**：RJFM 帰路（`OMARU→RJFM` / `OMARU→ARITA→RJFM`）では、欠落している `UMK`（4,500 ft）と `ARITA`（1,500 ft）を物理経路点として補完し、親 Leg 1 行へ統合表示します。一方、西側延長案内（KS4-3 回避・20° バンク等）は、計算完了後の最新入力に対してのみ生成される独立した参考案内カードであり、物理経路・NAV LOG の DIST / ETE / 燃料・Readiness を変更しません。
 
-This diagnostic applies only when an RJFM inbound route's authoritative NAV LOG has already applied the `OMARU → UMK = 4,500 ft` operational-descent profile. It never adds a virtual route node or changes NAV LOG physical distance, course, ETE, fuel, project status, or issue severity.
+## 西側延長参考案内の位置づけ
 
-The solver derives its duration, TAS, wind, UMK, VREP, selected descent rate, and adopted VREP altitude from that completed authoritative profile. The card is transient: it is generated for the current calculation-input fingerprint and is not saved in project UI state. A stale authoritative plan prevents numeric guidance; an unavailable solver/reference produces only a warning diagnostic.
+- この診断・参考案内は、RJFM 帰路の確定 NAV LOG が運用上の降下プロファイル（`OMARU → UMK = 4,500 ft`）を適用済みの場合にのみ生成されます。
+- 仮想の経路点を追加したり、NAV LOG の物理距離・コース・ETE・燃料・Project の準備状態や警告重要度を変更したりしません。
+- 案内の算出には、確定済み NAV LOG の所要時間・TAS・風・UMK・VREP・選択降下率・採用 VREP 高度を使用します。
+- このカードは一時的な表示であり、現在の計算入力に対してのみ生成され、Project には保存されません。入力変更により確定済み計算が最新でなくなった場合、数値案内は抑止されます。参照パックや探索処理が利用できない場合は、計算をブロックしない警告のみを表示します。
 
-## Inbound route completion (Issue #235)
+## 帰路経路の補完規則（#235）
 
-OMARU→RJFM and OMARU→ARITA→RJFM return tails complete missing UMK and ARITA.
-KML/MAP confirmation, Local/Legacy calculation, edits and restoration share the
-normalization. An explicit coordinate-matched UMK after OMARU is retained with
-its name, coordinates and manual inputs. An earlier UMK visit belongs to a
-previous span and does not suppress the return occurrence. Explicit ARITA is
-retained; direct returns gain ARITA as their final VREP. Other routes retain
-existing VREP validation and profile behavior.
+- `OMARU→RJFM` および `OMARU→ARITA→RJFM` の帰路末尾では、欠落している `UMK` および `ARITA` を補完します。KML 取込、MAP 確定、Local / Legacy 計算、編集、復元のすべてで同じ正規化を適用します。
+- `OMARU` より後に座標一致する明示的な `UMK` がある場合は、その名称・座標・手動入力を保持し重複させません（それより前の往路区間の `UMK` は帰路の補完を抑止しません）。明示的な `ARITA` も保持され、直行帰路には最終 VREP として `ARITA` を補完します。その他の経路では従来の VREP 検証と高度プロファイルを維持します。
+- 自動生成された点および区間の識別子は再適用時も安定して保たれます。条件を満たさなくなった場合、生成点は除去され、元の隣接関係に戻った場合のみ元の形状・役割・区間入力が復元されます。既存の到着手動入力は維持され、分割された区間は物理形状を用い、Check Point の紐付けは有効な正横投影先に追従します。
 
-Generated point and section identities remain stable on reapplication. When the
-route no longer qualifies, generated points are removed. Original geometry,
-roles and section fields are restored only when their original adjacency returns.
-Existing manual arrival fields survive reference retargeting. Split sections use
-their physical geometry, and CP links follow valid abeam projections.
-West-extension guidance supplies no physical route nodes.
+## 採用出典と利用可能条件
 
-## Sources and current availability
+参照パック（リビジョン `2026-08-31-rjfm-inbound-west-guidance-v2`）は整合性ハッシュで固定されており、以下の検証すべてを通過した場合のみ利用可能となります。いずれかに不整合がある場合は fail-closed とし、案内カードは非ブロックの「利用不可」診断にとどめます。
 
-`data/reference/rjfm-inbound-guidance/manifest.json` pins the payload SHA-256 for revision `2026-08-31-rjfm-inbound-west-guidance-v2`. The pack is `AVAILABLE` only after all of the following checks succeed; any mismatch fails closed and the card remains a non-blocking unavailable diagnostic.
+- **KS4-3 水平境界**：同梱の AIP Japan ENR 5.3-21 PDF（SHA-256 `91eba1411e896d1b62451fac298e0afa6131194a95736a181be251b91942c90a`、p.747、有効日 2024-02-22）から、公示 DMS 8 頂点と 10 NM MZE 円弧を採用します。正規化データでは WGS84 劣弧手順と 49 頂点リングを固定し、端点動径残差と弧弦近似の保守的な和として **最大モデル誤差 0.02 NM** を宣言しています（同梱バイト列と照合済み出典メタデータの検証であり、発行者署名の独立検証を主張するものではありません）。
+- **MZE DME**：同じ AIP Japan PDF の ENR 4.1-15（p.531、有効日 2025-09-04）に記載の `315243.42N 1312614.88E`、標高 `16.3 m / 54 ft MSL` を採用します。SHA-256、ページ、日付、位置、標高が一致した場合のみ受け入れます。
+- **GSI KS4-3 GeoJSON**：表示・照合専用の参考データであり、探索計算の境界には使用しません。座標が 2 要素または 3 要素（標高付き）のいずれでも表示側で受け入れますが、標高値は破棄します。
+- **探索方針（2026-08-31 ユーザー決定）**：磁方位セクター `250–290°`、粗探索刻み `5°`、および外向き `0.5 NM` 単位の DME 丸めはユーザー決定に基づく方針であり、航空資料由来の数値とは区別して扱います。
 
-- KS4-3 horizontal boundary: the vendored AIP Japan ENR 5.3-21 PDF is SHA-256 `91eba1411e896d1b62451fac298e0afa6131194a95736a181be251b91942c90a`. Its reviewed PDF page 747, effective 2024-02-22, supplies the eight published DMS vertices and the 10 NM MZE arc. The normalized artifact fixes the WGS84 minor-arc procedure and its generated 49-vertex ring. It declares a 0.02 NM maximum model error: a conservative sum of endpoint radial residual and arc-chord approximation. This record verifies the vendored bytes and their reviewed provenance fields; it does not claim an independently verified publisher signature chain.
-- MZE DME: the same vendored PDF is used for AIP Japan ENR 4.1-15, PDF page 531, effective 2025-09-04. It records `315243.42N 1312614.88E`, 16.3 m / 54 ft MSL. The loader checks the primary artifact SHA-256, page field, dates, position, and elevation before admitting it.
-- GSI KS4-3 GeoJSON remains `DISPLAY_ONLY_LIVE_REFERENCE` / `CROSS_CHECK_ONLY`. It is never a solver boundary. Its cross-check values are provenance diagnostics, not a replacement for the vendored primary source.
-- Magnetic sector 250–290°, 5° coarse scan, and outward 0.5 NM DME rounding are `USER_DECISION` implementation policy dated 2026-08-31. They are separate from source-backed aeronautical data.
-## 2026-08-31 Issue 89 observations
+## 探索条件と保守的な回避余裕
 
-- A route that has enough time or distance does not thereby prove KS4-3 avoidance. The solver must search for a feasible route under the boundary constraint, including beyond an infeasible candidate.
-- Outward DME rounding changes the turn point. The rounded point must retain the selected UMK magnetic-sector constraint and be revalidated for profile altitude, travel time, and airspace clearance before display.
-- Raw and rounded diagnostics are useful only for an available, current solution. Failures, reference mismatch, or stale inputs suppress numeric guidance without changing the authoritative NAV LOG outcome.
-- With calm air and fixed TAS, a time constraint is equivalent to a total-distance lower bound, so the raw-minimum bearing is not unique; tests that require a unique bearing must use a non-degenerate wind or obstacle fixture.
-- GSI live geometry may encode coordinates as [longitude, latitude, altitude], while older fixtures use two elements. The display parser accepts finite two- or three-element tuples, discards altitude, and remains independent of solver input because GSI is DISPLAY_ONLY_LIVE_REFERENCE.
-- The primary 49-vertex KS4-3 ring is checked exactly as 0.5 NM WGS84 chords. Do not shorten this path by reducing the search budget or clearance/model-error margins. Only the real RJFO inbound E2E fixture has a 90-second completion wait; product UI timeouts and mock/general waits remain unchanged.
+- 時間や距離の余裕があるだけでは KS4-3 回避成立とみなさず、境界制約を満たす実行可能経路（不成立候補の先を含む）を探索します。外向き DME 丸めによって変針点が変わる場合は、選択した UMK 磁方位セクター制約を保ったまま、高度・所要時間・空域クリアランスを再検証してから表示します。無風かつ固定 TAS では時間制約が総距離下限と等価になるため、生の方位解が一意にならない場合があります。
+- **適用領域**：WGS84 測地線に沿ったサンプル間隔 **0.5 NM 以下**、経路全長 **240 NM 以下**、全座標が **10°S〜45°N**、経路と境界を合わせた緯度幅および生経度幅が各 **12° 以下**。日付変更線をまたぐ短い区間（例：`179.999°E` → `179.999°W`）など領域外の幾何は、別の投影方式へ黙って切り替えず拒否します。
+- **保守的クリアランス**：サンプル区間ごとに、局所正距円筒図法での離隔距離から以下のモデル誤差と数値余裕を差し引きます。
+  - 境界モデル誤差 `0.02 NM` + 3 次元弦矢高の概算 `d² / (8 × 3400 NM)` + 数値誤差・サンプリング余裕 `0.01 NM`（`d` は区間長 NM）。
+  - 余裕差し引き後のクリアランスが **0 以下** になる場合は（ほぼ接線の場合を含め）交差とみなします。なお、`0.01 NM` の余裕は数値処理上の安全余裕であり、元図の測量精度を保証するものではありません。
 
-## Geometry domain and conservative clearance
+## 親子行表示と往路 UMK の扱い
 
-The shared geometry utility accepts sampled route polylines only when every WGS84 sample interval is at most 0.5 NM, the complete route is at most 240 NM, and all coordinates are between 10°S and 45°N. The combined route and boundary latitude extent and raw longitude extent must each be at most 12°. In particular, a short WGS84 leg that crosses the antimeridian (for example, 179.999°E to 179.999°W) is rejected because its straight latitude/longitude chord would leave the local model. This local domain covers the RJFM search envelope and the equatorial synthetic fixtures; an unsupported geometry is rejected instead of silently switching projection regimes.
+- `ARITA` を含む帰路では、`OMARU→RJFM` を 1 つの親 Leg として表示し、子行に `OMARU→UMK`、`UMK→ARITA`、`ARITA→RJFM` を含めます（その他の最終 VREP の場合は既存の `OMARU` から最終 VREP までの親行を維持します）。いずれも物理区間 ID と Calculation Zone を保持します。
+- 子行の TC/MC には各区間の採用コースを明示し、複数方位にまたがる親行の TC/MC 欄は空欄とします。親行の DIST・ETE・燃料は表示された子行の合計です（降下 ETE は 1 回丸めた運用配分を用い、巡航時間は別に加算します）。1 つの往復 Project 内に往路と帰路の両方の親行を共存させることができます。
+- 初期 MAP には同梱 OMARU 座標にクリック可能な「小丸」マーカーを表示し、通常の MAP 経路点として追加します（繰り返し追加も可能）。
+- **2026-10-31 ユーザー決定（往路 OMARU 先頭経路）**：往路で先頭が OMARU となる経路も参照 UMK を実体化し、物理 UMK ポリシーを適用します。子行の DIST/TC/MC は各物理区間値を用い、上昇 ETE と燃料は POH 5,500 ft 到達値を使用します（`DIST / GS` で上昇 ETE を決めません）。明示 UMK 入力は保持され、保存済み CP リンクは最も近い有効な正横投影先へ追従します。出発側の計算条件は帰路正規化後に確定し、往復両方の親 Leg を保持します。
 
-Route intervals are sampled along the WGS84 geodesic and then checked as straight latitude/longitude chords against straight latitude/longitude polygon edges. For each interval, the clearance reported by the local equirectangular diagnostic is reduced by the source-declared boundary model error (0.02 NM for the normalized KS4-3 arc) plus `d²/(8 × 3400 NM) + 0.01 NM`, where `d` is the interval length. The first term is a scale estimate for the three-dimensional chord sagitta; it is not a strict upper bound for the projected latitude/longitude chord. The fixed 0.01 NM term is the declared blocking numerical rejection buffer for this sampling approximation and local arithmetic. A guarded clearance at or below zero is treated as an intersection, including a near-tangent. The 0.01 NM margin does not assert source-chart positional accuracy, which remains a prerequisite for a verified primary boundary.
+## ARITA 直行帰路ポリシー（2026-10-31 確定）
 
-The clearance value is a local planar approximation for diagnostics. Intersection checks preserve the required straight latitude/longitude edge model, but a future source with materially larger geographic extent or a different edge interpretation must be rejected or receive a separately reviewed geometry model.
+- `OMARU→RJFM` および `OMARU→ARITA→RJFM` の帰路末尾は、欠落している物理 `UMK` と `ARITA` を補完します。自動生成される `ARITA` は到着ポリシーの参照座標を用い、明示的な座標一致 `ARITA` はその入力名・座標・手動入力を保持します。ただし、以前の手動高度入力が保存されていても、採用される `ARITA` 高度は **1,500 ft** に固定されます。
+- `UMK` は **4,500 ft** とし、`UMK→ARITA` の降下時間は `(4500 − 1500) / 選択降下率`（500 fpm 時は **360 秒**、1,000 fpm 時は **180 秒**）、降下燃料（12 gph）は **1.2 gal**（500 fpm 時）または **0.6 gal**（1,000 fpm 時）とします。このプロファイルには 60 秒の水平維持余裕を加算せず、距離 / GS からも ETE を算出しません。その他の最終 VREP プロファイルは従来動作を維持します。
+- 直行 `UMK→ARITA` 区間の Phase と降下開始高度は `DESCENT`・`4,500 ft` に固定され、Route 表には巡航高度入力や VFR 候補を出さず `4,500–1,500 ft` と表示します（元の区間入力はポリシー非適用時に復元できるよう保持します）。
+- 補完後、`OMARU` より前に位置割当で残った `DESCENT` 区間は、第 1 区間なら `CLIMB`、それ以外は `CRUISE` へ正規化し、上流の Phase 順番制約に違反しないようにします（既存の `CLIMB`/`CRUISE` 選択や手動入力は保持されます）。
+- **V3 の鮮度無効化**：Inbound Policy 識別子 `V3` は、全経路点が既に存在していた場合でも、保存済みの V1 / V2 計算結果の鮮度を無効化します（再計算までは古い結果「stale」として閲覧のみ可能）。V3 は入力と Phase 契約の変更であり、V2 の降下時間・燃料規則や往路 POH ポリシーを変更するものではありません。
 
-## Parent and child presentation
-
-ARITA returns display OMARU→RJFM as one parent Leg containing OMARU→UMK,
-UMK→ARITA and ARITA→RJFM. Other existing inbound profiles retain their
-OMARU-to-final-VREP parent. Both preserve physical source section IDs and zones. Child TC/MC cells show
-their adopted segment courses explicitly, as do the existing RJFM-to-OMARU
-parent's children. No new manual course override is introduced. The inbound
-parent leaves TC/MC blank because it spans multiple bearings. Its DIST, ETE and
-fuel are sums of displayed children; descent ETE still uses the once-rounded
-operational profile allocation, with cruise time added separately. Both parents
-can coexist in one roundtrip Project. VREP altitude and physical intermediate
-endpoint altitude presentation remain intact.
-
-The draft map includes a clickable 小丸 marker at the bundled OMARU coordinate.
-It creates an ordinary MAP route point, not a fabricated AIP VREP snapshot.
-Repeated clicks remain distinct occurrences, matching existing VREP behavior.
-The user-provided label 小丸 is reused.
-
-Following the user's explicit 2026-10-31 instruction, outbound OMARU-first
-routes now materialize a reference UMK and use the existing physical-UMK policy.
-Child DIST/TC/MC follow each physical segment, while climb ETE and fuel retain
-the POH 5,500-ft values (DIST/GS does not determine climb ETE). Explicit UMK
-inputs are retained. Generated UMK provenance keeps the reference uncertainty.
-Saved CP links follow the nearest valid abeam projection on the new spans and
-return to the original section when the generated point is removed. Departure
-fingerprints are sealed after inbound normalization so a roundtrip can retain
-both generated UMK occurrences and both parent Legs. Independent RWY/OVER FIELD
-maneuver diagnostics remain separate from physical route totals. The agreed
-ARITA direct-return profile is described below.
-
-## Agreed ARITA return policy (2026-10-31)
-
-Following user messages 1793423353.155839 and 1793423570.097529, OMARU→RJFM
-and OMARU→ARITA→RJFM tails complete missing physical UMK and ARITA. Generated
-ARITA uses the existing arrival-policy ARITA reference coordinate; an explicit
-coordinate-matched ARITA retains its input name/location and manual fields.
-The effective adopted ARITA altitude is 1,500 ft even when a prior manual altitude
-entry remains saved. The entire OMARU→UMK→ARITA→RJFM span is one display parent;
-all three physical children retain adopted DIST/TC/MC and weather/heading values,
-with ARITA target altitude and separate destination information retained.
-
-UMK remains 4,500 ft. Descent time to ARITA is (4500−1500)/selected_fpm: exactly
-360 seconds at 500 fpm or 180 seconds at 1000 fpm. The established 12 gph descent
-fuel convention gives 1.2 or 0.6 gal. This ARITA profile adds no 60-second level-off
-allowance. Reference distance/GS is not its operational ETE. Other final VREP
-profiles retain their prior behavior. Kunitomi/west-extension geometry belongs
-only to the diagnostic solver; it adds no physical LOG distance or fuel/time.
-
-For the direct UMK→ARITA section, phase and descent-start altitude are fixed to
-DESCENT and 4,500 ft. The Route table displays 4,500–1,500 ft without a cruise
-altitude input or VFR candidates. The original section inputs remain recorded
-for restoration when the policy no longer applies. General DESCENT sections
-retain their existing altitude input and candidates.
-
-After completion, a DESCENT left before OMARU by positional tail assignment is
-normalized to CLIMB for the first section or CRUISE otherwise. Existing upstream
-CLIMB/CRUISE choices and other manual inputs are retained; a descent before the
-fixed cruise tail would violate the existing phase-order contract.
-
-Inbound policy identity V3 invalidates saved V1/V2 calculation freshness even
-when all route nodes already existed. Those plans remain readable; Last
-Calculation remains available as stale until recalculation. V3 changes the input
-and phase contract, not the V2 descent time/fuel or outbound POH policy.
+> **参考（検証詳細）**：本機能の数値・テスト構成および関連観測は [testing.md](testing.md) および [issue-235-inbound-umk-local.md](evidence/issue-235-inbound-umk-local.md) を参照してください。

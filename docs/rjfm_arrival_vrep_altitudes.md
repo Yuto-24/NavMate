@@ -1,23 +1,25 @@
-# RJFM ARITA / SHIRAHAMA final-VREP altitude policy
+# RJFM 到着時の特定 VREP 計画高度
 
-When the destination is RJFM and the final route point before the destination is a VREP,
-ARITA or SHIRAHAMA automatically plans 1,500 ft MSL. This is an automatic policy;
-a pilot-selected manual VREP altitude and its reason remain authoritative until the user
-returns the arrival plan to the automatic mode. It is a user-approved Issue #103 planning
-rule recorded from this conversation on 2026-09-06, not a published RJFM procedure.
+目的空港が RJFM（宮崎）であり、到着直前の最終経路点が VREP のうち `ARITA` または `SHIRAHAMA` である場合、自動計画高度を **1,500 ft MSL** とする仕様です。
 
-The policy accepts either of these independent identifiers:
+## 位置づけと手動入力の優先
 
-- A KML-compatible VREP name: `ARITA` or `有田`, and `SHIRAHAMA` or `白浜`. The
-  matcher normalizes Unicode/case and permits surrounding `V-REP`, altitude, and source
-  annotations. It retains token boundaries, so `NARITA` is not ARITA.
-- A WGS-84 coordinate within 0.5 NM inclusive of the reference coordinate.
+- 本規則は 2026-09-06 のユーザー承認（Issue #103）に基づく NavMate 固有の自動計画ポリシーであり、公式に公開された RJFM の進入・場周手順を保証するものではありません。
+- パイロットが手動で設定した VREP 高度とその理由が優先されます。利用者が到着計画を自動モードへ戻すまで、自動高度で上書きしません（ただし [RJFM 帰路・西側延長案内](rjfm_inbound_guidance.md) の ARITA 帰路固定プロファイル適用時など、個別契約がある場合はそちらに従います）。
 
-| VREP | Reference coordinate | Reference method |
+## 識別条件と参照座標
+
+次のいずれかの独立した条件を満たす場合に、対象 VREP と判定します。
+
+1. **名称による一致**：KML 互換の VREP 名として `ARITA` / `有田`、または `SHIRAHAMA` / `白浜` を含むこと。Unicode および大文字・小文字を正規化し、前後の `V-REP`・高度・出典注記を許容しますが、語境界を保持するため `NARITA` 等は `ARITA` として扱いません。
+2. **座標による一致**：以下の参照座標から **WGS-84 測地線距離で 0.5 NM 以内**（0.5 NM を含む）であること。
+
+| VREP | 参照座標 | 参照元・導出方法 |
 | --- | --- | --- |
-| ARITA | 31.94977931375621, 131.3535165268158 | Existing imported KML V-REP coordinate. |
-| SHIRAHAMA | WGS-84 direct solution from RJFM ARP, true bearing 160 degrees, 5.8 NM | Reference note: hotel at the tip of Tozaki Cape (戸崎鼻先端のホテル). RJFM ARP is 31.8772222222, 131.4486111111 from `data/reference/default/airports.csv`. |
+| `ARITA` | `31.94977931375621, 131.3535165268158` | 既存の取込済み KML V-REP 座標 |
+| `SHIRAHAMA` | RJFM ARP から真方位 `160°`・距離 `5.8 NM` の WGS-84 順解 | 参照注記：戸崎鼻先端のホテル。RJFM ARP は `31.8772222222, 131.4486111111` |
 
-All other destinations and VREPs continue to use the normal distance rule. The calculation
-outcome records `automatic_altitude_rule`, `automatic_altitude_reason`, and an NavMate
-rule version so the selected policy is auditable without publishing an internal-source section mapping.
+## 他の VREP と監査記録
+
+- 対象外の空港・VREP には通常の距離ベース自動高度規則を適用します。
+- 計算結果には、選択された自動高度規則、理由、および規則バージョンを記録し、内部運用資料の章節対応を公開せずに採用根拠を追跡できるようにします。
