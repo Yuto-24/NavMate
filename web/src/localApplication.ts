@@ -6,9 +6,11 @@ import type { AutoNavLogApplication, CalculationOptions, ImportRouteInput, Confi
 import { sameProjectContent, sameProjectDraft } from "./projectLoad";
 import type { CheckPointInput, WebState, WorkingRecovery } from "./types";
 import { LocalClient } from "./localClient";
+import { StartupProgressStore } from "./startupProgress";
 import type { LocalProjectRepository, LocalProjectRecord, LocalProjectRepositoryFactory } from "./localProjectRepository";
 
 export class LocalApplication implements AutoNavLogApplication {
+  readonly startup = new StartupProgressStore();
   readonly checkpointLoads = true;
   sync?: import("./accountSync").AccountSyncControl;
   private active = true;
@@ -42,7 +44,9 @@ export class LocalApplication implements AutoNavLogApplication {
   private async request<T>(operation: string, input?: unknown): Promise<T> {
     this.assertActive();
     try {
-      const result = await (this.client ??= this.createClient()).request<T>(operation, input);
+      const result = await (this.client ??= this.createClient()).request<T>(operation, input, progress => {
+        if (this.active) this.startup.update(progress);
+      });
       this.assertActive();
       return result;
     }
@@ -208,7 +212,10 @@ export class LocalApplication implements AutoNavLogApplication {
       if (recovery) await this.repository.restoreWorking?.(recovery);
       if (recovery?.project && durableToken) this.tokens.set(recovery.project.id, durableToken);
       const state = await this.request<WebState>("bootstrap", recovery ? working : undefined);
-      return this.present(state); // never select or write durable work during session hydration
+      this.startup.update({ stage: "projects", percent: 90 });
+      const presented = await this.present(state); // never select or write durable work during session hydration
+      this.startup.update({ stage: "projects", percent: 98 });
+      return presented;
     });
   }
   importRoute(input: ImportRouteInput) { return this.execute("importRoute", input); }

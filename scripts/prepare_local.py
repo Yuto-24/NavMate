@@ -10,6 +10,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from autonavlog.runtime_data import runtime_data_files
+
 root = Path(__file__).resolve().parents[1]
 # This directory is generated and ignored. Start clean so removed public assets and
 # provider control files cannot leak from an earlier checkout into a release.
@@ -40,10 +42,8 @@ with TemporaryDirectory() as temporary:
     shutil.copyfile(wheel, target / wheel.name)
     application_wheel = wheel.name
 with ZipFile(target / "data.zip", "w", ZIP_DEFLATED) as archive:
-    for folder in ("performance", "reference"):
-        for path in sorted((root / "data" / folder).rglob("*")):
-            if path.is_file():
-                archive.write(path, path.relative_to(root))
+    for path in runtime_data_files(root / "data"):
+        archive.write(path, path.relative_to(root))
 
     if os.environ.get("AUTONAVLOG_TEST_FIXTURES") == "1":
         for path in sorted((root / "tests/fixtures/msm").glob("*")):

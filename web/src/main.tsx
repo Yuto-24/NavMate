@@ -13,6 +13,7 @@ import { LegacyMigrationBoundary } from "./components/LegacyAccountControl";
 import { browserPlatform } from "./browserPlatform";
 import { BrowserFileInput } from "./BrowserFileInput";
 import { startApplication } from "./createApplication";
+import { StartupScreen } from "./components/StartupScreen";
 
 const root = document.getElementById("root");
 if (!root) {
@@ -20,6 +21,7 @@ if (!root) {
 }
 
 const view = createRoot(root);
+if (localMode) flushSync(() => view.render(<StartupScreen />));
 let generation = 0;
 startApplication(browserPlatform, ({ application, platform }) => {
   // Unmount the previous account immediately, including dialogs and pending UI work.

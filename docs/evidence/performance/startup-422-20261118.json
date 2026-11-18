@@ -1,0 +1,330 @@
+{
+  "base_commit": "ba0803ed",
+  "browser": "151.0.7922.34",
+  "viewport": {
+    "width": 1280,
+    "height": 900
+  },
+  "samples": [
+    {
+      "variant": "before",
+      "projects": 0,
+      "repetition": 1,
+      "cache": "cold",
+      "fcp_ms": 92,
+      "operable_ms": 3863.2
+    },
+    {
+      "variant": "before",
+      "projects": 0,
+      "repetition": 1,
+      "cache": "warm",
+      "fcp_ms": 60,
+      "operable_ms": 3176.4
+    },
+    {
+      "variant": "after",
+      "projects": 0,
+      "repetition": 1,
+      "cache": "cold",
+      "fcp_ms": 72,
+      "operable_ms": 3492
+    },
+    {
+      "variant": "after",
+      "projects": 0,
+      "repetition": 1,
+      "cache": "warm",
+      "fcp_ms": 28,
+      "operable_ms": 2966.8
+    },
+    {
+      "variant": "after",
+      "projects": 0,
+      "repetition": 2,
+      "cache": "cold",
+      "fcp_ms": 76,
+      "operable_ms": 3497.9
+    },
+    {
+      "variant": "after",
+      "projects": 0,
+      "repetition": 2,
+      "cache": "warm",
+      "fcp_ms": 32,
+      "operable_ms": 2920.3
+    },
+    {
+      "variant": "before",
+      "projects": 0,
+      "repetition": 2,
+      "cache": "cold",
+      "fcp_ms": 92,
+      "operable_ms": 3787.9
+    },
+    {
+      "variant": "before",
+      "projects": 0,
+      "repetition": 2,
+      "cache": "warm",
+      "fcp_ms": 52,
+      "operable_ms": 3153.3
+    },
+    {
+      "variant": "before",
+      "projects": 0,
+      "repetition": 3,
+      "cache": "cold",
+      "fcp_ms": 88,
+      "operable_ms": 3845.4
+    },
+    {
+      "variant": "before",
+      "projects": 0,
+      "repetition": 3,
+      "cache": "warm",
+      "fcp_ms": 56,
+      "operable_ms": 3152.2
+    },
+    {
+      "variant": "after",
+      "projects": 0,
+      "repetition": 3,
+      "cache": "cold",
+      "fcp_ms": 84,
+      "operable_ms": 3459.5
+    },
+    {
+      "variant": "after",
+      "projects": 0,
+      "repetition": 3,
+      "cache": "warm",
+      "fcp_ms": 28,
+      "operable_ms": 2935.7
+    },
+    {
+      "variant": "after",
+      "projects": 0,
+      "repetition": 4,
+      "cache": "cold",
+      "fcp_ms": 72,
+      "operable_ms": 3505.6
+    },
+    {
+      "variant": "after",
+      "projects": 0,
+      "repetition": 4,
+      "cache": "warm",
+      "fcp_ms": 24,
+      "operable_ms": 2905.3
+    },
+    {
+      "variant": "before",
+      "projects": 0,
+      "repetition": 4,
+      "cache": "cold",
+      "fcp_ms": 96,
+      "operable_ms": 3740.9
+    },
+    {
+      "variant": "before",
+      "projects": 0,
+      "repetition": 4,
+      "cache": "warm",
+      "fcp_ms": 52,
+      "operable_ms": 3140.5
+    },
+    {
+      "variant": "before",
+      "projects": 0,
+      "repetition": 5,
+      "cache": "cold",
+      "fcp_ms": 96,
+      "operable_ms": 3733.7
+    },
+    {
+      "variant": "before",
+      "projects": 0,
+      "repetition": 5,
+      "cache": "warm",
+      "fcp_ms": 52,
+      "operable_ms": 3140.9
+    },
+    {
+      "variant": "after",
+      "projects": 0,
+      "repetition": 5,
+      "cache": "cold",
+      "fcp_ms": 68,
+      "operable_ms": 3482.3
+    },
+    {
+      "variant": "after",
+      "projects": 0,
+      "repetition": 5,
+      "cache": "warm",
+      "fcp_ms": 24,
+      "operable_ms": 2906.8
+    },
+    {
+      "variant": "before",
+      "projects": 20,
+      "repetition": 1,
+      "cache": "cold",
+      "fcp_ms": 96,
+      "operable_ms": 3877.6
+    },
+    {
+      "variant": "before",
+      "projects": 20,
+      "repetition": 1,
+      "cache": "warm",
+      "fcp_ms": 48,
+      "operable_ms": 3170.4
+    },
+    {
+      "variant": "after",
+      "projects": 20,
+      "repetition": 1,
+      "cache": "cold",
+      "fcp_ms": 80,
+      "operable_ms": 3554.6
+    },
+    {
+      "variant": "after",
+      "projects": 20,
+      "repetition": 1,
+      "cache": "warm",
+      "fcp_ms": 32,
+      "operable_ms": 2943.8
+    },
+    {
+      "variant": "after",
+      "projects": 20,
+      "repetition": 2,
+      "cache": "cold",
+      "fcp_ms": 84,
+      "operable_ms": 3528.8
+    },
+    {
+      "variant": "after",
+      "projects": 20,
+      "repetition": 2,
+      "cache": "warm",
+      "fcp_ms": 36,
+      "operable_ms": 2958.6
+    },
+    {
+      "variant": "before",
+      "projects": 20,
+      "repetition": 2,
+      "cache": "cold",
+      "fcp_ms": 92,
+      "operable_ms": 3814.3
+    },
+    {
+      "variant": "before",
+      "projects": 20,
+      "repetition": 2,
+      "cache": "warm",
+      "fcp_ms": 48,
+      "operable_ms": 3167.6
+    },
+    {
+      "variant": "before",
+      "projects": 20,
+      "repetition": 3,
+      "cache": "cold",
+      "fcp_ms": 88,
+      "operable_ms": 3816.8
+    },
+    {
+      "variant": "before",
+      "projects": 20,
+      "repetition": 3,
+      "cache": "warm",
+      "fcp_ms": 48,
+      "operable_ms": 3150.5
+    },
+    {
+      "variant": "after",
+      "projects": 20,
+      "repetition": 3,
+      "cache": "cold",
+      "fcp_ms": 76,
+      "operable_ms": 3521.3
+    },
+    {
+      "variant": "after",
+      "projects": 20,
+      "repetition": 3,
+      "cache": "warm",
+      "fcp_ms": 28,
+      "operable_ms": 2936.7
+    },
+    {
+      "variant": "after",
+      "projects": 20,
+      "repetition": 4,
+      "cache": "cold",
+      "fcp_ms": 72,
+      "operable_ms": 3493.8
+    },
+    {
+      "variant": "after",
+      "projects": 20,
+      "repetition": 4,
+      "cache": "warm",
+      "fcp_ms": 32,
+      "operable_ms": 2970.9
+    },
+    {
+      "variant": "before",
+      "projects": 20,
+      "repetition": 4,
+      "cache": "cold",
+      "fcp_ms": 92,
+      "operable_ms": 3965.6
+    },
+    {
+      "variant": "before",
+      "projects": 20,
+      "repetition": 4,
+      "cache": "warm",
+      "fcp_ms": 60,
+      "operable_ms": 3171.6
+    },
+    {
+      "variant": "before",
+      "projects": 20,
+      "repetition": 5,
+      "cache": "cold",
+      "fcp_ms": 88,
+      "operable_ms": 3830.7
+    },
+    {
+      "variant": "before",
+      "projects": 20,
+      "repetition": 5,
+      "cache": "warm",
+      "fcp_ms": 52,
+      "operable_ms": 3203.6
+    },
+    {
+      "variant": "after",
+      "projects": 20,
+      "repetition": 5,
+      "cache": "cold",
+      "fcp_ms": 80,
+      "operable_ms": 3535.6
+    },
+    {
+      "variant": "after",
+      "projects": 20,
+      "repetition": 5,
+      "cache": "warm",
+      "fcp_ms": 32,
+      "operable_ms": 2985.4
+    }
+  ]
+}

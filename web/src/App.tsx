@@ -1,4 +1,6 @@
 import { TransientMessage } from "./components/TransientMessage";
+import { StartupScreen } from "./components/StartupScreen";
+import { flushSync } from "react-dom";
 import { useNotificationState } from "./useNotificationState";
 import { localMode, localAccountScope } from "./executionMode";
 import type { ReferencePointSnapshot } from "./referencePoints";
@@ -447,6 +449,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         next = await application.bootstrap();
       }
       if (!active) return;
+      // Commit the final progress value before replacing the startup screen.
+      // This adds no artificial timer or delay to application readiness.
+      if (application.startup) flushSync(() => application.startup!.complete());
       applyState(next);
       if (restored) {
         // Canonical project remains the validated Application snapshot; raw UI values stay separate.
@@ -1705,9 +1710,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
 
   if (!state) {
     return (
-      <main className="loading-screen">
-        <img className="loading-mark" src="/navmate-192.png" width={52} height={52} alt="" />
-        <strong>NavMateを起動しています</strong>
+      <StartupScreen source={application.startup} showProgress={localMode && !error}>
         {error && (
           <>
             <p role="alert">{error}<br /><code>{bootstrapErrorCode}</code></p>
@@ -1728,7 +1731,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             </button>
           </>
         )}
-      </main>
+      </StartupScreen>
     );
   }
 

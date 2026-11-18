@@ -1550,6 +1550,8 @@ tbody tr:last-child td { border-bottom: 0; }
 
 .loading-mark { width: 52px; height: 52px; display: block; object-fit: contain; }
 .loading-screen p { color: var(--red-700); }
+.startup-progress { width: min(320px, 80vw); height: 12px; accent-color: var(--brand-accent); }
+.startup-stage { font-size: 14px; }
 
 @media (max-width: 1240px) {
   .app-workspace {
