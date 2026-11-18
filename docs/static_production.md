@@ -13,6 +13,16 @@ NodeとPythonの既存開発依存を用意する（CIと同じPython 3.12 / Nod
 `build:static`は既存prepare / Vite buildを呼び、`web/dist-static/`を生成する。
 配信時にNode / Python / Dockerは不要。標準static hostでそのまま配信できる。
 
+Localの同梱データと計算専用予備サーバーのデータ照合は、共通の
+`autonavlog.runtime_data.runtime_data_files` を使う。`performance` と `reference` のうち、
+未加工のAIP原本を保管する `reference/aip` だけを対象から除外する。
+原本はリポジトリに保持し、RJFM帰路計算の検証に必要なPDFなど他の参照資料は同梱する。
+AIPの実行用データを追加する際は、[#149の取込準備](reference/aip_map_geodata_20261029.md)と
+この配布・照合の対象を併せて確認する。ZIPだけを減らすと予備サーバーとの照合が不一致になる。
+予備APIを有効にする環境では、Local静的成果物と予備サーバーを同一リビジョン・同一データで
+配布し、照合の一致を確認する。新旧の混在では計算エンジンやデータの識別値が異なり、
+予備計算は `FORECAST_BACKUP_INCOMPATIBLE`（409）で拒否される。
+
 公開Web設定をignored `web/.env.local`に記載する:
 
 ```dotenv

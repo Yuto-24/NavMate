@@ -7,10 +7,15 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from runpy import run_path
 from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZipFile
 
 root = Path(__file__).resolve().parents[1]
+# Use the checkout's stdlib-only helper without importing the installed package
+# (whose __init__ requires dependencies and distribution metadata before build).
+runtime_data_files = run_path(str(root / "src/autonavlog/runtime_data.py"))["runtime_data_files"]
+
 # This directory is generated and ignored. Start clean so removed public assets and
 # provider control files cannot leak from an earlier checkout into a release.
 public_target = root / "web/public-local"
@@ -40,10 +45,8 @@ with TemporaryDirectory() as temporary:
     shutil.copyfile(wheel, target / wheel.name)
     application_wheel = wheel.name
 with ZipFile(target / "data.zip", "w", ZIP_DEFLATED) as archive:
-    for folder in ("performance", "reference"):
-        for path in sorted((root / "data" / folder).rglob("*")):
-            if path.is_file():
-                archive.write(path, path.relative_to(root))
+    for path in runtime_data_files(root / "data"):
+        archive.write(path, path.relative_to(root))
 
     if os.environ.get("AUTONAVLOG_TEST_FIXTURES") == "1":
         for path in sorted((root / "tests/fixtures/msm").glob("*")):

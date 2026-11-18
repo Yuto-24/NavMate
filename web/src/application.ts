@@ -54,6 +54,7 @@ export interface LoadProjectOptions {
 
 // Operation boundaries intentionally preserve draft commits and atomic update/recalculate.
 export interface AutoNavLogApplication {
+  readonly startup?: import("./startupProgress").StartupProgressSource;
   readonly checkpointLoads?: boolean;
   readonly auth?: AuthProvider;
   readonly sync?: import("./accountSync").AccountSyncControl;

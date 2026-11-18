@@ -1,0 +1,172 @@
+{
+  "items": [
+    {
+      "id": "startup-authentication",
+      "text": "利用環境を確認しています",
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "context": "認証設定がある場合はログイン状態の有無とアカウントの有効性を確認し、未ログインでも利用できる。認証設定のない端末内利用でも初期化中に短く表示する。ログイン操作を要求する表示ではない。 正常な起動中だけ工程を表示し、失敗したらバーと工程表示を隠して既存エラーと再試行操作を示す。既存UIは「プロジェクト」という日本語表記を使っている。 前回提案の「利用環境を確認しています」を採用候補とする。認証の有無に依存しない表現で、認証設定と利用状態の初期化のどちらにも使う。 統合後はLegacy引継ぎも同じ画面の1本のバーで扱い、引継ぎ後にLocal起動へ進む。新規作業では計算環境を再利用し、新しい進捗表示で保存済みプロジェクトを確認する。100%は描画機会を設けてから通常画面へ移る。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "source": {
+        "path": "web/src/components/StartupScreen.tsx",
+        "start": "import { useSyncExternalStore, type ReactNode } from \"react\";",
+        "end": "  </main>;\n}",
+        "expected": "import { useSyncExternalStore, type ReactNode } from \"react\";\nimport { authenticationProgress, type StartupProgressSource, type StartupStage } from \"../startupProgress\";\n\nconst messages: Record<StartupStage, string> = {\n  authentication: \"利用環境を確認しています\",\n  migration: \"プロジェクトを引き継いでいます\",\n  runtime: \"計算環境と基本部品を準備しています\",\n  dependencies: \"計算に必要な追加部品を読み込んでいます\",\n  assets: \"計算用プログラムとデータを読み込んでいます\",\n  application: \"計算機能を準備しています\",\n  projects: \"保存済みプロジェクトを確認しています\",\n};\nconst initialSnapshot = () => authenticationProgress;\nconst noSubscription = () => () => {};\n\nexport function StartupScreen({ source, children, showProgress = true, onSignOut, message }: {\n  source?: StartupProgressSource; children?: ReactNode; showProgress?: boolean; onSignOut?: () => void; message?: string;\n}) {\n  const progress = useSyncExternalStore(source?.subscribe ?? noSubscription, source?.getSnapshot ?? initialSnapshot);\n  return <main className=\"loading-screen\">\n    <img className=\"loading-mark\" src=\"/navmate-192.png\" width={52} height={52} alt=\"\" />\n    <strong>NavMateの準備</strong>\n    {showProgress && <>\n      <progress className=\"startup-progress\" value={progress.percent} max={100} aria-label=\"準備の進み具合\" aria-describedby=\"startup-stage\" />\n      <span id=\"startup-stage\" className=\"startup-stage\" role=\"status\">{message ?? messages[progress.stage]}</span>\n    </>}\n    {children}\n    {onSignOut && <button type=\"button\" className=\"secondary-button\" onClick={onSignOut}>ログアウト</button>}\n  </main>;\n}"
+      }
+    },
+    {
+      "id": "startup-runtime",
+      "text": "計算環境と基本部品を準備しています",
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "context": "Pyodide/WASMと必要パッケージの初期化中。パッケージ取得はWASM初期化と並列。 正常起動まで主要操作を無効のままにする。失敗時は既存のエラーと再試行操作を維持。 正常な起動中だけ工程を表示し、失敗したらバーと工程表示を隠して既存エラーと再試行操作を示す。既存UIは「プロジェクト」という日本語表記を使っている。 統合後はLegacy引継ぎも同じ画面の1本のバーで扱い、引継ぎ後にLocal起動へ進む。新規作業では計算環境を再利用し、新しい進捗表示で保存済みプロジェクトを確認する。100%は描画機会を設けてから通常画面へ移る。 この工程は計算環境の初期化と依存パッケージの取得を並列に行う。環境だけでなく必要な取得待ちも含むことを伝えたい。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。 前回の「データ」と後続の計算用データの重複という指摘に従い、提案された「基本部品」を採用候補にする。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "source": {
+        "path": "web/src/components/StartupScreen.tsx",
+        "start": "import { useSyncExternalStore, type ReactNode } from \"react\";",
+        "end": "  </main>;\n}",
+        "expected": "import { useSyncExternalStore, type ReactNode } from \"react\";\nimport { authenticationProgress, type StartupProgressSource, type StartupStage } from \"../startupProgress\";\n\nconst messages: Record<StartupStage, string> = {\n  authentication: \"利用環境を確認しています\",\n  migration: \"プロジェクトを引き継いでいます\",\n  runtime: \"計算環境と基本部品を準備しています\",\n  dependencies: \"計算に必要な追加部品を読み込んでいます\",\n  assets: \"計算用プログラムとデータを読み込んでいます\",\n  application: \"計算機能を準備しています\",\n  projects: \"保存済みプロジェクトを確認しています\",\n};\nconst initialSnapshot = () => authenticationProgress;\nconst noSubscription = () => () => {};\n\nexport function StartupScreen({ source, children, showProgress = true, onSignOut, message }: {\n  source?: StartupProgressSource; children?: ReactNode; showProgress?: boolean; onSignOut?: () => void; message?: string;\n}) {\n  const progress = useSyncExternalStore(source?.subscribe ?? noSubscription, source?.getSnapshot ?? initialSnapshot);\n  return <main className=\"loading-screen\">\n    <img className=\"loading-mark\" src=\"/navmate-192.png\" width={52} height={52} alt=\"\" />\n    <strong>NavMateの準備</strong>\n    {showProgress && <>\n      <progress className=\"startup-progress\" value={progress.percent} max={100} aria-label=\"準備の進み具合\" aria-describedby=\"startup-stage\" />\n      <span id=\"startup-stage\" className=\"startup-stage\" role=\"status\">{message ?? messages[progress.stage]}</span>\n    </>}\n    {children}\n    {onSignOut && <button type=\"button\" className=\"secondary-button\" onClick={onSignOut}>ログアウト</button>}\n  </main>;\n}"
+      }
+    },
+    {
+      "id": "startup-dependencies",
+      "text": "計算に必要な追加部品を読み込んでいます",
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "context": "基盤環境に含まれない追加部品を読み込む工程。内部ではPythonのdefusedxml・geographiclibを取得するが、利用者に部品名やライブラリの知識を要求しない。環境準備完了後に表示し、その次に計算用プログラムとデータの読込へ進む。 正常な起動中だけ工程を表示し、失敗したらバーと工程表示を隠して既存エラーと再試行操作を示す。既存UIは「プロジェクト」という日本語表記を使っている。 前回提案の「計算に必要な追加部品を読み込んでいます」を採用候補とする。 統合後はLegacy引継ぎも同じ画面の1本のバーで扱い、引継ぎ後にLocal起動へ進む。新規作業では計算環境を再利用し、新しい進捗表示で保存済みプロジェクトを確認する。100%は描画機会を設けてから通常画面へ移る。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "source": {
+        "path": "web/src/components/StartupScreen.tsx",
+        "start": "import { useSyncExternalStore, type ReactNode } from \"react\";",
+        "end": "  </main>;\n}",
+        "expected": "import { useSyncExternalStore, type ReactNode } from \"react\";\nimport { authenticationProgress, type StartupProgressSource, type StartupStage } from \"../startupProgress\";\n\nconst messages: Record<StartupStage, string> = {\n  authentication: \"利用環境を確認しています\",\n  migration: \"プロジェクトを引き継いでいます\",\n  runtime: \"計算環境と基本部品を準備しています\",\n  dependencies: \"計算に必要な追加部品を読み込んでいます\",\n  assets: \"計算用プログラムとデータを読み込んでいます\",\n  application: \"計算機能を準備しています\",\n  projects: \"保存済みプロジェクトを確認しています\",\n};\nconst initialSnapshot = () => authenticationProgress;\nconst noSubscription = () => () => {};\n\nexport function StartupScreen({ source, children, showProgress = true, onSignOut, message }: {\n  source?: StartupProgressSource; children?: ReactNode; showProgress?: boolean; onSignOut?: () => void; message?: string;\n}) {\n  const progress = useSyncExternalStore(source?.subscribe ?? noSubscription, source?.getSnapshot ?? initialSnapshot);\n  return <main className=\"loading-screen\">\n    <img className=\"loading-mark\" src=\"/navmate-192.png\" width={52} height={52} alt=\"\" />\n    <strong>NavMateの準備</strong>\n    {showProgress && <>\n      <progress className=\"startup-progress\" value={progress.percent} max={100} aria-label=\"準備の進み具合\" aria-describedby=\"startup-stage\" />\n      <span id=\"startup-stage\" className=\"startup-stage\" role=\"status\">{message ?? messages[progress.stage]}</span>\n    </>}\n    {children}\n    {onSignOut && <button type=\"button\" className=\"secondary-button\" onClick={onSignOut}>ログアウト</button>}\n  </main>;\n}"
+      }
+    },
+    {
+      "id": "startup-assets",
+      "text": "計算用プログラムとデータを読み込んでいます",
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "context": "NavMate自身の計算用プログラムと、空港・航空機性能など計算用のデータを取得・整合性検証・展開する。別アプリを起動する処理ではない。 正常な起動中だけ工程を表示し、失敗したらバーと工程表示を隠して既存エラーと再試行操作を示す。既存UIは「プロジェクト」という日本語表記を使っている。 統合後はLegacy引継ぎも同じ画面の1本のバーで扱い、引継ぎ後にLocal起動へ進む。新規作業では計算環境を再利用し、新しい進捗表示で保存済みプロジェクトを確認する。100%は描画機会を設けてから通常画面へ移る。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "source": {
+        "path": "web/src/components/StartupScreen.tsx",
+        "start": "import { useSyncExternalStore, type ReactNode } from \"react\";",
+        "end": "  </main>;\n}",
+        "expected": "import { useSyncExternalStore, type ReactNode } from \"react\";\nimport { authenticationProgress, type StartupProgressSource, type StartupStage } from \"../startupProgress\";\n\nconst messages: Record<StartupStage, string> = {\n  authentication: \"利用環境を確認しています\",\n  migration: \"プロジェクトを引き継いでいます\",\n  runtime: \"計算環境と基本部品を準備しています\",\n  dependencies: \"計算に必要な追加部品を読み込んでいます\",\n  assets: \"計算用プログラムとデータを読み込んでいます\",\n  application: \"計算機能を準備しています\",\n  projects: \"保存済みプロジェクトを確認しています\",\n};\nconst initialSnapshot = () => authenticationProgress;\nconst noSubscription = () => () => {};\n\nexport function StartupScreen({ source, children, showProgress = true, onSignOut, message }: {\n  source?: StartupProgressSource; children?: ReactNode; showProgress?: boolean; onSignOut?: () => void; message?: string;\n}) {\n  const progress = useSyncExternalStore(source?.subscribe ?? noSubscription, source?.getSnapshot ?? initialSnapshot);\n  return <main className=\"loading-screen\">\n    <img className=\"loading-mark\" src=\"/navmate-192.png\" width={52} height={52} alt=\"\" />\n    <strong>NavMateの準備</strong>\n    {showProgress && <>\n      <progress className=\"startup-progress\" value={progress.percent} max={100} aria-label=\"準備の進み具合\" aria-describedby=\"startup-stage\" />\n      <span id=\"startup-stage\" className=\"startup-stage\" role=\"status\">{message ?? messages[progress.stage]}</span>\n    </>}\n    {children}\n    {onSignOut && <button type=\"button\" className=\"secondary-button\" onClick={onSignOut}>ログアウト</button>}\n  </main>;\n}"
+      }
+    },
+    {
+      "id": "startup-application",
+      "text": "計算機能を準備しています",
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "context": "PythonモジュールのimportとApplication生成中。 正常起動まで主要操作を無効のままにする。失敗時は既存のエラーと再試行操作を維持。 正常な起動中だけ工程を表示し、失敗したらバーと工程表示を隠して既存エラーと再試行操作を示す。既存UIは「プロジェクト」という日本語表記を使っている。 統合後はLegacy引継ぎも同じ画面の1本のバーで扱い、引継ぎ後にLocal起動へ進む。新規作業では計算環境を再利用し、新しい進捗表示で保存済みプロジェクトを確認する。100%は描画機会を設けてから通常画面へ移る。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "source": {
+        "path": "web/src/components/StartupScreen.tsx",
+        "start": "import { useSyncExternalStore, type ReactNode } from \"react\";",
+        "end": "  </main>;\n}",
+        "expected": "import { useSyncExternalStore, type ReactNode } from \"react\";\nimport { authenticationProgress, type StartupProgressSource, type StartupStage } from \"../startupProgress\";\n\nconst messages: Record<StartupStage, string> = {\n  authentication: \"利用環境を確認しています\",\n  migration: \"プロジェクトを引き継いでいます\",\n  runtime: \"計算環境と基本部品を準備しています\",\n  dependencies: \"計算に必要な追加部品を読み込んでいます\",\n  assets: \"計算用プログラムとデータを読み込んでいます\",\n  application: \"計算機能を準備しています\",\n  projects: \"保存済みプロジェクトを確認しています\",\n};\nconst initialSnapshot = () => authenticationProgress;\nconst noSubscription = () => () => {};\n\nexport function StartupScreen({ source, children, showProgress = true, onSignOut, message }: {\n  source?: StartupProgressSource; children?: ReactNode; showProgress?: boolean; onSignOut?: () => void; message?: string;\n}) {\n  const progress = useSyncExternalStore(source?.subscribe ?? noSubscription, source?.getSnapshot ?? initialSnapshot);\n  return <main className=\"loading-screen\">\n    <img className=\"loading-mark\" src=\"/navmate-192.png\" width={52} height={52} alt=\"\" />\n    <strong>NavMateの準備</strong>\n    {showProgress && <>\n      <progress className=\"startup-progress\" value={progress.percent} max={100} aria-label=\"準備の進み具合\" aria-describedby=\"startup-stage\" />\n      <span id=\"startup-stage\" className=\"startup-stage\" role=\"status\">{message ?? messages[progress.stage]}</span>\n    </>}\n    {children}\n    {onSignOut && <button type=\"button\" className=\"secondary-button\" onClick={onSignOut}>ログアウト</button>}\n  </main>;\n}"
+      }
+    },
+    {
+      "id": "startup-projects",
+      "text": "保存済みプロジェクトを確認しています",
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "context": "端末内の保存済みProject一覧の有無を確認し、各Projectを検証する。0件時はすぐ完了する。完了時はバーを100%にして直ちに通常画面へ切り替え、最後の工程文言は置き換えない。完了文言や待機時間は追加しない。 正常な起動中だけ工程を表示し、失敗したらバーと工程表示を隠して既存エラーと再試行操作を示す。既存UIは「プロジェクト」という日本語表記を使っている。 統合後はLegacy引継ぎも同じ画面の1本のバーで扱い、引継ぎ後にLocal起動へ進む。新規作業では計算環境を再利用し、新しい進捗表示で保存済みプロジェクトを確認する。100%は描画機会を設けてから通常画面へ移る。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "source": {
+        "path": "web/src/components/StartupScreen.tsx",
+        "start": "import { useSyncExternalStore, type ReactNode } from \"react\";",
+        "end": "  </main>;\n}",
+        "expected": "import { useSyncExternalStore, type ReactNode } from \"react\";\nimport { authenticationProgress, type StartupProgressSource, type StartupStage } from \"../startupProgress\";\n\nconst messages: Record<StartupStage, string> = {\n  authentication: \"利用環境を確認しています\",\n  migration: \"プロジェクトを引き継いでいます\",\n  runtime: \"計算環境と基本部品を準備しています\",\n  dependencies: \"計算に必要な追加部品を読み込んでいます\",\n  assets: \"計算用プログラムとデータを読み込んでいます\",\n  application: \"計算機能を準備しています\",\n  projects: \"保存済みプロジェクトを確認しています\",\n};\nconst initialSnapshot = () => authenticationProgress;\nconst noSubscription = () => () => {};\n\nexport function StartupScreen({ source, children, showProgress = true, onSignOut, message }: {\n  source?: StartupProgressSource; children?: ReactNode; showProgress?: boolean; onSignOut?: () => void; message?: string;\n}) {\n  const progress = useSyncExternalStore(source?.subscribe ?? noSubscription, source?.getSnapshot ?? initialSnapshot);\n  return <main className=\"loading-screen\">\n    <img className=\"loading-mark\" src=\"/navmate-192.png\" width={52} height={52} alt=\"\" />\n    <strong>NavMateの準備</strong>\n    {showProgress && <>\n      <progress className=\"startup-progress\" value={progress.percent} max={100} aria-label=\"準備の進み具合\" aria-describedby=\"startup-stage\" />\n      <span id=\"startup-stage\" className=\"startup-stage\" role=\"status\">{message ?? messages[progress.stage]}</span>\n    </>}\n    {children}\n    {onSignOut && <button type=\"button\" className=\"secondary-button\" onClick={onSignOut}>ログアウト</button>}\n  </main>;\n}"
+      }
+    },
+    {
+      "id": "startup-title",
+      "text": "NavMateの準備",
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "context": "初期化中と起動失敗時に共通で残る中立的な見出し。失敗時も処理継続中と誤解させないよう、進行形から「NavMateの起動」に変更する。失敗時は進捗バー・工程表示を隠し、既存のエラー本文・再試行ボタン・操作の動作をそのまま維持する。Legacyにもこの見出しを使うが、Legacyには進捗表示を追加しない。 正常な起動中だけ工程を表示し、失敗したらバーと工程表示を隠して既存エラーと再試行操作を示す。既存UIは「プロジェクト」という日本語表記を使っている。 統合後はLegacy引継ぎも同じ画面の1本のバーで扱い、引継ぎ後にLocal起動へ進む。新規作業では計算環境を再利用し、新しい進捗表示で保存済みプロジェクトを確認する。100%は描画機会を設けてから通常画面へ移る。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "source": {
+        "path": "web/src/components/StartupScreen.tsx",
+        "start": "import { useSyncExternalStore, type ReactNode } from \"react\";",
+        "end": "  </main>;\n}",
+        "expected": "import { useSyncExternalStore, type ReactNode } from \"react\";\nimport { authenticationProgress, type StartupProgressSource, type StartupStage } from \"../startupProgress\";\n\nconst messages: Record<StartupStage, string> = {\n  authentication: \"利用環境を確認しています\",\n  migration: \"プロジェクトを引き継いでいます\",\n  runtime: \"計算環境と基本部品を準備しています\",\n  dependencies: \"計算に必要な追加部品を読み込んでいます\",\n  assets: \"計算用プログラムとデータを読み込んでいます\",\n  application: \"計算機能を準備しています\",\n  projects: \"保存済みプロジェクトを確認しています\",\n};\nconst initialSnapshot = () => authenticationProgress;\nconst noSubscription = () => () => {};\n\nexport function StartupScreen({ source, children, showProgress = true, onSignOut, message }: {\n  source?: StartupProgressSource; children?: ReactNode; showProgress?: boolean; onSignOut?: () => void; message?: string;\n}) {\n  const progress = useSyncExternalStore(source?.subscribe ?? noSubscription, source?.getSnapshot ?? initialSnapshot);\n  return <main className=\"loading-screen\">\n    <img className=\"loading-mark\" src=\"/navmate-192.png\" width={52} height={52} alt=\"\" />\n    <strong>NavMateの準備</strong>\n    {showProgress && <>\n      <progress className=\"startup-progress\" value={progress.percent} max={100} aria-label=\"準備の進み具合\" aria-describedby=\"startup-stage\" />\n      <span id=\"startup-stage\" className=\"startup-stage\" role=\"status\">{message ?? messages[progress.stage]}</span>\n    </>}\n    {children}\n    {onSignOut && <button type=\"button\" className=\"secondary-button\" onClick={onSignOut}>ログアウト</button>}\n  </main>;\n}"
+      }
+    },
+    {
+      "id": "startup-progress-label",
+      "text": "準備の進み具合",
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "context": "1本のprogress要素のアクセシビリティ名。バーの下の工程テキストをaria-describedbyで関連付け、role=statusで工程変更を通知する。取得量の更新時に工程テキストは変えない。 正常な起動中だけ工程を表示し、失敗したらバーと工程表示を隠して既存エラーと再試行操作を示す。既存UIは「プロジェクト」という日本語表記を使っている。 統合後はLegacy引継ぎも同じ画面の1本のバーで扱い、引継ぎ後にLocal起動へ進む。新規作業では計算環境を再利用し、新しい進捗表示で保存済みプロジェクトを確認する。100%は描画機会を設けてから通常画面へ移る。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。 引継ぎ中だけは既存どおりバッチ完了時の件数更新をstatus通知する。Local資材の取得bytesについては工程文言を変えない。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "source": {
+        "path": "web/src/components/StartupScreen.tsx",
+        "start": "import { useSyncExternalStore, type ReactNode } from \"react\";",
+        "end": "  </main>;\n}",
+        "expected": "import { useSyncExternalStore, type ReactNode } from \"react\";\nimport { authenticationProgress, type StartupProgressSource, type StartupStage } from \"../startupProgress\";\n\nconst messages: Record<StartupStage, string> = {\n  authentication: \"利用環境を確認しています\",\n  migration: \"プロジェクトを引き継いでいます\",\n  runtime: \"計算環境と基本部品を準備しています\",\n  dependencies: \"計算に必要な追加部品を読み込んでいます\",\n  assets: \"計算用プログラムとデータを読み込んでいます\",\n  application: \"計算機能を準備しています\",\n  projects: \"保存済みプロジェクトを確認しています\",\n};\nconst initialSnapshot = () => authenticationProgress;\nconst noSubscription = () => () => {};\n\nexport function StartupScreen({ source, children, showProgress = true, onSignOut, message }: {\n  source?: StartupProgressSource; children?: ReactNode; showProgress?: boolean; onSignOut?: () => void; message?: string;\n}) {\n  const progress = useSyncExternalStore(source?.subscribe ?? noSubscription, source?.getSnapshot ?? initialSnapshot);\n  return <main className=\"loading-screen\">\n    <img className=\"loading-mark\" src=\"/navmate-192.png\" width={52} height={52} alt=\"\" />\n    <strong>NavMateの準備</strong>\n    {showProgress && <>\n      <progress className=\"startup-progress\" value={progress.percent} max={100} aria-label=\"準備の進み具合\" aria-describedby=\"startup-stage\" />\n      <span id=\"startup-stage\" className=\"startup-stage\" role=\"status\">{message ?? messages[progress.stage]}</span>\n    </>}\n    {children}\n    {onSignOut && <button type=\"button\" className=\"secondary-button\" onClick={onSignOut}>ログアウト</button>}\n  </main>;\n}"
+      }
+    },
+    {
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "id": "startup-migration",
+      "text": "プロジェクトを引き継いでいます",
+      "context": "Legacy引継ぎ段階の既定工程名。件数が取得できる場合は既存の件数表示に置き換わる。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。",
+      "source": {
+        "path": "web/src/components/StartupScreen.tsx",
+        "start": "import { useSyncExternalStore, type ReactNode } from \"react\";",
+        "end": "  </main>;\n}",
+        "expected": "import { useSyncExternalStore, type ReactNode } from \"react\";\nimport { authenticationProgress, type StartupProgressSource, type StartupStage } from \"../startupProgress\";\n\nconst messages: Record<StartupStage, string> = {\n  authentication: \"利用環境を確認しています\",\n  migration: \"プロジェクトを引き継いでいます\",\n  runtime: \"計算環境と基本部品を準備しています\",\n  dependencies: \"計算に必要な追加部品を読み込んでいます\",\n  assets: \"計算用プログラムとデータを読み込んでいます\",\n  application: \"計算機能を準備しています\",\n  projects: \"保存済みプロジェクトを確認しています\",\n};\nconst initialSnapshot = () => authenticationProgress;\nconst noSubscription = () => () => {};\n\nexport function StartupScreen({ source, children, showProgress = true, onSignOut, message }: {\n  source?: StartupProgressSource; children?: ReactNode; showProgress?: boolean; onSignOut?: () => void; message?: string;\n}) {\n  const progress = useSyncExternalStore(source?.subscribe ?? noSubscription, source?.getSnapshot ?? initialSnapshot);\n  return <main className=\"loading-screen\">\n    <img className=\"loading-mark\" src=\"/navmate-192.png\" width={52} height={52} alt=\"\" />\n    <strong>NavMateの準備</strong>\n    {showProgress && <>\n      <progress className=\"startup-progress\" value={progress.percent} max={100} aria-label=\"準備の進み具合\" aria-describedby=\"startup-stage\" />\n      <span id=\"startup-stage\" className=\"startup-stage\" role=\"status\">{message ?? messages[progress.stage]}</span>\n    </>}\n    {children}\n    {onSignOut && <button type=\"button\" className=\"secondary-button\" onClick={onSignOut}>ログアウト</button>}\n  </main>;\n}"
+      }
+    },
+    {
+      "location": "引継ぎ中の起動画面。見出し、バー、工程・件数の下にある操作ボタン。",
+      "purpose": "引継ぎの待機中でもログアウトし、未ログインの端末内作業へ移れる既存操作を維持する。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "id": "startup-sign-out",
+      "text": "ログアウト",
+      "context": "既存の引継ぎ画面から起動画面へ移す操作。引継ぎ中にだけ表示し、失敗画面では既存のログアウトと再試行を維持する。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。 ログアウトすると旧アカウントの進行中リクエストを中断し、完了済みの引継ぎ結果と旧環境のデータを保持する。未ログイン用の別Applicationへ切り替え、後で再ログインすると保存済みの進捗から再開できる。元のボタンの動作・ラベルを変更せず、同じ待機画面内で移動する。",
+      "source": {
+        "path": "web/src/components/StartupScreen.tsx",
+        "start": "import { useSyncExternalStore, type ReactNode } from \"react\";",
+        "end": "  </main>;\n}",
+        "expected": "import { useSyncExternalStore, type ReactNode } from \"react\";\nimport { authenticationProgress, type StartupProgressSource, type StartupStage } from \"../startupProgress\";\n\nconst messages: Record<StartupStage, string> = {\n  authentication: \"利用環境を確認しています\",\n  migration: \"プロジェクトを引き継いでいます\",\n  runtime: \"計算環境と基本部品を準備しています\",\n  dependencies: \"計算に必要な追加部品を読み込んでいます\",\n  assets: \"計算用プログラムとデータを読み込んでいます\",\n  application: \"計算機能を準備しています\",\n  projects: \"保存済みプロジェクトを確認しています\",\n};\nconst initialSnapshot = () => authenticationProgress;\nconst noSubscription = () => () => {};\n\nexport function StartupScreen({ source, children, showProgress = true, onSignOut, message }: {\n  source?: StartupProgressSource; children?: ReactNode; showProgress?: boolean; onSignOut?: () => void; message?: string;\n}) {\n  const progress = useSyncExternalStore(source?.subscribe ?? noSubscription, source?.getSnapshot ?? initialSnapshot);\n  return <main className=\"loading-screen\">\n    <img className=\"loading-mark\" src=\"/navmate-192.png\" width={52} height={52} alt=\"\" />\n    <strong>NavMateの準備</strong>\n    {showProgress && <>\n      <progress className=\"startup-progress\" value={progress.percent} max={100} aria-label=\"準備の進み具合\" aria-describedby=\"startup-stage\" />\n      <span id=\"startup-stage\" className=\"startup-stage\" role=\"status\">{message ?? messages[progress.stage]}</span>\n    </>}\n    {children}\n    {onSignOut && <button type=\"button\" className=\"secondary-button\" onClick={onSignOut}>ログアウト</button>}\n  </main>;\n}"
+      }
+    },
+    {
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "id": "startup-migration-status",
+      "text": "Legacyの引継ぎ状態を確認中",
+      "context": "Legacyの状態確認時に既存文言をバーの下の工程表示へ転用する。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。",
+      "source": {
+        "path": "web/src/legacyMigration.ts",
+        "start": "  progress({ percent: 0, message: \"Legacyの引継ぎ状態を確認中\" });",
+        "end": "  progress({ percent: 0, message: \"Legacyの引継ぎ状態を確認中\" });",
+        "expected": "  progress({ percent: 0, message: \"Legacyの引継ぎ状態を確認中\" });"
+      }
+    },
+    {
+      "location": "NavMate起動中の全画面中央。見出し、1本のプログレスバー、現在の工程の順。",
+      "purpose": "起動全体の進み具合と、現在何を待っているかを利用者に伝える。",
+      "constraints": "Issue #422。経過時間、残り時間、再試行操作は追加しない。進捗は実測可能な取得量と工程完了による目安であり、時間の割合ではない。技術名の理解を要求せず簡潔な日本語にする。 工程は認証、環境準備、追加部品、計算用プログラムとデータ、計算機能の初期化、Project確認の順で戻らない。 「Legacy」は現行UIで旧環境の名称として利用者に表示されている。今回、新しく加える既定工程名では「プロジェクト」を使う。既存の引継ぎ状態・件数表示は、表現と通知頻度を維持したまま配置を統合する。",
+      "id": "startup-migration-count",
+      "text": "プロジェクトを引継ぎ・検証中 ${status.completed} / ${status.total} 件",
+      "context": "既存の引継ぎ件数をバーの下の工程表示へ転用する。例: プロジェクトを引継ぎ・検証中 8 / 10 件。変数は検証済み完了件数と全件数。 前回指摘を受け、初回起動と新規作業で共用する見出しを「NavMateの準備」、バーの名前を「準備の進み具合」に変更した。新規作業ではアプリを再起動せず、計算環境を再利用して保存済みプロジェクトを再確認する。 件数はサーバーの引継ぎバッチ完了時に更新される。既存のrole=statusによる件数通知をそのまま維持する。ダウンロードbytesの細かな変化では工程テキストを変えないという制約はLocal資材の取得に関するもので、引継ぎの完了件数の通知には適用しない。",
+      "source": {
+        "path": "web/src/legacyMigration.ts",
+        "start": "  message: `プロジェクトを引継ぎ・検証中 ${status.completed} / ${status.total} 件`,",
+        "end": "  message: `プロジェクトを引継ぎ・検証中 ${status.completed} / ${status.total} 件`,",
+        "expected": "  message: `プロジェクトを引継ぎ・検証中 ${status.completed} / ${status.total} 件`,"
+      }
+    }
+  ]
+}

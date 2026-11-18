@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from autonavlog.application.project_fingerprints import forecast_selection_fingerprint
 from autonavlog.domain.project import Project
+from autonavlog.runtime_data import runtime_data_files
 from autonavlog.web.models import WorkingCalculation
 
 # Explicit capabilities supplement the exact Python/data identity. An older engine
@@ -58,12 +59,7 @@ def _tree_hash(root: Path, paths: list[Path]) -> str:
 @lru_cache(maxsize=4)
 def calculation_contract(data_root: Path) -> BackupContract:
     package = Path(__file__).parent
-    files = [
-        p
-        for folder in ("performance", "reference")
-        for p in (data_root / folder).rglob("*")
-        if p.is_file()
-    ]
+    files = list(runtime_data_files(data_root))
     return BackupContract(
         engine_sha256=_tree_hash(package, list(package.rglob("*.py"))),
         data_sha256=_tree_hash(data_root, files),

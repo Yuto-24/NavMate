@@ -3,16 +3,30 @@ import { expose } from "comlink";
 import { loadPyodide } from "pyodide";
 import { LocalWeatherTransport, WeatherError } from "./localWeather";
 import type { PreparedAsset } from "./localWeather";
+import { readStartupAsset } from "./localStartupAsset";
+import type { StartupStage } from "./startupProgress";
+
+let lastStartupPercent = -1;
+function startup(stage: StartupStage, percent: number) {
+  const rounded = Math.floor(percent);
+  if (rounded <= lastStartupPercent) return;
+  lastStartupPercent = rounded;
+  self.postMessage({ type: "startup-progress", stage, percent: rounded });
+}
 
 async function initialize() {
+  startup("runtime", 5);
   const pyodide = await loadPyodide({
     indexURL: `https://cdn.jsdelivr.net/pyodide/v${__PYODIDE_VERSION__}/full/`,
+    // Pyodide overlaps these downloads with its own WASM/bootstrap work.
+    packages: ["pydantic", "micropip", "tzdata", "numpy"],
   });
-  await pyodide.loadPackage(["pydantic", "micropip", "tzdata", "numpy"]);
+  startup("dependencies", 45);
   await pyodide.runPythonAsync(`
 import micropip
 await micropip.install(["defusedxml==0.7.1", "geographiclib==2.1"])
 `);
+  startup("assets", 55);
   const assetUrl = (name: string) => new URL(`${import.meta.env.BASE_URL}local/${name}`, self.location.origin);
   const manifestResponse = await fetch(assetUrl("manifest.json"), { cache: "no-cache" });
   if (!manifestResponse.ok) throw new Error(`Local asset: manifest (${manifestResponse.status})`);
@@ -26,11 +40,14 @@ if hashlib.sha256(bytes(manifest_bytes.to_py())).hexdigest() != manifest_hash:
 del manifest_bytes, manifest_hash
 `);
   const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as { wheels: string[]; data: string; sha256: Record<string, string> };
-  for (const filename of [...manifest.wheels, manifest.data]) {
+  const filenames = [...manifest.wheels, manifest.data];
+  for (const [index, filename] of filenames.entries()) {
     if (!/^[a-zA-Z0-9_.-]+$/.test(filename)) throw new Error("Invalid Local asset name");
     const response = await fetch(assetUrl(filename), { cache: "no-cache" });
     if (!response.ok) throw new Error(`Local asset: ${filename} (${response.status})`);
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const bytes = await readStartupAsset(response, fraction => {
+      startup("assets", 55 + 9 * (index + fraction) / filenames.length);
+    });
     // hashlib works on plain HTTP localhost as well as HTTPS (Safari acceptance uses HTTPS).
     pyodide.globals.set("asset_bytes", bytes);
     pyodide.globals.set("asset_hash", manifest.sha256[filename]);
@@ -48,12 +65,15 @@ del asset_bytes, asset_hash
     } else {
       pyodide.unpackArchive(bytes, "zip", { extractDir: "/home/pyodide" });
     }
+    startup("assets", 55 + 9 * (index + 1) / filenames.length);
   }
+  startup("application", 65);
   pyodide.runPython(`
 from pathlib import Path
 from autonavlog.local import LocalApplication
 local_application = LocalApplication(Path("/home/pyodide/data"))
 `);
+  startup("application", 89);
   return pyodide;
 }
 

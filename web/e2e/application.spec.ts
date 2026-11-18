@@ -9,10 +9,131 @@ import type { AutoNavLogApplication, UpdateProjectInput } from "../src/applicati
 import type { WebState } from "../src/types";
 import { LocalApplication } from "../src/localApplication";
 import type { LocalProjectRepository } from "../src/localProjectRepository";
+import { authenticationProgress, StartupProgressStore, type StartupProgress } from "../src/startupProgress";
+import { readStartupAsset } from "../src/localStartupAsset";
 
 const originalFetch = globalThis.fetch;
 test.afterEach(() => { globalThis.fetch = originalFetch; });
 const state = { project: null, outcome: null, savedProjects: [] } as unknown as WebState;
+
+test("#422 startup never regresses and each Application has its own progress lifetime", () => {
+  const first = new StartupProgressStore(), second = new StartupProgressStore();
+  const observed: StartupProgress[] = [];
+  const unsubscribe = first.subscribe(() => observed.push(first.getSnapshot()));
+  first.update({ stage: "assets", percent: 60 });
+  first.update({ stage: "runtime", percent: 70 });
+  first.update({ stage: "assets", percent: 55 });
+  first.update({ stage: "assets", percent: NaN });
+  first.update({ stage: "projects", percent: 101 });
+  expect(first.getSnapshot()).toEqual({ stage: "assets", percent: 60 });
+  expect(second.getSnapshot()).toEqual({ stage: "runtime", percent: 5 });
+  first.complete();
+  first.update({ stage: "projects", percent: 98 });
+  expect(first.getSnapshot()).toEqual({ stage: "assets", percent: 100 });
+  unsubscribe();
+  first.complete();
+  expect(observed.map(value => value.percent)).toEqual([60, 100]);
+});
+
+test("#422 downloads report comparable bytes and preserve the exact asset", async () => {
+  const fractions: number[] = [];
+  const body = new ReadableStream<Uint8Array>({ start(controller) {
+    controller.enqueue(new Uint8Array([0, 255]));
+    controller.enqueue(new Uint8Array([2, 3, 4, 5]));
+    controller.enqueue(new Uint8Array([6, 7]));
+    controller.close();
+  } });
+  const bytes = await readStartupAsset(new Response(body, { headers: { "content-length": "8" } }), value => fractions.push(value));
+  expect([...bytes]).toEqual([0, 255, 2, 3, 4, 5, 6, 7]);
+  expect(fractions).toEqual([0.25, 0.75, 1]);
+  for (const headers of [{}, { "content-length": "1", "content-encoding": "gzip" }]) {
+    const progress: number[] = [];
+    expect([...await readStartupAsset(new Response(new Uint8Array([1, 2]), { headers }), value => progress.push(value))]).toEqual([1, 2]);
+    expect(progress).toEqual([]);
+  }
+  const broken = new Response(new ReadableStream({ start(controller) { controller.error(new Error("transport failed")); } }),
+    { headers: { "content-length": "8" } });
+  await expect(readStartupAsset(broken, () => {})).rejects.toThrow("transport failed");
+});
+
+test("#422 migration joins Local startup without regression; new work gets a fresh lifetime", () => {
+  const migration = new StartupProgressStore(authenticationProgress);
+  migration.update({ stage: "migration", percent: 32 });
+  migration.update({ stage: "migration", percent: 0 }); // retry
+  expect(migration.getSnapshot().percent).toBe(32);
+  const local = new StartupProgressStore();
+  local.restart(true);
+  expect(local.getSnapshot().percent).toBeGreaterThan(migration.getSnapshot().percent);
+  local.update({ stage: "projects", percent: 90 });
+  expect(local.getSnapshot().percent).toBe(94);
+  local.complete();
+  expect(local.getSnapshot().percent).toBe(100);
+  local.restart();
+  expect(local.getSnapshot()).toEqual({ stage: "runtime", percent: 5 });
+  local.update({ stage: "projects", percent: 90 });
+  expect(local.getSnapshot().percent).toBe(90);
+});
+
+test("#422 startup waits for Project validation and cannot complete after an account closes", async () => {
+  let finishListing!: () => void;
+  let listingStarted!: () => void;
+  const started = new Promise<void>(resolve => { listingStarted = resolve; });
+  const listing = new Promise<void>(resolve => { finishListing = resolve; });
+  let workerProgress!: (value: StartupProgress) => void;
+  const repository = { list: async () => { listingStarted(); await listing; return { projects: [], unavailable: [] }; } } as unknown as LocalProjectRepository;
+  const app = new LocalApplication(() => repository, () => ({
+    request: async <T>(_operation: string, _body?: unknown, progress?: (value: StartupProgress) => void) => {
+      workerProgress = progress!;
+      progress?.({ stage: "application", percent: 89 });
+      return { ...state } as T;
+    }, dispose() {},
+  }));
+  const result = app.bootstrap();
+  let settled = false;
+  void result.then(() => { settled = true; }, () => { settled = true; });
+  await started;
+  expect(settled).toBe(false);
+  expect(app.startup.getSnapshot()).toEqual({ stage: "projects", percent: 90 });
+  app.dispose();
+  workerProgress({ stage: "projects", percent: 100 });
+  expect(app.startup.getSnapshot().percent).toBe(90);
+  finishListing();
+  await expect(result).rejects.toMatchObject({ code: "ACCOUNT_CONTEXT_CLOSED" });
+  expect(app.startup.getSnapshot().percent).toBe(90);
+});
+
+test("#422 StrictMode's live subscription receives the first queued bootstrap's progress", async () => {
+  let report!: (value: StartupProgress) => void, finish!: () => void;
+  let initialized = false;
+  const app = new LocalApplication(() => ({
+    list: async () => ({ projects: [], unavailable: [], tokens: {} }),
+  }) as unknown as LocalProjectRepository, () => ({
+    request: async <T>(_operation: string, _body?: unknown, progress?: (value: StartupProgress) => void) => {
+      if (!initialized) {
+        report = progress!;
+        await new Promise<void>(resolve => { finish = resolve; });
+        initialized = true;
+      }
+      return { ...state } as T;
+    }, dispose() {},
+  }));
+  const first = app.bootstrap();
+  const unsubscribeFirst = app.startup.subscribe(() => {});
+  unsubscribeFirst();
+  const values: number[] = [];
+  const unsubscribeLive = app.startup.subscribe(() => values.push(app.startup.getSnapshot().percent));
+  const second = app.bootstrap();
+  await expect.poll(() => !!finish).toBe(true);
+  try {
+    report({ stage: "dependencies", percent: 45 });
+    expect(values).toEqual([45]);
+  } finally {
+    finish();
+    await Promise.all([first, second]);
+    unsubscribeLive(); app.dispose();
+  }
+});
+
 const update: UpdateProjectInput = {
   flight_date: "2026-09-11", departure_time_jst: "09:00",
   total_usable_fuel_gal: 90, default_variation_deg_east: 8,

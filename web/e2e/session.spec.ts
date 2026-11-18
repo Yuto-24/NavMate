@@ -1,6 +1,7 @@
 import { clickMapCoordinate } from "./helpers/mapCoordinate";
 import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
+import { observeStartupProgress } from "./helpers/startupProgress";
 import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { selectAirport } from "./helpers/mapCandidates";
 import { enterImportWorkflow, expectImportedDraft, confirmImportedDraft } from "./helpers/importWorkflow";
@@ -56,6 +57,33 @@ async function calculated(page: Page) {
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
 }
+test("#422 one startup bar stays monotonic through assets and validated readiness", async ({ page, context }) => {
+  test.skip(!isLocal(), "Local startup progress");
+  await context.addInitScript(observeStartupProgress);
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await context.route("**/local/data.zip", async route => { await pending; await route.continue(); });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const bar = page.getByRole("progressbar", { name: "準備の進み具合" });
+  try {
+    await expect(page.getByRole("status")).toHaveText("計算用プログラムとデータを読み込んでいます", { timeout: 120_000 });
+    await expect(bar).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button")).toHaveCount(0);
+    const barBox = await bar.boundingBox(), stageBox = await page.getByRole("status").boundingBox();
+    expect(stageBox!.y).toBeGreaterThanOrEqual(barBox!.y + barBox!.height);
+  } finally { release(); }
+  await enterImportWorkflow(page);
+  await expect(bar).toHaveCount(0);
+  const values = await page.evaluate(() => (window as unknown as { startupProgressValues: number[] }).startupProgressValues);
+  expect(values.length).toBeGreaterThan(3);
+  expect(values[0]).toBeLessThanOrEqual(5);
+  expect(values.at(-1)).toBe(100);
+  expect(values.every((value, index) => value >= 0 && value <= 100 && (index === 0 || value >= values[index - 1]))).toBe(true);
+  const frames = await page.evaluate(() => (window as any).startupProgressFrames as { percent: number; workspace: boolean }[]);
+  expect(frames.some(frame => frame.percent === 100 && !frame.workspace)).toBe(true);
+});
+
 test("#355 startup reload replaces a failed Worker", async ({ page, context }) => {
   test.skip(!isLocal(), "Local Worker initialization failure");
   await context.addInitScript(() => {
@@ -71,6 +99,7 @@ test("#355 startup reload replaces a failed Worker", async ({ page, context }) =
   });
   await page.goto("/");
   await expect(page.getByRole("alert").locator("code")).toHaveText("APPLICATION_UNAVAILABLE");
+  await expect(page.getByRole("progressbar", { name: "準備の進み具合" })).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText("private Worker stack and token");
   const firstDocument = await page.evaluate(() => performance.timeOrigin);
   await page.getByRole("button", { name: "起動を再試行", exact: true }).click();

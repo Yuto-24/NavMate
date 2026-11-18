@@ -1,0 +1,339 @@
+{
+  "builds": [
+    "ba0803ed2e94a30d15f5d32f8f97f78f0912a67c",
+    "bd6e3504145fc8552e51fede45d6a1f201ed88b0"
+  ],
+  "browser": "158.0.8127.36",
+  "viewport": {
+    "width": 1280,
+    "height": 900
+  },
+  "method": "Alternating variants; new context per variant/repetition; cold then warm; saved Projects include Last Calculation",
+  "samples": [
+    {
+      "variant": "base",
+      "projects": 0,
+      "repetition": 1,
+      "cache": "cold",
+      "fcp_ms": 92,
+      "operable_ms": 4306.0999999940395
+    },
+    {
+      "variant": "base",
+      "projects": 0,
+      "repetition": 1,
+      "cache": "warm",
+      "fcp_ms": 56,
+      "operable_ms": 3175.7999999821186
+    },
+    {
+      "variant": "candidate",
+      "projects": 0,
+      "repetition": 1,
+      "cache": "cold",
+      "fcp_ms": 72,
+      "operable_ms": 3566.199999988079
+    },
+    {
+      "variant": "candidate",
+      "projects": 0,
+      "repetition": 1,
+      "cache": "warm",
+      "fcp_ms": 40,
+      "operable_ms": 2966.199999988079
+    },
+    {
+      "variant": "candidate",
+      "projects": 0,
+      "repetition": 2,
+      "cache": "cold",
+      "fcp_ms": 68,
+      "operable_ms": 3644.7000000178814
+    },
+    {
+      "variant": "candidate",
+      "projects": 0,
+      "repetition": 2,
+      "cache": "warm",
+      "fcp_ms": 44,
+      "operable_ms": 2962.9000000059605
+    },
+    {
+      "variant": "base",
+      "projects": 0,
+      "repetition": 2,
+      "cache": "cold",
+      "fcp_ms": 92,
+      "operable_ms": 3786.399999976158
+    },
+    {
+      "variant": "base",
+      "projects": 0,
+      "repetition": 2,
+      "cache": "warm",
+      "fcp_ms": 44,
+      "operable_ms": 3199.5
+    },
+    {
+      "variant": "base",
+      "projects": 0,
+      "repetition": 3,
+      "cache": "cold",
+      "fcp_ms": 84,
+      "operable_ms": 3832
+    },
+    {
+      "variant": "base",
+      "projects": 0,
+      "repetition": 3,
+      "cache": "warm",
+      "fcp_ms": 52,
+      "operable_ms": 3176.100000023842
+    },
+    {
+      "variant": "candidate",
+      "projects": 0,
+      "repetition": 3,
+      "cache": "cold",
+      "fcp_ms": 68,
+      "operable_ms": 3447.5
+    },
+    {
+      "variant": "candidate",
+      "projects": 0,
+      "repetition": 3,
+      "cache": "warm",
+      "fcp_ms": 28,
+      "operable_ms": 2916
+    },
+    {
+      "variant": "candidate",
+      "projects": 0,
+      "repetition": 4,
+      "cache": "cold",
+      "fcp_ms": 68,
+      "operable_ms": 3498.199999988079
+    },
+    {
+      "variant": "candidate",
+      "projects": 0,
+      "repetition": 4,
+      "cache": "warm",
+      "fcp_ms": 44,
+      "operable_ms": 2948.7000000178814
+    },
+    {
+      "variant": "base",
+      "projects": 0,
+      "repetition": 4,
+      "cache": "cold",
+      "fcp_ms": 92,
+      "operable_ms": 3798.399999976158
+    },
+    {
+      "variant": "base",
+      "projects": 0,
+      "repetition": 4,
+      "cache": "warm",
+      "fcp_ms": 44,
+      "operable_ms": 3156.199999988079
+    },
+    {
+      "variant": "base",
+      "projects": 0,
+      "repetition": 5,
+      "cache": "cold",
+      "fcp_ms": 88,
+      "operable_ms": 3783.0999999940395
+    },
+    {
+      "variant": "base",
+      "projects": 0,
+      "repetition": 5,
+      "cache": "warm",
+      "fcp_ms": 52,
+      "operable_ms": 3135
+    },
+    {
+      "variant": "candidate",
+      "projects": 0,
+      "repetition": 5,
+      "cache": "cold",
+      "fcp_ms": 72,
+      "operable_ms": 3556
+    },
+    {
+      "variant": "candidate",
+      "projects": 0,
+      "repetition": 5,
+      "cache": "warm",
+      "fcp_ms": 32,
+      "operable_ms": 2964
+    },
+    {
+      "variant": "base",
+      "projects": 10,
+      "repetition": 1,
+      "cache": "cold",
+      "fcp_ms": 64,
+      "operable_ms": 3637
+    },
+    {
+      "variant": "base",
+      "projects": 10,
+      "repetition": 1,
+      "cache": "warm",
+      "fcp_ms": 56,
+      "operable_ms": 3304.0999999940395
+    },
+    {
+      "variant": "candidate",
+      "projects": 10,
+      "repetition": 1,
+      "cache": "cold",
+      "fcp_ms": 44,
+      "operable_ms": 3358.5999999940395
+    },
+    {
+      "variant": "candidate",
+      "projects": 10,
+      "repetition": 1,
+      "cache": "warm",
+      "fcp_ms": 40,
+      "operable_ms": 3133.7999999821186
+    },
+    {
+      "variant": "candidate",
+      "projects": 10,
+      "repetition": 2,
+      "cache": "cold",
+      "fcp_ms": 44,
+      "operable_ms": 3412.5
+    },
+    {
+      "variant": "candidate",
+      "projects": 10,
+      "repetition": 2,
+      "cache": "warm",
+      "fcp_ms": 32,
+      "operable_ms": 3155
+    },
+    {
+      "variant": "base",
+      "projects": 10,
+      "repetition": 2,
+      "cache": "cold",
+      "fcp_ms": 64,
+      "operable_ms": 3643.5
+    },
+    {
+      "variant": "base",
+      "projects": 10,
+      "repetition": 2,
+      "cache": "warm",
+      "fcp_ms": 52,
+      "operable_ms": 3301.800000011921
+    },
+    {
+      "variant": "base",
+      "projects": 10,
+      "repetition": 3,
+      "cache": "cold",
+      "fcp_ms": 64,
+      "operable_ms": 3655.9000000059605
+    },
+    {
+      "variant": "base",
+      "projects": 10,
+      "repetition": 3,
+      "cache": "warm",
+      "fcp_ms": 48,
+      "operable_ms": 3331
+    },
+    {
+      "variant": "candidate",
+      "projects": 10,
+      "repetition": 3,
+      "cache": "cold",
+      "fcp_ms": 48,
+      "operable_ms": 3414.199999988079
+    },
+    {
+      "variant": "candidate",
+      "projects": 10,
+      "repetition": 3,
+      "cache": "warm",
+      "fcp_ms": 24,
+      "operable_ms": 3229.100000023842
+    },
+    {
+      "variant": "candidate",
+      "projects": 10,
+      "repetition": 4,
+      "cache": "cold",
+      "fcp_ms": 48,
+      "operable_ms": 3380.9000000059605
+    },
+    {
+      "variant": "candidate",
+      "projects": 10,
+      "repetition": 4,
+      "cache": "warm",
+      "fcp_ms": 40,
+      "operable_ms": 3076.5999999940395
+    },
+    {
+      "variant": "base",
+      "projects": 10,
+      "repetition": 4,
+      "cache": "cold",
+      "fcp_ms": 48,
+      "operable_ms": 3658.5
+    },
+    {
+      "variant": "base",
+      "projects": 10,
+      "repetition": 4,
+      "cache": "warm",
+      "fcp_ms": 44,
+      "operable_ms": 3271.7000000178814
+    },
+    {
+      "variant": "base",
+      "projects": 10,
+      "repetition": 5,
+      "cache": "cold",
+      "fcp_ms": 48,
+      "operable_ms": 3586.4000000059605
+    },
+    {
+      "variant": "base",
+      "projects": 10,
+      "repetition": 5,
+      "cache": "warm",
+      "fcp_ms": 48,
+      "operable_ms": 3235.0999999940395
+    },
+    {
+      "variant": "candidate",
+      "projects": 10,
+      "repetition": 5,
+      "cache": "cold",
+      "fcp_ms": 48,
+      "operable_ms": 3327.9000000059605
+    },
+    {
+      "variant": "candidate",
+      "projects": 10,
+      "repetition": 5,
+      "cache": "warm",
+      "fcp_ms": 40,
+      "operable_ms": 3078.2000000178814
+    }
+  ],
+  "artifact_tree_sha256": {
+    "base": "22f8989ffbef467ac864a9b0af73706ef9e9bedd69d0396e3b876e3a1e1560ef",
+    "candidate": "93aa018659f1506417a98051fc65ddff545b8050b3e9029a4156b42c52ad74e1"
+  },
+  "artifact_hash_method": "SHA-256 over sorted dist-local relative paths: UTF-8 path, NUL, file bytes, NUL for each file"
+}
