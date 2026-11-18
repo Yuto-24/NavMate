@@ -570,6 +570,22 @@ Node、Python、Java、npm / pip の導入と現在の checkout のビルドは�
 コンテナ取得と npm / pip / Firebase emulator の外部取得は残ります。コンテナ利用だけから
 高速化を断定せず、Hosted Run の Initialize containers、依存導入、テスト本体を分けて比較します。
 
+#### 再利用イメージの Python Reference と Local wheel
+
+既存イメージを使う場合も、Reference を実行する Python に現行 checkout のパッケージを
+インストールしてください。`PYTHONPATH` の差し替えだけでは不十分です。
+`src/autonavlog/version.py` は `importlib.metadata.version("autonavlog")` を参照し、
+その版番号は計算入力 fingerprint に含まれます。Reference の版番号、root `VERSION`、
+ブラウザへ配布する Local wheel の版を照合します。
+
+2026-11-18 の Issue #418 検証では、再利用イメージに残った 2.3.2 の metadata と
+Local wheel 2.5.0 の不一致により、保存した MSM Advisory が NAV LOG には表示されても
+準備状況の `.issue-advisory` に現れず、`local-weather.spec.ts` のテストが失敗しました。
+現行 wheel を Reference 側にもインストールすると、アプリ・テストの変更なしで同ケースが成功しました。
+同じ古い検証環境で変更前 UI も失敗したことだけから、既存不具合とは判断できません。
+開始時 main の [CI Run 44263317171](https://github.com/Yuto-24/NavMate/actions/runs/44263317171)
+では当該ケースを含む Local suite が成功しています。
+
 ### 地形入力（GSI DEM10B / 地形点 KML）の検証
 
 - `npm --prefix web run test:application -- terrain-unit.spec.ts`：PNG 復号、領域境界、凹 polygon、欠損・未取得・不正入力、通信およびキャッシュ契約を検証します（`dem-signed.png` は独立した合成 RGB fixture です）。

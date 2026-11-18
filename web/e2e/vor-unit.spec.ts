@@ -117,3 +117,62 @@ test("shared station resource keeps OLE CRS/provenance and excludes departure-on
   expect(formatVorRadialDistance(ole, 32.945035196803204, 130.9068944601255))
     .toBe("094 / 50.0");
 });
+
+import { resolveVorStations, retainVorStations, selectVorStation } from "../src/vorSelection";
+import type { VorColumn } from "../src/applicationSession";
+
+const candidates = ["MZE", "HKC", "KGE", "AKE"].map(id => VOR_STATIONS.find(s => s.identifier === id)!);
+const assigned = (columns: VorColumn[]) => resolveVorStations(columns, candidates, "route-a").map(s => s?.identifier ?? null);
+
+test("#418 new automatic columns reserve existing assignments regardless of column order", () => {
+  let columns: VorColumn[] = [{ id: 2, stationIdentifier: "" }, { id: 1, stationIdentifier: "" }, { id: 0, stationIdentifier: null }];
+  columns = selectVorStation(columns, 2, null, candidates, "route-a");
+  expect(assigned(columns)).toEqual(["HKC", null, "MZE"]);
+  columns = selectVorStation(columns, 1, null, candidates, "route-a");
+  expect(assigned(columns)).toEqual(["HKC", "KGE", "MZE"]);
+  expect(assigned(JSON.parse(JSON.stringify(columns)))).toEqual(["HKC", "KGE", "MZE"]);
+  columns = selectVorStation(columns, 2, "", candidates, "route-a");
+  expect(assigned(columns)).toEqual([null, "KGE", "MZE"]);
+  columns = selectVorStation(columns, 2, null, candidates, "route-a");
+  expect(assigned(columns)).toEqual(["HKC", "KGE", "MZE"]);
+  columns = retainVorStations(columns, candidates, "route-a").filter(c => c.id !== 2);
+  expect(assigned(columns)).toEqual(["KGE", "MZE"]);
+});
+
+test("#418 explicit choice moves only the conflicting automatic column", () => {
+  let columns = retainVorStations([
+    { id: 0, stationIdentifier: null }, { id: 1, stationIdentifier: null },
+    { id: 2, stationIdentifier: "AKE" },
+  ], candidates, "route-a");
+  expect(assigned(columns)).toEqual(["MZE", "HKC", "AKE"]);
+  columns = selectVorStation(columns, 2, "MZE", candidates, "route-a");
+  expect(assigned(columns)).toEqual(["KGE", "HKC", "MZE"]);
+  expect(selectVorStation(columns, 1, "MZE", candidates, "route-a")).toEqual(columns);
+  columns = selectVorStation(columns, 2, "", candidates, "route-a");
+  expect(assigned(columns)).toEqual(["KGE", "HKC", null]);
+  expect(assigned(selectVorStation(columns, 2, null, candidates, "route-a"))).toEqual(["KGE", "HKC", "MZE"]);
+});
+
+test("#418 exhausted candidates never produce duplicate assignments", () => {
+  const columns = Array.from({ length: candidates.length + 1 }, (_, id) => ({ id, stationIdentifier: null }));
+  expect(assigned(columns)).toEqual(["MZE", "HKC", "KGE", "AKE", null]);
+});
+
+test("#418 KGE is KAJIKI, HKC remains KAGOSHIMA, and names cannot change radial or distance", () => {
+  const kge = VOR_STATIONS.find(s => s.identifier === "KGE")!;
+  const hkc = VOR_STATIONS.find(s => s.identifier === "HKC")!;
+  expect(kge).toMatchObject({ name: "KAJIKI", type: "VOR/DME" });
+  expect(hkc).toMatchObject({ name: "KAGOSHIMA", type: "VORTAC" });
+  for (const point of [miyazaki, amakusa, { latitude_deg: 32.4, longitude_deg: 131.5 }]) {
+    expect(formatVorRadialDistance(kge, point.latitude_deg, point.longitude_deg))
+      .toBe(formatVorRadialDistance({ ...kge, name: "KAGOSHIMA" }, point.latitude_deg, point.longitude_deg));
+  }
+});
+
+
+test("#418 route edits re-evaluate automatic stations without retaining old route assignments", () => {
+  const columns = retainVorStations([{ id: 0, stationIdentifier: null }, { id: 1, stationIdentifier: "HKC" }], candidates, "route-a");
+  const editedCandidates = [candidates[3]!, ...candidates];
+  expect(resolveVorStations(columns, editedCandidates, "route-a").map(s => s?.identifier)).toEqual(["MZE", "HKC"]);
+  expect(resolveVorStations(columns, editedCandidates, "route-b").map(s => s?.identifier)).toEqual(["AKE", "HKC"]);
+});
