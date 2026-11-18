@@ -80,7 +80,13 @@ def test_schema4_retains_work_and_historical_calculation(monkeypatch, mode, save
             "outcome": last["outcome"], "destination_wind": last["destination_wind"],
             "import_result": None, "import_filename": None,
         }))
-        assert restored["workingRecovery"]["last_calculation"] == last
+        restored_last = copy.deepcopy(restored["workingRecovery"]["last_calculation"])
+        # CUT alone is now derived from the historical adopted zones on open.
+        assert any(row["thirty_degree_cut_seconds"] is not None
+                   for row in restored_last["outcome"]["display_rows"])
+        for row in restored_last["outcome"]["display_rows"]:
+            row["thirty_degree_cut_seconds"] = None
+        assert restored_last == last
         assert restored["project"] == {**record["draft"], "status": "MANUAL_INPUT_REQUIRED"}
         assert not restored["readiness"]["calculationIsCurrent"]
         # Only explicit conflict resolution applies the existing stale-result cleanup.

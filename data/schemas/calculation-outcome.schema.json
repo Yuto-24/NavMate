@@ -762,7 +762,7 @@
         "thirty_degree_cut_seconds": {
           "anyOf": [
             {
-              "minimum": 1,
+              "minimum": 0,
               "type": "integer"
             },
             {
@@ -770,7 +770,7 @@
             }
           ],
           "default": null,
-          "description": "Display-only fly-over CUT time; populated only on Physical Leg summaries.",
+          "description": "Display-only straight hold time between CUT turns; populated only on Physical Leg summaries.",
           "title": "Thirty Degree Cut Seconds"
         },
         "to_latitude_deg": {

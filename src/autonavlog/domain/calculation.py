@@ -202,8 +202,11 @@ class NavLogDisplayRow(CalculationModel):
     ate: NavLogDisplayCell
     fuel: NavLogDisplayCell
     thirty_degree_cut_seconds: int | None = Field(
-        default=None, ge=1,
-        description="Display-only fly-over CUT time; populated only on Physical Leg summaries.",
+        default=None, ge=0,
+        description=(
+            "Display-only straight hold time between CUT turns; "
+            "populated only on Physical Leg summaries."
+        ),
     )
 
 

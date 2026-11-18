@@ -62,9 +62,13 @@ test("real SDK: fresh device Last Calculation, offline edit, blocking conflict b
   await backend(context);
   const subject = `sync-${crypto.randomUUID()}`;
   await start(page, subject); await create(page, "Sync route");
+  const cutValues = await page.locator(".nav-leg-heading-row .nav-log-cut-cell").allTextContents();
+  expect(cutValues.some(value => /^\d+$/.test(value))).toBe(true);
   const other = await browser.newContext({ viewport: page.viewportSize()! }); await backend(other); const ipad = await other.newPage();
   try {
     await start(ipad, subject); await open(ipad, "Sync route");
+    // #465: another device restores straight-hold seconds through the real SDK.
+    await expect(ipad.locator(".nav-leg-heading-row .nav-log-cut-cell")).toHaveText(cutValues);
     await expect(ipad.getByLabel("FUEL gal", { exact: true })).toHaveValue("90");
     await other.setOffline(true);
     await ipad.getByLabel("FUEL gal", { exact: true }).fill("78");

@@ -498,7 +498,7 @@ function DisplayResultCells({
       <DisplayCell cell={row.fuel} />
       <td className="derived-readonly-cell nav-log-cut-cell">
         {row.row_type === "PHYSICAL_LEG_SUMMARY"
-          ? (Number.isInteger(row.thirty_degree_cut_seconds) && (row.thirty_degree_cut_seconds ?? 0) > 0
+          ? (Number.isInteger(row.thirty_degree_cut_seconds) && (row.thirty_degree_cut_seconds ?? -1) >= 0
             ? row.thirty_degree_cut_seconds : "—")
           : ""}
       </td>

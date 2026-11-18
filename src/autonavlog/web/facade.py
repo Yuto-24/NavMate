@@ -15,7 +15,10 @@ from zoneinfo import ZoneInfo
 from autonavlog.application.arrival import calculate_arrival_altitude, standard_vrep_altitude_ft_msl
 from autonavlog.application.calculation_service import CalculationService
 from autonavlog.application.checkpoints import project_check_points
-from autonavlog.application.navlog_display import reproject_route_node_labels
+from autonavlog.application.navlog_display import (
+    refresh_thirty_degree_cut,
+    reproject_route_node_labels,
+)
 from autonavlog.application.project_fingerprints import forecast_selection_fingerprint
 from autonavlog.application.project_service import ProjectService
 from autonavlog.application.readiness import ReadinessEvaluation
@@ -316,6 +319,10 @@ class AutoNavLogWebApplication:
                 raise WebApplicationError("SESSION_RECOVERY_INVALID", "作業状態を復元できません。")
             if recovery.last_calculation is not None:
                 self._assert_project_owner(recovery.last_calculation.project, session.owner_id)
+            if recovery.outcome is not None:
+                refresh_thirty_degree_cut(recovery.outcome)
+            if recovery.last_calculation is not None:
+                refresh_thirty_degree_cut(recovery.last_calculation.outcome)
             session.last_calculation = recovery.last_calculation
             session.project = (
                 None if recovery.project is None else recovery.project.model_copy(deep=True)
@@ -1649,6 +1656,8 @@ class AutoNavLogWebApplication:
         except (JsonStorageError, OSError, ValueError):
             LOGGER.exception("Ignoring invalid last-good calculation")
             restore_warning = "前回の計算結果を安全に復元できませんでした。再計算してください。"
+        if record is not None:
+            refresh_thirty_degree_cut(record.outcome)
         session.last_calculation = (
             None if record is None else WorkingCalculation(
                 project=record.project, outcome=record.outcome,
