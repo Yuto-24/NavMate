@@ -214,14 +214,20 @@ def test_ole_radial_split_zones_and_display_arithmetic(course, display_mc, round
         assert any(z["to_name"] == "CP:ABEAM" for z in zones)
         assert len(zones) >= 3
         for zone in zones:
-            assert value(zone, "true_course_deg") == pytest.approx(course)
-            assert value(zone, "variation_deg_east") == 7
+            assert value(zone, "true_course_deg") == pytest.approx(course - 1)
+            assert value(zone, "variation_deg_east") == 8
+            assert zone["variation_deg_east"]["automatic_metadata"]["method"] == (
+                "LEG_DEPARTURE_LATITUDE_BAND"
+            )
+            assert zone["true_course_deg"]["automatic_metadata"][
+                "vor_tracking_tc_correction_deg"
+            ] == 1
             assert value(zone, "magnetic_course_deg") == pytest.approx(course + 7)
             radial = geodesic_leg(vor.latitude_deg, vor.longitude_deg,
                                   zone["to_latitude_deg"], zone["to_longitude_deg"])
             assert radial.initial_true_course_deg + 7 == pytest.approx(course + 7, abs=1e-7)
             wind = solve_wind_triangle(
-                value(zone, "true_course_deg"), value(zone, "tas_kt"),
+                course, value(zone, "tas_kt"),
                 value(zone, "wind_direction_deg_from"), value(zone, "wind_speed_kt"),
             )
             assert value(zone, "wca_deg") == pytest.approx(wind.wca_deg)
@@ -249,6 +255,32 @@ def test_ole_radial_split_zones_and_display_arithmetic(course, display_mc, round
         app.close()
 
 
+
+def test_vor_tc_correction_preserves_manual_route_input_and_physical_wind():
+    from autonavlog.nav.wind_triangle import solve_wind_triangle
+
+    app = LocalApplication(ROOT / "data")
+    try:
+        app.dispatch("confirmRoute", ole_request())
+        origin = app.session.project.ordered_nodes()[0]
+        origin.manual_true_course_deg = 87.5
+        state = json.loads(app.dispatch("calculate"))
+        zone = state["outcome"]["sections"][0]
+        assert origin.manual_true_course_deg == 87.5
+        assert value(zone, "true_course_deg") == pytest.approx(86.5)
+        assert zone["true_course_deg"]["adopted_source"] == "MANUAL"
+        assert value(zone, "variation_deg_east") == 8
+        assert value(zone, "magnetic_course_deg") == pytest.approx(94.5)
+        wind = solve_wind_triangle(
+            87.5,
+            value(zone, "tas_kt"),
+            value(zone, "wind_direction_deg_from"),
+            value(zone, "wind_speed_kt"),
+        )
+        assert value(zone, "wca_deg") == pytest.approx(wind.wca_deg)
+    finally:
+        app.close()
+
 def test_first_leg_eoc_keeps_vor_reference():
     app = LocalApplication(ROOT / "data")
     try:
@@ -267,7 +299,11 @@ def test_first_leg_eoc_keeps_vor_reference():
         first_id = str(app.session.project.ordered_sections()[0].id)
         zones = [z for z in result["sections"] if z["section_id"] == first_id]
         assert any(z["from_name"] == "EOC" for z in zones)
-        assert all(value(z, "variation_deg_east") == 7 for z in zones)
+        assert all(value(z, "variation_deg_east") == 8 for z in zones)
+        assert all(
+            z["true_course_deg"]["automatic_metadata"]["vor_tracking_tc_correction_deg"] == 1
+            for z in zones
+        )
     finally:
         app.close()
 
@@ -291,6 +327,7 @@ def test_unavailable_declination_never_falls_back_to_latitude(problem, monkeypat
         state = json.loads(app.dispatch("calculate"))
         assert any(i["code"] == "VARIATION_UNAVAILABLE" for i in state["outcome"]["issues"])
         first = state["outcome"]["sections"][0]
+        assert value(first, "variation_deg_east") == 8
         assert value(first, "magnetic_course_deg") is None
         assert value(first, "magnetic_heading_deg") is None
         assert any(i["severity"] == "BLOCKER" for i in state["outcome"]["issues"])
