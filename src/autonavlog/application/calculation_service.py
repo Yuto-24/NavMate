@@ -84,6 +84,7 @@ from .phase_segments import (
     PhaseSegmentationError,
     PhysicalRouteLeg,
     RouteBoundary,
+    _snap_eoc_to_physical_turn,
     split_route_into_phase_segments,
 )
 from .rjfm_departure_plan import rjfm_plan_matches_project
@@ -92,7 +93,7 @@ from .rjfm_inbound_plan import is_arita_node, rjfm_inbound_plan_matches_project
 
 @dataclass(frozen=True)
 class CalculationPolicies:
-    version: str = "nav2-v14-selectable-descent-rate"
+    version: str = "nav2-v15-eoc-altitude-continuity"
     # Kept for serialized policy compatibility. NAV2-v5 uses MSL directly.
     pa_500_policy: Pa500Policy = Pa500Policy.CEILING
     max_iterations: int = 5
@@ -1700,16 +1701,12 @@ class CalculationService:
         the source to the preceding physical leg.
         """
         offsets = self._route_leg_offsets(geometries)
-        interior_turns = tuple(
-            end
-            for _, end in offsets[:-1]
-            if abs(end - descent_end_distance_nm) > 1e-9
+        normalized_eoc_distance = _snap_eoc_to_physical_turn(
+            eoc_distance_nm,
+            (0.0, *(end for _, end in offsets)),
+            excluded_boundaries=(descent_end_distance_nm,),
         )
-        normalized_eoc_distance = eoc_distance_nm
-        if interior_turns:
-            nearest_turn = min(interior_turns, key=lambda turn: abs(turn - eoc_distance_nm))
-            if abs(nearest_turn - eoc_distance_nm) < 0.5:
-                normalized_eoc_distance = nearest_turn
+        assert normalized_eoc_distance is not None
 
         cruise_start_distance = 0.0 if rca_distance_nm is None else rca_distance_nm
         if normalized_eoc_distance <= cruise_start_distance + 1e-9:
@@ -1767,6 +1764,70 @@ class CalculationService:
             ),
             source_index,
         )
+
+    @staticmethod
+    def _cruise_altitude_at_eoc(
+        environments: list[_LegEnvironment],
+        cruise_policy: CruisePerformanceSelectionPolicy,
+        *,
+        eoc_distance_nm: float,
+        rca_distance_nm: float | None,
+        nose_fairing_enabled: bool,
+        air_conditioning_enabled: bool,
+    ) -> float | None:
+        """Follow the pre-EOC altitude changes using the actual CRUISE clock.
+
+        Like the shared vertical profile, a route without initial climb starts
+        at its first planned altitude. RCA establishes the initial climb's
+        target, then each physical Leg changes altitude at 900/500 fpm. A short
+        Leg carries its unfinished transition into the next Leg's starting
+        altitude; looking only at the immediately preceding planned altitude
+        would miss that case. Check Point splits do not restart the transition.
+        """
+        altitude = float(environments[0].geometry.section.planned_altitude_ft_msl)
+        cruise_start = rca_distance_nm or 0.0
+        if eoc_distance_nm < cruise_start - 1e-9:
+            return None
+        offset = 0.0
+        for environment in environments:
+            geometry = environment.geometry
+            start = max(offset, cruise_start)
+            offset += geometry.distance_nm
+            end = min(offset, eoc_distance_nm)
+            if end <= start:
+                continue
+            phase = environment.for_phase(FlightPhase.CRUISE)
+            temperature, wind_speed = phase.temperature_c, phase.wind_speed_kt
+            if temperature is None or wind_speed is None:
+                return None
+            tas = geometry.section.manual_tas_for_phase(FlightPhase.CRUISE)
+            try:
+                if tas is None:
+                    selected = cruise_policy.select(
+                        phase.pressure_altitude_planning_ft,
+                        temperature - isa_temperature_c(phase.pressure_altitude_planning_ft),
+                        end - start,
+                        geometry.true_course_deg,
+                        phase.wind_direction_deg_from,
+                        wind_speed,
+                    )
+                    tas = _adjusted_cruise_ktas(
+                        selected.row.ktas, nose_fairing_enabled, air_conditioning_enabled,
+                    )
+                ground_speed = solve_wind_triangle(
+                    geometry.true_course_deg, tas, phase.wind_direction_deg_from, wind_speed,
+                ).ground_speed_kt
+            except (CruisePerformanceError, WindTriangleError):
+                return None
+            seconds = (end - start) / ground_speed * 3600.0
+            target = float(geometry.section.planned_altitude_ft_msl)
+            change = target - altitude
+            rate = 900.0 if change > 0 else 500.0
+            reachable_change = min(abs(change), rate * seconds / 60.0)
+            altitude += reachable_change if change > 0 else -reachable_change
+            if end >= eoc_distance_nm:
+                break
+        return altitude
 
     def _build_rjfm_inbound_descent_plan(
         self,
@@ -2071,6 +2132,7 @@ class CalculationService:
             )
             required_seconds = candidate_vertical_seconds + 60.0
             available_seconds = 0.0
+            reached_altitude: float | None = None
             for index in range(eoc_leg_index, descent_index + 1):
                 ground_speed = descent_ground_speed(index)
                 if ground_speed is None:
@@ -2078,9 +2140,10 @@ class CalculationService:
                 available_seconds += geometries[index].distance_nm / ground_speed * 3600.0
 
             # The selected DESCENT leg is always the first candidate.  Its
-            # predecessor is not consulted unless the complete continuous
-            # profile will not fit.  This deliberately supersedes #73's
-            # intermediate-turn altitude constraints.
+            # predecessor is consulted only if the descent does not fit or
+            # its start altitude cannot be reached before the normalized EOC.
+            # Crossed turns retain the one continuous descent, not separate
+            # instantaneous changes to their planned altitudes (#470).
             if candidate_vertical_seconds >= 0 and required_seconds <= available_seconds + 1e-9:
                 remaining_seconds = required_seconds
                 route_start_distance = offsets[eoc_leg_index][0]
@@ -2094,9 +2157,31 @@ class CalculationService:
                         )
                         break
                     remaining_seconds -= leg_seconds
-                cruise_altitude = candidate_altitude
-                vertical_descent_duration_seconds = candidate_vertical_seconds
-                break
+                normalized_eoc = _snap_eoc_to_physical_turn(
+                    route_start_distance,
+                    (0.0, *(end for _, end in offsets)),
+                    excluded_boundaries=(route_end_distance,),
+                )
+                assert normalized_eoc is not None
+                reached_altitude = self._cruise_altitude_at_eoc(
+                    environments, cruise_policy,
+                    eoc_distance_nm=normalized_eoc,
+                    rca_distance_nm=rca_distance_nm,
+                    nose_fairing_enabled=nose_fairing_enabled,
+                    air_conditioning_enabled=air_conditioning_enabled,
+                )
+                if (
+                    reached_altitude is not None
+                    and abs(reached_altitude - candidate_altitude) < 1e-6
+                ) or (
+                    manual_descent_tas is None
+                    and normalized_eoc <= (rca_distance_nm or 0.0) + 1e-9
+                ):
+                    # The existing CAS-source check below reports a missing
+                    # pre-EOC CRUISE zone; earlier candidates cannot restore it.
+                    cruise_altitude = candidate_altitude
+                    vertical_descent_duration_seconds = candidate_vertical_seconds
+                    break
 
             if eoc_leg_index == 0:
                 constraint_transition = {
@@ -2119,9 +2204,7 @@ class CalculationService:
                     self._blocker(
                         "DESCENT_ALTITUDE_CONSTRAINT_INFEASIBLE",
                         (
-                            "経路始点から降下しても、VREPまでに"
-                            f"{descent_rate_fpm} fpmの降下と"
-                            "減速1分を完了できません。"
+                            f"EOCまでの高度変更と、EOCからVREPまでの{descent_rate_fpm} fpmの降下・減速1分を両立できません。"  # noqa: E501
                             "計画高度、経路、VREP高度を見直してください。"
                         ),
                         section.id,
@@ -2129,6 +2212,7 @@ class CalculationService:
                             "required_seconds": required_seconds,
                             "available_seconds": available_seconds,
                             "descent_rate_fpm": descent_rate_fpm,
+                            "reached_altitude_at_eoc_ft_msl": reached_altitude,
                             "constraint_section_id": str(geometries[0].section.id),
                             "constraint_start_altitude_ft_msl": candidate_altitude,
                             "constraint_target_altitude_ft_msl": target_altitude,
@@ -2280,6 +2364,31 @@ class CalculationService:
                 "target_kind": "DESCENT_TARGET",
             }
         ]
+        snap_metadata: dict[str, Any] = {}
+        snapped_eoc = _snap_eoc_to_physical_turn(
+            route_start_distance,
+            (0.0, *(end for _, end in offsets)),
+            excluded_boundaries=(route_end_distance,),
+        )
+        assert snapped_eoc is not None
+        if abs(snapped_eoc - route_start_distance) > 1e-9:
+            snapped_seconds = 0.0
+            for index in range(descent_index + 1):
+                start, end = offsets[index]
+                length = end - max(start, snapped_eoc)
+                if length <= 0:
+                    continue
+                ground_speed = descent_ground_speed(index)
+                if ground_speed is None:
+                    return None
+                snapped_seconds += length / ground_speed * 3600.0
+            # Preserve NAV LOG timing/GS and selected descent rate. The shared
+            # drawing profile may absorb only this attributable snap difference.
+            snap_metadata["eoc_snap"] = {
+                "original_distance_nm": route_start_distance,
+                "snapped_distance_nm": snapped_eoc,
+                "duration_adjustment_seconds": snapped_seconds - duration_seconds,
+            }
 
         if cruise_cas is None:
             phase_environment = descent_environment.for_phase(FlightPhase.DESCENT)
@@ -2296,6 +2405,7 @@ class CalculationService:
             cruise_cas_kt=cruise_cas,
             metadata={
                 "type": "descent",
+                **snap_metadata,
                 "descent_rate_fpm": float(descent_rate_fpm),
                 "target_altitude_ft_msl": target_altitude,
                 "cruise_altitude_ft_msl": cruise_altitude,

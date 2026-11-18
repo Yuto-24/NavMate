@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "id": "eoc-continuity-infeasible",
+      "text": "EOCまでの高度変更と、EOCからVREPまでの{descent_rate_fpm} fpmの降下・減速1分を両立できません。",
+      "reason": "Geminiが全文の表示文脈と動的な降下率を含め採用可と確認。区間名・高度の前文、入力見直しの後続文を維持して原因と操作を伝える。",
+      "response_quote": "EOCまでの高度変更と、EOCからVREPまでの{descent_rate_fpm} fpmの降下・減速1分を両立できません。"
+    },
+    {
+      "id": "eoc-non-monotonic",
+      "text": "前の区間のほうが低いため、連続降下を計算できません。",
+      "reason": "Geminiが全文の表示文脈と動的な降下率を含め採用可と確認。区間名・高度の前文、入力見直しの後続文を維持して原因と操作を伝える。",
+      "response_quote": "前の区間のほうが低いため、連続降下を計算できません。"
+    }
+  ]
+}

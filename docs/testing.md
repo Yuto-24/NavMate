@@ -176,6 +176,22 @@ Issue番号付きのテストは、名前だけを理由に削除・改名しま
 `test_issue_43_golden.py`は数値回帰、Issue #94の2ファイルは永続化の異なる境界の仕様です。
 統合時は旧テストの入力・アサーションの行き先をレビューで確認します。
 
+## EOCの高度連続性とsnap時間差（Issue #470）
+
+EOCの不整合を調べるときは、前段の高度変更が未完了なのか、snapだけによる時間差なのかを
+分けます。仕様は[計算規則](calculation_rules.md#descent--eoc)を正本とします。
+
+- 前Legの計画高度だけでなく、RCA以後の実効CRUISEのGS・時間で到達高度を追跡します。
+  DESCENTのGSで前段の高度変更時間を判定すると、手入力TASやphase別の風で誤判定します。
+  `test_calculation.py`の`issue_470`ケースは67.3秒対120秒、到達時間の境界、複数Leg、保存後の
+  共通プロファイルを検証します。#73の現在Leg優先は、高度変更が完了するケースで維持します。
+- 既存Goldenの7,500→2,800 ftにも同じ問題があり、#470ではEOCが玉名より手前へ移ります。
+  `test_issue_43_golden.py`は移動後のZone順・CP正横・CAS・表示集計を検証します。
+- 0.4 NMの前方snapにより504秒の計画が492秒になるケースはNAV LOGの成功を維持します。
+  `test_eoc_integration_snap_threshold_preserves_profile_metadata`と`test_vertical_profile.py`で、
+  保存されたsnap位置と時間差の一致、30秒の境界、描画の減速60秒、旧結果の無補正を検証します。
+  この描画上の許容値は運用上の近似で、実際の旋回軌跡や機体性能を検証したものではありません。
+
 ## 同じ条件で比較する
 
 Dockerのtest stageがサポートするCI検査環境です（[README](../README.md)）。

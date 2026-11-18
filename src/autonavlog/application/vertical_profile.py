@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import groupby
 from math import ceil, isfinite
 from typing import Any
@@ -75,6 +75,52 @@ def _finite_number(value: object) -> float | None:
     return number if isfinite(number) else None
 
 
+def _descent_for_drawing(
+    profile: DescentProfile, metadata: Mapping[str, Any], duration: float, start_distance: float,
+) -> DescentProfile:
+    """Absorb a recorded EOC snap only; never repair an altitude discontinuity.
+
+    NAV LOG keeps its selected rate and distance/GS clock. Drawing may use a
+    slightly different rate for at most 30 seconds of attributable snap error,
+    retaining the one level-deceleration minute. Legacy results without this
+    provenance do not acquire a guessed correction.
+    """
+    snap = metadata.get("eoc_snap")
+    if snap is not None:
+        if not isinstance(snap, Mapping):
+            raise ValueError("Invalid saved EOC snap")
+        original = _number(snap.get("original_distance_nm"))
+        snapped = _number(snap.get("snapped_distance_nm"))
+        adjustment = _number(snap.get("duration_adjustment_seconds"))
+        if (
+            original < 0 or snapped < 0
+            or abs(snapped - start_distance) > 1e-6
+            or not 0 < abs(original - snapped) < 0.5
+            or (original - snapped) * adjustment <= 0
+            or abs(adjustment) > 30.0 + 1e-6
+            or abs(duration - profile.planned_duration_seconds - adjustment) > 1e-6
+            or profile.deceleration_duration_seconds != 60.0
+        ):
+            raise ValueError("Unsupported saved EOC snap adjustment")
+        vertical_seconds = duration - profile.deceleration_duration_seconds
+        if vertical_seconds < 0 or (
+            vertical_seconds == 0 and profile.vertical_duration_seconds > 0
+        ):
+            raise ValueError("Incomplete saved descent after EOC snap")
+        if profile.vertical_duration_seconds > 0:
+            return replace(
+                profile,
+                vertical_duration_seconds=vertical_seconds,
+                descent_rate_fpm=(
+                    (profile.cruise_altitude_ft_msl - profile.target_altitude_ft_msl)
+                    / vertical_seconds * 60.0
+                ),
+            )
+    if duration + 1e-6 < profile.planned_duration_seconds:
+        raise ValueError("Missing or incomplete saved descent profile")
+    return profile
+
+
 @dataclass(frozen=True)
 class ProfilePoint:
     latitude_deg: float
@@ -132,7 +178,8 @@ def project_vertical_profile(project: Project, outcome: CalculationOutcome) -> V
 
     Shared by KML and the future time/altitude chart. Times, distances, phase
     boundaries and geometry come from non-overlapping calculation zones. Initial
-    climb and EOC descent retain their saved timing. Enroute altitude changes
+    climb and EOC descent retain their saved timing, with a bounded drawing
+    adjustment for recorded EOC snaps. Enroute altitude changes
     start at the Leg's origin at 900 fpm up / 500 fpm down, then level off; these
     are display rates, not new performance calculations. Visual arrival joins
     the VREP altitude to the saved destination elevation linearly by distance.
@@ -164,15 +211,19 @@ def project_vertical_profile(project: Project, outcome: CalculationOutcome) -> V
         if duration <= 0:
             raise ValueError("Non-positive profile duration")
         descent = None
+        saved_descent = None
         transition_seconds = duration
         target = _number(group[-1].planned_altitude_ft_msl.adopted())
         if phase == FlightPhase.CLIMB:
             # The first CLIMB input owns the one climb plan, even across Legs.
             target = _number(group[0].planned_altitude_ft_msl.adopted())
         elif phase == FlightPhase.DESCENT:
-            descent = descent_profile_from_metadata(group[0].performance_metadata)
-            if descent is None or duration + 1e-6 < descent.planned_duration_seconds:
+            saved_descent = descent_profile_from_metadata(group[0].performance_metadata)
+            if saved_descent is None:
                 raise ValueError("Missing or incomplete saved descent profile")
+            descent = _descent_for_drawing(
+                saved_descent, group[0].performance_metadata, duration, start_distance,
+            )
             start_altitude = descent.cruise_altitude_ft_msl
             target = descent.target_altitude_ft_msl
             if segments and abs(altitude - start_altitude) > 1e-6:
@@ -206,11 +257,16 @@ def project_vertical_profile(project: Project, outcome: CalculationOutcome) -> V
                     or abs(seconds - _number(zone.zone_ete_seconds.adopted())) > 1e-6
                     or abs(length - _number(zone.zone_distance_nm.adopted())) > 1e-6):
                 raise ValueError("Inconsistent calculation zone totals")
-            if descent != (
+            if saved_descent != (
                 descent_profile_from_metadata(zone.performance_metadata)
                 if phase == FlightPhase.DESCENT else None
             ):
                 raise ValueError("Inconsistent descent metadata")
+            if phase == FlightPhase.DESCENT and (
+                zone.performance_metadata.get("eoc_snap")
+                != group[0].performance_metadata.get("eoc_snap")
+            ):
+                raise ValueError("Inconsistent saved EOC snap")
             start_lat, start_lon = _number(zone.from_latitude_deg), _number(zone.from_longitude_deg)
             end_lat, end_lon = _number(zone.to_latitude_deg), _number(zone.to_longitude_deg)
             geometry = geodesic_leg(start_lat, start_lon, end_lat, end_lon)

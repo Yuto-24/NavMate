@@ -65,6 +65,70 @@ def test_shared_projection_preserves_descent_clock_across_splits(project, decele
         project_vertical_profile(project, outcome)
 
 
+@pytest.mark.parametrize("adjustment", [-30.0, -12.0, 12.0, 30.0])
+def test_eoc_snap_drawing_adjusts_only_the_rate_and_retains_level_minute(project, adjustment):
+    metadata = {"cruise_altitude_ft_msl": 5500, "target_altitude_ft_msl": 1500,
+                "descent_rate_fpm": 500, "vertical_descent_duration_seconds": 480,
+                "deceleration_duration_seconds": 60,
+                "eoc_snap": {"original_distance_nm": 10 + (0.4 if adjustment > 0 else -0.4),
+                             "snapped_distance_nm": 10,
+                             "duration_adjustment_seconds": adjustment}}
+    zones = [_zone(0, "CRUISE", 0, 10, 100, 100),
+             _zone(1, "DESCENT", 10, 20, 240, 340, metadata),
+             _zone(2, "DESCENT", 20, 30, 300 + adjustment, 640 + adjustment, metadata)]
+    outcome = CalculationOutcome.model_construct(
+        project_id=project.id, sections=zones, converged=True,
+    )
+    original = outcome.model_dump(mode="json")
+    profile = project_vertical_profile(project, outcome)
+    level = next(marker.point for marker in profile.markers if marker.kind == "LEVEL_OFF")
+    assert level.altitude_ft_msl == pytest.approx(1500)
+    assert level.elapsed_seconds == pytest.approx(580 + adjustment)
+    assert profile.segments[-1].points[-1].elapsed_seconds - level.elapsed_seconds == 60
+    expected_rate = 4000 / (480 + adjustment) * 60
+    assert profile.segments[1].points[-1].altitude_ft_msl == pytest.approx(
+        5500 - expected_rate * 240 / 60,
+    )
+    assert outcome.model_dump(mode="json") == original
+    # Even valid snap provenance cannot justify a jump at the EOC altitude.
+    zones[0].planned_altitude_ft_msl = _value(6500)
+    with pytest.raises(ValueError, match="Discontinuous"):
+        project_vertical_profile(project, outcome)
+
+
+@pytest.mark.parametrize("snap", [
+    None,
+    {"original_distance_nm": 9.6, "snapped_distance_nm": 10,
+     "duration_adjustment_seconds": -30.001},
+    {"original_distance_nm": 9.5, "snapped_distance_nm": 10,
+     "duration_adjustment_seconds": -12},
+    {"original_distance_nm": 10.4, "snapped_distance_nm": 10,
+     "duration_adjustment_seconds": -12},
+    {"original_distance_nm": 9.6, "snapped_distance_nm": 10,
+     "duration_adjustment_seconds": -11},
+    {"original_distance_nm": 99.6, "snapped_distance_nm": 100,
+     "duration_adjustment_seconds": -12},
+])
+def test_incomplete_descent_is_not_repaired_without_bounded_matching_snap(project, snap):
+    metadata = {"cruise_altitude_ft_msl": 5500, "target_altitude_ft_msl": 1500,
+                "descent_rate_fpm": 500, "vertical_descent_duration_seconds": 480,
+                "deceleration_duration_seconds": 60}
+    if snap is not None:
+        metadata["eoc_snap"] = snap
+    duration = (
+        540 + snap["duration_adjustment_seconds"]
+        if snap is not None and abs(snap["duration_adjustment_seconds"]) > 30
+        else 528
+    )
+    zones = [_zone(0, "CRUISE", 0, 10, 100, 100),
+             _zone(1, "DESCENT", 10, 30, duration, 100 + duration, metadata)]
+    outcome = CalculationOutcome.model_construct(
+        project_id=project.id, sections=zones, converged=True,
+    )
+    with pytest.raises(ValueError):
+        project_vertical_profile(project, outcome)
+
+
 @pytest.mark.parametrize("start,target,rate", [(5500, 7500, 900), (7500, 5500, 500)])
 def test_enroute_transition_starts_after_turn_and_levels_off_across_cp_splits(
     project, start, target, rate,
