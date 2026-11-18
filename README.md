@@ -68,10 +68,14 @@ KML はファイル選択、ドラッグ＆ドロップ、クリップボード�
 ```bash
 npm --prefix web run typecheck
 npm --prefix web run test:application
-npm --prefix web run test:e2e
 pytest
 ruff check .
 ```
+
+Browser E2Eの標準入口は`test:e2e`（CIと同じ`test:local`の選択）です。
+`AUTONAVLOG_TEST_FIXTURES=1 npm --prefix web run build:local`で作った`web/dist-local`を
+loopbackで配信し、`AUTONAVLOG_LOCAL_URL`と`AUTONAVLOG_REFERENCE_PYTHON`を設定して実行します。
+準備とsuite別の担当は[Testing](docs/testing.md#browser検証の実行入口)を参照してください。
 
 Static Web の build、artifact 検証、Browser E2E、公開手順は [Static production](docs/static_production.md) にまとめています。CI・release の運用は [Static operations](docs/static_operations.md) と [Release lines](docs/release_lines.md) を参照してください。
 

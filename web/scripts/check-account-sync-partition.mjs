@@ -51,6 +51,10 @@ export function check() {
   ]);
   const full = collect('sync');
   verify(full, projects.flatMap(project => [1, 2].map(shard => collect('sync', project, shard))));
+  // Moved helper/dialog cases retain the same three browser/device profiles.
+  const components = collect('sync-component');
+  verify(components, projects.map(project => collect('sync-component', project)));
+  const notifications = collect('notification');
   const localBlock = workflow.split('  local-browser-tests:\n')[1]?.split('\n  local-browser:\n')[0];
   verifyMatrix(localBlock, [
     'suite: [local, acceptance, focused-ux, clipboard, auth]', 'shard: [1]', 'include:',
@@ -64,7 +68,7 @@ export function check() {
   verify(localFull, [1, 2, 3, 4].map(local));
   const contracts = Object.fromEntries(['firestore', 'storage-upgrade', 'migration']
     .map(config => [config, collect(config).length]));
-  console.log(JSON.stringify({ local: localFull.length, sync: full.length, projects, contracts }));
+  console.log(JSON.stringify({ local: localFull.length, sync: full.length, syncComponents: components.length, notifications: notifications.length, projects, contracts }));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) check();

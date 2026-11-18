@@ -326,7 +326,7 @@ existing ten-second Undo with a synthetic sync transport. It does not establish
 live account/network behavior, all calculation/focus paths, or every validation
 state; complete repository and copy-review gates are still required before PR.
 
-Focused regression: `npm --prefix web exec -- playwright test --config
-web/playwright.notification.config.ts` (or run Playwright from `web/` with
-`--config playwright.notification.config.ts`). The dedicated loopback harness
+Focused regression: `npm --prefix web run test:notification`. PR/main CI runs
+all 18 cases in the existing Local `auth` runner after preparing Local assets.
+The dedicated loopback harness
 uses the real App/Application and an in-memory invalid file, not personal data.

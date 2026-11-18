@@ -58,9 +58,7 @@ def pr(base, head):
         ({"AGENTS.md": "Updated instructions\n"}, False),
         ({"docs/nested/guide.md": "New docs\n", "docs/guide.md": None}, False),
         ({"docs/guide.md": "Docs\n", "src/app.py": "print('changed')\n"}, True),
-        ({"CHANGELOG.md": "Release notes\n"}, True),
         ({"KNOWN_ISSUES.md": "Issue text for the UI\n"}, True),
-        ({"VERSION": "1.0.0\n"}, True),
         ({"web/public/help.md": "Public artifact\n"}, True),
         ({"docs/static_quota.example.json": "{}"}, True),
         ({"docs/reference/data.xlsx": "fixture"}, True),
@@ -94,10 +92,19 @@ def test_pr_uses_merge_base_and_all_commits_on_the_pr(repo):
     assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == ci_changes.JOBS
 
 
-def test_push_always_runs_full_including_documentation(repo):
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"docs/guide.md": "Updated docs\n"},
+        {"VERSION": "1.0.0\n"},
+        {"CHANGELOG.md": "Release notes\n"},
+        {"VERSION": "1.0.0\n", "CHANGELOG.md": "Release notes\n"},
+    ],
+)
+def test_push_always_runs_full_including_documentation_and_release(repo, changes):
     root, base = repo
-    docs_head = commit(root, {"docs/guide.md": "Updated docs\n"})
-    event = {"before": base, "after": docs_head}
+    head = commit(root, changes)
+    event = {"before": base, "after": head}
     assert ci_changes.ci_scope(root, "push", event)[0] == ci_changes.JOBS
     commit(root, {"src/app.py": "print('changed')\n"})
     event["after"] = commit(root, {"AGENTS.md": "Latest commit is documentation\n"})
@@ -181,6 +188,19 @@ def test_github_outputs_and_summary(repo, monkeypatch):
 @pytest.mark.parametrize(
     "paths,expected",
     [
+        (["VERSION"], {"release-build"}),
+        (["CHANGELOG.md"], {"release-build"}),
+        (["VERSION", "CHANGELOG.md"], {"release-build"}),
+        (["VERSION", "CHANGELOG.md", "docs/guide.md"], {"release-build"}),
+        (["VERSION", "web/src/App.tsx"], ci_changes.WEB_JOBS | {"release-build"}),
+        (
+            ["CHANGELOG.md", "src/autonavlog/domain/calculation.py"],
+            ci_changes.PYTHON_JOBS | {"release-build"},
+        ),
+        (["VERSION", "services/msm-trigger/worker.ts"], {"release-build", "msm-trigger"}),
+        (["VERSION", "unknown-input"], ci_changes.JOBS),
+        (["CHANGELOG.md", ".github/workflows/test.yml"], ci_changes.JOBS),
+        (["VERSION", "web/package-lock.json"], ci_changes.JOBS),
         (["web/src/components/NavLogTable.tsx"], ci_changes.WEB_JOBS),
         (["web/src/styles.css"], ci_changes.WEB_JOBS),
         (["web/src/accountSync.ts", "web/src/auth.ts"], ci_changes.WEB_JOBS),
@@ -221,8 +241,17 @@ def test_deleted_and_moved_inputs_retain_both_scopes(repo):
 
 
 @pytest.mark.parametrize("mode", ["100755", "120000", "160000"])
-def test_non_regular_source_falls_back_to_full(mode):
+@pytest.mark.parametrize("path", ["web/src/App.tsx", "VERSION", "CHANGELOG.md"])
+def test_non_regular_source_falls_back_to_full(mode, path):
     assert (
-        ci_changes.affected_jobs(ci_changes.Change("web/src/App.tsx", "100644", mode))
+        ci_changes.affected_jobs(ci_changes.Change(path, "100644", mode))
         == ci_changes.JOBS
     )
+
+
+@pytest.mark.parametrize("path", ["VERSION", "CHANGELOG.md"])
+def test_deleted_release_source_runs_full_ci(repo, path):
+    root, _ = repo
+    base = commit(root, {path: "release input\n"})
+    head = commit(root, {path: None})
+    assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == ci_changes.JOBS

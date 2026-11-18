@@ -50,6 +50,7 @@ jobs:
   release-sources:
     runs-on: ubuntu-latest
     outputs:
+      run_release_build: ${{ steps.changes.outputs.run_release_build }}
       run_pytest: ${{ steps.changes.outputs.run_pytest }}
       run_runtime: ${{ steps.changes.outputs.run_runtime }}
       run_web: ${{ steps.changes.outputs.run_web }}
@@ -97,6 +98,45 @@ jobs:
           else
             python scripts/validate_release.py
           fi
+
+  release-build:
+    needs: release-sources
+    # Missing/failed classification runs this suite; only an explicit false skips.
+    if: ${{ !cancelled() && (needs.release-sources.result != 'success' || needs.release-sources.outputs.run_release_build != 'false') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: python -m pip install "build>=1.2,<2"
+      - run: npm --prefix web ci
+      - run: npm --prefix web run test:release-notes
+      # The existing build generates release notes and runs tsc before Vite.
+      - run: npm --prefix web run build
+      - name: Build and verify the release package
+        run: |
+          mkdir -p src/autonavlog/web/static
+          cp -R web/dist/. src/autonavlog/web/static/
+          python -m build
+          python -m pip install --no-deps dist/*.whl
+          python - <<'PY'
+          from importlib.metadata import distribution
+          from pathlib import Path
+
+          package = distribution("autonavlog")
+          assert package.version == Path("VERSION").read_text(encoding="utf-8").strip()
+          assert package.locate_file("autonavlog/web/static/index.html").is_file()
+          PY
 
   pytest-tests:
     needs: release-sources
@@ -310,8 +350,13 @@ jobs:
       - run: npm --prefix web run build:local
         env:
           AUTONAVLOG_TEST_FIXTURES: "1"
-      - run: npm --prefix web run test:auth
+          VITE_FORECAST_BACKUP_URL: ""
+      - name: Verify auth, browser components and notification recovery
         if: matrix.suite == 'auth'
+        run: |
+          npm --prefix web run test:auth
+          npm --prefix web run test:sync-component
+          npm --prefix web run test:notification
       - name: Verify Local persistence and session/calculation regression without FastAPI
         env:
           AUTONAVLOG_REFERENCE_PYTHON: python3
@@ -325,7 +370,7 @@ jobs:
           if [ "${{ matrix.suite }}" = local ]; then
             npm --prefix web run test:local -- --workers=2 --shard=${{ matrix.shard }}/4
             if [ '${{ matrix.shard }}' = 1 ]; then
-              AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4174 npm --prefix web run test:static -- --grep 'production artifact shows storage limits and uses no Service Worker'
+              AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4174 npm --prefix web run test:static -- --grep 'production artifact shows storage limits and uses no Service Worker|production artifact rejects a different build manifest and recovers on reload'
             fi
             exit 0
           fi
@@ -364,6 +409,8 @@ jobs:
             /tmp/backup-server.log
             /tmp/backup-browser-server.log
             /tmp/autonavlog-auth-tests
+            /tmp/autonavlog-sync-component-browser
+            /tmp/navmate-416-443-test-results
             /tmp/autonavlog-focused-ux-browser
             /tmp/autonavlog-clipboard-playwright
 
@@ -488,7 +535,7 @@ jobs:
       - run: npm --prefix services/msm-trigger test
 
   ci-required:
-    needs: [release-sources, pytest, runtime, web, taf-proxy, local-browser, account-sync, static-tooling-install, msm-trigger]
+    needs: [release-sources, release-build, pytest, runtime, web, taf-proxy, local-browser, account-sync, static-tooling-install, msm-trigger]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:

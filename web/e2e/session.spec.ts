@@ -228,7 +228,7 @@ for (const corruption of ["json", "version", "working"]) {
       sessionStorage.setItem(key, corruption === "json" ? "{" : JSON.stringify(saved));
     }, { key, corruption });
     await page.reload();
-    await expect(page.getByText("前回の作業を復元できなかったため、新規作業を開始しました。")).toBeVisible();
+    await expect(page.locator("#app-notification-region").getByText("前回の作業を復元できなかったため、新規作業を開始しました。", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
     expect((await snapshot(page)).working.project).toBeNull();
     expect((await snapshot(page)).form.weatherMode).toBe("FORECAST");

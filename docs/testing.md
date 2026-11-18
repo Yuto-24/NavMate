@@ -1,4 +1,4 @@
-# Backendテストのレイヤーと計測
+# テストの責任とCI
 
 ## PR と main の CI
 
@@ -14,6 +14,7 @@ PR headと一致することを確認し、第1親（実際に検証したbase�
 | PR の変更入力 | 必須 suite（release-sources は常時） |
 | --- | --- |
 | `AGENTS.md`、通常ファイルとして残る `README.md`、`docs/**/*.md` のみ | source 検証のみ |
+| 通常ファイルとして残る `VERSION` / `CHANGELOG.md` | release-build |
 | `web/src/` 内の `.ts` / `.tsx` / `.css` | web、local-browser、account-sync |
 | `src/autonavlog/` 内の `.py` | pytest、runtime、web、local-browser、account-sync、static-tooling-install |
 | `services/taf-proxy/worker.mjs` | taf-proxy、web、local-browser |
@@ -23,12 +24,25 @@ PR headと一致することを確認し、第1親（実際に検証したbase�
 Web は画面と共有状態の依存が広いため、保存・NAV LOG・認証・同期の全マトリクスを維持します。
 Python はブラウザの計算エンジンと配信ツールにも組み込まれるため、golden / regression を
 含む pytest 全体と、それらの利用側の検証を維持します。独立したサービスの実装だけを
-限定選択します。テスト内の assertion、grep、project、pytest の分配は維持します。ブラウザの分割方法は後述します。
+限定選択します。現行保証のassertionと必要なbrowser profileを維持し、担当suiteは下表で定めます。
+pytestの分配とブラウザの分割方法は後述します。
+
+`VERSION` / `CHANGELOG.md`だけのPRは、常時の`release-sources`と`release-build`、
+最終集約の`ci-required`を実行します。`release-build`は既存のリリースノートテストと
+Web build（生成JSON・TypeScript・Vite）、Python 3.12でのsdist/wheel buildを行い、
+生成wheelの版番号とWeb成果物の同梱を確認します。Docker、ブラウザE2E、全pytest、
+同期emulator、実MSMは起動しません。PRのRelease契約とVERSION/CHANGELOGの整合性は
+従来どおり検査するため、限定分類されたことだけでリリース準備を有効とは扱いません。
+
+push・手動実行・未知差分は`release-build`を含む全suiteを維持します。
+全検証時には既存web/pytestと一部buildが重複しますが、今回は分類と必須checkを小さく拡張し、
+工程全体の重複整理は[#459](https://github.com/Yuto-24/NavMate/issues/459)で扱います。
 
 複合変更は選択の和集合です。PR の共通祖先から head までを Git で比較し、rename は削除と
 追加の両方を評価します。ファイル件数上限はありません。未知パス、空差分、判定エラー、
-通常ファイル以外・実行権限の変更は全検証へ戻ります。`CHANGELOG.md` / `KNOWN_ISSUES.md`
-は画面生成の入力なので文書省略の対象外です。判定ジョブの失敗・出力欠落でも各 suite を
+通常ファイル以外・実行権限の変更、`VERSION` / `CHANGELOG.md`の削除は全検証へ戻ります。
+`CHANGELOG.md`はリリース検証へ分類し、`KNOWN_ISSUES.md`は引き続き全suite対象です。
+どちらも画面生成の入力なので文書省略の対象外です。判定ジョブの失敗・出力欠落でも各 suite を
 起動し、最終集約は判定失敗を成功に変換しません。
 
 `ci-required` は常に完了結果を集約します。判定の成功、全 suite の出力、選択された suite の
@@ -54,6 +68,84 @@ python -m pytest --noconftest tests/integration/check_release_merge.py \
   tests/unit/test_release_ci.py tests/unit/test_supported_runtime_contract.py \
   tests/unit/test_version.py::test_version_is_the_only_release_version_source
 ```
+
+## Issue #458: 現行保証の担当とLegacy専用テストの廃止
+
+[#458 現行テストの責任整理](https://github.com/Yuto-24/NavMate/issues/458)では、
+旧通常利用のためだけの検証を廃止し、現行の保証を小さい境界へ移す。
+ブラウザの実Worker/Pyodide、保存・reload、同期SDK/Rules、配布候補の検証は担当を維持する。
+以下は2026-11-18時点の対応で、件数はパラメーター展開後の収集結果。
+
+| 保証・対象 | 担当する層とsuite | 実行イベント・維持する境界 |
+| --- | --- | --- |
+| 数値golden、inbound、KML、Shared facade / Issue #94保存 | Python Unit / Integration、`pytest` | 対象PR・main。実solver、期待値、atomicity、owner隔離を保持。`_LocalFacade`が旧名のfacadeを継承するため、`web`という名前だけでは削除しない |
+| Connected KMLの6件 | `test_local_connected_lines.py`のLocal Integration | 対象PR・main。旧`test_web_connected_lines.py`から候補・座標・数値assertionを移し、HTTP session / pollingを外す |
+| Localの入力エラー、内部失敗とlast-good / draft | `test_local_calculation.py` | 対象PR・main。Legacy HTTPとの一致比較を、明示的なLocalのcode・message・validation形状・安全性・保存値の検証に変更 |
+| TGL、MC丸め、燃料/時間合計、GSI tile構造 | `test:application` | 対象PR・main。forms / display-rounding / fuel-plan-displayと、`web.spec.ts`から抽出したGSI 3件を実行。ブラウザ・サーバー不要 |
+| 認証初期化待ち・reload・別account拒否、同期dialogのrefresh失敗・draft guard | `test:sync-component`、24実行 | 対象PR・mainのLocal auth runner。既存HTML harnessと実DOM/dialogを使い、Chromium・iPad WebKit・iPhone WebKitを保持。Firestore / Pythonは不要 |
+| 代表的な同期、競合、削除、アカウント切替 | `test:sync`、30実行 | 対象PR・mainの既存6 runners。実SDK、Firestore emulator、Local保存・計算の結合を保持。移管24件との合計は従来の54実行 |
+| Clipboard activation / fallback / pending / 確定後制限 | Clipboard suite、20実行 | 対象PR・main。ChromiumとWebKitを保持。Localでも選択していた同一Chromium 4件はClipboard側だけに集約 |
+| 通知の期限、独立した失敗保持、retry、focus / scroll | `test:notification`、18件 | 対象PR・mainのLocal auth runner。390 / 1100 / 1440pxと既存入力を保持。account / sync harnessはcomponent、App harnessは実Local Application / Pyodideを使うためLocal assetsが必要 |
+| Local FTD / 固定MSM、保存・reload、Worker障害、重要な操作導線 | `test:local`、66件と既存acceptance / focused UX / auth等 | 対象PR・main。数値比較、実Worker、IndexedDB、既存ブラウザ・端末profileを保持。Unitの同じ入力と重複扱いにしない |
+| manifest不一致の拒否とreload復旧 | `test:static`の既存caseをLocal shard 1でも選択 | 対象PR・mainではfixture buildの実Workerと保存値復元。配布時は同じcaseを実候補artifactに対して実行 |
+| 気象取得失敗の通知とNAV LOG / Last Calculation保持 | `local-weather.spec.ts`の既存cold/warm/evictionフローへ統合 | 対象PR・mainでは固定catalog / NPZと503を使う。外部MSMを取得せず、実Worker・ブラウザcache・保存結果を検証 |
+| migration / rescue / 予備API、残存FastAPI runtime | Python・migration / forecast-backup Browser・runtime suite | 対象PR・main。移行本人識別、owner隔離、旧データ、専用BackupJobs、起動・非root・Python 3.12を保持。旧画面の停止や救済期間終了を推測しない |
+| Static / Local Updaterの配布候補と運用 | 既存tooling / artifact tests、公開前後・Updater検査 | 配布時。fresh rebuild、実feed・設定・Rules、候補Static E2Eを保持。source CI再利用は[#460](https://github.com/Yuto-24/NavMate/issues/460)の担当 |
+
+### 廃止・移管したアサーション
+
+- `application.spec.ts`のLegacyApplication専用8件を廃止。対象は旧HTTP session生成・retry・
+  HTTP error正規化・job polling・tab handle・透明なsession更新。丸めoptionsの混在ケースは
+  Localの`true/false`送信を残す。Local失敗時のno-fallback、共有UI契約、durable保存のassertionは維持する。
+- `startup.spec.ts`の旧API起動retryを廃止。現行の失敗codeと実Worker再起動・復旧は
+  `session.spec.ts`の`#355 startup reload replaces a failed Worker`が担当する。
+- `test_calculation_jobs.py`の3件、`test_web_app.py`の旧job重複409 / snapshot prune race、
+  `test_local_calculation.py`の旧HTTP丸めjobを廃止。残る予備APIの`BackupJobs`は別実装で、
+  その容量・owner・idempotency等は`test_forecast_backup.py`に残る。
+- Connected KMLは4候補の名前・順序・距離`124.66 / 151.42 / 112.03 / 129.01`、
+  container / segment / join gap、重複除去後4座標、500点受理・501点拒否、fallback、
+  小丸の一意性と座標、名前によらないphysical legsとTTL `97.5`をLocalで保持する。
+- Local errorは不正UUID・必須項目・壊れたKML/Base64、内部ValidationErrorと機密値の抑制、
+  失敗後のfuel `90 / 75`、last-goodの`status`以外の値を維持する。旧HTTPを期待値の生成元にしない。
+- GSI 3件は既存の入力と全assertionをそのまま`gsi-airspace-unit.spec.ts`へ移す。
+  Polygon / LineString、2D / 有限3D、欠落・重複・不正metadata等を保持し、共通fixtureを
+  `helpers/gsiAirspace.ts`に分離する。旧画面の`beforeEach`から独立させるための分離である。
+
+`test_rjfm_inbound_web.py`は実数値とreference読込失敗を同じruntimeで確認するため維持する。
+特に破損referenceをruntimeが捕捉して計算を継続する境界は、Local constructorへの単純置換と同じではない。
+数値計算の高コストはHTTP wrapperだけを外しても消えない。
+
+残る`web.spec.ts`、`rjfm-inbound.spec.ts`、`information*.spec.ts`、`clipboard-import.spec.ts`は
+現行UIの詳細と旧transportが混在する。固有の表示・入力assertionを消さず、明示的な
+`test:legacy`に保持する。通常CIでは元から選択されていない比較用suiteであり、
+現行の必須保証は上表のLocal / component / Integrationを担当とする。これらのファイル全体を
+旧専用と判断したわけではない。今後の個別移管では旧入力・assertionの対応を再確認する。
+
+CI jobの共通準備やPython分配は[#459 PR/mainの重複・分配改善](https://github.com/Yuto-24/NavMate/issues/459)で扱う。
+今回の件数減少やnative実行時間だけからHosted CIの短縮率を主張しない。
+
+### Browser検証の実行入口
+
+`test:e2e`は`test:local`の別名で、通常CIと同じ選択を使う。既定のPlaywright configもLocal向けとし、
+Composeの自動起動を廃止する。Local suiteは配信済みbuildを使い、harness suiteは既存Viteを起動する。
+
+```bash
+AUTONAVLOG_TEST_FIXTURES=1 VITE_FORECAST_BACKUP_URL= npm --prefix web run build:local
+python -m http.server 4174 --bind 127.0.0.1 --directory web/dist-local
+# 別terminalで実行。reference用Pythonはアプリの依存を導入した3.12を指定する。
+AUTONAVLOG_LOCAL_URL=http://127.0.0.1:4174 AUTONAVLOG_REFERENCE_PYTHON=python3 npm --prefix web run test:e2e
+npm --prefix web run test:sync-component
+npm --prefix web run test:notification
+```
+
+`test:local:full`はLocal configの全ケースを収集する手動の拡張確認。
+固定MSMの取得失敗ケースは予備API未設定のbuildで実行する。catalogの503はWorkerの
+`WEATHER_DISCOVERY_FAILED`となり、予備API未設定の通知を表示する。Pythonの予報準備で
+発生する`FORECAST_PREPARE_FAILED`とは異なる。通知と計算終了を待ってからNAV LOGと
+Last Calculationの保持を確認する。
+移管前の混在UIを調べる場合だけ、既存の[Worktree手順](development_worktrees.md)で隔離した
+Legacy runtimeを用意し、`AUTONAVLOG_WEB_URL=<隔離URL> npm --prefix web run test:legacy`を使う。
+`test:legacy`自体はComposeを起動せず、通常PR/mainやStatic公開の成功条件には使わない。
 
 ## テストを追加する場所
 
@@ -320,7 +412,7 @@ Playwrightの依存導入が急に変わらないようにする。`local-browse
 
 現行の分割と保証は[Independent CI shards](#independent-ci-shards)を参照する。
 Local regression、NAV LOG scroll、browser acceptance、focused UX、ClipboardはCI引数で
-`--workers=2`を指定し、ファイル内順序を保つ。認証は専用runner、acceptanceは
+`--workers=2`を指定し、ファイル内順序を保つ。認証・同期component・通知は同じauth runner、acceptanceは
 NAV LOG scroll→browser acceptance→TAFの順序で実行する。
 認証、TAF、Firestore Rules、storage-upgrade、migrationは従来のworker設定を保つ。
 
@@ -344,7 +436,8 @@ Firestore Rules→storage-upgrade→migrationはcontracts runnerで全対象を�
 重なった失敗を[PR #326のCI](https://github.com/Yuto-24/AutoNavLog/actions/runs/41266357658/job/124729915595)で確認した。
 認証は1回だけ実行し、認証エラーは伝播させる。初期UI前の再読込と認証失敗を回帰テストで検査し、
 ログイン後の期待accountとの一致確認も維持する。任意の時点で起こる再読込を防ぐ保証ではない。
-初期化待ちの回帰2件を3ブラウザに追加したため現在は計39件で、上記の時間比較は追加前の33件に限る。
+初期化待ちの回帰2件を3ブラウザに追加した時点では計39件だった。上記の時間比較は追加前の33件に限る。
+現在のSDK E2Eとbrowser componentの分担は[Issue #458の対応表](#issue-458-現行保証の担当とlegacy専用テストの廃止)を参照する。
 
 2026-10-29、main `3ea6481d9fb02f7893edc3adb89c57d30e7dd40b`の同一Local artifactで、
 1 worker、次に2 workersを逐次計測した。WSL / Node 24.19.0 / Python 3.12.3 /
@@ -413,8 +506,8 @@ GitHub側ではsetup-pythonのrestoreとpost saveを含めて測る。上記ロ�
 `local-browser-tests` runs the existing Local regression selection on four runners using
 Playwright's file-level `--shard=N/4`. Tests within a file remain ordered, and each runner
 keeps `--workers=2`. New selected tests are assigned by Playwright, without a file allowlist.
-Terrain, static storage notice and forecast-backup tests run once, on Local shard 1.
-Auth has its own runner; `acceptance` retains scroll, all browser/device acceptance projects
+Terrain, static storage notice, manifest mismatch/reload and forecast-backup tests run once, on Local shard 1.
+The auth runner also runs sync component and notification suites; `acceptance` retains scroll, all browser/device acceptance projects
 and TAF. `focused-ux` and `clipboard` keep their existing configurations and two workers.
 Each runner owns its server and build directory, including the TAF-specific rebuild.
 
@@ -423,7 +516,8 @@ runners with `--fully-parallel --workers=1 --shard=N/2`: individual tests are di
 but each runner executes sequentially with its own Firestore emulator. The existing tests
 use fresh browser contexts and unique account IDs, with no shared before/after-all state.
 Rules, storage upgrade and migration stay together in `contracts`; shared development runs
-once in its own Auth/Firestore emulator runner. No assertion or device project is removed.
+once in its own Auth/Firestore emulator runner. Sync helper/dialog assertions run separately in
+`test:sync-component` with the same three device projects, without an emulator.
 Local developer commands without a shard keep their previous behavior.
 
 The `web` job compares real Playwright collection before and after sharding: Local's existing

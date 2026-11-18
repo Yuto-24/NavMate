@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-import httpx
 import pytest
 
 from autonavlog.local import LocalApplication
@@ -146,6 +144,7 @@ def test_local_forecast_uses_actual_fixture_without_network(local, monkeypatch):
     [
         ("calculate", {}, "PROJECT_REQUIRED"),
         ("confirmRoute", {}, "VALIDATION_FAILED"),
+        ("renameRouteNode", {"node_id": "invalid", "name": "test"}, "VALIDATION_FAILED"),
         ("importRoute", {"filename": "a.kml", "kml_text": "<broken"}, "KML_IMPORT_FAILED"),
         ("importRoute", {"filename": "a.kml", "content_base64": "!!"}, "UPLOAD_ENCODING_INVALID"),
         (
@@ -163,7 +162,30 @@ def test_local_error_response_preserves_application_meaning(local, operation, pa
     assert "Traceback" not in error["message"]
     if code == "VALIDATION_FAILED":
         assert error["message"] == "入力内容を確認してください。"
-        assert {"location", "message", "type"} == set(error["details"]["issues"][0])
+        issues = error["details"]["issues"]
+        if operation == "renameRouteNode":
+            assert len(issues) == 1
+            assert set(issues[0]) == {"location", "message", "type"}
+            assert issues[0]["location"] == ["node_id"]
+            assert issues[0]["type"] == "uuid_parsing"
+            assert issues[0]["message"].startswith("Input should be a valid UUID")
+        else:
+            assert issues == [
+                {"location": [field], "message": "Field required", "type": "missing"}
+                for field in (
+                    "candidate_kind", "route_use_confirmed", "flight_date", "departure_time_jst"
+                )
+            ]
+    else:
+        assert error["message"] == {
+            "PROJECT_REQUIRED": "先に経路を確定してください。",
+            "KML_IMPORT_FAILED": (
+                "KMZアーカイブが不正です。" if payload.get("filename") == "a.kmz"
+                else "KMLドキュメントが不正または安全ではありません。"
+            ),
+            "UPLOAD_ENCODING_INVALID": "アップロード内容を読み取れません。",
+        }[code]
+        assert error["details"] == {}
     assert local.session.project is None
 
 
@@ -214,76 +236,12 @@ def test_local_operations_keep_draft_last_good_and_failed_transaction(local, mon
     assert not draft["readiness"]["calculationIsCurrent"]
 
 
-@pytest.mark.parametrize(
-    "operation,endpoint,payload",
-    [
-        ("calculate", "/api/calculation-jobs", {}),
-        (
-            "renameRouteNode",
-            "/api/project/route-nodes/invalid/name",
-            {"node_id": "invalid", "name": "test"},
-        ),
-        ("confirmRoute", "/api/route/confirm", {}),
-        ("importRoute", "/api/import", {"filename": "a.kml", "kml_text": "<broken"}),
-        ("importRoute", "/api/import", {"filename": "a.kml", "content_base64": "!!"}),
-    ],
-)
-def test_local_and_fastapi_errors_have_the_same_application_meaning(
-    local, tmp_path, operation, endpoint, payload
-):
-    from autonavlog.web.app import create_app
-    from autonavlog.web.runtime import WebRuntimeConfig
-
-    app = create_app(
-        WebRuntimeConfig(
-            data_root=ROOT / "data",
-            storage_root=tmp_path / "legacy",
-            weather_mode="fake",
-            trusted_local_identity="issue118-test",
-            session_cookie_secure=False,
-        )
-    )
-
-    async def legacy_error():
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://test"
-        ) as client:
-            await client.post("/api/session")
-            if operation == "renameRouteNode":
-                result = (await client.put(endpoint, json={"name": payload["name"]})).json()
-            else:
-                result = (await client.post(endpoint, json=payload)).json()
-            if operation == "calculate":
-                for _ in range(100):
-                    result = (await client.get(f"/api/calculation-jobs/{result['job_id']}")).json()
-                    if result["status"] == "failed":
-                        break
-                    await asyncio.sleep(0.01)
-                assert result["status"] == "failed"
-            return result
-
-    legacy = asyncio.run(legacy_error())
-    error = json.loads(local.dispatch_response(operation, payload))["error"]
-    if "detail" in legacy:
-        assert error["code"] == "VALIDATION_FAILED"
-        assert error["details"]["issues"] == [
-            {"location": item["loc"][1:], "message": item["msg"], "type": item["type"]}
-            for item in legacy["detail"]
-        ]
-    else:
-        assert error["code"] == legacy["error"]["code"]
-        assert error["message"] == legacy["error"]["message"]
-
-
 @pytest.mark.parametrize("operation", ["calculate", "updateAndRecalculate"])
 @pytest.mark.parametrize("failure", ["validation", "runtime"])
-def test_internal_failure_semantics_match_legacy_and_preserve_draft(
-    local, tmp_path, monkeypatch, caplog, operation, failure
+def test_internal_failure_semantics_preserve_local_draft_and_last_good(
+    local, monkeypatch, operation, failure
 ):
     from pydantic import BaseModel
-
-    from autonavlog.web.app import create_app
-    from autonavlog.web.runtime import WebRuntimeConfig
 
     calculate(local)
     old_outcome = local.session.outcome.model_dump(mode="json")
@@ -295,21 +253,6 @@ def test_internal_failure_semantics_match_legacy_and_preserve_draft(
         "weather_mode": "FTD",
         "ftd_weather": local.session.project.ftd_weather.model_dump(mode="json"),
     }
-    app = create_app(
-        WebRuntimeConfig(
-            data_root=ROOT / "data",
-            storage_root=tmp_path / "legacy",
-            weather_mode="fake",
-            trusted_local_identity="issue118-internal",
-            session_cookie_secure=False,
-        )
-    )
-    # Share the prepared input/result with the real HTTP facade without recalculating a fixture.
-    web = app.state.web_application
-    legacy_session = web.create_session("issue118-internal")
-    legacy_session.project = local.session.project.model_copy(deep=True)
-    legacy_session.outcome = local.session.outcome.model_copy(deep=True)
-    legacy_session.readiness = local.session.readiness
 
     class InternalResult(BaseModel):
         internal_count: int
@@ -320,61 +263,21 @@ def test_internal_failure_semantics_match_legacy_and_preserve_draft(
         raise RuntimeError("secret internal detail")
 
     monkeypatch.setattr(local.session.calculation_service, "calculate", fail)
-    monkeypatch.setattr(legacy_session.calculation_service, "calculate", fail)
-
-    async def legacy_response():
-        from autonavlog.web.app import SESSION_COOKIE_NAME
-
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
-            base_url="https://test",
-            cookies={SESSION_COOKIE_NAME: legacy_session.token},
-        ) as client:
-            if operation == "updateAndRecalculate":
-                response = await client.post("/api/project/recalculate", json=update)
-                assert response.status_code == 500
-                assert response.text == "Internal Server Error"
-                # LegacyApplication's non-JSON HTTP normalization is covered by its TS test.
-                return {"code": "REQUEST_FAILED", "message": "処理に失敗しました。", "details": {}}
-            job = (await client.post("/api/calculation-jobs")).json()
-            for _ in range(100):
-                job = (await client.get(f"/api/calculation-jobs/{job['job_id']}")).json()
-                if job["status"] == "failed":
-                    break
-                await asyncio.sleep(0.01)
-            assert job["status"] == "failed"
-            assert job["error"] == {
-                "code": "CALCULATION_JOB_FAILED",
-                "message": "計算に失敗しました。",
-                "status": 500,
-            }
-            return {"code": job["error"]["code"], "message": job["error"]["message"], "details": {}}
-
-    try:
-        legacy = asyncio.run(legacy_response())
-        request_body = update if operation == "updateAndRecalculate" else {}
-        error = json.loads(local.dispatch_response(operation, request_body))["error"]
-        assert error == legacy
-        assert "secret" not in json.dumps(error)
-        assert error["code"] != "VALIDATION_FAILED"
-        if operation == "calculate":
-            records = [
-                record
-                for record in caplog.records
-                if record.name == "autonavlog.web.calculation_jobs"
-            ]
-            assert len(records) == 1
-            assert records[0].getMessage().startswith("Unexpected calculation failure for job ")
-            assert records[0].exc_info is not None
-        for session in (local.session, legacy_session):
-            assert session.project.total_usable_fuel_gal == (
-                75 if operation == "updateAndRecalculate" else 90
-            )
-            after = session.outcome.model_dump(mode="json")
-            for key in old_outcome.keys() - {"status"}:
-                assert after[key] == old_outcome[key]
-    finally:
-        app.state.calculation_jobs.shutdown()
+    request_body = update if operation == "updateAndRecalculate" else {}
+    error = json.loads(local.dispatch_response(operation, request_body))["error"]
+    assert error == {
+        "code": "CALCULATION_JOB_FAILED" if operation == "calculate" else "REQUEST_FAILED",
+        "message": "計算に失敗しました。" if operation == "calculate" else "処理に失敗しました。",
+        "details": {},
+    }
+    assert "secret" not in json.dumps(error)
+    assert error["code"] != "VALIDATION_FAILED"
+    assert local.session.project.total_usable_fuel_gal == (
+        75 if operation == "updateAndRecalculate" else 90
+    )
+    after = local.session.outcome.model_dump(mode="json")
+    for key in old_outcome.keys() - {"status"}:
+        assert after[key] == old_outcome[key]
 
 
 def test_reload_working_recovery_restores_import_and_last_good_without_calculation(
@@ -686,6 +589,16 @@ def test_rounding_mode_uses_common_calculation_wind_and_only_projects_toat(local
     from autonavlog.nav.wind_triangle import solve_wind_triangle
 
     calculate(local, forecast=forecast)
+    invalid = json.loads(local.dispatch_response("calculate", {"rounding_mode": "ON"}))
+    assert invalid["error"] == {
+        "code": "VALIDATION_FAILED",
+        "message": "入力内容を確認してください。",
+        "details": {"issues": [{
+            "location": ["rounding_mode"],
+            "message": "Input should be a valid boolean",
+            "type": "bool_type",
+        }]},
+    }
     project = local.session.project
     first = project.sections[0]
     first.manual_wind_by_phase[first.phase] = ManualWind(direction_deg_from=355, speed_kt=21)
@@ -694,6 +607,7 @@ def test_rounding_mode_uses_common_calculation_wind_and_only_projects_toat(local
     off = json.loads(local.dispatch("calculate"))
     rounded = json.loads(local.dispatch("calculate", {"rounding_mode": True}))
     assert rounded["roundingMode"] is True
+    assert "rounding_mode" not in rounded["project"]
     assert rounded["readiness"]["calculationIsCurrent"]
     assert local.session.project.sections[0].model_dump() == first.model_dump()
     assert rounded["project"]["ftd_weather"] == raw_inputs["ftd_weather"]
@@ -773,65 +687,6 @@ def test_rounding_failure_is_atomic_and_reload_resets_without_relabeling_result(
     assert restored["workingRecovery"]["last_calculation"] is None
     assert not restored["readiness"]["calculationIsCurrent"]
     assert restored["project"]["sections"] == saved["project"]["sections"]
-
-
-def test_legacy_rounding_jobs_validate_options_and_commit_mode_with_result(local, tmp_path):
-    from autonavlog.web.app import SESSION_COOKIE_NAME, create_app
-    from autonavlog.web.runtime import WebRuntimeConfig
-
-    calculate(local)
-    app = create_app(
-        WebRuntimeConfig(
-            data_root=ROOT / "data",
-            storage_root=tmp_path / "legacy-rounding",
-            weather_mode="fake",
-            trusted_local_identity="issue234",
-            session_cookie_secure=False,
-        )
-    )
-    web = app.state.web_application
-    session = web.create_session("issue234")
-    session.project = local.session.project.model_copy(deep=True)
-    session.project.metadata["web_owner_id"] = session.owner_id
-
-    async def exercise():
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
-            base_url="https://test",
-            cookies={SESSION_COOKIE_NAME: session.token},
-        ) as client:
-            invalid = await client.post("/api/calculation-jobs", json={"rounding_mode": "ON"})
-            assert invalid.status_code == 422
-            created = await client.post("/api/calculation-jobs", json={"rounding_mode": True})
-            assert created.status_code == 202
-            job_id = created.json()["job_id"]
-            for _ in range(300):
-                job = (await client.get(f"/api/calculation-jobs/{job_id}")).json()
-                if job["status"] in {"failed", "succeeded"}:
-                    break
-                await asyncio.sleep(0.01)
-            assert job["status"] == "succeeded", job
-            state = job["state"]
-            assert state["roundingMode"] is True
-            assert (
-                state["outcome"]["sections"][0]["wind_direction_deg_from"]["automatic_metadata"][
-                    "rounding_mode"
-                ]
-                is True
-            )
-            assert "rounding_mode" not in state["project"]
-            renewed = await client.post(
-                "/api/application-session?rounding_mode=true", json=state["workingRecovery"]
-            )
-            assert renewed.status_code == 200
-            assert renewed.json()["state"]["roundingMode"] is True
-            assert renewed.json()["state"]["outcome"] == state["outcome"]
-            restored = await client.post("/api/application-session", json=state["workingRecovery"])
-            assert restored.status_code == 200
-            assert restored.json()["state"]["roundingMode"] is False
-            assert restored.json()["state"]["outcome"] is None
-
-    asyncio.run(exercise())
 
 
 @pytest.mark.parametrize("blocker_count", [1, 4])

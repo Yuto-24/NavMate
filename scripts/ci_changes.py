@@ -69,6 +69,7 @@ def is_documentation(change: Change) -> bool:
 
 JOBS = frozenset(
     {
+        "release-build",
         "pytest",
         "runtime",
         "web",
@@ -90,6 +91,8 @@ def affected_jobs(change: Change) -> frozenset[str]:
     if {change.old_mode, change.new_mode} - {"000000", "100644"}:
         return JOBS
     path = change.path
+    if path in {"VERSION", "CHANGELOG.md"} and change.new_mode == "100644":
+        return frozenset({"release-build"})
     if path.startswith("web/src/") and path.endswith((".ts", ".tsx", ".css")):
         # UI and application state share auth, persistence and sync consumers.
         return WEB_JOBS
@@ -100,7 +103,7 @@ def affected_jobs(change: Change) -> frozenset[str]:
         return frozenset({"taf-proxy", "web", "local-browser"})
     if path in {"services/msm-trigger/worker.ts", "services/msm-trigger/entrypoint.ts"}:
         return frozenset({"msm-trigger"})
-    # Tests, CI, data, release/build inputs, dependencies and unknown paths are cross-cutting.
+    # Tests, CI, data, other build inputs, dependencies and unknown paths are cross-cutting.
     return JOBS
 
 
