@@ -182,3 +182,22 @@ CodeRabbitは`b137fcc1`を初回レビューして承認し、worker数・認証
 旧文書の不一致1件を指摘した。現行コードを正本に該当節を修正した。旧browser追加導入の説明も
 公式コンテナ利用と不一致だったため修正した。後続の文書変更は独立diffレビューで確認し、
 機能を変えない計測記録の追記だけを理由とした追加レビューは依頼しない。
+
+
+## 2026-11-18: main受入とIssue #459の基準
+
+[#452 / #458を統合したPR #462](https://github.com/Yuto-24/NavMate/pull/462)の
+[main Run 44239461740](https://github.com/Yuto-24/NavMate/actions/runs/44239461740)は
+29 jobすべて成功。上記の「main未確認」は各観測時点の記録であり、現在の未完了条件ではない。
+Issue #459着手時にJobs APIで29件の成功と各jobの開始・終了を再確認した。
+
+- Run作成から`ci-required`完了まで10分09秒（Issue #459の基準記録）。
+- job開始から終了までの合計111分24秒。課金時間やCPU時間ではない。
+- Python shard 2は9分29秒、Docker build 1分12秒、検査本体8分10秒。
+- Python shard 1は8分34秒、Docker build 1分23秒、検査本体7分03秒。
+- 有効Ruleset `20705217`のmain適用ルールを再取得し、GitHub Actions発行の
+  `ci-required`（integration ID `15368`）が必須のままであることを確認した。
+
+5分目標には未達。このRunは#459の変更前であり、変更後の高速化の証拠にはしない。
+#459の共通検査・準備・Python分配の記録は
+[分配証跡](independent-shards-20261101.md#issue-459-shared-checks-and-current-timings)を参照する。

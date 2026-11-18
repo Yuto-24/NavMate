@@ -509,13 +509,16 @@ keeps `--workers=2`. New selected tests are assigned by Playwright, without a fi
 Terrain, static storage notice, manifest mismatch/reload and forecast-backup tests run once, on Local shard 1.
 The auth runner also runs sync component and notification suites; `acceptance` retains scroll, all browser/device acceptance projects
 and TAF. `focused-ux` and `clipboard` keep their existing configurations and two workers.
-Each runner owns its server and build directory, including the TAF-specific rebuild.
+Each runner owns its build directory, including the TAF-specific rebuild. The auth runner uses
+its suite-owned Vite harnesses and does not start the unused port 4174 static server.
+Local asset preparation remains necessary for notification tests using the real Worker.
 
 Account Sync retains Chromium, iPad WebKit and iPhone WebKit. Each project uses two isolated
 runners with `--fully-parallel --workers=1 --shard=N/2`: individual tests are distributed,
 but each runner executes sequentially with its own Firestore emulator. The existing tests
 use fresh browser contexts and unique account IDs, with no shared before/after-all state.
-Rules, storage upgrade and migration stay together in `contracts`; shared development runs
+Only `contracts` starts the migration HTTP harness. Device sync uses Local/Pyodide and Firestore,
+so it does not start that server. Rules, storage upgrade and migration stay together in `contracts`; shared development runs
 once in its own Auth/Firestore emulator runner. Sync helper/dialog assertions run separately in
 `test:sync-component` with the same three device projects, without an emulator.
 Local developer commands without a shard keep their previous behavior.
@@ -526,8 +529,15 @@ workflow matrices. The `local-browser` and `account-sync` aggregate names are un
 fail unless every matrix entry succeeds. `ci-required` still requires every selected suite,
 including `web`; moving collection checks there avoids an npm install after sync finishes.
 
-`pytest-tests` uses two independent Docker test-stage runners. The existing lint, typing,
-release/data/schema validation and package build remain in `run_ci_checks.sh` on both shards.
+`pytest-tests` uses two independent Docker test-stage runners. Lint, typing,
+release/data/schema validation and package build run once in `run_ci_checks.sh` on shard 1.
+Shard 2 uses its `pytest` argument; the aggregate requires both runners, so a shared-check failure
+cannot pass the Python gate. The default invocation still runs every shared check and all tests.
+Both runners keep their own Docker build, Python 3.12, installed package, generated `static`
+and source `public` assets. Image transfer is not introduced: its transfer/storage cost is not
+measured, and both environments must test the current installed package.
+Release-source validation and release-build remain independent: they cover PR body/base contracts
+and the Node 24 release package, whereas Docker builds use their existing Node 22 environment.
 The pytest plugin partitions the complete collected test list by file, using measured file
 durations and longest-first balancing. New files are included automatically; tests within each
 file retain collection order. Local runs without `CI_PYTEST_SHARD` still run the complete suite.
