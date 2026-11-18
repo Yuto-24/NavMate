@@ -104,10 +104,16 @@ did not identify a specific exception or establish a memory-exhaustion root caus
 
 The browser acceptance case now finishes the first tab's runtime before starting
 the second tab and closes the second tab before returning to the original tab.
-It still checks Save, reload, opening the same saved Project in a new tab, and
-returning to the original tab with the unchanged NAV LOG. It does **not**
+It still checks Save, reload, and opening the saved Project in a new tab.
+The first revision erroneously expected the original tab's working result to
+remain visible after navigating through `about:blank`:
+[Run 44342463755](https://github.com/Yuto-24/NavMate/actions/runs/44342463755)
+failed on all six browser projects at that assertion. The test now explicitly
+reopens the durable Project on returning to the original tab and compares its
+NAV LOG. This is a persisted-Project check, not a claim that the transient
+working session survived navigation away from the application. It does **not**
 validate simultaneous Pyodide execution in two live tabs; concurrency and
-cross-tab persistence conflicts are covered separately by the existing session
+cross-tab persistence conflicts are covered separately by existing session
 and persistence tests. This is a scoped response to one observed CI failure,
 not evidence of a general WebKit memory limit or production browser acceptance.
 
