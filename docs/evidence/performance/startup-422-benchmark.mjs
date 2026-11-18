@@ -69,6 +69,8 @@ if (count) {
         fcp_ms: performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null,
         operable_ms: window.startupReady,
       }));
+      const validatedProjects = await page.locator('#saved-project option[value]:not([value=""])').count();
+      if (validatedProjects !== count) throw new Error(`Expected ${count} validated Projects, got ${validatedProjects}`);
       const sample = { variant: variant ? 'candidate' : 'base', projects: count, repetition, cache, ...timing };
       samples.push(sample);
       console.log(JSON.stringify(sample));

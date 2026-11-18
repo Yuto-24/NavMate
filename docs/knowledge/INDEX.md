@@ -12,7 +12,7 @@ Read [the workflow](README.md) before adding or applying lessons. For the full m
 - [現行保証とLegacyテストの境界](../testing.md#issue-458-現行保証の担当とlegacy専用テストの廃止): Issue #458。共有facade・数値・移行・予備APIを維持し、旧通常adapter / queueだけを廃止。KML・GSI・同期componentの移管先と、通知・Static回復のCI担当を記録。
 - [Existing evidence](../evidence/)（[2026-11-18 MSM Worker復旧記録](../evidence/issue-123/msm-worker-recovery-2026-11-18.md)を含む）
 - [Static browser acceptance](../static_web_browser_acceptance.md#observation-startup-after-reload-2026-11-14): PR #438のiPhone WebKit traceで確認した、reload後のPyodide初期化と結果検証の待機上限の不一致。起動待ちと保存結果の完全一致検証を分ける。起動性能の改善は#422。
-- [起動性能と配布データの境界](../evidence/performance/startup-422-20261118.md): Issue #422。異なる時刻の単純比較を避け、前後を交互に測定。未使用AIP原本の配布除外は、予備APIのデータ照合対象も揃える必要がある。計算に必要な原本PDFは維持する。
+- [起動性能と配布データの境界](../evidence/performance/startup-422-20261118.md): Issue #422。異なる時刻の単純比較を避け、前後を交互に測定。未使用AIP原本の配布除外は、予備APIのデータ照合対象も揃える必要がある。計算に必要な原本PDFは維持する。統合後はLast Calculationを持つProjectでも再測定。配布前のヘルパー読込は古いインストールと未生成のpackage metadataの両方に依存しないことを確認する。
 - [App publication audit](../app_publication_audit.md): prepare/publish重複、排他、部分失敗、診断境界。#440で共通の期限表示・確認記録・工程計測を追加。2026-11-15の既存Runのstep計測ではArtifact uploadは2秒／4秒。build-onceは保留。
 - [Pages履歴とpreflightの通信上限](../app_publication_audit.md#2026-11-17-pages履歴取得の通信上限によるpreflight停止): v2.4.0のRun 43944939018。失敗時刻以前の保持履歴769件が旧20件指定では最低42GETを要し、40回上限で停止。25件指定で全件照合を実API確認済み。926件では引き続き停止し、履歴削除や上限緩和は含めない。
 - [Schema #431 Actions prepare/publish](../schema431_actions_prepare.md): 固定toolingを維持した証拠転送、自己Runの識別、planへの個別承認と暗号化記録。30分期限内に公開へ進めるよう、公開経路を先に準備する。2026-11-13に確認した診断欠落、保存案内テストの文言不一致と候補の再審査、privateなcheckoutからDockerコピーへ引き継がれる権限不整合。2026-11-14の保持feed容量と転送上限の不整合、保存失敗時の診断引継ぎ。
