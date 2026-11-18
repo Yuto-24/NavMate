@@ -104,9 +104,14 @@ AGENTS.md に従います。
 
 ### PR提出前のローカル検証
 
-- PRの作成・更新前に、現行の `.github/workflows/test.yml` と
-  [テスト手順](testing.md)から該当するローカル検証を選び、失敗が残っていないことを確認します。
-  修正途中の対象テスト成功を、PR提出時の全体検証の代わりにしません。
+- PRの作成・更新前に、実際の差分と影響を確認し、現行の `.github/workflows/test.yml` と
+  [テスト手順](testing.md)を参照して該当するローカル検証を選び、失敗が残っていないことを確認します。
+  Hosted CIの保守的な変更分類だけを理由に、影響のないローカルsuiteを選択しません。
+  例えばVERSION・CHANGELOGとそのUI文言確認の証跡だけのリリース準備では、release source・
+  release buildと必須の版数・型検査を行い、アプリのPython全体検査は選択しません。
+  製品コードや依存関係などPythonに影響する差分があれば、その影響に応じて選択します。
+  Hosted CIの分類・必須チェックは変更せず、ローカルとHostedの結果を区別します。
+  修正途中の対象テスト成功を、選択したローカル全体検証の代わりにしません。
 - Python suiteが対象なら、サポートするDockerのtest stageでpytest全体を実行します。
   CIと同じworkflowファイルのmount、依存関係、生成物を揃え、
   `scripts/run_ci_checks.sh` のrelease検査・ruff・mypy・pytest・データ/schema検査・package buildを
