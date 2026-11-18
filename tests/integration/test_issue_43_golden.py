@@ -355,16 +355,18 @@ def test_issue_43_golden_display_structure_inheritance_and_destination(
     assert cruise_parent.toat.text == "14.2"
     assert cruise_parent.wca.text == "+2"
     assert cruise_parent.mh.text == "022"
-    assert not any(row.to_name == "EOC" for row in cruise_group)
+    # #470: the 7,500 -> 2,800 ft transition cannot finish in the short
+    # DESCENT basis Leg. EOC must precede Tamana on the 7,500 ft Leg.
+    assert any(row.to_name == "EOC" for row in cruise_group)
     check_point_row = next(row for row in cruise_group if row.to_name == "合津")
     assert check_point_row.toat.state == DisplayCellState.INHERIT
     assert check_point_row.toat.text is None
 
     descent_group = [row for row in rows if row.section_id == SECTION_IDS[2]]
-    eoc_row = next(row for row in descent_group if row.to_name == "EOC")
+    eoc_row = next(row for row in cruise_group if row.to_name == "EOC")
     assert eoc_row.pa.text == "↘"
     assert eoc_row.toat.state == DisplayCellState.INHERIT
-    assert next(row for row in descent_group if row.to_name == "大牟田").pa.text == "2800"
+    assert next(row for row in descent_group if row.to_name == "大牟田").pa.text == "↘"
 
     assert any(row.pa.text == "↗" for row in rows)
     assert any(row.pa.text == "↘" for row in rows)
@@ -475,14 +477,16 @@ def test_issue_43_golden_eoc_uses_vertical_time_plus_one_minute_and_raw_order(
         for row in golden_outcome.display_rows
         if row.section_id == SECTION_IDS[1] and row.row_type == "CALCULATION_ZONE"
     ]
-    assert [row.to_name for row in second_leg] == ["合津", "玉名"]
+    assert metadata["cruise_altitude_ft_msl"] == 7_500
+    assert metadata["planned_duration_seconds"] == pytest.approx(720.0)
+    assert [row.to_name for row in second_leg] == ["合津", "EOC", "玉名"]
     assert next(row for row in second_leg if row.to_name == "合津").distance.text == "24.5"
     descent_leg = [
         row
         for row in golden_outcome.display_rows
         if row.section_id == SECTION_IDS[2] and row.row_type == "CALCULATION_ZONE"
     ]
-    assert [row.to_name for row in descent_leg] == ["EOC", "大牟田"]
+    assert [row.to_name for row in descent_leg] == ["大牟田"]
     eoc = next(point for point in golden_outcome.derived_points if point.type.value == "EOC")
     check_point = next(
         point
@@ -552,19 +556,13 @@ def test_issue_43_eoc_does_not_snap_to_a_nearby_check_point(
         golden_project.route_nodes[2].latitude_deg,
         golden_project.route_nodes[2].longitude_deg,
     )
-    descent_leg = geodesic_leg(
-        golden_project.route_nodes[2].latitude_deg,
-        golden_project.route_nodes[2].longitude_deg,
-        golden_project.route_nodes[3].latitude_deg,
-        golden_project.route_nodes[3].longitude_deg,
-    )
     near_eoc_distance = (
-        eoc.along_route_distance_nm - first_leg.distance_nm - second_leg.distance_nm + 0.25
+        eoc.along_route_distance_nm - first_leg.distance_nm + 0.25
     )
     latitude, longitude = point_along_leg(
-        golden_project.route_nodes[2].latitude_deg,
-        golden_project.route_nodes[2].longitude_deg,
-        descent_leg.initial_true_course_deg,
+        golden_project.route_nodes[1].latitude_deg,
+        golden_project.route_nodes[1].longitude_deg,
+        second_leg.initial_true_course_deg,
         near_eoc_distance,
     )
     near_project = golden_project.model_copy(deep=True)
@@ -575,7 +573,7 @@ def test_issue_43_eoc_does_not_snap_to_a_nearby_check_point(
     )
     near_check_point.latitude_deg = latitude
     near_check_point.longitude_deg = longitude
-    near_check_point.linked_section_id = SECTION_IDS[2]
+    near_check_point.linked_section_id = SECTION_IDS[1]
 
     outcome = _calculate_golden(golden_airports, near_project)
 
@@ -594,7 +592,7 @@ def test_issue_43_eoc_does_not_snap_to_a_nearby_check_point(
     labels = [
         row.to_name
         for row in outcome.display_rows
-        if row.section_id == SECTION_IDS[2]
+        if row.section_id == SECTION_IDS[1]
         and row.row_type == "CALCULATION_ZONE"
     ]
     assert labels.index("EOC") < labels.index("合津")
