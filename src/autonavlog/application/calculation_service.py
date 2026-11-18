@@ -2861,17 +2861,12 @@ class CalculationService:
                 segment.end.longitude_deg,
             )
             manual_course = geometry.start.manual_true_course_deg
-            course_value = _manual_or_automatic(
-                geometry.geodesic.initial_true_course_deg,
-                manual_course,
-                metadata={
-                    "method": "source physical leg WGS84 initial bearing",
-                    "phase_segment": True,
-                    "source_section_id": str(section.id),
-                },
-                warnings=("MANUAL_TRUE_COURSE",) if manual_course is not None else (),
+            # Keep the physical WGS84 course for wind and performance calculations.
+            adopted_course = (
+                manual_course
+                if manual_course is not None
+                else geometry.geodesic.initial_true_course_deg
             )
-            adopted_course = course_value.adopted()
             source_manual_distance = geometry.start.manual_distance_nm
             distance_value = _automatic(
                 segment.distance_nm,
@@ -2893,8 +2888,14 @@ class CalculationService:
                 else (),
             )
             adopted_distance = distance_value.adopted()
+            is_vor_first_leg = departure_vor is not None and segment.source_index == 0
+            variation_decision = None
+            vor_variation = None
             try:
-                if departure_vor is not None and segment.source_index == 0:
+                variation_decision = variation_for_departure_latitude(
+                    geometry.start.latitude_deg
+                )
+                if is_vor_first_leg:
                     origin_gap = geodesic_leg(
                         departure_vor.latitude_deg,
                         departure_vor.longitude_deg,
@@ -2903,13 +2904,8 @@ class CalculationService:
                     ).distance_nm
                     if origin_gap > 1e-6:
                         raise ValueError("first physical leg must start at the departure VOR")
-                variation_decision = (
-                    variation_for_departure_vor(departure_vor)
-                    if departure_vor is not None and segment.source_index == 0
-                    else variation_for_departure_latitude(geometry.start.latitude_deg)
-                )
+                    vor_variation = variation_for_departure_vor(departure_vor)
             except (TypeError, ValueError) as error:
-                variation_decision = None
                 issues.append(
                     Issue(
                         code="VARIATION_UNAVAILABLE",
@@ -2925,10 +2921,33 @@ class CalculationService:
             variation_deg_east = (
                 None if variation_decision is None else variation_decision.degrees_east
             )
+            course_correction_deg = (
+                variation_deg_east - vor_variation.degrees_east
+                if is_vor_first_leg and variation_deg_east is not None
+                and vor_variation is not None
+                else 0.0
+            )
+            course_value = _manual_or_automatic(
+                (geometry.geodesic.initial_true_course_deg - course_correction_deg) % 360,
+                (
+                    None if manual_course is None
+                    else (manual_course - course_correction_deg) % 360
+                ),
+                metadata={
+                    "method": "source physical leg WGS84 initial bearing",
+                    "phase_segment": True,
+                    "source_section_id": str(section.id),
+                    **({
+                        "vor_tracking_tc_correction_deg": course_correction_deg,
+                        "vor_declination": vor_variation.metadata,
+                    } if vor_variation is not None else {}),
+                },
+                warnings=("MANUAL_TRUE_COURSE",) if manual_course is not None else (),
+            )
             magnetic_course = (
                 None
-                if adopted_course is None or variation_deg_east is None
-                else (adopted_course + variation_deg_east) % 360
+                if variation_deg_east is None or (is_vor_first_leg and vor_variation is None)
+                else (course_value.adopted() + variation_deg_east) % 360
             )
 
             wind_direction = wind_environment.wind_direction_deg_from
