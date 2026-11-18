@@ -15,7 +15,7 @@ PR headと一致することを確認し、第1親（実際に検証したbase�
 
 | PR の変更入力 | 必須 suite（release-sources は常時） |
 | --- | --- |
-| `AGENTS.md`、通常ファイルとして残る `README.md`、`docs/**/*.md` のみ | source 検証のみ |
+| `AGENTS.md`、通常ファイルとして残る `README.md`、`docs/` の文書・証跡のみ | source 検証のみ |
 | 通常ファイルとして残る `VERSION` / `CHANGELOG.md` | release-build |
 | `web/src/` 内の `.ts` / `.tsx` / `.css` | web、local-browser、account-sync |
 | `src/autonavlog/` 内の `.py` | pytest、runtime、web、local-browser、account-sync、static-tooling-install |
@@ -29,7 +29,11 @@ Python はブラウザの計算エンジンと配信ツールにも組み込ま�
 限定選択します。現行保証のassertionと必要なbrowser profileを維持し、担当suiteは下表で定めます。
 pytestの分配とブラウザの分割方法は後述します。
 
-`VERSION` / `CHANGELOG.md`だけのPRは、常時の`release-sources`と`release-build`、
+`docs/` のMarkdown・JSON・テキスト・画像などの通常ファイルはsource検証のみとします。
+実行コード、未知の拡張子、実装やテストが参照する一部の資料は全suite対象です。
+UI文言証跡は常時実行する `release-sources` で照合します。
+
+`VERSION` / `CHANGELOG.md`と文書・証跡だけのPRは、常時の`release-sources`と`release-build`、
 最終集約の`ci-required`を実行します。`release-build`は既存のリリースノートテストと
 Web build（生成JSON・TypeScript・Vite）、Python 3.12でのsdist/wheel buildを行い、
 生成wheelの版番号とWeb成果物の同梱を確認します。Docker、ブラウザE2E、全pytest、

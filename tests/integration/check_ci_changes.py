@@ -60,8 +60,14 @@ def pr(base, head):
         ({"docs/guide.md": "Docs\n", "src/app.py": "print('changed')\n"}, True),
         ({"KNOWN_ISSUES.md": "Issue text for the UI\n"}, True),
         ({"web/public/help.md": "Public artifact\n"}, True),
-        ({"docs/static_quota.example.json": "{}"}, True),
-        ({"docs/reference/data.xlsx": "fixture"}, True),
+        ({"docs/static_quota.example.json": "{}"}, False),
+        ({"docs/reference/data.xlsx": "fixture"}, False),
+        ({"docs/evidence/ui-copy/release/run.json": "{}"}, False),
+        ({"docs/evidence/chart.png": "image"}, False),
+        ({"docs/tool.py": "print(1)"}, True),
+        ({"docs/evidence/airport-vor-departure.json": "{}"}, True),
+        ({"docs/reference/vrep-169-confirmed-source.md": "data"}, True),
+        ({"docs/release-2-3-2-copy-request.json": "{}"}, True),
         ({".github/workflows/test.yml": "jobs: {}\n"}, True),
         ({"scripts/ci_changes.py": "# Updated classifier\n"}, True),
         ({"tests/integration/check_ci_changes.py": "# Updated tests\n"}, True),
@@ -192,6 +198,10 @@ def test_github_outputs_and_summary(repo, monkeypatch):
         (["CHANGELOG.md"], {"release-build"}),
         (["VERSION", "CHANGELOG.md"], {"release-build"}),
         (["VERSION", "CHANGELOG.md", "docs/guide.md"], {"release-build"}),
+        (
+            ["VERSION", "CHANGELOG.md", "docs/evidence/ui-copy/release/request.json"],
+            {"release-build"},
+        ),
         (["VERSION", "web/src/App.tsx"], ci_changes.WEB_JOBS | {"release-build"}),
         (
             ["CHANGELOG.md", "src/autonavlog/domain/calculation.py"],
@@ -241,7 +251,9 @@ def test_deleted_and_moved_inputs_retain_both_scopes(repo):
 
 
 @pytest.mark.parametrize("mode", ["100755", "120000", "160000"])
-@pytest.mark.parametrize("path", ["web/src/App.tsx", "VERSION", "CHANGELOG.md"])
+@pytest.mark.parametrize(
+    "path", ["web/src/App.tsx", "VERSION", "CHANGELOG.md", "docs/evidence/review.json"]
+)
 def test_non_regular_source_falls_back_to_full(mode, path):
     assert (
         ci_changes.affected_jobs(ci_changes.Change(path, "100644", mode))
