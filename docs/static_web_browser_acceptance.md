@@ -94,6 +94,23 @@ this test, not proof that every slow startup will recover or a general reason
 to extend assertion timeouts. Startup performance remains a separate concern
 under [#422](https://github.com/Yuto-24/NavMate/issues/422).
 
+### Observation: iPad WebKit second-tab runtime initialization (2026-11-18)
+
+[PR #475 CI run 44339596574](https://github.com/Yuto-24/NavMate/actions/runs/44339596574/job/134925819500)
+failed in the iPad WebKit lifecycle check after the first tab had completed calculation,
+Save and reload. In the second tab, the startup display stayed at the Pyodide runtime
+stage for 120 seconds. The trace recorded HTTP 200 responses for runtime assets but
+did not identify a specific exception or establish a memory-exhaustion root cause.
+
+The browser acceptance case now finishes the first tab's runtime before starting
+the second tab and closes the second tab before returning to the original tab.
+It still checks Save, reload, opening the same saved Project in a new tab, and
+returning to the original tab with the unchanged NAV LOG. It does **not**
+validate simultaneous Pyodide execution in two live tabs; concurrency and
+cross-tab persistence conflicts are covered separately by the existing session
+and persistence tests. This is a scoped response to one observed CI failure,
+not evidence of a general WebKit memory limit or production browser acceptance.
+
 ## Local run (2026-09-26)
 
 Source was `8635fbd2f3772218bb6bc14ea56efd3e6a7997fe` with the #122 test/docs
