@@ -82,8 +82,11 @@ def test_schema4_retains_work_and_historical_calculation(monkeypatch, mode, save
         }))
         restored_last = copy.deepcopy(restored["workingRecovery"]["last_calculation"])
         # CUT alone is now derived from the historical adopted zones on open.
-        assert any(row["thirty_degree_cut_seconds"] is not None
-                   for row in restored_last["outcome"]["display_rows"])
+        expected_cut = {8: 4} if mode == "ftd" else {4: 14}
+        for row in restored_last["outcome"]["display_rows"]:
+            assert row["thirty_degree_cut_seconds"] == expected_cut.get(row["sequence"])
+            if row["sequence"] in expected_cut:
+                assert row["row_type"] == "PHYSICAL_LEG_SUMMARY"
         for row in restored_last["outcome"]["display_rows"]:
             row["thirty_degree_cut_seconds"] = None
         assert restored_last == last

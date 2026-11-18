@@ -156,6 +156,7 @@ test("browser process restart loads named checkpoint and retains Last Calculatio
     expect(initial.checkpoint).toBeNull();
     await save(page, "Restart route");
     const saved = (await records(page))[0];
+    const calculated = (await working(page)).last_calculation;
     expect(saved.draft.weather_mode).toBe("FORECAST");
     expect(saved.lastCalculation.project.weather_mode).toBe("FORECAST");
     expect(saved.lastCalculation.outcome.selected_forecast_run_id).toBe("20260915210000");
@@ -203,7 +204,7 @@ test("browser process restart loads named checkpoint and retains Last Calculatio
     page.once("dialog", dialog => dialog.accept());
     await load(page, saved.id);
     await expect(page.locator(".nav-log-table")).toBeVisible();
-    expect((await working(page)).last_calculation).toEqual(saved.lastCalculation);
+    expect((await working(page)).last_calculation).toEqual(calculated);
     await expect(page.getByLabel("FUEL gal", { exact: true })).toHaveValue("90");
     // Invalid ephemeral edits win over the durable validated draft on same-tab reload.
     await page.getByLabel("FUEL gal", { exact: true }).fill("");
@@ -571,7 +572,8 @@ test("#280 #465 saved CUT seconds and legacy Last Calculation reopen without rec
   await calculate(page);
   await save(page, "CUT compatibility");
   const saved = (await records(page))[0];
-  const values = saved.lastCalculation.outcome.display_rows
+  const calculated = (await working(page)).last_calculation;
+  const values = calculated.outcome.display_rows
     .filter((row: any) => row.row_type === "PHYSICAL_LEG_SUMMARY")
     .map((row: any) => row.thirty_degree_cut_seconds === null ? "—" : String(row.thirty_degree_cut_seconds));
   expect(values.some((value: string) => /^\d+$/.test(value))).toBe(true);
@@ -585,24 +587,36 @@ test("#280 #465 saved CUT seconds and legacy Last Calculation reopen without rec
   });
   await load(page, saved.id);
   await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell")).toHaveText(values);
-  expect((await working(page)).last_calculation.outcome).toEqual(saved.lastCalculation.outcome);
+  expect((await working(page)).last_calculation.outcome).toEqual(calculated.outcome);
+  const alternate = structuredClone(saved);
+  alternate.id = crypto.randomUUID();
+  alternate.lastCalculation = null;
+  for (const project of [alternate.draft, alternate.checkpoint]) {
+    project.id = alternate.id; project.name = "CUT alternate";
+  }
+  await put(page, [alternate]);
+  await page.reload();
+  await load(page, alternate.id);
   const legacy = structuredClone(saved);
   for (const row of legacy.lastCalculation.outcome.display_rows) row.thirty_degree_cut_seconds = 999;
   await put(page, [legacy]);
   await load(page, saved.id);
   await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell")).toHaveText(values);
-  expect((await working(page)).last_calculation).toEqual(saved.lastCalculation);
+  expect((await working(page)).last_calculation).toEqual(calculated);
   // A separate device restores a transferred legacy record through the same repository path.
   const other = await browser.newContext();
   try {
+    await blockDevCloud(other);
+    await blockApi(other);
     const second = await other.newPage();
     await start(second);
     await put(second, [legacy]);
     await second.reload();
     await load(second, saved.id);
     await expect(second.locator(".nav-leg-heading-row .nav-log-cut-cell")).toHaveText(values);
-    expect((await working(second)).last_calculation).toEqual(saved.lastCalculation);
+    expect((await working(second)).last_calculation).toEqual(calculated);
   } finally { await other.close(); }
+  await load(page, alternate.id);
   for (const row of legacy.lastCalculation.outcome.display_rows) delete row.thirty_degree_cut_seconds;
   await put(page, [legacy]);
   await load(page, saved.id);

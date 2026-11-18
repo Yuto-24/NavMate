@@ -394,3 +394,34 @@ test("#181 expired deletion preflight retains Remote and Local data without sche
   await expect.poll(() => page.evaluate(() => (window as any).authTest.state().account?.account_id)).toBe(oldId);
   await expect(page.locator("#saved-project option").filter({ hasText: "Keep expired route" })).toHaveCount(1);
 });
+
+
+test("#465 legacy CUT payload is rederived after real SDK sync", async ({ browser, page, context }) => {
+  await backend(context);
+  const subject = `cut-legacy-${crypto.randomUUID()}`;
+  await start(page, subject); await create(page, "Legacy CUT route");
+  const expected = await page.locator(".nav-leg-heading-row .nav-log-cut-cell").allTextContents();
+  expect(expected.some(value => /^\d+$/.test(value))).toBe(true);
+  await expect.poll(() => page.evaluate(async () => {
+    const remote = (window as any).authTest.contexts.at(-1).sync.remote;
+    return remote ? (await remote.list()).some((value: any) => value.record.draft.name === "Legacy CUT route") : false;
+  })).toBe(true);
+  // Emulate a pre-fix writer at the transport boundary, using the real SDK and Rules.
+  await page.evaluate(async () => {
+    const remote = (window as any).authTest.contexts.at(-1).sync.remote;
+    const old = (await remote.list()).find((value: any) => value.record.draft.name === "Legacy CUT route");
+    const next = structuredClone(old);
+    next.version = crypto.randomUUID(); next.revision++;
+    for (const row of next.record.lastCalculation.outcome.display_rows) row.thirty_degree_cut_seconds = 999;
+    const result = await remote.commit([{ expectedVersion: old.version, value: next }]);
+    if (!result.committed) throw Error("Legacy fixture commit failed");
+  });
+  const other = await browser.newContext();
+  try {
+    await backend(other);
+    const second = await other.newPage();
+    await start(second, subject); await open(second, "Legacy CUT route");
+    await expect(second.locator(".nav-leg-heading-row .nav-log-cut-cell")).toHaveText(expected);
+    expect(await second.locator(".nav-log-cut-cell").allTextContents()).not.toContain("999");
+  } finally { await other.close(); }
+});
