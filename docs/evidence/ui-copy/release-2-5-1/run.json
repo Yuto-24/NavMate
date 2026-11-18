@@ -1,0 +1,27 @@
+{
+  "tool": "agy",
+  "requested_model": "gemini-4-argon-medium",
+  "model_identity_note": "Requested model only; backend identity is not independently verified.",
+  "started_at": "2026-11-18T15:22:50.837618+00:00",
+  "command": [
+    "agy",
+    "--model",
+    "gemini-4-argon-medium",
+    "--mode",
+    "plan",
+    "--sandbox",
+    "--output-format",
+    "json",
+    "--print",
+    "<prompt.txt>"
+  ],
+  "status": "response-received",
+  "returncode": 0,
+  "finished_at": "2026-11-18T15:23:07.232858+00:00",
+  "sha256": {
+    "request.json": "bddd7f4c67683bb4ab621e35c72f1479e0badc9ff5b330f3260dbc5014e26940",
+    "prompt.txt": "2de59b9510ea6e41eda10c187bc50dcce8c8e20c81c05ac55eee09c93594f6d2",
+    "stdout.json": "4d166bd08410c9769a11e1177e517f2e24916373d795fd92ecd3d60fa1ba9465",
+    "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
