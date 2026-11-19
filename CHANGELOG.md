@@ -2,6 +2,19 @@
 
 NavMate のRelease履歴です。公開日時はGitHub Releaseを正本とします。
 
+## 2.5.2
+
+### 利用者向け
+
+#### 修正
+- VOR Tracking Modeの第1 Legで、通常の磁気偏差（VAR）を維持し、表示TCを補正してMCが出発VORのCRSに合うよう修正しました。該当する保存済みの計算結果は再計算が必要です。
+
+### 開発者向け
+
+- [PR #475 VOR TrackingのTC補正](https://github.com/Yuto-24/NavMate/pull/475)：第1 Physical LegのVARを通常値に戻し、TCを補正してMCを出発VORのCRSに合わせます。風計算と30° CUTは物理方位を維持します。保存済みの対象計算は再計算対象です。
+- [PR #474 リリース準備のCI選択](https://github.com/Yuto-24/NavMate/pull/474)：文書・リリース準備の変更に応じたCI検査を選択します。
+- v2.5.1以降のmain変更を含みます。
+
 ## 2.5.1
 
 ### 利用者向け
