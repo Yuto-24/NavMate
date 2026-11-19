@@ -339,6 +339,40 @@ def test_cut_is_entry_parent_only_uses_adopted_values_and_preserves_zones(airpor
     assert NavLogDisplayRow.model_validate(legacy).thirty_degree_cut_seconds is None
 
 
+def test_vor_tc_correction_preserves_physical_thirty_degree_cut():
+    from autonavlog.application.navlog_display import _cut_from_zones
+
+    # Use a feasible CUT scenario already covered by the wind-correction test:
+    # 0° -> 90° with a 20 kt westerly wind and 10 NM available.
+    inbound_heading = solve_wind_triangle(0, 120, 270, 20).true_heading_deg
+    before = _summary_zone().model_copy(update={
+        "true_course_deg": _automatic(0),
+        "variation_deg_east": _automatic(7),
+        "magnetic_course_deg": _automatic(7),
+        "magnetic_heading_deg": _automatic((inbound_heading + 7) % 360),
+    })
+    after = _summary_zone().model_copy(update={
+        "true_course_deg": _automatic(90),
+        "variation_deg_east": _automatic(8),
+        "magnetic_course_deg": _automatic(98),
+        "magnetic_heading_deg": _automatic(98),
+        "tas_kt": _automatic(120),
+        "wind_direction_deg_from": _automatic(270),
+        "wind_speed_kt": _automatic(20),
+        "zone_distance_nm": _automatic(10),
+    })
+    original = _cut_from_zones([before], [after])
+    assert original is not None
+
+    corrected = before.model_copy(update={
+        "true_course_deg": _automatic(359).model_copy(update={
+            "automatic_metadata": {"vor_tracking_tc_correction_deg": 1.0},
+        }),
+        "variation_deg_east": _automatic(8),
+    })
+    assert _cut_from_zones([corrected], [after]) == original
+
+
 def test_merged_parent_cut_cannot_use_distance_after_an_internal_course_change(airports):
     from autonavlog.application.navlog_display import _thirty_degree_cut
 

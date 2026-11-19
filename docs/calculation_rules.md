@@ -14,8 +14,8 @@ SR22性能値については、Cirrus Design SR22 AFM/POH P/N 13772-006 Revision
 - NAV LOG計算では計画MSL高度をPAとして扱い、QNHによるPressure Altitude補正は行いません。
 - 通常のVARは各Physical Legの出発点緯度から自動選択します。32.0°N以上は8°W（加算値+8°）、32.0°N未満は7°W（加算値+7°）です。
 - 西偏差を正として`MC = TC + VAR`、右WCAを正として`MH = MC + WCA`とします。
-- VOR Tracking Modeの第1 Physical Legだけは出発VORの公示DeclinationをVARに使います。RCA・C'k Point・EOCで分割されても同じ偏差と元LegのWGS84初期TCを使い、`MC = TC + VAR`、`MH = MC + WCA`を維持します。WCAはTCと風だけから求めます。第2 Leg以降・Mode OFF・到着処理は従来の緯度別偏差です。
-- 第1 LegのMC/MHは出発VORの磁気基準です。現地の磁気方位計との一致は保証しません。経路上の各点へのVOR Radialは同じ出発点からのWGS84初期方位なので、途中の局所接線方位の変化をMCへ加えません。VOR/DME列の選局はこの基準を変更しません。
+- VOR Tracking ModeでもVARは通常の緯度別偏差を維持します。第1 Physical Legに限り、補正前の採用TCから「通常VAR − 出発VORの公示Declination」を減じた値をNAV LOGのTCとして表示します（`TC_表示 = TC_採用 − (VAR_通常 − Declination_VOR)`）。補正前の採用TCは、手動TCが指定されていればその値、なければ元LegのWGS84初期方位です。このTCに通常VARを加えてMCを求めるため、MCは出発VORのCRSと一致します。RCA・C'k Point・EOCで分割されても同じ補正を適用します。WCA・GS・ETEなどの風計算には補正前の採用TCを使い、`MH = MC + WCA`を維持します。第2 Leg以降・Mode OFF・到着処理には補正しません。
+- VOR Tracking Modeの第1 Legで表示するTCは、補正前の採用TC（手動指定値またはWGS84初期真方位）を出発VORのCRSに合わせた値です。MC/MHは出発VORの磁気基準であり、現地の磁気方位計との一致は保証しません。経路上の各点へのVOR Radialは同じ出発点からのWGS84初期方位なので、途中の局所接線方位の変化をMCへ加えません。VOR/DME列の選局はこの基準を変更しません。
 - 保存済みデータの互換性は維持しつつ、MCに加える磁気偏差の符号は常に西正とします。
 - NAV LOGへ表示するMHは、同じ行に表示する丸め済みMCとWCAから作り、画面上の算術を一致させます。
 - VFR巡航高度候補の方向判定は、NAV LOGへ表示する1°単位のMCを使用します。359.5°以上は表示360°、判定上は0°側とします。

@@ -47,7 +47,7 @@ def variation_for_departure_latitude(latitude_deg: float) -> VariationDecision:
     )
 
 
-VOR_VARIATION_RULE_VERSION = "DEPARTURE_VOR_DECLINATION_V1"
+VOR_VARIATION_RULE_VERSION = "DEPARTURE_VOR_CRS_TC_CORRECTION_V2"
 
 # The same canonical resource is imported directly by web/src/vorRadial.ts.
 _vor_data = json.loads(files("autonavlog.nav").joinpath("data/vor_stations.json").read_text())
@@ -76,7 +76,7 @@ def variation_for_departure_vor(selection: DepartureVorSelection) -> VariationDe
     if not isfinite(west) or not -180 <= west <= 180 or not source:
         raise ValueError("published departure VOR declination is unavailable")
     return VariationDecision(
-        degrees_east=west,  # Legacy field name; MC adds west-positive VAR.
+        degrees_east=west,  # Legacy field name; station west declination corrects displayed TC.
         metadata={
             "rule_version": VOR_VARIATION_RULE_VERSION,
             "method": "DEPARTURE_VOR_DECLINATION",

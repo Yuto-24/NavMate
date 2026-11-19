@@ -553,7 +553,14 @@ test("#414 OLE first-leg CRS remains 094 when VOR/DME columns select another sta
   const row = page.locator(".nav-leg-heading-row").first();
   const mcIndex = await table.locator("thead tr").last().locator("th").evaluateAll(cells =>
     cells.findIndex(cell => cell.textContent?.trim() === "MC"));
-  expect(mcIndex).toBeGreaterThanOrEqual(0);
+  const tcIndex = await table.locator("thead tr").last().locator("th").evaluateAll(cells =>
+    cells.findIndex(cell => cell.textContent?.trim() === "TC"));
+  const varIndex = await table.locator("thead tr").last().locator("th").evaluateAll(cells =>
+    cells.findIndex(cell => cell.textContent?.trim() === "VAR"));
+  expect(tcIndex).toBeGreaterThanOrEqual(0);
+  expect(varIndex).toBeGreaterThanOrEqual(0);
+  await expect(row.locator("td").nth(tcIndex)).toHaveText("086");
+  await expect(row.locator("td").nth(varIndex)).toHaveText("+8");
   await expect(row.locator("td").nth(mcIndex)).toHaveText("094");
   const before = await row.innerText();
   const count = await page.evaluate(() => (window as any).localCalculationCount);
@@ -564,7 +571,7 @@ test("#414 OLE first-leg CRS remains 094 when VOR/DME columns select another sta
   const source = await page.evaluate(() => {
     const states = (window as any).localStates;
     const state = [...states].reverse().find(state => state.outcome?.sections?.length);
-    return state.outcome.sections[0].variation_deg_east.automatic_metadata.source;
+    return state.outcome.sections[0].true_course_deg.automatic_metadata.vor_declination.source;
   });
   expect(source).toBe("AIP AD 2.19 VOR declination; RJFU__20260709.pdf p.11");
   await page.getByLabel("VOR基準局", { exact: true }).selectOption("MZE");

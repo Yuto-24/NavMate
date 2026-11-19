@@ -880,6 +880,19 @@ def _cut_from_zones(
     tc_in, mh_in, var_in, mc, mh, variation, tas, wind = [
         float(value) for value in values if value is not None
     ]
+    # A VOR Tracking TC is display-adjusted; CUT geometry must use the
+    # original true course and heading, including when restored from storage.
+    before_correction = before.true_course_deg.automatic_metadata.get(
+        "vor_tracking_tc_correction_deg", 0.0
+    )
+    after_correction = after.true_course_deg.automatic_metadata.get(
+        "vor_tracking_tc_correction_deg", 0.0
+    )
+    if any(
+        not isinstance(value, (int, float)) or not isfinite(value)
+        for value in (before_correction, after_correction)
+    ):
+        return None
     direction = after.wind_direction_deg_from.adopted()
     if wind == 0:
         direction = 0.0
@@ -893,10 +906,10 @@ def _cut_from_zones(
     if any(value is None or not isfinite(value) or value < 0 for value in distances):
         return None
     solution = solve_thirty_degree_cut(
-        inbound_course_deg=tc_in,
-        inbound_heading_deg=mh_in - var_in,
-        course_deg=mc - variation,
-        heading_deg=mh - variation,
+        inbound_course_deg=tc_in + before_correction,
+        inbound_heading_deg=mh_in - var_in + before_correction,
+        course_deg=mc - variation + after_correction,
+        heading_deg=mh - variation + after_correction,
         tas_kt=tas,
         wind_direction_deg_from=direction,
         wind_speed_kt=wind,
