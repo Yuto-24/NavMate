@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import local from "./playwright.local.config";
 
 export default defineConfig(local, {
-  testMatch: "navlog-scroll.spec.ts",
+  testMatch: ["navlog-scroll.spec.ts", "navlog-png.spec.ts"],
   timeout: 180_000,
   outputDir: "/tmp/autonavlog-navlog-scroll-browser",
   projects: [

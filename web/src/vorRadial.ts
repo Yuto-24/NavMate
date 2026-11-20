@@ -361,6 +361,7 @@ export function formatVorRadialDistance(
   latitudeDeg: number | null | undefined,
   longitudeDeg: number | null | undefined,
   roundingMode = false,
+  reciprocal = false,
 ): string {
   if (latitudeDeg == null || longitudeDeg == null) return "— / —";
   const inverse = wgs84Inverse(
@@ -373,7 +374,7 @@ export function formatVorRadialDistance(
   const magneticRadial = normalizeDegrees(
     inverse.initialTrueBearingDeg + station.variation_west_deg,
   );
-  const roundedRadial = Math.round(magneticRadial) % 360 || 360;
+  const roundedRadial = (Math.round(magneticRadial) + (reciprocal ? 180 : 0)) % 360 || 360;
   const distance = roundingMode
     ? (inverse.distanceNm < 0.25 ? 0 : roundHalfUp(inverse.distanceNm, 0.5)).toFixed(1)
     : (Math.round((inverse.distanceNm + Number.EPSILON) * 10) / 10).toFixed(1);

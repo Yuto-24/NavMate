@@ -209,7 +209,7 @@ class WebSession:
     restore_warning: str | None = None
     persist_working: bool = True
     last_calculation: WorkingCalculation | None = None
-    rounding_mode: bool = False
+    rounding_mode: bool = True
 
 
 class AutoNavLogWebApplication:
@@ -300,7 +300,7 @@ class AutoNavLogWebApplication:
         recovery: WorkingRecovery,
         *,
         reset_rounding: bool = True,
-        rounding_mode: bool = False,
+        rounding_mode: bool = True,
     ) -> dict[str, Any]:
         # Validate before committing. No autosave, marker update, calculation or replay.
         with self.owner_operation(session.owner_id), session.lock:
@@ -413,7 +413,7 @@ class AutoNavLogWebApplication:
             session.import_filename = filename
             session.project = None
             session.outcome = None
-            session.rounding_mode = False
+            session.rounding_mode = True
             session.destination_wind = None
             session.readiness = None
             return self.present(session)
@@ -1684,25 +1684,30 @@ class AutoNavLogWebApplication:
 
     @staticmethod
     def _reset_rounding_mode(session: WebSession) -> None:
-        """A restored result is not a saved preference: new work starts OFF.
+        """New work starts ON; never relabel a saved unrounded result as rounded.
 
-        The existing result provenance identifies rounded runs without adding
-        Project or storage schema fields. Retain the durable record, but require
-        a fresh calculation before showing a restored rounded result as OFF.
+        Durable Project records stay unchanged. Result provenance distinguishes
+        rounded runs without adding a saved preference or a schema field.
         """
-        session.rounding_mode = False
-        outcomes = [
-            session.outcome,
-            None if session.last_calculation is None else session.last_calculation.outcome,
-        ]
-        if any(
-            section.wind_direction_deg_from.automatic_metadata.get("rounding_mode") is True
-            for outcome in outcomes if outcome is not None
-            for section in outcome.sections
+        session.rounding_mode = True
+        def is_rounded(outcome: CalculationOutcome) -> bool:
+            return any(
+                section.wind_direction_deg_from.automatic_metadata.get("rounding_mode") is True
+                for section in outcome.sections
+            )
+
+        # An empty failed attempt carries diagnostics, not unrounded flight values.
+        # Judge it separately so it cannot discard a rounded last-good result.
+        if session.outcome is not None and session.outcome.sections and not is_rounded(
+            session.outcome
         ):
             session.outcome = None
-            session.last_calculation = None
             session.destination_wind = None
+            session.readiness = None
+        if session.last_calculation is not None and not is_rounded(
+            session.last_calculation.outcome
+        ):
+            session.last_calculation = None
             session.readiness = None
 
     def _outcome_for_presentation(

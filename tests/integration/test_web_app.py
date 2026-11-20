@@ -1197,9 +1197,11 @@ async def test_uncalculated_project_update_restores_draft_without_checkpoint(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("empty_failure", [False, True])
 async def test_ftd_calculation_and_last_good_restore_without_cookie_or_server_session(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    empty_failure: bool,
 ) -> None:
     storage_root = tmp_path / "storage"
     config = WebRuntimeConfig(
@@ -1309,6 +1311,9 @@ async def test_ftd_calculation_and_last_good_restore_without_cookie_or_server_se
 
         blocked = CalculationOutcome.model_validate_json(json.dumps(calculated["outcome"]))
         blocked.sections[0].planned_altitude_ft_msl.automatic_value = 9999
+        if empty_failure:
+            blocked.sections = []
+            blocked.display_rows = []
         blocked.issues.append(Issue(
             code="WIND_TRIANGLE_FAILED", severity="BLOCKER", message="Injected failed calculation",
         ))
@@ -1337,6 +1342,10 @@ async def test_ftd_calculation_and_last_good_restore_without_cookie_or_server_se
         )
         assert recovered.status_code == 200, recovered.text
         recovered_state = recovered.json()["state"]
+        assert recovered_state["roundingMode"] is True
+        assert recovered_state["workingRecovery"]["last_calculation"] == (
+            failed["workingRecovery"]["last_calculation"]
+        )
         assert recovered_state["outcome"]["sections"] == calculated["outcome"]["sections"]
         assert recovered_state["outcome"]["issues"] == failed["outcome"]["issues"]
         assert recovered_state["verticalProfile"] == profile

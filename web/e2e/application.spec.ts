@@ -8,6 +8,7 @@ import { ApplicationError } from "../src/application";
 import type { AutoNavLogApplication, UpdateProjectInput } from "../src/application";
 import type { WebState } from "../src/types";
 import { LocalApplication } from "../src/localApplication";
+import { LegacyApplication } from "../src/legacyApplication";
 import type { LocalProjectRepository } from "../src/localProjectRepository";
 import { authenticationProgress, StartupProgressStore, type StartupProgress } from "../src/startupProgress";
 import { readStartupAsset } from "../src/localStartupAsset";
@@ -511,3 +512,29 @@ for (const latest of [false, true]) test(`#358 ${latest ? "Latest retains draft"
   expect(await repository.read(project.id)).toEqual(newer);
   expect(working.project).toEqual(restored.draft);
 });
+
+
+for (const selectedMode of [false, true]) {
+  test(`#477 Legacy reconnect preserves the working rounding choice ${selectedMode}`, async () => {
+    const urls: string[] = [];
+    let unauthorized = true;
+    globalThis.fetch = async input => {
+      const url = String(input);
+      urls.push(url);
+      if (url.startsWith("/api/application-session")) {
+        return new Response(JSON.stringify({ token: "test-session", state: {
+          ...state, workingRecovery: {}, roundingMode: selectedMode,
+        } }));
+      }
+      if (unauthorized) { unauthorized = false; return new Response("", { status: 401 }); }
+      return new Response(JSON.stringify({ ...state, workingRecovery: {}, roundingMode: selectedMode }));
+    };
+    const app = new LegacyApplication();
+    await app.bootstrap();
+    const refreshed = await app.saveProject("rounding-test");
+    expect(refreshed.roundingMode).toBe(selectedMode);
+    expect(urls.filter(url => url.startsWith("/api/application-session"))).toEqual([
+      "/api/application-session", `/api/application-session?rounding_mode=${selectedMode}`,
+    ]);
+  });
+}

@@ -122,7 +122,7 @@ export class LocalApplication implements AutoNavLogApplication {
     if (name !== undefined) {
       const { durableToken: _token, repositoryRecovery: _repository, ...recovery } = working;
       state = await this.request<WebState>("adoptSavedProject", {
-        working: { ...recovery, project: draft }, rounding_mode: state.roundingMode ?? false,
+        working: { ...recovery, project: draft }, rounding_mode: state.roundingMode ?? true,
       });
     }
     return this.present(state);
@@ -165,7 +165,7 @@ export class LocalApplication implements AutoNavLogApplication {
               // Restore before releasing the serial queue; no new edit ran yet.
               if (previous.workingRecovery) {
                 const { durableToken: _token, repositoryRecovery: _repository, ...working } = previous.workingRecovery;
-                await this.request("refreshSavedWork", { working, rounding_mode: previous.roundingMode ?? false });
+                await this.request("refreshSavedWork", { working, rounding_mode: previous.roundingMode ?? true });
               }
               throw new ApplicationError(backupMessages.stale_result, "FORECAST_BACKUP_STALE");
             }
@@ -261,7 +261,7 @@ export class LocalApplication implements AutoNavLogApplication {
         if (previous.workingRecovery) {
           const { durableToken: _token, repositoryRecovery: _repository, ...working } = previous.workingRecovery;
           await this.request("refreshSavedWork", {
-            working, rounding_mode: previous.roundingMode ?? false,
+            working, rounding_mode: previous.roundingMode ?? true,
           });
         }
         throw error;

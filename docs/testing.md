@@ -60,6 +60,19 @@ GitHub 上でマージを制限するには `ci-required` を必須チェック�
 新たな「baseの最新化必須」は追加していません。従来branch protection APIは `Branch not protected`（404）でした。
 実測と残る受入条件は [Issue #421 の証跡](evidence/ci/impact-selection-20261110.md) を参照してください。
 
+### PR本文更新によるCIキャンセル
+
+PRのpushと本文編集はどちらもCIを開始し、同じPRの後発実行が先行実行をキャンセルします。
+その場合、先行実行のpytest・local-browser・account-sync集約は `RESULT: cancelled` を失敗として扱います。
+この赤表示はテスト本体の失敗と区別し、対象SHA・Run・個別ログを確認してください。
+本文変更とpushを両方行うときは、検証結果を含む本文を先に更新し、最後にpushします。
+これにより、最新コミットのCIを直後の本文編集で中断することを避けます。
+必須チェックの判定を緩めたり、中断された実行を成功と扱ったりはしません。
+
+2026-11-21、[PR #478の先行実行](https://github.com/Yuto-24/NavMate/actions/runs/44771724479)で確認しました。
+分類検査294件は成功していましたが、その直後にキャンセルされ、3つの集約チェックとci-requiredが失敗しました。
+同じSHAの[後発実行](https://github.com/Yuto-24/NavMate/actions/runs/44771757051)とは別の結果です。
+
 判定・集約をアプリ依存なしで検証するコマンド:
 
 ```bash

@@ -75,11 +75,21 @@ def test_schema4_retains_work_and_historical_calculation(monkeypatch, mode, save
             raise AssertionError("restoration must not calculate")
 
         monkeypatch.setattr(app.session.calculation_service, "calculate", forbidden)
-        restored = json.loads(app.dispatch("bootstrap", {
+        record_before_restore = copy.deepcopy(record)
+        recovery = {
             "version": 1, "project": record["draft"], "last_calculation": last,
             "outcome": last["outcome"], "destination_wind": last["destination_wind"],
             "import_result": None, "import_filename": None,
+        }
+        initial = json.loads(app.dispatch("bootstrap", recovery))
+        assert initial["roundingMode"] is True
+        assert initial["outcome"] is None
+        assert record == record_before_restore
+        restored = json.loads(app.dispatch("refreshSavedWork", {
+            "working": recovery, "rounding_mode": False,
         }))
+        assert restored["roundingMode"] is False
+        assert record == record_before_restore
         restored_last = copy.deepcopy(restored["workingRecovery"]["last_calculation"])
         # CUT alone is now derived from the historical adopted zones on open.
         expected_cut = {8: 4} if mode == "ftd" else {4: 14}

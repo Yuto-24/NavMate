@@ -42,10 +42,11 @@ export class LegacyApplication implements AutoNavLogApplication {
 
   private token: string | undefined;
   private recovery: WorkingRecovery | undefined;
-  private roundingMode = false;
+  private roundingMode = true;
 
-  private async createSession(recovery?: WorkingRecovery, preserveRounding = false): Promise<WebState> {
-    const path = preserveRounding ? "/api/application-session?rounding_mode=true" : "/api/application-session";
+  private async createSession(recovery?: WorkingRecovery, preserveRounding?: boolean): Promise<WebState> {
+    const path = preserveRounding === undefined ? "/api/application-session"
+      : `/api/application-session?rounding_mode=${preserveRounding}`;
     const response = await this.fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -62,7 +63,7 @@ export class LegacyApplication implements AutoNavLogApplication {
     }
     this.token = payload.token;
     this.recovery = payload.state.workingRecovery;
-    this.roundingMode = payload.state.roundingMode ?? false;
+    this.roundingMode = payload.state.roundingMode ?? true;
     return payload.state;
   }
 
@@ -107,7 +108,7 @@ export class LegacyApplication implements AutoNavLogApplication {
     const result = await this.fetchJson<T>(path, options, true);
     if (result && typeof result === "object" && "workingRecovery" in result) {
       this.recovery = (result as unknown as WebState).workingRecovery;
-      this.roundingMode = (result as unknown as WebState).roundingMode ?? false;
+      this.roundingMode = (result as unknown as WebState).roundingMode ?? true;
     }
     return result;
   }
@@ -148,7 +149,7 @@ export class LegacyApplication implements AutoNavLogApplication {
       throw new ApplicationError("計算結果がありません。", "CALCULATION_RESULT_MISSING");
     }
     this.recovery = job.state.workingRecovery;
-    this.roundingMode = job.state.roundingMode ?? false;
+    this.roundingMode = job.state.roundingMode ?? true;
     return job.state;
   }
 
@@ -164,7 +165,7 @@ export class LegacyApplication implements AutoNavLogApplication {
     }
     this.token = undefined;
     this.recovery = undefined;
-    this.roundingMode = false;
+    this.roundingMode = true;
   }
 
   importRoute(input: ImportRouteInput) { return this.request<WebState>("/api/import", { method: "POST", body: input }); }
