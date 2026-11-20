@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def reference_state(
     *,
     strong_wind: bool = False,
+    rounding_mode: bool = True,
     forecast: bool = False,
     route: str | None = None,
     pinned: bool = False,
@@ -188,7 +189,7 @@ def reference_state(
             feed_weather.begin()
             for _ in range(128):
                 try:
-                    return app.calculate(session)
+                    return app.calculate(session, rounding_mode=rounding_mode)
                 except LocalWeatherRequest as suspension:
                     request = suspension.request
                     model = request["model"]
@@ -204,11 +205,12 @@ def reference_state(
                         feed_weather.accept(model, (directory / asset["file"]).read_bytes(),
                                             asset["sha256"])
             raise RuntimeError("Local reference acquisition did not converge")
-        return app.calculate(session)
+        return app.calculate(session, rounding_mode=rounding_mode)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--rounding-mode", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--strong-wind", action="store_true")
     parser.add_argument("--forecast", action="store_true")
     parser.add_argument("--route", choices=["umk", "omaru", "inbound"])
@@ -224,6 +226,7 @@ if __name__ == "__main__":
         json.dumps(
             reference_state(
                 strong_wind=arguments.strong_wind,
+                rounding_mode=arguments.rounding_mode,
                 forecast=arguments.forecast,
                 route=arguments.route,
                 pinned=arguments.pinned,

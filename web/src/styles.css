@@ -1725,3 +1725,21 @@ tbody tr:last-child td { border-bottom: 0; }
 .is-selected > .map-candidate-symbol { color: white; background: var(--candidate-color); }
 .candidate-cluster { color: #334155; background: white; border: 2px solid #64748b; border-radius: 50%; text-align: center; line-height: 28px; font-weight: 700; }
 .vrep-draft-marker:focus-visible, .candidate-cluster:focus-visible { outline: 3px solid #0c7c78; outline-offset: 3px; }
+
+/* Clean, full-size tables used only while encoding a PNG. */
+.nav-log-rad-control { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.nav-log-png-paper {
+  position: fixed; left: -100000px; top: 0; width: max-content; padding: 16px;
+  background: white; color: black; pointer-events: none;
+}
+.nav-log-png-paper h2 { margin: 0 0 12px; font-size: 18px; }
+.nav-log-png-paper h3 { margin: 16px 0 8px; font-size: 14px; }
+.nav-log-png-paper :is(th, td) {
+  position: static !important; color: black !important; background: white !important;
+  white-space: normal; overflow-wrap: anywhere; height: auto; min-height: 0;
+}
+.nav-log-png-paper .fuel-plan-table { width: 420px; }
+.nav-log-png-paper .fuel-plan-table :is(th, td) { height: 24px; }
+.nav-log-png-paper .vor-reference-header { font-size: 11px; }
+
+.nav-log-png-paper .nav-leg-spacer-row td { height: 20px; padding: 0; }

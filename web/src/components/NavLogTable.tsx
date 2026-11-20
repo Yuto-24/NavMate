@@ -1,7 +1,7 @@
 import { resolveVorStations, retainVorStations, selectVorStation as updateVorSelection } from "../vorSelection";
 import type { Dispatch, SetStateAction } from "react";
 import type { VorColumn } from "../applicationSession";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -15,6 +15,8 @@ import {
 } from "../vorRadial";
 import { draftFromSection } from "../navLogEditing";
 import { roundHalfUp } from "../displayRounding";
+import { exportNavLogPng } from "../navLogPng";
+import type { PlatformFile } from "../platform";
 import { buildFuelPlanDisplay } from "../fuelPlanDisplay";
 import type {
   NavLogEditDrafts,
@@ -597,7 +599,8 @@ function NavLogSummary({
 }
 
 export function NavLogTable({
-  roundingMode = false, roundingDisabled = true, onRoundingChange,
+  roundingMode = true, roundingDisabled = true, onRoundingChange,
+  radReciprocal = true, onRadReciprocalChange, exportDisabled = true, savePng,
   vorColumns, setVorColumns,
   outcome,
   destinationWind,
@@ -610,6 +613,10 @@ export function NavLogTable({
   onEdit,
 }: {
   roundingMode?: boolean;
+  radReciprocal?: boolean;
+  onRadReciprocalChange?: (enabled: boolean) => void;
+  exportDisabled?: boolean;
+  savePng?: (file: PlatformFile) => Promise<void>;
   roundingDisabled?: boolean;
   onRoundingChange?: (enabled: boolean) => void;
   vorColumns: VorColumn[];
@@ -629,6 +636,23 @@ export function NavLogTable({
     value: string,
   ) => void;
 }) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const exportPng = async () => {
+    if (!sectionRef.current || !savePng || exporting || exportDisabled) return;
+    setExporting(true);
+    setExportMessage("");
+    try {
+      const modeText = `${roundingMode ? "四捨五入" : "通常"} / RAD ${radReciprocal ? "反方位" : "通常"}`;
+      await savePng(await exportNavLogPng(sectionRef.current, modeText));
+      setExportMessage("PNGのダウンロードを開始しました。");
+    } catch {
+      setExportMessage("PNGを保存できませんでした。もう一度お試しください。");
+    } finally {
+      setExporting(false);
+    }
+  };
   const displayRows: NavLogDisplayRow[] = outcome.display_rows;
   const automaticVorStation = useMemo(() => {
     const firstFromRow = displayRows.find(
@@ -689,7 +713,7 @@ export function NavLogTable({
     outcome.sections.map((section) => [section.sequence, section]),
   );
   return (
-    <section className="nav-log-section" aria-labelledby="nav-log-title">
+    <section ref={sectionRef} className="nav-log-section" aria-labelledby="nav-log-title">
       <div className="nav-log-heading">
         <div>
           <h2 id="nav-log-title">NAV LOG</h2>
@@ -734,6 +758,13 @@ export function NavLogTable({
             VOR/DME列を追加
           </button>
         </div>
+        <label className="nav-log-rad-control">
+          <input type="checkbox" checked={radReciprocal} disabled={exporting}
+            onChange={event => onRadReciprocalChange?.(event.target.checked)} />
+          RAD反方位（180°）
+        </label>
+        <button className="secondary-button" type="button" disabled={exportDisabled || exporting || !savePng}
+          onClick={() => void exportPng()}>{exporting ? "PNGを作成中…" : "NAVLOG・Fuel TableをPNG保存"}</button>
         <div className="nav-log-rounding-control">
           <span id="nav-log-rounding-label">四捨五入モード</span>
           <div className="nav-log-rounding-options" role="radiogroup"
@@ -751,6 +782,7 @@ export function NavLogTable({
           </div>
         </div>
       </div>
+      {exportMessage && <p role="status">{exportMessage}</p>}
       <div className="table-scroll nav-log-scroll">
         <div className="nav-log-tables">
           <table
@@ -774,7 +806,8 @@ export function NavLogTable({
           <thead>
             <tr>
               {vorColumns.map((column, index) => (
-                <th className="vor-reference-header" key={column.id}>
+                <th className="vor-reference-header" key={column.id}
+                  data-png-text={selectedVorStations[index] ? `VOR/DME ${selectedVorStations[index]!.identifier} ${selectedVorStations[index]!.name}` : ""}>
                   <div className="vor-reference-heading">
                     <label htmlFor={`nav-log-vor-station-${column.id}`}>
                       {vorColumns.length === 1 ? "VOR/DME" : `VOR/DME ${index + 1}`}
@@ -794,7 +827,7 @@ export function NavLogTable({
                   <select
                     id={`nav-log-vor-station-${column.id}`}
                     aria-label={index === 0 ? "VOR基準局" : `VOR基準局 ${index + 1}`}
-                    title={`AIP ${selectedVorStations[index]?.effective_cycle ?? VOR_DATASET_EFFECTIVE_CYCLE} / 局からTOへのradial・距離`}
+                    title={`AIP ${selectedVorStations[index]?.effective_cycle ?? VOR_DATASET_EFFECTIVE_CYCLE} / ${radReciprocal ? "RAD反方位" : "局からTOへのRAD"}・距離`}
                     value={column.stationIdentifier ?? VOR_AUTO_SELECTION}
                     onChange={(event) => selectVorStation(column.id, event.target.value)}
                   >
@@ -896,6 +929,7 @@ export function NavLogTable({
                           row.to_latitude_deg,
                           row.to_longitude_deg,
                           roundingMode,
+                          radReciprocal,
                         );
                     return (
                       <td
@@ -903,7 +937,7 @@ export function NavLogTable({
                         key={vorColumns[index]!.id}
                         title={station == null
                           ? "VOR/DME基準局を選択してください。"
-                          : `${station.identifier}からTOへのradial / 距離（表示専用セル）`}
+                          : `${station.identifier} ${radReciprocal ? "RAD反方位" : "局からTOへのRAD"} / 距離（表示専用セル）`}
                         data-display-text={vorReference}
                         data-vor-column={index + 1}
                       >

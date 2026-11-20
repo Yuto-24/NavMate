@@ -159,11 +159,11 @@ test(`saved Run refreshes once when unchanged and stays fixed after input change
   for (const project of [recovery.project, recovery.last_calculation.project]) delete project.metadata.web_owner_id;
   await openSaved(page, recovery);
   if (switchRounding) {
-    const mode = page.getByRole("radio", { name: "四捨五入", exact: true });
+    const mode = page.getByRole("radio", { name: "通常", exact: true });
     await mode.click();
     await expect(mode).toBeChecked();
     await expect(mode).toBeEnabled();
-    expect((await state(page)).roundingMode).toBe(true);
+    expect((await state(page)).roundingMode).toBe(false);
     expect((await state(page)).outcome.selected_forecast_run_id).toBe("20260915180000");
     expect((await state(page)).outcome.issues.map((i: any) => i.code)).toContain("FORECAST_UPDATE_AVAILABLE");
   }
@@ -185,7 +185,7 @@ test(`saved Run refreshes once when unchanged and stays fixed after input change
   if (switchRounding) {
     await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
     await expect(page.locator(".nav-log-table")).toHaveCount(0);
-    expect((await state(page)).roundingMode).toBe(false);
+    expect((await state(page)).roundingMode).toBe(true);
   } else {
     await expect(page.locator(".nav-log-table")).toBeVisible();
   }

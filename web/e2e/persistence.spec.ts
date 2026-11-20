@@ -382,7 +382,10 @@ local_application.app._calculate_outcome = _fail_recalculation
     : page.getByLabel("今回採用する場周経路高度");
   const value = edit === "navlog" ? "120" : "1400";
   await field().fill(value);
-  await expect(page.getByText(/Injected calculation failure/)).toBeVisible();
+  const failureNotice = edit === "navlog"
+    ? page.locator(".nav-log-section").getByRole("status")
+    : page.locator("#app-notification-region").getByRole("alert");
+  await expect(failureNotice).toContainText("Injected calculation failure");
   const failed = (await records(page))[0];
   expect(failed.token).not.toBe(before.token);
   expect(failed.draft.sections).not.toEqual(before.draft.sections);

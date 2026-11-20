@@ -15,7 +15,7 @@ import { compare } from "./helpers/compare";
 test("current Python Reference matches the checked-in FTD Golden", () => {
   const raw = execFileSync(
     process.env.AUTONAVLOG_REFERENCE_PYTHON ?? resolve("../.venv/bin/python"),
-    [resolve("../scripts/local_reference.py")],
+    [resolve("../scripts/local_reference.py"), "--no-rounding-mode"],
     { encoding: "utf8" },
   );
   compare(localGolden(JSON.parse(raw)), reference);
@@ -84,6 +84,12 @@ for (const width of [390, 1100, 1440]) {
     }
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
     await expect(page.locator(".nav-log-table")).toBeVisible();
+    await expect(page.getByRole("radio", { name: "四捨五入", exact: true })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "RAD反方位（180°）" })).toBeChecked();
+    // Keep the existing unrounded Golden as a regression oracle, explicitly selecting it.
+    await page.getByRole("radio", { name: "通常", exact: true }).click();
+    await expect(page.getByRole("radio", { name: "通常", exact: true })).toBeEnabled();
+    await page.getByRole("checkbox", { name: "RAD反方位（180°）" }).uncheck();
     if (width === 1100) {
       const displayed = await page.locator(".nav-log-table").innerText();
       const calculations = await page.evaluate(() => (window as any).localCalculationCount);
@@ -105,7 +111,7 @@ for (const width of [390, 1100, 1440]) {
     compare(localGolden(state), reference);
     const native = JSON.parse(execFileSync(
       process.env.AUTONAVLOG_REFERENCE_PYTHON ?? resolve("../.venv/bin/python"),
-      [resolve("../scripts/local_reference.py")], { encoding: "utf8" },
+      [resolve("../scripts/local_reference.py"), "--no-rounding-mode"], { encoding: "utf8" },
     ));
     compare(calculationCoreGolden(state), calculationCoreGolden(native));
     // #280: the actual Pyodide result supplies the rightmost parent-only value.
@@ -119,6 +125,8 @@ for (const width of [390, 1100, 1440]) {
       expect(cell).toBe("");
     }
     await expect(page.locator(".nav-log-cut-cell input")).toHaveCount(0);
+    // Establish vertical visibility before testing horizontal scrolling.
+    await page.locator(".nav-log-table thead th").first().scrollIntoViewIfNeeded();
     // FROM/TO become sticky only after the preceding VOR column has scrolled away.
     await scrollFrame.evaluate(element => { element.scrollLeft = 120; });
     const stickyBefore = await page.locator(".nav-leg-heading-row").first()
@@ -142,12 +150,12 @@ for (const width of [390, 1100, 1440]) {
     await expect(page.locator(".nav-leg-heading-row .vor-reference-cell").first()).toHaveText("165 / 23.6");
     await vorSelect.selectOption("SUC");
     await expect(vorSelect.locator("option:checked")).toHaveText("SUC — SHIMIZU (VORTAC)");
-    await expect(vorSelect).toHaveAttribute("title", "AIP 2026-10-01 / 局からTOへのradial・距離");
+    await expect(vorSelect).toHaveAttribute("title", "AIP 2026-10-01 / 局からTOへのRAD・距離");
     // Independent GeographicLib: 254.8629333750 deg true / 140.3544999448 NM.
     await expect(page.locator(".nav-leg-heading-row .vor-reference-cell").first()).toHaveText("262 / 140.4");
     await vorSelect.selectOption("__AUTO__");
     await expect(vorSelect.locator("option:checked")).toHaveText("自動 MZE");
-    await expect(vorSelect).toHaveAttribute("title", "AIP 2026-08-06 / 局からTOへのradial・距離");
+    await expect(vorSelect).toHaveAttribute("title", "AIP 2026-08-06 / 局からTOへのRAD・距離");
     const boxes = await Promise.all([".map-frame", ".planning-pane", ".nav-log-scroll"].map(selector => page.locator(selector).boundingBox()));
     expect(boxes.every(Boolean)).toBe(true);
     if(width<=700) expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y+boxes[0]!.height-1);
@@ -217,14 +225,14 @@ for (const width of [390, 1100, 1440]) {
     }
     // Input -> route -> readiness -> NAV LOG placement is already asserted above.
     // Read the total distance/time first, then the selected calculation mode.
-    const summaryBox = await page.locator(".nav-log-summary").boundingBox();
-    const modeBox = await mode.boundingBox();
+    // Sample one frame: calculation may still be scrolling the page smoothly.
+    const [summaryBox, modeBox, tableBox, controlBox, addColumnBox, navLogBox] = await mode.evaluate(input => [
+      document.querySelector(".nav-log-summary")!, input,
+      document.querySelector(".nav-log-scroll")!, document.querySelector(".nav-log-rounding-control")!,
+      document.querySelector(".nav-log-add-column-button")!, document.querySelector(".nav-log-section")!,
+    ].map(element => element.getBoundingClientRect().toJSON()));
     expect(modeBox!.y).toBeGreaterThanOrEqual(summaryBox!.y + summaryBox!.height);
-    const tableBox = await page.locator(".nav-log-scroll").boundingBox();
     expect(modeBox!.y + modeBox!.height).toBeLessThanOrEqual(tableBox!.y);
-    const controlBox = await page.locator(".nav-log-rounding-control").boundingBox();
-    const addColumnBox = await page.getByRole("button", { name: "VOR/DME列を追加", exact: true }).boundingBox();
-    const navLogBox = await page.locator(".nav-log-section").boundingBox();
     expect(controlBox!.x + controlBox!.width).toBeLessThanOrEqual(navLogBox!.x + navLogBox!.width);
     if (width >= 1100) {
       expect(Math.abs(controlBox!.y + controlBox!.height / 2 - addColumnBox!.y - addColumnBox!.height / 2)).toBeLessThan(1);
@@ -246,30 +254,32 @@ for (const width of [390, 1100, 1440]) {
     const offAgain = await page.evaluate(() => (window as any).localStates.at(-1));
     compare(calculationCoreGolden(offAgain), calculationCoreGolden(state));
     if (width === 1100) {
-      await mode.click();
-      await expect(mode).toBeChecked();
-      await expect(mode).toBeEnabled();
       await page.getByRole("button", { name: "保存", exact: true }).click();
       await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
-      await expect(mode).toBeChecked();
+      await expect(normal).toBeChecked();
       await openProjectMenu(page);
       await page.getByLabel("保存済み", { exact: true }).selectOption(state.project.id);
       await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
       await expect(page.locator(".nav-log-table")).toHaveCount(0);
       await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-      await expect(mode).not.toBeChecked();
-      await expect(normal).toBeChecked();
-      await expect(mode).toBeEnabled();
-      await mode.click();
       await expect(mode).toBeChecked();
       await expect(mode).toBeEnabled();
+      await expect(page.getByRole("checkbox", { name: "RAD反方位（180°）" })).toBeChecked();
+      await page.getByRole("checkbox", { name: "RAD反方位（180°）" }).uncheck();
+      await normal.click();
+      await expect(normal).toBeChecked();
+      await expect(normal).toBeEnabled();
       await page.reload();
       await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
       await expect(page.locator(".nav-log-table")).toHaveCount(0);
       await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-      await expect(mode).not.toBeChecked();
-      await expect(normal).toBeChecked();
+      await expect(mode).toBeChecked();
       await expect(mode).toBeEnabled();
+      await expect(page.getByRole("checkbox", { name: "RAD反方位（180°）" })).toBeChecked();
+      await page.getByRole("checkbox", { name: "RAD反方位（180°）" }).uncheck();
+      await normal.click();
+      await expect(normal).toBeChecked();
+      await expect(normal).toBeEnabled();
     }
     const previousTable = await page.locator(".nav-log-table").innerText();
     await page.evaluate(() => { (window as any).failLocalCalculation = true; });

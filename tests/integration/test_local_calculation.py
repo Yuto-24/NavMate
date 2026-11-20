@@ -21,7 +21,7 @@ def local():
     application.close()
 
 
-def calculate(local, *, forecast=False):
+def calculate(local, *, forecast=False, rounding_mode=True):
     inputs = json.loads(json.dumps(INPUTS))
     if forecast:
         inputs["confirm"].update(
@@ -60,11 +60,11 @@ def calculate(local, *, forecast=False):
         "selected_pattern_altitude_ft_msl": 1000,
     }
     local.dispatch("updateProject", update)
-    return json.loads(local.dispatch("calculate"))
+    return json.loads(local.dispatch("calculate", {"rounding_mode": rounding_mode}))
 
 
 def test_local_ftd_golden_and_failed_calculation_preserves_last_good(local, monkeypatch):
-    state = calculate(local)
+    state = calculate(local, rounding_mode=False)
     golden = json.loads((ROOT / "tests/fixtures/issue_117_ftd_golden.json").read_text())
     outcome = state["outcome"]
     assert state["savedProjects"] == []
@@ -604,7 +604,7 @@ def test_rounding_mode_uses_common_calculation_wind_and_only_projects_toat(local
     first.manual_wind_by_phase[first.phase] = ManualWind(direction_deg_from=355, speed_kt=21)
     first.manual_temperature_c_by_phase[first.phase] = -1.5
     raw_inputs = project.model_dump(mode="json")
-    off = json.loads(local.dispatch("calculate"))
+    off = json.loads(local.dispatch("calculate", {"rounding_mode": False}))
     rounded = json.loads(local.dispatch("calculate", {"rounding_mode": True}))
     assert rounded["roundingMode"] is True
     assert "rounding_mode" not in rounded["project"]
@@ -682,7 +682,12 @@ def test_rounding_failure_is_atomic_and_reload_resets_without_relabeling_result(
     )
     assert saved["roundingMode"] is True and saved["outcome"] == rounded["outcome"]
     restored = json.loads(local.dispatch("bootstrap", saved["workingRecovery"]))
-    assert restored["roundingMode"] is False
+    assert restored["roundingMode"] is True
+    assert restored["outcome"] == rounded["outcome"]
+    # Restoring a normal-mode result resets the preference without relabeling it.
+    normal = json.loads(local.dispatch("calculate", {"rounding_mode": False}))
+    restored = json.loads(local.dispatch("bootstrap", normal["workingRecovery"]))
+    assert restored["roundingMode"] is True
     assert restored["outcome"] is None
     assert restored["workingRecovery"]["last_calculation"] is None
     assert not restored["readiness"]["calculationIsCurrent"]
@@ -696,7 +701,8 @@ def test_blocker_during_mode_transition_keeps_previous_mode_and_result(
     from autonavlog.domain.calculation import Issue
     from autonavlog.domain.enums import IssueSeverity
 
-    previous = calculate(local)
+    calculate(local)
+    previous = json.loads(local.dispatch("calculate", {"rounding_mode": False}))
     messages = [f"blocked wind triangle {index + 1}" for index in range(blocker_count)]
     blocked = local.session.outcome.model_copy(
         update={
@@ -904,7 +910,10 @@ def test_portable_forecast_refresh_acquires_new_run_before_shared_calculation(sa
                 recovery = js_numbers(result["workingRecovery"])
                 recovery["project"]["name"] = "Forecast refresh"
                 recovery["project"]["revision"] += 1
-                local.dispatch("adoptSavedProject", {"working": recovery, "rounding_mode": False})
+                local.dispatch(
+                    "adoptSavedProject",
+                    {"working": recovery, "rounding_mode": result["roundingMode"]},
+                )
                 assert local.app.forecast_refresh_requested(local.session, local.session.project)
         assert "FORECAST_UPDATE_AVAILABLE" not in {
             issue["code"] for issue in result["outcome"]["issues"]
@@ -938,8 +947,8 @@ def test_explicit_save_adoption_preserves_only_unchanged_forecast_intent(
     local, changed, rounding_mode
 ):
     first = _pin_old_forecast(local)
-    if rounding_mode:
-        first = json.loads(local.dispatch("calculate", {"rounding_mode": True}))
+    if not rounding_mode:
+        first = json.loads(local.dispatch("calculate", {"rounding_mode": False}))
     recovery = first["workingRecovery"]
     recovery["project"]["name"] = "Saved forecast"
     recovery["project"]["revision"] += 1
@@ -977,8 +986,8 @@ def test_invalid_planning_cannot_request_refresh_and_preserves_state_error(
 @pytest.mark.parametrize("first_mode", [False, True])
 def test_forecast_rounding_change_keeps_run_then_unchanged_action_refreshes(local, first_mode):
     _pin_old_forecast(local)
-    if first_mode:
-        local.dispatch("calculate", {"rounding_mode": True})
+    if not first_mode:
+        local.dispatch("calculate", {"rounding_mode": False})
     switched = json.loads(local.dispatch("calculate", {"rounding_mode": not first_mode}))
     _assert_forecast_snapshot(switched, "20260912000000")
     assert "FORECAST_UPDATE_AVAILABLE" in {issue["code"] for issue in switched["outcome"]["issues"]}
@@ -1000,7 +1009,7 @@ def test_portable_rounding_change_preflight_and_calculation_keep_the_same_pin():
     try:
         local.dispatch("bootstrap", initial["workingRecovery"])
         for mode, expected in [
-            (True, "20260915180000"), (True, "20260915210000"),
+            (False, "20260915180000"), (False, "20260915210000"),
         ]:
             options = {"rounding_mode": mode}
             state = _portable_calculation(local, feed, catalog, options)

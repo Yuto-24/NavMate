@@ -176,3 +176,20 @@ test("#418 route edits re-evaluate automatic stations without retaining old rout
   expect(resolveVorStations(columns, editedCandidates, "route-a").map(s => s?.identifier)).toEqual(["MZE", "HKC"]);
   expect(resolveVorStations(columns, editedCandidates, "route-b").map(s => s?.identifier)).toEqual(["AKE", "HKC"]);
 });
+
+
+test("#477 reciprocal RAD wraps north, leaves distances and unavailable bearings unchanged", () => {
+  const station = { ...VOR_STATIONS[0]!, latitude_deg: 0, longitude_deg: 0 };
+  for (const [variation, normal, reciprocal] of [[1, "001", "181"], [180, "180", "360"], [0, "360", "180"], [359, "359", "179"]] as const) {
+    const reference = { ...station, variation_west_deg: variation };
+    for (const rounded of [false, true]) {
+      const direct = formatVorRadialDistance(reference, 1, 0, rounded, false);
+      const reversed = formatVorRadialDistance(reference, 1, 0, rounded, true);
+      expect(direct.split(" / ")[0]).toBe(normal);
+      expect(reversed.split(" / ")[0]).toBe(reciprocal);
+      expect(reversed.split(" / ")[1]).toBe(direct.split(" / ")[1]);
+    }
+  }
+  expect(formatVorRadialDistance(station, 0, 0, true, true)).toBe("— / 0.0");
+  expect(formatVorRadialDistance(station, null, null, true, true)).toBe("— / —");
+});

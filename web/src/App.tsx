@@ -104,6 +104,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const [informationState] = useState(() => createInformationState(platform.persistence.values));
   const { hasUnreadInformation, hasUnreadKnownIssues, markInformationSeen } = informationState;
   const [recovery] = useState(() => readSession(platform.session));
+  const [radReciprocal, setRadReciprocal] = useState(true);
   const [vorColumns, setVorColumns] = useState<VorColumn[]>([{ id: 0, stationIdentifier: null }]);
   const [checkPointDraft, setCheckPointDraft] = useState(emptyCheckPointDraft);
   const [nodeNameDraft, setNodeNameDraft] = useState<NodeNameDraft>({ id: null, name: "" });
@@ -309,6 +310,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     if (projectChanged) {
       cancelPendingRecalculation();
       setVorColumns([{ id: 0, stationIdentifier: null }]);
+      setRadReciprocal(true);
       setCheckPointDraft(emptyCheckPointDraft());
       setNodeNameDraft({ id: null, name: "" });
     }
@@ -1624,6 +1626,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         draftAutosaveGenerationRef.current += 1;
         setDraftAutosaveVersion(0);
         applyState(next, { syncCalculationInputs: true });
+        setRadReciprocal(true);
         setProjectName(next.project?.name ?? "未保存の新規作業");
         setCheckPointDraft(emptyCheckPointDraft());
         setNodeNameDraft({ id: null, name: "" });
@@ -1844,6 +1847,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
               setMapRouteDraft([]);
               setEditingRouteProjectId(null);
               applyState(loaded, { syncCalculationInputs: true });
+              setRadReciprocal(true);
             }
           } else {
             await application.newWork();
@@ -2051,8 +2055,12 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           aria-label="計算済みNAV LOG"
         >
           <NavLogTable
-            roundingMode={state.roundingMode ?? false}
-            roundingDisabled={busy || !calculationInputsAreLocallyCurrent || hasNavLogEditErrors(navLogEditErrors) || (!(state.roundingMode ?? false) && !canCalculate) || navLogEditStatus.kind === "saving"}
+            radReciprocal={radReciprocal}
+            onRadReciprocalChange={setRadReciprocal}
+            exportDisabled={busy || !calculationInputsAreLocallyCurrent || !state.readiness.calculationIsCurrent || hasNavLogEditErrors(navLogEditErrors) || ["pending", "saving", "error"].includes(navLogEditStatus.kind)}
+            savePng={platform.files.save}
+            roundingMode={state.roundingMode ?? true}
+            roundingDisabled={busy || !calculationInputsAreLocallyCurrent || hasNavLogEditErrors(navLogEditErrors) || (!(state.roundingMode ?? true) && !canCalculate) || navLogEditStatus.kind === "saving"}
             onRoundingChange={(enabled) => void handleCalculate(enabled)}
             vorColumns={vorColumns}
             setVorColumns={setVorColumns}
