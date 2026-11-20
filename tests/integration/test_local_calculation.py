@@ -694,6 +694,25 @@ def test_rounding_failure_is_atomic_and_reload_resets_without_relabeling_result(
     assert restored["project"]["sections"] == saved["project"]["sections"]
 
 
+@pytest.mark.parametrize("rounded", [False, True])
+def test_empty_blocker_restore_retains_only_rounded_last_good(local, rounded):
+    from autonavlog.domain.calculation import Issue
+
+    calculate(local, rounding_mode=rounded)
+    last = local.session.last_calculation.model_dump(mode="json")
+    local.session.outcome = local.session.outcome.model_copy(update={
+        "sections": [], "display_rows": [],
+        "issues": [Issue(code="WEATHER_UNAVAILABLE", severity="BLOCKER", message="No weather")],
+    })
+    recovery = local.app.present(local.session)["workingRecovery"]
+    restored = json.loads(local.dispatch("bootstrap", recovery))
+    assert restored["roundingMode"] is True
+    assert restored["workingRecovery"]["last_calculation"] == (last if rounded else None)
+    assert restored["workingRecovery"]["outcome"]["sections"] == []
+    assert restored["outcome"]["sections"] == (last["outcome"]["sections"] if rounded else [])
+    assert any(issue["code"] == "WEATHER_UNAVAILABLE" for issue in restored["outcome"]["issues"])
+
+
 @pytest.mark.parametrize("blocker_count", [1, 4])
 def test_blocker_during_mode_transition_keeps_previous_mode_and_result(
     local, monkeypatch, blocker_count

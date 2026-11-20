@@ -1690,20 +1690,24 @@ class AutoNavLogWebApplication:
         rounded runs without adding a saved preference or a schema field.
         """
         session.rounding_mode = True
-        outcomes = [
-            session.outcome,
-            None if session.last_calculation is None else session.last_calculation.outcome,
-        ]
-        if any(
-            not any(
+        def is_rounded(outcome: CalculationOutcome) -> bool:
+            return any(
                 section.wind_direction_deg_from.automatic_metadata.get("rounding_mode") is True
                 for section in outcome.sections
             )
-            for outcome in outcomes if outcome is not None
+
+        # An empty failed attempt carries diagnostics, not unrounded flight values.
+        # Judge it separately so it cannot discard a rounded last-good result.
+        if session.outcome is not None and session.outcome.sections and not is_rounded(
+            session.outcome
         ):
             session.outcome = None
-            session.last_calculation = None
             session.destination_wind = None
+            session.readiness = None
+        if session.last_calculation is not None and not is_rounded(
+            session.last_calculation.outcome
+        ):
+            session.last_calculation = None
             session.readiness = None
 
     def _outcome_for_presentation(

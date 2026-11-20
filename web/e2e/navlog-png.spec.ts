@@ -1,14 +1,44 @@
 import { expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createInflate } from "node:zlib";
+import { Readable } from "node:stream";
 import { test } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { expectPlanningLayout } from "./helpers/planningLayout";
 
+// Decode the actual PNG stream, retaining only sampled scanlines for large images.
+async function readPixels(bytes: Buffer, rows: number[]) {
+  const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
+  const chunks: Buffer[] = [];
+  for (let offset = 8; offset < bytes.length;) {
+    const size = bytes.readUInt32BE(offset);
+    if (bytes.toString("ascii", offset + 4, offset + 8) === "IDAT") {
+      chunks.push(bytes.subarray(offset + 8, offset + 8 + size));
+    }
+    offset += size + 12;
+  }
+  const selected = new Map<number, Buffer>();
+  let pending = Buffer.alloc(0), y = 0;
+  const stride = width * 4 + 1;
+  for await (const chunk of Readable.from(chunks).pipe(createInflate())) {
+    pending = Buffer.concat([pending, chunk]);
+    while (pending.length >= stride) {
+      expect(pending[0]).toBe(0);
+      if (rows.includes(y)) selected.set(y, Buffer.from(pending.subarray(1, stride)));
+      pending = pending.subarray(stride);
+      y++;
+    }
+  }
+  expect(y).toBe(height);
+  expect(pending.length).toBe(0);
+  return (x: number, y: number) => Array.from(selected.get(y)!.subarray(x * 4, x * 4 + 3));
+}
+
 async function calculate(page: Page) {
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+  await page.locator('input[type="file"]').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
   await confirmImportedDraft(page);
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("気象モード").selectOption("FTD");
@@ -30,26 +60,51 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
     root.pngText = [];
     const draw = CanvasRenderingContext2D.prototype.fillText;
     CanvasRenderingContext2D.prototype.fillText = function (...args) {
-      if (document.querySelector(".nav-log-png-paper")) root.pngText.push(args[0]);
+      if (document.querySelector(".nav-log-png-paper")) {
+        root.pngText.push(args[0]);
+        root.pngScales ??= [];
+        root.pngScales.push(this.getTransform().a);
+      }
       return draw.apply(this, args);
     };
-    const encode = HTMLCanvasElement.prototype.toBlob;
-    HTMLCanvasElement.prototype.toBlob = function (callback, ...args) {
+    const read = CanvasRenderingContext2D.prototype.getImageData;
+    CanvasRenderingContext2D.prototype.getImageData = function (...args) {
       const paper = document.querySelector(".nav-log-png-paper");
       if (paper) {
-        root.pngSnapshot = {
-          controls: paper.querySelectorAll("input, select, button").length,
-          rows: Array.from(paper.querySelectorAll(".nav-log-table tr:not(.nav-leg-spacer-row)"), row =>
-            Array.from(row.querySelectorAll("th, td"), cell => cell.textContent)),
-          spacers: Array.from(paper.querySelectorAll(".nav-leg-spacer-row"), row => ({
-            height: row.getBoundingClientRect().height, next: row.nextElementSibling?.className,
-          })),
-          parents: paper.querySelectorAll(".nav-leg-heading-row").length,
-          emptyActuals: Array.from(paper.querySelectorAll(".manual-entry-cell"), cell => cell.textContent),
-        };
-        if (root.failPng) { callback(null); return; }
+        if (root.failPng) throw new Error("Injected PNG failure");
+        root.pngTiles ??= [];
+        root.pngTiles.push([this.canvas.width, this.canvas.height]);
+        if (root.pngPaper !== paper) {
+          root.pngPaper = paper;
+          const bounds = paper.getBoundingClientRect();
+          const box = (selector: string) => {
+            const cell = paper.querySelector(selector)!;
+            const rect = cell.getBoundingClientRect();
+            return { x: rect.left - bounds.left, y: rect.top - bounds.top,
+              width: rect.width, height: rect.height };
+          };
+          root.pngSnapshot = {
+            width: bounds.width, height: bounds.height,
+            tableWidth: box(".nav-log-table").width,
+            windWidth: box(".nav-log-table thead th:nth-last-child(11)").width,
+            fuelWidth: box(".fuel-plan-table").width,
+            thin: box(".nav-log-table tbody tr:first-child .route-from-cell"),
+            thick: box(".nav-log-table tbody tr:first-child .route-to-cell"),
+            gray: box(".fuel-plan-table .fuel-gray"),
+            double: box(".fuel-extra-row td:first-child"),
+            last: box(".nav-log-table tbody tr:last-child .route-to-cell"),
+            controls: paper.querySelectorAll("input, select, button").length,
+            rows: Array.from(paper.querySelectorAll(".nav-log-table tr:not(.nav-leg-spacer-row)"), row =>
+              Array.from(row.querySelectorAll("th, td"), cell => cell.textContent)),
+            spacers: Array.from(paper.querySelectorAll(".nav-leg-spacer-row"), row => ({
+              height: row.getBoundingClientRect().height, next: row.nextElementSibling?.className,
+            })),
+            parents: paper.querySelectorAll(".nav-leg-heading-row").length,
+            emptyActuals: Array.from(paper.querySelectorAll(".manual-entry-cell"), cell => cell.textContent),
+          };
+        }
       }
-      encode.call(this, callback, ...args);
+      return read.apply(this, args);
     };
   });
   await calculate(page);
@@ -96,9 +151,34 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   const bytes = readFileSync(path);
   expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
   expect(bytes.readUInt32BE(16)).toBeGreaterThan(bytes.readUInt32BE(20));
-  expect(bytes.readUInt32BE(16)).toBeLessThanOrEqual(4096);
+  const decoded = await page.evaluate(async source => {
+    const image = new Image();
+    image.src = source;
+    await image.decode();
+    return [image.naturalWidth, image.naturalHeight];
+  }, `data:image/png;base64,${bytes.toString("base64")}`);
+  expect(decoded).toEqual([bytes.readUInt32BE(16), bytes.readUInt32BE(20)]);
   const snapshot = await page.evaluate(() => ({ snapshot: (window as any).pngSnapshot, text: (window as any).pngText }));
+  const scale = bytes.readUInt32BE(20) / Math.ceil(snapshot.snapshot.height);
+  expect(scale).toBeGreaterThanOrEqual(1);
+  const { thin, thick, gray, double } = snapshot.snapshot;
+  const thinY = Math.round((thin.y + 3) * scale), thickY = Math.round((thick.y + 3) * scale);
+  const grayY = Math.round((gray.y + 3) * scale), doubleY = Math.round((double.y + double.height) * scale);
+  const pixel = await readPixels(bytes, [thinY, thickY, grayY, doubleY - 3, doubleY - 2, doubleY - 1, doubleY, doubleY + 1, doubleY + 2, doubleY + 3]);
+  const isGrid = (rgb: number[]) => rgb[0] < 210 && rgb[2] > rgb[0];
+  const borderWidth = (cell: any, y: number) => {
+    const x = Math.round((cell.x + cell.width) * scale);
+    return Array.from({ length: 9 }, (_, index) => pixel(x - 6 + index, y)).filter(isGrid).length;
+  };
+  expect(borderWidth(thick, thickY)).toBeGreaterThan(borderWidth(thin, thinY));
+  expect(pixel(Math.round((gray.x + 4) * scale), grayY)).toEqual([223, 228, 232]);
+  const doubleX = Math.round((double.x + double.width / 2) * scale);
+  const doubleLine = Array.from({ length: 7 }, (_, index) => isGrid(pixel(doubleX, doubleY - 3 + index)));
+  expect(doubleLine.join(",")).toMatch(/true,false(?:,false)*,true/);
   expect(snapshot.snapshot.controls).toBe(0);
+  expect(snapshot.snapshot.tableWidth).toBeLessThan(1500);
+  expect(snapshot.snapshot.windWidth).toBeLessThan(80);
+  expect(snapshot.snapshot.fuelWidth).toBeLessThan(420);
   expect(snapshot.snapshot.rows.slice(1)).toEqual(expectedCells);
   expect(snapshot.snapshot.rows[0]).toHaveLength(22); // 20 base columns + two selected VORs.
   expect(snapshot.snapshot.spacers).toHaveLength(snapshot.snapshot.parents - 1);
@@ -127,7 +207,7 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
     for (let index = 0; index < 120; index++) {
       const row = parent.cloneNode(true) as HTMLElement;
       const name = row.querySelector<HTMLElement>(".route-to-cell")!;
-      name.dataset.displayText = `PNG-ROW-${index}`;
+      name.dataset.displayText = index === 0 ? "SPACE  \t  \n NAME" : `PNG-ROW-${index}`;
       name.textContent = name.dataset.displayText;
       table.tBodies[0].append(row);
     }
@@ -139,11 +219,22 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   await longFile.saveAs(longPath);
   const longBytes = readFileSync(longPath);
   expect(longBytes.readUInt32BE(16)).toBeGreaterThan(longBytes.readUInt32BE(20));
-  expect(longBytes.readUInt32BE(16)).toBeLessThanOrEqual(4096);
   const longSnapshot = await page.evaluate(() => (window as any).pngSnapshot);
   expect(longSnapshot.rows.at(-1).join(" ")).toContain("PNG-ROW-119");
   expect(longSnapshot.parents).toBe(snapshot.snapshot.parents + 120);
   expect(longSnapshot.spacers).toHaveLength(longSnapshot.parents - 1);
+  expect(longBytes.readUInt32BE(20)).toBeGreaterThanOrEqual(Math.ceil(longSnapshot.height));
+  expect(longSnapshot.last.width).toBeGreaterThan(snapshot.snapshot.last.width);
+  const last = longSnapshot.last;
+  const sampleY = Array.from({ length: Math.floor(last.height) - 6 }, (_, index) => Math.floor(last.y) + 3 + index);
+  const lastPixel = await readPixels(longBytes, sampleY);
+  expect(sampleY.some(y => Array.from({ length: Math.floor(last.width) - 12 }, (_, index) =>
+    lastPixel(Math.floor(last.x) + 6 + index, y)).some(rgb => rgb.every(value => value < 80)))).toBe(true);
+  const painted = await page.evaluate(() => ({ text: (window as any).pngText as string[], scales: (window as any).pngScales as number[] }));
+  expect(painted.text).toContain("SPACE NAME");
+  expect(painted.text.every(text => !/[\t\n\r\f]| {2}/.test(text))).toBe(true);
+  expect(painted.scales.every(scale => scale >= 1)).toBe(true);
+  expect(await page.evaluate(() => (window as any).pngTiles.every(([w, h]: number[]) => w <= 2048 && h <= 32))).toBe(true);
   const temperature = page.locator('.nav-log-table input[aria-label$="手動気温"]').first();
   await temperature.fill("100");
   await expect(output).toBeDisabled();
