@@ -1,0 +1,340 @@
+{
+  "items": [
+    {
+      "id": "rad-mode",
+      "text": "RAD反方位（180°）",
+      "reason": "Geminiの採用可を確認。180°反転することが明確で、「RAD」と対象を限定しているためDME距離には影響しないことも伝わる。NAVLOG上部のチェックボックスラベルとして簡潔。",
+      "response_quote": "- **`rad-mode`**: 採用可 — 引用: `「RAD反方位（180°）」`\n  - **理由**: 180°反転することが明確で、「RAD」と対象を限定しているためDME距離には影響しないことも伝わる。NAVLOG上部のチェックボックスラベルとして簡潔。\n  - **懸念**: 全VOR列への一括適用である点はラベル単体には含まれないが、配置位置およびツールチップ・PNG見出しで補完されており支障はない。"
+    },
+    {
+      "id": "png-save",
+      "text": "NAVLOG・Fuel TableをPNG保存",
+      "reason": "Geminiの採用可を確認。2つの表をまとめてPNG出力する操作内容が明確であり、既存呼称（NAVLOG / Fuel Table）を維持する制約にも合致。",
+      "response_quote": "- **`png-save`**: 採用可 — 引用: `「NAVLOG・Fuel TableをPNG保存」`\n  - **理由**: 2つの表をまとめてPNG出力する操作内容が明確であり、既存呼称（NAVLOG / Fuel Table）を維持する制約にも合致。\n  - **懸念**: 無効化条件（入力変更・計算中・エラー等）は文言上示されないが、ボタンラベルとしては簡潔さが優先されるべきであり問題ない。"
+    },
+    {
+      "id": "png-busy",
+      "text": "PNGを作成中…",
+      "reason": "Geminiの採用可を確認。画像生成処理中であり操作待機中であることが簡潔・正確に伝わる。",
+      "response_quote": "- **`png-busy`**: 採用可 — 引用: `「PNGを作成中…」`\n  - **理由**: 画像生成処理中であり操作待機中であることが簡潔・正確に伝わる。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-start",
+      "text": "PNGのダウンロードを開始しました。",
+      "reason": "Geminiの採用可を確認。ブラウザ仕様上、保存先への書き込み完了を断定せず「ダウンロードを開始」と事実ベースで伝えており正確。",
+      "response_quote": "- **`png-start`**: 採用可 — 引用: `「PNGのダウンロードを開始しました。」`\n  - **理由**: ブラウザ仕様上、保存先への書き込み完了を断定せず「ダウンロードを開始」と事実ベースで伝えており正確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-failure",
+      "text": "PNGを保存できませんでした。もう一度お試しください。",
+      "reason": "Geminiの採用可を確認。失敗の事実と再試行の案内が丁寧かつ明快で、作業継続を妨げない。",
+      "response_quote": "- **`png-failure`**: 採用可 — 引用: `「PNGを保存できませんでした。もう一度お試しください。」`\n  - **理由**: 失敗の事実と再試行の案内が丁寧かつ明快で、作業継続を妨げない。\n  - **懸念**: 軽微だが、`png-start` の「ダウンロード」と語がわずかに異なる（ボタンの「PNG保存」とは一致）。生成失敗・ダウンロード開始失敗を総括する表現として自然であり許容範囲。"
+    },
+    {
+      "id": "png-mode-caption",
+      "text": "四捨五入",
+      "reason": "Geminiの採用可を確認。明示された4通りの合成全文（`「NAV LOG — 四捨五入 / RAD 反方位」`、`「NAV LOG — 通常 / RAD 反方位」`、`「NAV LOG — 四捨五入 / RAD 通常」`、`「NAV LOG — 通常 / RAD 通常」`）はいずれも採用可。紙NAVLOGへ転記する際、どの丸めモード・RAD方位で出力した画像かが記録として残る。",
+      "response_quote": "- **`png-mode-caption`**: 採用可 — 引用: `「四捨五入」`\n  - **理由**: 明示された4通りの合成全文（`「NAV LOG — 四捨五入 / RAD 反方位」`、`「NAV LOG — 通常 / RAD 反方位」`、`「NAV LOG — 四捨五入 / RAD 通常」`、`「NAV LOG — 通常 / RAD 通常」`）はいずれも採用可。紙NAVLOGへ転記する際、どの丸めモード・RAD方位で出力した画像かが記録として残る。\n  - **懸念**:\n    1. `「NAV LOG — 通常 / RAD 通常」` では「通常」が2度並ぶため、初見では左側の「通常」が四捨五入モード側である点がやや抽象的になり得る（画面UIの選択肢と対応しているため実用上は判別可能）。\n    2. チェックボックス・ツールチップの「RAD反方位」と異なり、「RAD 反方位」は半角スペースが入るが、「RAD 通常」と対比させる見出し表記としては視認性が良く許容範囲。"
+    },
+    {
+      "id": "png-title",
+      "text": "NAV LOG",
+      "reason": "Geminiの採用可を確認。清書PNG上部の表見出しとして視認性が高く、既存呼称維持の制約にも合致。",
+      "response_quote": "- **`png-title`**: 採用可 — 引用: `「NAV LOG」`\n  - **理由**: 清書PNG上部の表見出しとして視認性が高く、既存呼称維持の制約にも合致。\n  - **懸念**: 保存ボタンの「NAVLOG」とスペース有無が異なるが、同一対象の既存呼称を維持する制約どおりであり問題ない。"
+    },
+    {
+      "id": "png-vor-header",
+      "text": "VOR/DME",
+      "reason": "Geminiの採用可を確認。本人指定の2段構成（1段目「VOR/DME」、2段目「局ID 局名」、例:「VOR/DME」＋「MZE MIYAZAKI」）および未選択列除外により、清書PNG上でどの基準局の列かが明確に判別できる。 幅90px固定に関する留意点は旧文脈を踏まえたもの。最終実装は内容に応じた列幅であり、追加記録でこの文脈を確認する。",
+      "response_quote": "- **`png-vor-header`**: 採用可 — 引用: `「VOR/DME」`\n  - **理由**: 本人指定の2段構成（1段目「VOR/DME」、2段目「局ID 局名」、例:「VOR/DME」＋「MZE MIYAZAKI」）および未選択列除外により、清書PNG上でどの基準局の列かが明確に判別できる。\n  - **懸念**: 90px幅内で長い局名が2段目内で折り返される可能性があるが、見出し固定語句および2段構成自体は適切。"
+    },
+    {
+      "id": "rad-tooltip",
+      "text": "RAD反方位",
+      "reason": "Geminiの採用可を確認。合成全文（ON「AIP 2026-08-06 / RAD反方位・距離」、OFF「AIP 2026-08-06 / 局からTOへのRAD・距離」）として、AIP日付と現在のRAD種別・距離表示が簡潔に確認できる。",
+      "response_quote": "- **`rad-tooltip`**: 採用可 — 引用: `「RAD反方位」`\n  - **理由**: 合成全文（ON「AIP 2026-08-06 / RAD反方位・距離」、OFF「AIP 2026-08-06 / 局からTOへのRAD・距離」）として、AIP日付と現在のRAD種別・距離表示が簡潔に確認できる。\n  - **懸念**: 軽微だが、OFF側には「局からTOへの」という方向補足がある一方、ON側は「RAD反方位」のみで方向・180°の補足がない。チェックボックスの「RAD反方位（180°）」と併せて読まれるため実害は小さい。"
+    },
+    {
+      "id": "rad-cell-tooltip",
+      "text": "RAD反方位",
+      "reason": "Geminiの採用可を確認。合成全文（ON「MZE RAD反方位 / 距離（表示専用セル）」、OFF「MZE 局からTOへのRAD / 距離（表示専用セル）」、未選択「VOR/DME基準局を選択してください。」）はいずれも対象局・表示意味・編集不可・未選択時行動が明確。",
+      "response_quote": "- **`rad-cell-tooltip`**: 採用可 — 引用: `「RAD反方位」`\n  - **理由**: 合成全文（ON「MZE RAD反方位 / 距離（表示専用セル）」、OFF「MZE 局からTOへのRAD / 距離（表示専用セル）」、未選択「VOR/DME基準局を選択してください。」）はいずれも対象局・表示意味・編集不可・未選択時行動が明確。\n  - **懸念**: `rad-tooltip` の「・」とセル側の「 / 」で区切り記号が異なるが、セル内値の「RAD / 距離」表記に合わせた表現として自然であり問題ない。"
+    },
+    {
+      "id": "rounding-options",
+      "text": "四捨五入モード",
+      "reason": "Geminiの採用可を確認。グループ見出し「四捨五入モード」＋選択肢「通常」「四捨五入」の組み合わせで用途が明快であり、RAD反方位チェックボックスと別枠に分離されている点も誤操作防止に有効。",
+      "response_quote": "- **`rounding-options`**: 採用可 — 引用: `「四捨五入モード」`\n  - **理由**: グループ見出し「四捨五入モード」＋選択肢「通常」「四捨五入」の組み合わせで用途が明快であり、RAD反方位チェックボックスと別枠に分離されている点も誤操作防止に有効。\n  - **懸念**: 見出しと選択肢で「四捨五入」が重複するものの、既存UI構成として分かりやすく問題ない。"
+    },
+    {
+      "id": "png-column-855",
+      "text": "PA",
+      "reason": "Geminiの採用可を確認。合成全文「PA\\nft」。航空航法の標準略記と単位の組み合わせで既存画面どおり明確。",
+      "response_quote": "- **`png-column-855`**: 採用可 — 引用: `「PA」`\n  - **理由**: 合成全文「PA\\nft」。航空航法の標準略記と単位の組み合わせで既存画面どおり明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-856",
+      "text": "TOAT",
+      "reason": "Geminiの採用可を確認。合成全文「TOAT\\n°C」。既存画面の略記・単位を維持しており転記用として適切。",
+      "response_quote": "- **`png-column-856`**: 採用可 — 引用: `「TOAT」`\n  - **理由**: 合成全文「TOAT\\n°C」。既存画面の略記・単位を維持しており転記用として適切。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-857",
+      "text": "CAS",
+      "reason": "Geminiの採用可を確認。合成全文「CAS\\nkt」。標準略記と単位が明確で既存画面と一致。",
+      "response_quote": "- **`png-column-857`**: 採用可 — 引用: `「CAS」`\n  - **理由**: 合成全文「CAS\\nkt」。標準略記と単位が明確で既存画面と一致。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-858",
+      "text": "TAS",
+      "reason": "Geminiの採用可を確認。合成全文「TAS\\nkt」。標準略記と単位が明確で既存画面と一致。",
+      "response_quote": "- **`png-column-858`**: 採用可 — 引用: `「TAS」`\n  - **理由**: 合成全文「TAS\\nkt」。標準略記と単位が明確で既存画面と一致。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-859",
+      "text": "TC",
+      "reason": "Geminiの採用可を確認。合成全文「TC」。True Courseの標準略記として既存画面どおり適切。",
+      "response_quote": "- **`png-column-859`**: 採用可 — 引用: `「TC」`\n  - **理由**: 合成全文「TC」。True Courseの標準略記として既存画面どおり適切。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-860",
+      "text": "VAR",
+      "reason": "Geminiの採用可を確認。合成全文「VAR」。Magnetic Variationの標準略記として既存画面どおり適切。",
+      "response_quote": "- **`png-column-860`**: 採用可 — 引用: `「VAR」`\n  - **理由**: 合成全文「VAR」。Magnetic Variationの標準略記として既存画面どおり適切。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-861",
+      "text": "MC",
+      "reason": "Geminiの採用可を確認。合成全文「MC」。Magnetic Courseの標準略記として既存画面どおり適切。",
+      "response_quote": "- **`png-column-861`**: 採用可 — 引用: `「MC」`\n  - **理由**: 合成全文「MC」。Magnetic Courseの標準略記として既存画面どおり適切。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-862",
+      "text": "WIND",
+      "reason": "Geminiの採用可を確認。合成全文「WIND」。セル値（270/30、CALM、未取得等）と対応する既存表記で明確。",
+      "response_quote": "- **`png-column-862`**: 採用可 — 引用: `「WIND」`\n  - **理由**: 合成全文「WIND」。セル値（270/30、CALM、未取得等）と対応する既存表記で明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-863",
+      "text": "WCA",
+      "reason": "Geminiの採用可を確認。合成全文「WCA」。Wind Correction Angleの標準略記として既存画面どおり適切。",
+      "response_quote": "- **`png-column-863`**: 採用可 — 引用: `「WCA」`\n  - **理由**: 合成全文「WCA」。Wind Correction Angleの標準略記として既存画面どおり適切。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-864",
+      "text": "MH",
+      "reason": "Geminiの採用可を確認。合成全文「MH」。Magnetic Headingの標準略記として既存画面どおり適切。",
+      "response_quote": "- **`png-column-864`**: 採用可 — 引用: `「MH」`\n  - **理由**: 合成全文「MH」。Magnetic Headingの標準略記として既存画面どおり適切。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-865",
+      "text": "ZONE / CUM",
+      "reason": "Geminiの採用可を確認。合成全文「ZONE / CUM\\nDIST NM」。距離の区間/累計というセル内のスラッシュ区切り構造と完全に対応している。",
+      "response_quote": "- **`png-column-865`**: 採用可 — 引用: `「ZONE / CUM」`\n  - **理由**: 合成全文「ZONE / CUM\\nDIST NM」。距離の区間/累計というセル内のスラッシュ区切り構造と完全に対応している。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-866",
+      "text": "GS",
+      "reason": "Geminiの採用可を確認。合成全文「GS\\nkt」。Ground Speedの標準略記と単位が明確で既存画面と一致。",
+      "response_quote": "- **`png-column-866`**: 採用可 — 引用: `「GS」`\n  - **理由**: 合成全文「GS\\nkt」。Ground Speedの標準略記と単位が明確で既存画面と一致。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-867",
+      "text": "ZONE / CUM",
+      "reason": "Geminiの採用可を確認。合成全文「ZONE / CUM\\nETE min」。所要時間の区間/累計構造とセル表示が一致しており明確。",
+      "response_quote": "- **`png-column-867`**: 採用可 — 引用: `「ZONE / CUM」`\n  - **理由**: 合成全文「ZONE / CUM\\nETE min」。所要時間の区間/累計構造とセル表示が一致しており明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-868",
+      "text": "ETO",
+      "reason": "Geminiの採用可を確認。合成全文「ETO」。紙NAVLOGの標準略記で既存画面どおり適切。",
+      "response_quote": "- **`png-column-868`**: 採用可 — 引用: `「ETO」`\n  - **理由**: 合成全文「ETO」。紙NAVLOGの標準略記で既存画面どおり適切。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-869",
+      "text": "ATO",
+      "reason": "Geminiの採用可を確認。合成全文「ATO」。紙NAVLOGの標準略記で既存画面どおり適切。",
+      "response_quote": "- **`png-column-869`**: 採用可 — 引用: `「ATO」`\n  - **理由**: 合成全文「ATO」。紙NAVLOGの標準略記で既存画面どおり適切。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-870",
+      "text": "ATE",
+      "reason": "Geminiの採用可を確認。合成全文「ATE」。紙NAVLOGの標準略記で既存画面どおり適切。",
+      "response_quote": "- **`png-column-870`**: 採用可 — 引用: `「ATE」`\n  - **理由**: 合成全文「ATE」。紙NAVLOGの標準略記で既存画面どおり適切。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-871",
+      "text": "SECT / REM",
+      "reason": "Geminiの採用可を確認。合成全文「SECT / REM\\nFUEL gal」。区間消費/残量のスラッシュ区切り構造と一致しており明確。",
+      "response_quote": "- **`png-column-871`**: 採用可 — 引用: `「SECT / REM」`\n  - **理由**: 合成全文「SECT / REM\\nFUEL gal」。区間消費/残量のスラッシュ区切り構造と一致しており明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-column-872",
+      "text": "30° CUT",
+      "reason": "Geminiの採用可を確認。合成全文「30° CUT\\nsec」。既存画面の項目名・単位をそのまま維持しており適切。",
+      "response_quote": "- **`png-column-872`**: 採用可 — 引用: `「30° CUT」`\n  - **理由**: 合成全文「30° CUT\\nsec」。既存画面の項目名・単位をそのまま維持しており適切。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-from",
+      "text": "FROM",
+      "reason": "Geminiの採用可を確認。経路の出発地点列見出しとして標準的・明確。経路順維持・非省略の仕様とも整合。",
+      "response_quote": "- **`png-from`**: 採用可 — 引用: `「FROM」`\n  - **理由**: 経路の出発地点列見出しとして標準的・明確。経路順維持・非省略の仕様とも整合。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-to",
+      "text": "TO",
+      "reason": "Geminiの採用可を確認。経路の到達/通過地点列見出しとして標準的・明確。経路順維持・非省略の仕様とも整合。",
+      "response_quote": "- **`png-to`**: 採用可 — 引用: `「TO」`\n  - **理由**: 経路の到達/通過地点列見出しとして標準的・明確。経路順維持・非省略の仕様とも整合。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "png-fuel-table",
+      "text": "TIME / FUEL PLAN",
+      "reason": "Geminiの採用可を確認。NAVLOG下に配置する燃料・時間計画表の見出しとして明確で、現行画面の表記維持制約に合致。",
+      "response_quote": "- **`png-fuel-table`**: 採用可 — 引用: `「TIME / FUEL PLAN」`\n  - **理由**: NAVLOG下に配置する燃料・時間計画表の見出しとして明確で、現行画面の表記維持制約に合致。\n  - **懸念**: 保存ボタンの「Fuel Table」と名称が異なるが、既存呼称維持の制約どおりであり問題ない。"
+    },
+    {
+      "id": "fuel-time",
+      "text": "TIME",
+      "reason": "Geminiの採用可を確認。時間列の上段列名として明確（値例「0 : 10」と対応）。",
+      "response_quote": "- **`fuel-time`**: 採用可 — 引用: `「TIME」`\n  - **理由**: 時間列の上段列名として明確（値例「0 : 10」と対応）。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-fuel",
+      "text": "FUEL",
+      "reason": "Geminiの採用可を確認。燃料列の上段列名として明確（値例「1.5 G」と対応）。",
+      "response_quote": "- **`fuel-fuel`**: 採用可 — 引用: `「FUEL」`\n  - **理由**: 燃料列の上段列名として明確（値例「1.5 G」と対応）。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-taxi-run-up",
+      "text": "TAXI・RUN UP",
+      "reason": "Geminiの採用可を確認。既存表の行名をそのまま転用しており、紙NAVLOG転記時の対応が取りやすい。",
+      "response_quote": "- **`fuel-taxi-run-up`**: 採用可 — 引用: `「TAXI・RUN UP」`\n  - **理由**: 既存表の行名をそのまま転用しており、紙NAVLOG転記時の対応が取りやすい。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-bof",
+      "text": "BOF",
+      "reason": "Geminiの採用可を確認。既存表の標準行名をそのまま転用しており明確。",
+      "response_quote": "- **`fuel-bof`**: 採用可 — 引用: `「BOF」`\n  - **理由**: 既存表の標準行名をそのまま転用しており明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-climb",
+      "text": "CLIMB",
+      "reason": "Geminiの採用可を確認。上昇フェーズの既存行名として明確。",
+      "response_quote": "- **`fuel-climb`**: 採用可 — 引用: `「CLIMB」`\n  - **理由**: 上昇フェーズの既存行名として明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-cruise",
+      "text": "CRUISE",
+      "reason": "Geminiの採用可を確認。巡航フェーズの既存行名として明確。",
+      "response_quote": "- **`fuel-cruise`**: 採用可 — 引用: `「CRUISE」`\n  - **理由**: 巡航フェーズの既存行名として明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-descent",
+      "text": "DESCENT",
+      "reason": "Geminiの採用可を確認。降下フェーズの既存行名として明確。",
+      "response_quote": "- **`fuel-descent`**: 採用可 — 引用: `「DESCENT」`\n  - **理由**: 降下フェーズの既存行名として明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-tgl",
+      "text": "TGL",
+      "reason": "Geminiの採用可を確認。既存表の略記（Touch and Go Landing）をそのまま維持しており明確。",
+      "response_quote": "- **`fuel-tgl`**: 採用可 — 引用: `「TGL」`\n  - **理由**: 既存表の略記（Touch and Go Landing）をそのまま維持しており明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-additional",
+      "text": "ADDITIONAL",
+      "reason": "Geminiの採用可を確認。追加分の既存行名として明確。",
+      "response_quote": "- **`fuel-additional`**: 採用可 — 引用: `「ADDITIONAL」`\n  - **理由**: 追加分の既存行名として明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-reserve",
+      "text": "RESERVE",
+      "reason": "Geminiの採用可を確認。予備分の既存行名として明確。",
+      "response_quote": "- **`fuel-reserve`**: 採用可 — 引用: `「RESERVE」`\n  - **理由**: 予備分の既存行名として明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-min-required",
+      "text": "MIN REQUIRED",
+      "reason": "Geminiの採用可を確認。最低必要量の既存行名として明確。",
+      "response_quote": "- **`fuel-min-required`**: 採用可 — 引用: `「MIN REQUIRED」`\n  - **理由**: 最低必要量の既存行名として明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-extra",
+      "text": "EXTRA",
+      "reason": "Geminiの採用可を確認。余剰分の既存行名として明確。",
+      "response_quote": "- **`fuel-extra`**: 採用可 — 引用: `「EXTRA」`\n  - **理由**: 余剰分の既存行名として明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-total",
+      "text": "TOTAL",
+      "reason": "Geminiの採用可を確認。合計行の既存行名として明確。",
+      "response_quote": "- **`fuel-total`**: 採用可 — 引用: `「TOTAL」`\n  - **理由**: 合計行の既存行名として明確。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "fuel-unit",
+      "text": "G",
+      "reason": "Geminiの採用可を確認。値例「1.5 G」として現行画面の表記を維持する本人指定に合致している。",
+      "response_quote": "- **`fuel-unit`**: 採用可 — 引用: `「G」`\n  - **理由**: 値例「1.5 G」として現行画面の表記を維持する本人指定に合致している。\n  - **懸念**: NAVLOGの「gal」と表記が異なるが、今回は単位表記変更を行わない制約どおりであり問題ない。"
+    },
+    {
+      "id": "rounding-normal",
+      "text": "通常",
+      "reason": "Geminiの採用可を確認。「四捨五入」と対になる選択肢として簡潔で、PNG見出しの表示とも一致している。",
+      "response_quote": "- **`rounding-normal`**: 採用可 — 引用: `「通常」`\n  - **理由**: 「四捨五入」と対になる選択肢として簡潔で、PNG見出しの表示とも一致している。\n  - **懸念**: 単独では「丸めなし（小数表示）」の具体動作までは示さないが、グループ見出しと対比選択肢の文脈から判別可能。"
+    },
+    {
+      "id": "rounding-enabled",
+      "text": "四捨五入",
+      "reason": "Geminiの採用可を確認。動作内容が直接的に伝わり、PNG見出しの表記とも一致している。",
+      "response_quote": "- **`rounding-enabled`**: 採用可 — 引用: `「四捨五入」`\n  - **理由**: 動作内容が直接的に伝わり、PNG見出しの表記とも一致している。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "unit-ft",
+      "text": "ft",
+      "reason": "Geminiの採用可を確認。「PA\\nft」の単位として標準的かつ既存画面どおり。",
+      "response_quote": "- **`unit-ft`**: 採用可 — 引用: `「ft」`\n  - **理由**: 「PA\\nft」の単位として標準的かつ既存画面どおり。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "unit-°C",
+      "text": "°C",
+      "reason": "Geminiの採用可を確認。「TOAT\\n°C」の単位として標準的かつ既存画面どおり。",
+      "response_quote": "- **`unit-°C`**: 採用可 — 引用: `「°C」`\n  - **理由**: 「TOAT\\n°C」の単位として標準的かつ既存画面どおり。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "unit-kt",
+      "text": "kt",
+      "reason": "Geminiの採用可を確認。「CAS\\nkt」「TAS\\nkt」「GS\\nkt」の単位として標準的かつ既存画面どおり。",
+      "response_quote": "- **`unit-kt`**: 採用可 — 引用: `「kt」`\n  - **理由**: 「CAS\\nkt」「TAS\\nkt」「GS\\nkt」の単位として標準的かつ既存画面どおり。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "unit-DIST-NM",
+      "text": "DIST NM",
+      "reason": "Geminiの採用可を確認。「ZONE / CUM\\nDIST NM」の2行目として項目種別と単位（NM）が明確で既存画面どおり。",
+      "response_quote": "- **`unit-DIST-NM`**: 採用可 — 引用: `「DIST NM」`\n  - **理由**: 「ZONE / CUM\\nDIST NM」の2行目として項目種別と単位（NM）が明確で既存画面どおり。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "unit-ETE-min",
+      "text": "ETE min",
+      "reason": "Geminiの採用可を確認。「ZONE / CUM\\nETE min」の2行目として項目種別と単位（min）が明確で既存画面どおり。",
+      "response_quote": "- **`unit-ETE-min`**: 採用可 — 引用: `「ETE min」`\n  - **理由**: 「ZONE / CUM\\nETE min」の2行目として項目種別と単位（min）が明確で既存画面どおり。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "unit-FUEL-gal",
+      "text": "FUEL gal",
+      "reason": "Geminiの採用可を確認。「SECT / REM\\nFUEL gal」の2行目として項目種別と単位（gal）が明確で既存画面どおり。",
+      "response_quote": "- **`unit-FUEL-gal`**: 採用可 — 引用: `「FUEL gal」`\n  - **理由**: 「SECT / REM\\nFUEL gal」の2行目として項目種別と単位（gal）が明確で既存画面どおり。\n  - **懸念**: Fuel Table側の「G」とは表記が異なるが、今回は単位表記変更を行わない制約どおりであり問題ない。"
+    },
+    {
+      "id": "unit-sec",
+      "text": "sec",
+      "reason": "Geminiの採用可を確認。「30° CUT\\nsec」の単位として明確かつ既存画面どおり。",
+      "response_quote": "- **`unit-sec`**: 採用可 — 引用: `「sec」`\n  - **理由**: 「30° CUT\\nsec」の単位として明確かつ既存画面どおり。\n  - **懸念**: 特になし。"
+    },
+    {
+      "id": "paired-numeric-display",
+      "text": " / ",
+      "reason": "Geminiの採用可を確認。前後に半角スペースを含む `「 / 」` は、列見出しの「ZONE / CUM」「SECT / REM」と表記・リズムが揃っており、親レグの2値（例 `58.5 / 106`、FUELは区間消費 / 残量）の視認性が高い。子レグではスラッシュを出さず親レグ左側値の右端に揃える仕様により、区間値と累計/残量の区別および親子構造の対応関係が直感的に把握できる。また、DIST/ETEの末尾 `.0` のみ省略・FUELの `.0` 保持・空欄/未取得の維持も表示文脈として妥当。",
+      "response_quote": "- **`paired-numeric-display`**: 採用可 — 引用: `「 / 」`\n  - **理由**: 前後に半角スペースを含む `「 / 」` は、列見出しの「ZONE / CUM」「SECT / REM」と表記・リズムが揃っており、親レグの2値（例 `58.5 / 106`、FUELは区間消費 / 残量）の視認性が高い。子レグではスラッシュを出さず親レグ左側値の右端に揃える仕様により、区間値と累計/残量の区別および親子構造の対応関係が直感的に把握できる。また、DIST/ETEの末尾 `.0` のみ省略・FUELの `.0` 保持・空欄/未取得の維持も表示文脈として妥当。\n  - **懸念**: 軽微な点として、DIST/ETEで整数表示（例 `4`）と小数表示（例 `58.5`）が混在すると小数点位置自体は揃わないが、本人指定どおり「子レグ値の右端を親レグ左側値の右端に揃える」レイアウトにより縦の対応関係は保たれるため運用上の支障はない。また、親レグで片側のみ空欄・未取得になる例外ケースがないか（万一ある場合に孤立スラッシュが出ないか）は実装時に整合していれば問題ない。"
+    }
+  ]
+}

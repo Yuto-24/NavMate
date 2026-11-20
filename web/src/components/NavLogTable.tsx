@@ -338,18 +338,33 @@ function displayCellClass(cell: NavLogDisplayCell): string {
 function DisplayCell({
   cell,
   extraClass = "",
+  paired = false,
+  omitIntegralDecimal = false,
 }: {
   cell: NavLogDisplayCell;
   extraClass?: string;
+  paired?: boolean;
+  omitIntegralDecimal?: boolean;
 }) {
+  const text = omitIntegralDecimal
+    ? (cell.text ?? "").replace(/\.0(?=\s*(?:\/|$))/g, "")
+    : cell.text ?? "";
+  const values = text.split(" / ");
+  const alignPair = paired && /^-?\d+(?:\.\d+)?$/.test(values[0]!);
   return (
     <td
       className={`${displayCellClass(cell)} ${extraClass}`.trim()}
       title={cell.reason_code ?? "計算結果から生成した表示専用セルです。"}
-      data-display-text={cell.text ?? ""}
+      data-display-text={text}
       data-cell-state={cell.state}
     >
-      {cell.text ?? ""}
+      {alignPair ? (
+        <span className="nav-log-pair">
+          <span className="nav-log-zone-value">{values[0]}</span>
+          <span>{values.length > 1 ? " / " : ""}</span>
+          <span>{values[1] ?? ""}</span>
+        </span>
+      ) : text}
       {cell.manual && <small>手入力</small>}
     </td>
   );
@@ -491,13 +506,13 @@ function DisplayResultCells({
       )}
       <DisplayCell cell={row.wca} />
       <DisplayCell cell={row.mh} />
-      <DisplayCell cell={row.distance} />
+      <DisplayCell cell={row.distance} paired omitIntegralDecimal />
       <DisplayCell cell={row.gs} />
-      <DisplayCell cell={row.ete} />
+      <DisplayCell cell={row.ete} paired omitIntegralDecimal />
       <DisplayCell cell={row.eto} extraClass="manual-entry-cell" />
       <DisplayCell cell={row.ato} extraClass="manual-entry-cell" />
       <DisplayCell cell={row.ate} extraClass="manual-entry-cell" />
-      <DisplayCell cell={row.fuel} />
+      <DisplayCell cell={row.fuel} paired />
       <td className="derived-readonly-cell nav-log-cut-cell">
         {row.row_type === "PHYSICAL_LEG_SUMMARY"
           ? (Number.isInteger(row.thirty_degree_cut_seconds) && (row.thirty_degree_cut_seconds ?? -1) >= 0
@@ -909,6 +924,9 @@ export function NavLogTable({
               const windInputSection = row.wind_source_section_id === null
                 ? inputSection
                 : inputSections.get(row.wind_source_section_id);
+              const hideVorReference = row.row_type === "CALCULATION_ZONE"
+                && row.to_node_id === null
+                && row.to_name.split(" / ").some(marker => marker === "RCA" || marker === "EOC");
               const rowClass = row.row_type === "PHYSICAL_LEG_SUMMARY"
                 ? "nav-leg-heading-row"
                 : row.row_type === "DESTINATION_INFO"
@@ -922,7 +940,7 @@ export function NavLogTable({
                   data-row-sequence={row.sequence}
                 >
                   {selectedVorStations.map((station, index) => {
-                    const vorReference = station === null
+                    const vorReference = hideVorReference ? "" : station === null
                       ? "—"
                       : formatVorRadialDistance(
                           station,

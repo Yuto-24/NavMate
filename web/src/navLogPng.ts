@@ -43,10 +43,17 @@ export async function exportNavLogPng(section: HTMLElement, modeText: string): P
       });
     }
     table.querySelectorAll<HTMLElement>("[data-display-text]").forEach(cell => {
-      cell.textContent = cell.dataset.displayText ?? "";
+      const pair = cell.querySelector(".nav-log-pair");
+      if (pair) cell.replaceChildren(pair);
+      else cell.textContent = cell.dataset.displayText ?? "";
     });
     table.querySelectorAll<HTMLElement>("[data-png-text]").forEach(cell => {
-      cell.textContent = cell.dataset.pngText ?? "";
+      const text = cell.dataset.pngText ?? "";
+      if (cell.matches(".vor-reference-header") && text) {
+        const split = text.indexOf(" ");
+        cell.replaceChildren(document.createTextNode(text.slice(0, split)), document.createElement("br"),
+          document.createTextNode(text.slice(split)));
+      } else cell.textContent = text;
     });
     table.querySelectorAll("button, input, select, [id]").forEach(element => {
       if (element.matches("button, input, select")) element.remove();

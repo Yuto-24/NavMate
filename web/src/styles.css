@@ -1294,6 +1294,12 @@ tbody tr:last-child td { border-bottom: 0; }
   position: sticky;
   z-index: 2;
 }
+.nav-log-pair {
+  display: grid; grid-template-columns: minmax(0, 1fr) 6px minmax(0, 1fr); gap: 3px;
+  align-items: baseline; font-variant-numeric: tabular-nums;
+}
+.nav-log-pair > :first-child { text-align: right; }
+.nav-log-pair > :last-child { text-align: left; }
 .nav-log-table .route-from-cell { left: 0; }
 .nav-log-table .route-to-cell { left: 110px; }
 .nav-log-table th.route-name-header { z-index: 4; background: var(--slate-100); }
@@ -1729,21 +1735,22 @@ tbody tr:last-child td { border-bottom: 0; }
 /* Clean, full-size tables used only while encoding a PNG. */
 .nav-log-rad-control { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .nav-log-png-paper {
-  position: fixed; left: -100000px; top: 0; width: max-content; padding: 8px;
+  position: fixed; left: -100000px; top: 0; width: max-content; padding: 12px;
   background: white; color: black; pointer-events: none;
 }
 .nav-log-png-paper h2 { margin: 0 0 8px; font-size: 18px; }
 .nav-log-png-paper h3 { margin: 12px 0 6px; font-size: 14px; }
 .nav-log-png-paper :is(.nav-log-table, .fuel-plan-table) :is(th, td) {
   position: static !important; color: black !important;
-  padding: 2px 3px; white-space: nowrap; height: auto; min-height: 0; min-width: 0;
+  white-space: nowrap; height: auto; min-height: 0; min-width: 0;
 }
-.nav-log-png-paper :is(.nav-log-table, .fuel-plan-table) {
+.nav-log-png-paper .nav-log-table {
   table-layout: auto; width: max-content !important; min-width: 0 !important;
 }
-.nav-log-png-paper :is(.nav-log-table, .fuel-plan-table) col { width: auto; }
-.nav-log-png-paper .nav-log-table :is(th, td) { background: white !important; }
-.nav-log-png-paper .fuel-plan-table :is(th, td) { height: 20px; }
+.nav-log-png-paper .nav-log-table col { width: auto; }
+.nav-log-png-paper .nav-log-table :is(th, td) { padding: 4px 6px; background: white !important; }
+.nav-log-png-paper .fuel-plan-table { width: 420px; }
+.nav-log-png-paper .fuel-plan-table :is(th, td) { height: 24px; }
 .nav-log-png-paper .vor-reference-header { width: auto; min-width: 0; font-size: 11px; }
 
 .nav-log-png-paper .nav-leg-spacer-row td { height: 20px; padding: 0; }

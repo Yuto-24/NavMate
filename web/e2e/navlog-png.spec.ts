@@ -88,6 +88,13 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
             tableWidth: box(".nav-log-table").width,
             windWidth: box(".nav-log-table thead th:nth-last-child(11)").width,
             fuelWidth: box(".fuel-plan-table").width,
+            fuelRowHeight: box(".fuel-extra-row").height,
+            cellPadding: getComputedStyle(paper.querySelector(".route-from-cell")!).padding,
+            vorLines: Array.from(paper.querySelectorAll(".vor-reference-header"), cell => cell.querySelectorAll("br").length),
+            pairEnds: [8, 6, 2].map(column => Array.from(paper.querySelectorAll(`.nav-log-table tbody td:nth-last-child(${column}) .nav-log-zone-value`), value => {
+              const range = document.createRange(); range.selectNodeContents(value);
+              return range.getBoundingClientRect().right - value.closest("td")!.getBoundingClientRect().left;
+            })),
             thin: box(".nav-log-table tbody tr:first-child .route-from-cell"),
             thick: box(".nav-log-table tbody tr:first-child .route-to-cell"),
             gray: box(".fuel-plan-table .fuel-gray"),
@@ -108,10 +115,31 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
     };
   });
   await calculate(page);
+  const boundaries = page.locator(".nav-leg-detail-row").filter({ has: page.locator('.route-to-cell').filter({ hasText: /^(RCA|EOC)$/ }) });
+  await expect(boundaries).toHaveCount(2);
+  for (const cell of await boundaries.locator(".vor-reference-cell").all()) await expect(cell).toBeEmpty();
+  await expect(page.locator(".nav-leg-heading-row .vor-reference-cell").first()).not.toBeEmpty();
   const reciprocal = page.getByRole("checkbox", { name: "RAD反方位（180°）" });
   const rounding = page.getByRole("radio", { name: "四捨五入", exact: true });
   await expect(reciprocal).toBeChecked();
   await expect(rounding).toBeChecked();
+  const checkNumericPresentation = async () => {
+    for (const column of [8, 6, 2]) {
+      const values = page.locator(`.nav-log-table tbody td:nth-last-child(${column}) .nav-log-zone-value`);
+      const ends = await values.evaluateAll(elements => elements.map(value => {
+        const range = document.createRange(); range.selectNodeContents(value);
+        return range.getBoundingClientRect().right - value.closest("td")!.getBoundingClientRect().left;
+      }));
+      expect(ends.length).toBeGreaterThan(4);
+      expect(Math.max(...ends) - Math.min(...ends)).toBeLessThan(1);
+      const texts = await page.locator(`.nav-log-table tbody td:nth-last-child(${column})`).allTextContents();
+      if (column !== 2) {
+        expect(texts.join(" ")).not.toMatch(/\.0(?:\s|$)/);
+        expect(texts.some(text => /\.5/.test(text))).toBe(true);
+      } else expect(texts.some(text => /\.0(?:\s|$)/.test(text))).toBe(true);
+    }
+  };
+  await checkNumericPresentation();
   const otherValues = await page.locator(".nav-log-table td:not(.vor-reference-cell)").allTextContents();
   const reversed = await page.locator(".vor-reference-cell").allTextContents();
   await reciprocal.uncheck();
@@ -125,6 +153,17 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
     else expect(reverse).toBe(rad);
   }
   await reciprocal.check();
+  const normal = page.getByRole("radio", { name: "通常", exact: true });
+  await normal.click();
+  await expect(normal).toBeChecked();
+  await expect(rounding).toBeEnabled();
+  // Precision other than the trailing .0 still follows the selected mode.
+  const normalDistances = await page.locator(".nav-log-table tbody td:nth-last-child(8)").allTextContents();
+  expect(normalDistances.join(" ")).not.toMatch(/\.0(?:\s|$)/);
+  await rounding.click();
+  await expect(rounding).toBeChecked();
+  await expect(rounding).toBeEnabled();
+  await checkNumericPresentation();
   await page.getByLabel("VOR基準局", { exact: true }).selectOption("AKE");
   for (let index = 0; index < 3; index++) await page.getByRole("button", { name: "VOR/DME列を追加" }).click();
   await page.getByLabel("VOR基準局", { exact: true }).selectOption("SUC");
@@ -178,8 +217,18 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   expect(snapshot.snapshot.controls).toBe(0);
   expect(snapshot.snapshot.tableWidth).toBeLessThan(1500);
   expect(snapshot.snapshot.windWidth).toBeLessThan(80);
-  expect(snapshot.snapshot.fuelWidth).toBeLessThan(420);
+  expect(snapshot.snapshot.fuelWidth).toBeCloseTo(420, 0);
+  expect(snapshot.snapshot.fuelRowHeight).toBeCloseTo(24, 0);
+  expect(snapshot.snapshot.cellPadding).toBe("4px 6px");
+  expect(snapshot.snapshot.vorLines).toEqual([1, 1]);
+  for (const ends of snapshot.snapshot.pairEnds) {
+    expect(ends.length).toBeGreaterThan(4);
+    expect(Math.max(...ends) - Math.min(...ends)).toBeLessThan(1);
+  }
   expect(snapshot.snapshot.rows.slice(1)).toEqual(expectedCells);
+  const boundaryRows = snapshot.snapshot.rows.filter((row: string[]) => ["RCA", "EOC"].includes(row[3]));
+  expect(boundaryRows).toHaveLength(2);
+  expect(boundaryRows.every((row: string[]) => row[0] === "" && row[1] === "")).toBe(true);
   expect(snapshot.snapshot.rows[0]).toHaveLength(22); // 20 base columns + two selected VORs.
   expect(snapshot.snapshot.spacers).toHaveLength(snapshot.snapshot.parents - 1);
   expect(snapshot.snapshot.spacers.every((row: any) => row.height >= 20 && row.next.includes("nav-leg-heading-row"))).toBe(true);
