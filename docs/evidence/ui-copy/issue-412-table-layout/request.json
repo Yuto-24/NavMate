@@ -1,0 +1,452 @@
+{
+  "items": [
+    {
+      "id": "table-png-column-855",
+      "text": "PA",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>PA<br /><small>ft</small></th>",
+        "end": "              <th>PA<br /><small>ft</small></th>",
+        "expected": "              <th>PA<br /><small>ft</small></th>"
+      }
+    },
+    {
+      "id": "table-png-column-856",
+      "text": "TOAT",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>TOAT<br /><small>°C</small></th>",
+        "end": "              <th>TOAT<br /><small>°C</small></th>",
+        "expected": "              <th>TOAT<br /><small>°C</small></th>"
+      }
+    },
+    {
+      "id": "table-png-column-857",
+      "text": "CAS",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>CAS<br /><small>kt</small></th>",
+        "end": "              <th>CAS<br /><small>kt</small></th>",
+        "expected": "              <th>CAS<br /><small>kt</small></th>"
+      }
+    },
+    {
+      "id": "table-png-column-858",
+      "text": "TAS",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>TAS<br /><small>kt</small></th>",
+        "end": "              <th>TAS<br /><small>kt</small></th>",
+        "expected": "              <th>TAS<br /><small>kt</small></th>"
+      }
+    },
+    {
+      "id": "table-png-column-859",
+      "text": "TC",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>TC</th>",
+        "end": "              <th>TC</th>",
+        "expected": "              <th>TC</th>"
+      }
+    },
+    {
+      "id": "table-png-column-860",
+      "text": "VAR",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>VAR</th>",
+        "end": "              <th>VAR</th>",
+        "expected": "              <th>VAR</th>"
+      }
+    },
+    {
+      "id": "table-png-column-861",
+      "text": "MC",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>MC</th>",
+        "end": "              <th>MC</th>",
+        "expected": "              <th>MC</th>"
+      }
+    },
+    {
+      "id": "table-png-column-862",
+      "text": "WIND",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>WIND</th>",
+        "end": "              <th>WIND</th>",
+        "expected": "              <th>WIND</th>"
+      }
+    },
+    {
+      "id": "table-png-column-863",
+      "text": "WCA",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>WCA</th>",
+        "end": "              <th>WCA</th>",
+        "expected": "              <th>WCA</th>"
+      }
+    },
+    {
+      "id": "table-png-column-864",
+      "text": "MH",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>MH</th>",
+        "end": "              <th>MH</th>",
+        "expected": "              <th>MH</th>"
+      }
+    },
+    {
+      "id": "table-png-column-865",
+      "text": "ZONE / CUM",
+      "location": "DIST列ヘッダー。上段ZONE / CUM、同じセルの下段DIST NM。",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>",
+        "end": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>",
+        "expected": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>"
+      }
+    },
+    {
+      "id": "table-png-column-866",
+      "text": "GS",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>GS<br /><small>kt</small></th>",
+        "end": "              <th>GS<br /><small>kt</small></th>",
+        "expected": "              <th>GS<br /><small>kt</small></th>"
+      }
+    },
+    {
+      "id": "table-png-column-867",
+      "text": "ZONE / CUM",
+      "location": "ETE列ヘッダー。上段ZONE / CUM、同じセルの下段ETE min。",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ZONE / CUM<br /><small>ETE min</small></th>",
+        "end": "              <th>ZONE / CUM<br /><small>ETE min</small></th>",
+        "expected": "              <th>ZONE / CUM<br /><small>ETE min</small></th>"
+      }
+    },
+    {
+      "id": "table-png-column-868",
+      "text": "ETO",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ETO</th>",
+        "end": "              <th>ETO</th>",
+        "expected": "              <th>ETO</th>"
+      }
+    },
+    {
+      "id": "table-png-column-869",
+      "text": "ATO",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ATO</th>",
+        "end": "              <th>ATO</th>",
+        "expected": "              <th>ATO</th>"
+      }
+    },
+    {
+      "id": "table-png-column-870",
+      "text": "ATE",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ATE</th>",
+        "end": "              <th>ATE</th>",
+        "expected": "              <th>ATE</th>"
+      }
+    },
+    {
+      "id": "table-png-column-871",
+      "text": "SECT / REM",
+      "location": "FUEL列ヘッダー。上段SECT / REM、同じセルの下段FUEL gal。",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>SECT / REM<br /><small>FUEL gal</small></th>",
+        "end": "              <th>SECT / REM<br /><small>FUEL gal</small></th>",
+        "expected": "              <th>SECT / REM<br /><small>FUEL gal</small></th>"
+      }
+    },
+    {
+      "id": "table-png-column-872",
+      "text": "30° CUT",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>30° CUT<br /><small>sec</small></th>",
+        "end": "              <th>30° CUT<br /><small>sec</small></th>",
+        "expected": "              <th>30° CUT<br /><small>sec</small></th>"
+      }
+    },
+    {
+      "id": "table-png-from",
+      "text": "FROM",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th className=\"route-name-header route-from-cell\">FROM</th>",
+        "end": "              <th className=\"route-name-header route-from-cell\">FROM</th>",
+        "expected": "              <th className=\"route-name-header route-from-cell\">FROM</th>"
+      }
+    },
+    {
+      "id": "table-png-to",
+      "text": "TO",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th className=\"route-name-header route-to-cell\">TO</th>",
+        "end": "              <th className=\"route-name-header route-to-cell\">TO</th>",
+        "expected": "              <th className=\"route-name-header route-to-cell\">TO</th>"
+      }
+    },
+    {
+      "id": "table-unit-ft",
+      "text": "ft",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>PA<br /><small>ft</small></th>",
+        "end": "              <th>PA<br /><small>ft</small></th>",
+        "expected": "              <th>PA<br /><small>ft</small></th>"
+      }
+    },
+    {
+      "id": "table-unit-°C",
+      "text": "°C",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>TOAT<br /><small>°C</small></th>",
+        "end": "              <th>TOAT<br /><small>°C</small></th>",
+        "expected": "              <th>TOAT<br /><small>°C</small></th>"
+      }
+    },
+    {
+      "id": "table-unit-kt",
+      "text": "kt",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>CAS<br /><small>kt</small></th>",
+        "end": "              <th>CAS<br /><small>kt</small></th>",
+        "expected": "              <th>CAS<br /><small>kt</small></th>"
+      }
+    },
+    {
+      "id": "table-unit-DIST-NM",
+      "text": "DIST NM",
+      "location": "DIST列ヘッダー。上段ZONE / CUM、同じセルの下段DIST NM。",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>",
+        "end": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>",
+        "expected": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>"
+      }
+    },
+    {
+      "id": "table-unit-ETE-min",
+      "text": "ETE min",
+      "location": "ETE列ヘッダー。上段ZONE / CUM、同じセルの下段ETE min。",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ZONE / CUM<br /><small>ETE min</small></th>",
+        "end": "              <th>ZONE / CUM<br /><small>ETE min</small></th>",
+        "expected": "              <th>ZONE / CUM<br /><small>ETE min</small></th>"
+      }
+    },
+    {
+      "id": "table-unit-FUEL-gal",
+      "text": "FUEL gal",
+      "location": "FUEL列ヘッダー。上段SECT / REM、同じセルの下段FUEL gal。",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>SECT / REM<br /><small>FUEL gal</small></th>",
+        "end": "              <th>SECT / REM<br /><small>FUEL gal</small></th>",
+        "expected": "              <th>SECT / REM<br /><small>FUEL gal</small></th>"
+      }
+    },
+    {
+      "id": "table-unit-sec",
+      "text": "sec",
+      "location": "通常画面NAV LOG主表の列見出し・単位・数値表示",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>30° CUT<br /><small>sec</small></th>",
+        "end": "              <th>30° CUT<br /><small>sec</small></th>",
+        "expected": "              <th>30° CUT<br /><small>sec</small></th>"
+      }
+    },
+    {
+      "id": "table-paired-numeric-display",
+      "text": " / ",
+      "location": "DIST/ETE/FUELの明細セル。DIST/ETEは区間/累積、FUELは区間消費/残量。",
+      "purpose": "列幅を圧縮した表示文脈で既存文言の意味と判読性を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。 この3列は従来の90pxを維持し左右余白を5pxから4pxに減らして有効幅を広げる。区間値のみの内訳行は親行の左側数値へ右端を揃える。親行のペアは123.4 / 567.8や999.9 / 999.9を含めて実ブラウザで収まりを確認する。計算値や最大桁数の新たな制限は追加しない。",
+      "constraints": "文言・列順・計算値の変更はNon-goals。各idのtextをそのまま引用して採用可否と理由を回答。幅の妥当性や欠けは別途実ブラウザで検証する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function DisplayCell({",
+        "end": "\nfunction isVisibleCell",
+        "expected": "function DisplayCell({\n  cell,\n  extraClass = \"\",\n  paired = false,\n  omitIntegralDecimal = false,\n}: {\n  cell: NavLogDisplayCell;\n  extraClass?: string;\n  paired?: boolean;\n  omitIntegralDecimal?: boolean;\n}) {\n  const text = omitIntegralDecimal\n    ? (cell.text ?? \"\").replace(/\\.0(?=\\s*(?:\\/|$))/g, \"\")\n    : cell.text ?? \"\";\n  const values = text.split(\" / \");\n  const alignPair = paired && /^-?\\d+(?:\\.\\d+)?$/.test(values[0]!);\n  return (\n    <td\n      className={`${displayCellClass(cell)} ${extraClass}`.trim()}\n      title={cell.reason_code ?? \"計算結果から生成した表示専用セルです。\"}\n      data-display-text={text}\n      data-cell-state={cell.state}\n    >\n      {alignPair ? (\n        <span className=\"nav-log-pair\">\n          <span className=\"nav-log-zone-value\">{values[0]}</span>\n          <span>{values.length > 1 ? \" / \" : \"\"}</span>\n          <span>{values[1] ?? \"\"}</span>\n        </span>\n      ) : text}\n      {cell.manual && <small>手入力</small>}\n    </td>\n  );\n}\n\nfunction isVisibleCell"
+      }
+    },
+    {
+      "id": "number-error",
+      "text": "要確認",
+      "location": "通常画面NAV LOG主表の編集入力直下",
+      "purpose": "入力補足を必要な行高へ拡張し、切れずに読める状態を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 数値エラーは要確認、風エラーは風向・風速を確認。詳細はinputのtitleと既存編集案内。任意値の手入力時は手入力。必須の高度には手入力注記を出さない。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "既存文言は変更しない。各idのtextを引用して採用可否と理由を回答。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function EditableNumberCell({",
+        "end": "\nfunction EditableWindCell({",
+        "expected": "function EditableNumberCell({\n  value,\n  draftValue,\n  field,\n  label,\n  error,\n  onChange,\n  min,\n  max,\n  step,\n  formatter = integer,\n  displayPlaceholder,\n  projectedValue,\n  required = false,\n}: {\n  value: AdoptedValue<number>;\n  draftValue: string;\n  field: NavLogEditableField;\n  label: string;\n  error?: string;\n  onChange: (field: NavLogEditableField, value: string) => void;\n  min: number;\n  max: number;\n  step: number;\n  formatter?: NumberFormatter;\n  displayPlaceholder?: string;\n  projectedValue?: string;\n  required?: boolean;\n}) {\n  const formatted = numberValue(value, formatter);\n  const [editing, setEditing] = useState(false);\n  return (\n    <td\n      className={`nav-log-editable-cell ${error ? \"nav-log-invalid-cell\" : \"\"}`}\n      data-display-text={displayPlaceholder ?? formatted.text}\n    >\n      <input\n        className=\"nav-log-number-input\"\n        type=\"number\"\n        min={min}\n        max={max}\n        step={step}\n        required={required}\n        aria-label={label}\n        aria-invalid={Boolean(error)}\n        title={error ?? (required ? \"この値は必須です。\" : \"空欄にすると自動値へ戻ります。\")}\n        value={!editing && draftValue && projectedValue !== undefined ? projectedValue : draftValue}\n        onFocus={(event) => {\n          if (projectedValue !== undefined) {\n            // Changing the shown value invalidates the browser's prior selection.\n            flushSync(() => setEditing(true));\n            event.currentTarget.select();\n          } else setEditing(true);\n        }}\n        onBlur={() => setEditing(false)}\n        placeholder={displayPlaceholder ?? formatted.text}\n        onChange={(event) => onChange(field, event.target.value)}\n      />\n      {error && <small className=\"nav-log-field-error\">要確認</small>}\n      {!error && !required && draftValue.trim() && <small>手入力</small>}\n    </td>\n  );\n}\n\nfunction EditableWindCell({"
+      }
+    },
+    {
+      "id": "number-manual",
+      "text": "手入力",
+      "location": "通常画面NAV LOG主表の編集入力直下",
+      "purpose": "入力補足を必要な行高へ拡張し、切れずに読める状態を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 数値エラーは要確認、風エラーは風向・風速を確認。詳細はinputのtitleと既存編集案内。任意値の手入力時は手入力。必須の高度には手入力注記を出さない。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "既存文言は変更しない。各idのtextを引用して採用可否と理由を回答。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function EditableNumberCell({",
+        "end": "\nfunction EditableWindCell({",
+        "expected": "function EditableNumberCell({\n  value,\n  draftValue,\n  field,\n  label,\n  error,\n  onChange,\n  min,\n  max,\n  step,\n  formatter = integer,\n  displayPlaceholder,\n  projectedValue,\n  required = false,\n}: {\n  value: AdoptedValue<number>;\n  draftValue: string;\n  field: NavLogEditableField;\n  label: string;\n  error?: string;\n  onChange: (field: NavLogEditableField, value: string) => void;\n  min: number;\n  max: number;\n  step: number;\n  formatter?: NumberFormatter;\n  displayPlaceholder?: string;\n  projectedValue?: string;\n  required?: boolean;\n}) {\n  const formatted = numberValue(value, formatter);\n  const [editing, setEditing] = useState(false);\n  return (\n    <td\n      className={`nav-log-editable-cell ${error ? \"nav-log-invalid-cell\" : \"\"}`}\n      data-display-text={displayPlaceholder ?? formatted.text}\n    >\n      <input\n        className=\"nav-log-number-input\"\n        type=\"number\"\n        min={min}\n        max={max}\n        step={step}\n        required={required}\n        aria-label={label}\n        aria-invalid={Boolean(error)}\n        title={error ?? (required ? \"この値は必須です。\" : \"空欄にすると自動値へ戻ります。\")}\n        value={!editing && draftValue && projectedValue !== undefined ? projectedValue : draftValue}\n        onFocus={(event) => {\n          if (projectedValue !== undefined) {\n            // Changing the shown value invalidates the browser's prior selection.\n            flushSync(() => setEditing(true));\n            event.currentTarget.select();\n          } else setEditing(true);\n        }}\n        onBlur={() => setEditing(false)}\n        placeholder={displayPlaceholder ?? formatted.text}\n        onChange={(event) => onChange(field, event.target.value)}\n      />\n      {error && <small className=\"nav-log-field-error\">要確認</small>}\n      {!error && !required && draftValue.trim() && <small>手入力</small>}\n    </td>\n  );\n}\n\nfunction EditableWindCell({"
+      }
+    },
+    {
+      "id": "wind-error",
+      "text": "風向・風速を確認",
+      "location": "通常画面NAV LOG主表の編集入力直下",
+      "purpose": "入力補足を必要な行高へ拡張し、切れずに読める状態を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 数値エラーは要確認、風エラーは風向・風速を確認。詳細はinputのtitleと既存編集案内。任意値の手入力時は手入力。必須の高度には手入力注記を出さない。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "既存文言は変更しない。各idのtextを引用して採用可否と理由を回答。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function EditableWindCell({",
+        "end": "\nfunction FuelTime(",
+        "expected": "function EditableWindCell({\n  direction,\n  speed,\n  directionValue,\n  speedValue,\n  label,\n  errors,\n  displayText,\n  roundingMode,\n  onChange,\n}: {\n  direction: AdoptedValue<number>;\n  speed: AdoptedValue<number>;\n  directionValue: string;\n  speedValue: string;\n  label: string;\n  errors: Partial<Record<NavLogEditableField, string>>;\n  displayText?: string;\n  roundingMode?: boolean;\n  onChange: (field: NavLogEditableField, value: string) => void;\n}) {\n  const invalid = Boolean(errors.windDirection || errors.windSpeed);\n  const [editingDirection, setEditingDirection] = useState(false);\n  const automaticDirection = adopted(direction);\n  const automaticSpeed = adopted(speed);\n  const [displayDirection, displaySpeed] = displayText?.includes(\"/\")\n    ? displayText.split(\"/\", 2)\n    : [undefined, displayText === \"CALM\" ? \"0\" : undefined];\n  const directionPlaceholder = displayDirection ?? (\n    automaticDirection === null\n      ? \"DIR\"\n      : integer(((automaticDirection % 360) + 360) % 360).padStart(3, \"0\")\n  );\n  const speedPlaceholder = displaySpeed ?? (\n    automaticSpeed === null ? \"kt\" : integer(automaticSpeed)\n  );\n  return (\n    <td\n      className={`nav-log-editable-cell ${invalid ? \"nav-log-invalid-cell\" : \"\"}`}\n      data-display-text={displayText ?? \"\"}\n    >\n      <div className=\"nav-log-wind-editor\">\n        <div className=\"nav-log-wind-inputs\">\n          <input\n            className=\"nav-log-number-input\"\n            type=\"number\"\n            min=\"1\"\n            max=\"360\"\n            step=\"1\"\n            aria-label={`${label} 手動風向`}\n            aria-invalid={Boolean(errors.windDirection)}\n            title={errors.windDirection ?? \"空欄にすると自動値へ戻ります。\"}\n            value={roundingMode && !editingDirection && directionValue && displayDirection !== undefined ? displayDirection : directionValue}\n            onFocus={(event) => {\n              if (roundingMode) {\n                flushSync(() => setEditingDirection(true));\n                event.currentTarget.select();\n              } else setEditingDirection(true);\n            }}\n            onBlur={() => setEditingDirection(false)}\n            placeholder={directionPlaceholder}\n            onChange={(event) => onChange(\"windDirection\", event.target.value)}\n          />\n          <span>/</span>\n          <input\n            className=\"nav-log-number-input\"\n            type=\"number\"\n            min=\"0\"\n            max=\"200\"\n            step=\"1\"\n            aria-label={`${label} 手動風速`}\n            aria-invalid={Boolean(errors.windSpeed)}\n            title={errors.windSpeed ?? \"空欄にすると自動値へ戻ります。\"}\n            value={speedValue}\n            placeholder={speedPlaceholder}\n            onChange={(event) => onChange(\"windSpeed\", event.target.value)}\n          />\n        </div>\n      </div>\n      {invalid && <small className=\"nav-log-field-error\">風向・風速を確認</small>}\n      {!invalid && (directionValue.trim() || speedValue.trim()) && <small>手入力</small>}\n    </td>\n  );\n}\n\nfunction FuelTime("
+      }
+    },
+    {
+      "id": "wind-manual",
+      "text": "手入力",
+      "location": "通常画面NAV LOG主表の編集入力直下",
+      "purpose": "入力補足を必要な行高へ拡張し、切れずに読める状態を維持する。",
+      "context": "Issue #412の通常画面NAV LOG主表。列順・数値・単位・文言は維持。FROM/TOは表示対象名の実測に基づき独立に64〜160px。長名は省略せず折り返す。通常の親行・内訳行は36pxを基準とし、長名・手入力・警告・エラーがあれば拡張する。列幅はPA70, TOAT60, CAS/TAS60, TC/VAR/MC/WCA/MH/GS45, WIND120, DIST/ETE/FUEL90, ETO/ATO/ATE50, CUT65px。余白は上下左右4px（内訳TOの左は10px）。横スクロールとFROM/TO固定表示を維持。地点名と計算値は動的データで、この確認では実データを送らない。PNG専用の従来スタイルとTIME/FUEL表は維持する。 数値エラーは要確認、風エラーは風向・風速を確認。詳細はinputのtitleと既存編集案内。任意値の手入力時は手入力。必須の高度には手入力注記を出さない。 見出しは10px太字、見出し内の単位は8px、明細は11px、補足は8px。数値列は折り返しなし、FROM/TOのみ長名を折り返す。単位は各ヘッダー内の下段に表示しセル内へ繰り返さない。数値/風エラーと手入力注記は排他表示。",
+      "constraints": "既存文言は変更しない。各idのtextを引用して採用可否と理由を回答。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function EditableWindCell({",
+        "end": "\nfunction FuelTime(",
+        "expected": "function EditableWindCell({\n  direction,\n  speed,\n  directionValue,\n  speedValue,\n  label,\n  errors,\n  displayText,\n  roundingMode,\n  onChange,\n}: {\n  direction: AdoptedValue<number>;\n  speed: AdoptedValue<number>;\n  directionValue: string;\n  speedValue: string;\n  label: string;\n  errors: Partial<Record<NavLogEditableField, string>>;\n  displayText?: string;\n  roundingMode?: boolean;\n  onChange: (field: NavLogEditableField, value: string) => void;\n}) {\n  const invalid = Boolean(errors.windDirection || errors.windSpeed);\n  const [editingDirection, setEditingDirection] = useState(false);\n  const automaticDirection = adopted(direction);\n  const automaticSpeed = adopted(speed);\n  const [displayDirection, displaySpeed] = displayText?.includes(\"/\")\n    ? displayText.split(\"/\", 2)\n    : [undefined, displayText === \"CALM\" ? \"0\" : undefined];\n  const directionPlaceholder = displayDirection ?? (\n    automaticDirection === null\n      ? \"DIR\"\n      : integer(((automaticDirection % 360) + 360) % 360).padStart(3, \"0\")\n  );\n  const speedPlaceholder = displaySpeed ?? (\n    automaticSpeed === null ? \"kt\" : integer(automaticSpeed)\n  );\n  return (\n    <td\n      className={`nav-log-editable-cell ${invalid ? \"nav-log-invalid-cell\" : \"\"}`}\n      data-display-text={displayText ?? \"\"}\n    >\n      <div className=\"nav-log-wind-editor\">\n        <div className=\"nav-log-wind-inputs\">\n          <input\n            className=\"nav-log-number-input\"\n            type=\"number\"\n            min=\"1\"\n            max=\"360\"\n            step=\"1\"\n            aria-label={`${label} 手動風向`}\n            aria-invalid={Boolean(errors.windDirection)}\n            title={errors.windDirection ?? \"空欄にすると自動値へ戻ります。\"}\n            value={roundingMode && !editingDirection && directionValue && displayDirection !== undefined ? displayDirection : directionValue}\n            onFocus={(event) => {\n              if (roundingMode) {\n                flushSync(() => setEditingDirection(true));\n                event.currentTarget.select();\n              } else setEditingDirection(true);\n            }}\n            onBlur={() => setEditingDirection(false)}\n            placeholder={directionPlaceholder}\n            onChange={(event) => onChange(\"windDirection\", event.target.value)}\n          />\n          <span>/</span>\n          <input\n            className=\"nav-log-number-input\"\n            type=\"number\"\n            min=\"0\"\n            max=\"200\"\n            step=\"1\"\n            aria-label={`${label} 手動風速`}\n            aria-invalid={Boolean(errors.windSpeed)}\n            title={errors.windSpeed ?? \"空欄にすると自動値へ戻ります。\"}\n            value={speedValue}\n            placeholder={speedPlaceholder}\n            onChange={(event) => onChange(\"windSpeed\", event.target.value)}\n          />\n        </div>\n      </div>\n      {invalid && <small className=\"nav-log-field-error\">風向・風速を確認</small>}\n      {!invalid && (directionValue.trim() || speedValue.trim()) && <small>手入力</small>}\n    </td>\n  );\n}\n\nfunction FuelTime("
+      }
+    }
+  ]
+}

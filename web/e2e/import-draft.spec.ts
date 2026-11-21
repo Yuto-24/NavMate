@@ -206,7 +206,16 @@ test("#176 #361 #293 selected names survive Draft edits, reload, confirmation an
   await expect(page.getByLabel("保存済み", { exact: true })).toBeVisible();
   await openProjectMenu(page);
   await page.getByLabel("保存済み", { exact: true }).selectOption(project.id);
-  await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
+  // Make restoration observable instead of matching the still-open Project.
+  await projectName.fill("Unsaved rename");
+  await Promise.all([
+    page.waitForEvent("dialog").then(async dialog => {
+      expect(dialog.message()).toBe("作成中の変更を破棄しますか？");
+      await dialog.accept();
+    }),
+    page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click(),
+  ]);
+  await expect(page.getByRole("status").filter({ hasText: "保存済みプロジェクトを開きました。" })).toBeVisible();
   await expect.poll(names).toEqual(["RJFM", "RENAMED", "RJFK"]);
   await expect(projectName).toHaveValue("Imported names");
   const reopened = (await snapshot(page)).working.project;

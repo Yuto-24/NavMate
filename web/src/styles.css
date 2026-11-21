@@ -1272,20 +1272,23 @@ tbody tr:last-child td { border-bottom: 0; }
   :nth-last-child(3), :nth-last-child(2), :last-child
 ) { border-right: 2px solid var(--nav-log-grid); }
 .nav-log-table col.nav-log-vor-column { width: 90px; }
-.nav-log-table col.nav-log-from-column, .nav-log-table col.nav-log-to-column { width: 110px; }
-.nav-log-table col.nav-log-pa-column { width: 75px; }
-.nav-log-table col.nav-log-toat-column { width: 70px; }
+.nav-log-table col.nav-log-from-column { width: var(--nav-log-from-width); }
+.nav-log-table col.nav-log-to-column { width: var(--nav-log-to-width); }
+.nav-log-table col.nav-log-pa-column { width: 70px; }
+.nav-log-table col.nav-log-toat-column { width: 60px; }
 .nav-log-table col.nav-log-cas-column, .nav-log-table col.nav-log-tas-column { width: 60px; }
 .nav-log-table col.nav-log-tc-column, .nav-log-table col.nav-log-variation-column,
 .nav-log-table col.nav-log-mc-column, .nav-log-table col.nav-log-wca-column,
-.nav-log-table col.nav-log-mh-column, .nav-log-table col.nav-log-gs-column { width: 50px; }
-.nav-log-table col.nav-log-wind-column { width: 130px; }
+.nav-log-table col.nav-log-mh-column, .nav-log-table col.nav-log-gs-column { width: 45px; }
+.nav-log-table col.nav-log-wind-column { width: 120px; }
 .nav-log-table col.nav-log-distance-column, .nav-log-table col.nav-log-ete-column { width: 90px; }
 .nav-log-table col.nav-log-eto-column, .nav-log-table col.nav-log-ato-column,
-.nav-log-table col.nav-log-ate-column { width: 60px; }
+.nav-log-table col.nav-log-ate-column { width: 50px; }
 .nav-log-table col.nav-log-fuel-column { width: 90px; }
-.nav-log-table col.nav-log-cut-column { width: 80px; }
-.nav-log-table th, .nav-log-table td { padding: 4px 5px; }
+.nav-log-table col.nav-log-cut-column { width: 65px; }
+.nav-log-table th, .nav-log-table td { padding: 4px; vertical-align: middle; }
+/* Table-cell height is a minimum: wrapped names and annotations can grow. */
+.nav-leg-heading-row td, .nav-leg-detail-row td { height: 36px; }
 .nav-log-table th { text-align: center; line-height: 1.25; }
 .nav-log-table th small { font-size: 8px; font-weight: 650; }
 .nav-log-table td { color: #172d42; font-size: 11px; text-align: center; white-space: nowrap; }
@@ -1301,7 +1304,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .nav-log-pair > :first-child { text-align: right; }
 .nav-log-pair > :last-child { text-align: left; }
 .nav-log-table .route-from-cell { left: 0; }
-.nav-log-table .route-to-cell { left: 110px; }
+.nav-log-table .route-to-cell { left: var(--nav-log-from-width); }
 .nav-log-table th.route-name-header { z-index: 4; background: var(--slate-100); }
 .vor-reference-header { width: 90px; min-width: 90px; }
 .vor-reference-heading {
@@ -1404,7 +1407,7 @@ tbody tr:last-child td { border-bottom: 0; }
   text-align: center;
 }
 .nav-log-wind-editor { min-height: 27px; }
-.nav-log-wind-inputs { display: grid; grid-template-columns: 52px auto 52px; align-items: center; gap: 2px; }
+.nav-log-wind-inputs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 2px; }
 .nav-log-wind-inputs .nav-log-number-input { min-width: 0; }
 .nav-log-editable-cell small { display: block; margin-top: 2px; color: var(--teal-700); font-size: 8px; font-weight: 700; }
 .nav-log-invalid-cell { background: var(--red-50); }
