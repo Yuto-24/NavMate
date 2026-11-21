@@ -1,3 +1,6 @@
+import { resolve } from "node:path";
+import { artifactSessionKey } from "./helpers/localArtifact";
+import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { openProjectMenu } from "./helpers/header";
 import { test, expect } from '@playwright/test';
 for (const width of [390, 1100, 1440]) {
@@ -250,4 +253,55 @@ for (const width of [390, 1440]) for (const fail of [true, false]) test(`closed 
   await page.evaluate(()=>(window as any).completeLogin(false));
   await expect(page.getByRole('dialog').getByText('Test: login failed',{exact:true})).toHaveCount(0);
  } else await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test("#314 project switch clears cancelled SEA progress and an old request cannot clear a newer request", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
+  page.on("dialog", dialog => dialog.accept());
+  await page.goto("/e2e/notification-harness/index.html?pending-sea=1");
+  const calculate = async () => {
+    await enterImportWorkflow(page);
+    await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+    await confirmImportedDraft(page);
+    await page.getByLabel("気象モード").selectOption("FTD");
+    await page.getByLabel("地上風向 ° FROM").fill("360");
+    await page.getByLabel("地上風速 kt").fill("15");
+    await page.getByLabel("5,000 ft風向 ° FROM").fill("270");
+    await page.getByLabel("5,000 ft風速 kt").fill("30");
+    for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
+      const input = page.getByLabel(`${name}出発Legの計画高度`, { exact: true });
+      await input.fill(altitude!); await input.blur();
+    }
+    await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+    await expect(page.locator(".nav-log-sea-table")).toBeVisible();
+  };
+  await calculate();
+  const acquire = page.getByRole("button", { name: "地形を再取得", exact: true });
+  await expect(acquire).toBeEnabled({ timeout: 90_000 });
+  await openProjectMenu(page);
+  await page.getByLabel("プロジェクト", { exact: true }).fill("Evaluated SEA");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
+  const savedId = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.id, artifactSessionKey);
+  await page.getByRole("button", { name: "新規", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
+  await page.evaluate(() => { (window as any).seaTest.hold = true; });
+  await calculate();
+  await expect.poll(() => page.evaluate(() => (window as any).seaTest.releases.length)).toBe(1);
+  await expect(acquire).toBeDisabled();
+  await openProjectMenu(page);
+  await page.getByLabel("保存済み", { exact: true }).selectOption(savedId);
+  await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
+  await expect(acquire).toBeEnabled();
+  await expect(page.getByText(/^地形データを取得しています。NAV LOG/)).toHaveCount(0);
+  await acquire.click();
+  await expect.poll(() => page.evaluate(() => (window as any).seaTest.releases.length)).toBe(2);
+  await page.evaluate(() => (window as any).seaTest.releases[0]());
+  await expect.poll(() => page.evaluate(() => (window as any).seaTest.completed)).toBe(1);
+  await expect(acquire).toBeDisabled();
+  await expect(page.getByText(/^地形データを取得しています。NAV LOG/)).toBeVisible();
+  await page.evaluate(() => { (window as any).seaTest.hold = false; (window as any).seaTest.releases[1](); });
+  await expect(acquire).toBeEnabled({ timeout: 90_000 });
+  await expect(page.getByText(/^地形データを取得しています。NAV LOG/)).toHaveCount(0);
 });
