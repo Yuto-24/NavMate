@@ -21,6 +21,7 @@ Read [the workflow](README.md) before adding or applying lessons. For the full m
 - [Schema #431 Actions prepare/publish](../schema431_actions_prepare.md): 固定toolingを維持した証拠転送、自己Runの識別、planへの個別承認と暗号化記録。30分期限内に公開へ進めるよう、公開経路を先に準備する。2026-11-13に確認した診断欠落、保存案内テストの文言不一致と候補の再審査、privateなcheckoutからDockerコピーへ引き継がれる権限不整合。2026-11-14の保持feed容量と転送上限の不整合、保存失敗時の診断引継ぎ。
 - [MSM 補完起動 Worker](../msm_external_trigger.md): `autonavlog-msm-trigger` 仕様、段階CLI、`ops.mjs` による `.state/wrangler.json` 上書きと `observability` 差分、2026-11-18 復旧観測。
 
+- [AIP形式間照合と配布境界](../testing.md#aip地図参照データissue-311): Issue #311。KMLの5件差は高度帯・管制主体の統合表現。Hiroshima・Sapporoには水平形状差もあり、Shapefileを採用して差を保持する。地図用データは計算用ZIPとfingerprintの外に同梱する。
 - [MAP background imagery](../map_background.md): Issue #243の配信元・出典、倍率と欠損時の表示、端末保存の境界。
 - [Terrain inputs](../terrain_inputs.md): Issue #313のDEM10B PNG復号、画素被覆、欠損と標高基準（実タイル確認の限界と検証コマンドは [testing.md](../testing.md#地形入力gsi-dem10b--地形点-kmlの検証)）。
 

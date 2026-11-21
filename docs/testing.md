@@ -624,3 +624,24 @@ Local wheel 2.5.0 の不一致により、保存した MSM Advisory が NAV LOG 
 - `npm --prefix web run test:application -- terrain-unit.spec.ts`：PNG 復号、領域境界、凹 polygon、欠損・未取得・不正入力、通信およびキャッシュ契約を検証します（`dem-signed.png` は独立した合成 RGB fixture です）。
 - `npm --prefix web run test:terrain`：Chromium / WebKit 上で PNG 数値復号、KML の有効・不正・標高基準未確認・障害物除外、境界判定、外部通信抑止を検証します。
 - 実データ限定確認（2026-11-09）：`dem_png/14/14174/6668.png`（HTTP 200、102,668 bytes、CORS `Access-Control-Allow-Origin: *`、SHA-256 `c30fad6bc8ca2ce64e4d6cb297425ba507ac0f3bec709bebfc7713387da396b4`）について、Python 標準ライブラリの独立復号と Chromium / WebKit で全 65,536 画素（うち欠損 2,942 画素）の一致を確認済み。これは 1 タイルの取得・復号確認であり、経路全域の被覆や SEA の正確さを保証するものではありません。仕様は [terrain_inputs.md](terrain_inputs.md) を参照してください。
+
+## AIP地図参照データ（Issue #311）
+
+`npm --prefix web run prepare:local` は既存のLocal wheel/data生成後、
+`scripts/reference/build_aip_runtime.py` を実行する。Python 3.12と `.[test]` の
+固定版pyshp・Shapelyを使用し、ブラウザ/PyodideやLegacy runtimeには追加しない。
+`web/public-local/reference/aip/` の25 GeoJSON・照合記録・manifestは生成物でありGitへ登録しない。
+再生成は `prepare:local` から行うと旧生成物を除去できる。
+
+`tests/unit/test_aip_runtime.py` は実原本3 ZIPの検証、全件のgeometry検査、再生成のバイト一致、
+欠損高度・未知条件の保持、進入管制空域の形式間差、KS4の非重複、計算fingerprintの不変性を確認する。
+離陸飛行経路の非ゼロZ座標と欠損Mを原本順のXY・部分境界とともに保持することも照合する。
+破損原本・不正/空/重複geometry・未知CRSを拒否する合成入力も含む。
+`npm --prefix web run test:static-artifact` は欠落・改変・アプリとの版数差・件数差を拒否する。
+Python suiteを選択する提出前検証は通常どおりDocker test stageの全検査を実行する。
+
+EFF20261029の注意点は[正規化・照合記録](reference/aip_map_geodata_20261029.md#形式間照合eff20261029原本2026-11-21確認)
+を参照する。特にKMLの件数差は一律の重複除去では解消できず、Hiroshima・Sapporoには
+水平形状差もある。照合記録の原本内indexは0始まりで、緯度経度の一致比較許容値は1e-9度。
+比較許容値は出力geometryの丸めや航空上の境界誤差を意味しない。
+生成物は出典内位置と元属性を保持し、計算用KS4-3の境界・誤差モデルは置換しない。

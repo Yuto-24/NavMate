@@ -94,6 +94,6 @@ Project は入力、手動値、選択した参照データを最新の作業中
 
 最後にブロッカーなしで完了した計算結果は Project ごとに 1 件だけ保持し、計算時の計画スナップショット、計算結果、Forecast Run 等の来歴とともに保存します。履歴を無制限に蓄積する方式ではありません。
 
-## AIP地図表示用データ（2026-10-29有効）の取込準備
+## AIP地図表示用データ（2026-10-29有効）
 
-SWIM portalのAIPファイルダウンロードサービスから配布されたKML・Shapefileのレイヤー構成、ハッシュと有効日を [`docs/reference/aip_map_geodata_20261029.md`](reference/aip_map_geodata_20261029.md) および [`data/reference/aip/20261029/source_manifest.json`](../data/reference/aip/20261029/source_manifest.json) へ記録しています。元ZIP 3個はRepositoryへ改変せず登録済みで、manifestのSHA-256と一致します（2026-10-29確認）。MAP向けruntimeデータの正規化・取り込みは後続 #149 で未完了です。公示訓練空域は `Civil_training_and_testing_areas` を採用し、学校独自の空域境界を二重登録しません。既存のRJFM計算用境界は表示用ソースの登録だけで変更しません。
+SWIM portalのAIPファイルダウンロードサービスから配布されたKML・Shapefileのレイヤー構成、ハッシュと有効日を [`docs/reference/aip_map_geodata_20261029.md`](reference/aip_map_geodata_20261029.md) および [`data/reference/aip/20261029/source_manifest.json`](../data/reference/aip/20261029/source_manifest.json) へ記録しています。元ZIP 3個はRepositoryへ改変せず登録済みで、manifestのSHA-256と一致します（2026-10-29確認）。MAP向けruntimeデータは #311 の正規化手順でStatic artifactに同梱します。MAP表示と操作の受入は #312 が担当します。公示訓練空域は `Civil_training_and_testing_areas` を採用し、学校独自の空域境界を二重登録しません。既存のRJFM計算用境界は表示用ソースの登録だけで変更しません。

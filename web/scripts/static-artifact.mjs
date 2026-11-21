@@ -58,6 +58,26 @@ export function checkArtifact(root, { freshWeather = true, allowDirty = false, l
   for (const name of [...manifest.wheels, manifest.data]) {
     if (files["local/" + name]?.sha256 !== manifest.sha256[name]) throw new Error("Local asset hash mismatch: " + name);
   }
+  const reference = manifest.mapReference;
+  if (!reference || !/^reference\/aip\/manifest-[a-f0-9]{64}\.json$/.test(reference.file)
+    || files[reference.file]?.sha256 !== reference.sha256 || files[reference.file]?.bytes !== reference.bytes) {
+    throw new Error("Missing or mismatched AIP reference manifest");
+  }
+  const aip = JSON.parse(readFileSync(join(root, reference.file)));
+  if (aip.schema_version !== 1 || aip.app_version !== release.version || !Array.isArray(aip.layers)
+    || aip.layers.length !== 25 || new Set(aip.layers.map(layer => layer.id)).size !== 25
+    || aip.feature_count !== 5276 || aip.kml_placemark_count !== 5271
+    || aip.layers.reduce((sum, layer) => sum + layer.feature_count, 0) !== aip.feature_count
+    || aip.layers.reduce((sum, layer) => sum + layer.kml_count, 0) !== aip.kml_placemark_count) {
+    throw new Error("AIP reference version or layer inventory mismatch");
+  }
+  for (const asset of [...aip.layers, aip.reconciliation]) {
+    if (!asset || !/^[A-Za-z0-9_-]+-[a-f0-9]{64}\.(geojson|json)$/.test(asset.file)
+      || files["reference/aip/" + asset.file]?.sha256 !== asset.sha256
+      || files["reference/aip/" + asset.file]?.bytes !== asset.bytes) {
+      throw new Error("AIP reference asset mismatch");
+    }
+  }
   const weatherExpiry = {};
   for (const model of ["MSM", "GSM"]) {
     const prefix = `weather/${model.toLowerCase()}/`;
