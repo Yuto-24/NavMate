@@ -204,17 +204,30 @@ test("resumed unsaved CP accepts a direct new map pick without an activation but
   await expect(page.getByText("Resume CP",{exact:true})).toBeVisible();
 });
 
-for (const width of [390, 1440]) test(`24h ETD dial confirms, cancels and preserves direct input at ${width}px`, async ({page}) => {
+for (const width of [390, 1440]) test(`24h ETD dial confirms, cancels and preserves direct input at ${width}px`, async ({page}, info) => {
   await page.setViewportSize({width,height:950});
   await page.goto('/');
   await expect(page.getByRole('heading',{name:'経路作成',exact:true})).toBeVisible({timeout:120000});
   await page.locator('input[type=file]').setInputFiles({name:'dial.kml',mimeType:'application/vnd.google-earth.kml+xml',buffer:Buffer.from(route)});
   await confirmImportedDraft(page);
   const input=page.getByLabel('ETD JST',{exact:true});
-  const trigger=page.getByRole('button',{name:'ETD を時計で選択',exact:true});
+  const trigger=input;
+  await expect(page.getByRole('button',{name:'ETD を時計で選択',exact:true})).toHaveCount(0);
+  await input.focus();
+  await expect(page.getByRole('dialog',{name:'ETD JST の時刻選択',exact:true})).toBeVisible();
+  await input.fill('09:00');
+  await expect(input).toHaveValue('09:00');
+  await input.fill('');
+  await input.pressSequentially('1234');
+  await expect(input).toHaveValue('12:34');
+  await page.getByLabel('DATE', {exact:true}).focus();
+  await expect(page.getByRole('dialog',{name:'ETD JST の時刻選択',exact:true})).toBeHidden();
+  await input.focus();
+  await expect(input).toHaveValue('12:34');
   await input.fill('09:17');await trigger.click();
   const dialog=page.getByRole('dialog',{name:'ETD JST の時刻選択',exact:true});
   await expect(dialog).toBeVisible();
+  await info.attach('ETD clock', { body: await page.screenshot({path: `/tmp/navmate-ui-etd-${info.project.name}-${width}.png`}), contentType: 'image/png' });
   await dialog.getByRole('button',{name:'23時',exact:true}).click();
   await dialog.getByRole('button',{name:'55分',exact:true}).click();
   await dialog.getByLabel('ETD の分',{exact:true}).fill('58');

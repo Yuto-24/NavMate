@@ -3,6 +3,7 @@
 Read [the workflow](README.md) before adding or applying lessons. For the full map of specifications, runbooks, and evidence, see [the documentation hub](../README.md). Search by the task, affected paths, tool, or error; inspect applicability before reuse.
 
 ## Existing canonical sources
+- [ETD時計のフォーカス離脱](../web-design/tokens_and_implementation.md#etd時計のフォーカス離脱): フォーカスで開くnative popoverは、別入力欄への移動でも明示的に閉じる。iPhone WebKitで計算ボタンの遮蔽を再現し、時計内移動を保った修正を検証。
 - [Agent workflow](../agent_workflow.md)
 - [PR本文更新によるCIキャンセル](../testing.md#pr本文更新によるciキャンセル): PR #478。本文編集もCIを起動し、先行Runのcancelledが集約失敗へ波及する。テスト本体の失敗と分け、本文を先に更新して最後にpushする。
 - [EOC高度連続性とsnap時間差](../testing.md#eocの高度連続性とsnap時間差issue-470): #470。前段の実効CRUISE時間による高度到達と、snapによる描画時間差を分離。旧Goldenの高度不連続、保存済みsnap根拠の照合、30秒以内の描画補正の検証境界。

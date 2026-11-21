@@ -1,9 +1,9 @@
 import { resolveVorStations, retainVorStations, selectVorStation as updateVorSelection } from "../vorSelection";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { VorColumn } from "../applicationSession";
 import { useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Plus, Trash2 } from "lucide-react";
+import { Download, Plus, Trash2 } from "lucide-react";
 
 import {
   DEFAULT_VOR_STATION,
@@ -615,7 +615,7 @@ function NavLogSummary({
 
 export function NavLogTable({
   roundingMode = true, roundingDisabled = true, onRoundingChange,
-  radReciprocal = true, onRadReciprocalChange, exportDisabled = true, savePng,
+  radReciprocal = true, onRadReciprocalChange, exportDisabled = true, savePng, onExportMessage, kmlExport,
   vorColumns, setVorColumns,
   outcome,
   destinationWind,
@@ -632,6 +632,8 @@ export function NavLogTable({
   onRadReciprocalChange?: (enabled: boolean) => void;
   exportDisabled?: boolean;
   savePng?: (file: PlatformFile) => Promise<void>;
+  onExportMessage?: (message: string, kind: "success" | "error") => void;
+  kmlExport?: ReactNode;
   roundingDisabled?: boolean;
   onRoundingChange?: (enabled: boolean) => void;
   vorColumns: VorColumn[];
@@ -653,17 +655,15 @@ export function NavLogTable({
 }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [exporting, setExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useState("");
   const exportPng = async () => {
     if (!sectionRef.current || !savePng || exporting || exportDisabled) return;
     setExporting(true);
-    setExportMessage("");
     try {
       const modeText = `${roundingMode ? "四捨五入" : "通常"} / RAD ${radReciprocal ? "反方位" : "通常"}`;
       await savePng(await exportNavLogPng(sectionRef.current, modeText));
-      setExportMessage("PNGのダウンロードを開始しました。");
+      onExportMessage?.("PNGのダウンロードを開始しました。", "success");
     } catch {
-      setExportMessage("PNGを保存できませんでした。もう一度お試しください。");
+      onExportMessage?.("PNGを保存できませんでした。もう一度お試しください。", "error");
     } finally {
       setExporting(false);
     }
@@ -757,6 +757,11 @@ export function NavLogTable({
         </p>
       )}
       <NavLogSummary outcome={outcome} destinationWind={destinationWind} />
+      <div className="nav-log-download-actions">
+        <button className="primary-button" type="button" disabled={exportDisabled || exporting || !savePng}
+          onClick={() => void exportPng()}>{exporting ? "PNGを作成中…" : "PNG"}<Download aria-hidden="true" size={17} /></button>
+        {kmlExport}
+      </div>
       <div className="nav-log-edit-guide" id="nav-log-edit-guide">
         <span className={`nav-log-edit-status nav-log-edit-status-${editStatus.kind}`} role="status" aria-live="polite">
           {editStatus.message}
@@ -772,18 +777,15 @@ export function NavLogTable({
             <Plus aria-hidden="true" size={15} />
             VOR/DME列を追加
           </button>
+          <label className="nav-log-rad-control">
+            <input type="checkbox" checked={radReciprocal} disabled={exporting}
+              onChange={event => onRadReciprocalChange?.(event.target.checked)} />
+            RAD反方位
+          </label>
         </div>
-        <label className="nav-log-rad-control">
-          <input type="checkbox" checked={radReciprocal} disabled={exporting}
-            onChange={event => onRadReciprocalChange?.(event.target.checked)} />
-          RAD反方位（180°）
-        </label>
-        <button className="secondary-button" type="button" disabled={exportDisabled || exporting || !savePng}
-          onClick={() => void exportPng()}>{exporting ? "PNGを作成中…" : "NAVLOG・Fuel TableをPNG保存"}</button>
         <div className="nav-log-rounding-control">
-          <span id="nav-log-rounding-label">四捨五入モード</span>
           <div className="nav-log-rounding-options" role="radiogroup"
-            aria-labelledby="nav-log-rounding-label">
+            aria-label="四捨五入モード">
             <label>
               <input type="radio" name="nav-log-rounding-mode" checked={!roundingMode}
                 disabled={roundingDisabled} onChange={() => onRoundingChange?.(false)} />
@@ -797,7 +799,6 @@ export function NavLogTable({
           </div>
         </div>
       </div>
-      {exportMessage && <p role="status">{exportMessage}</p>}
       <div className="table-scroll nav-log-scroll">
         <div className="nav-log-tables">
           <table

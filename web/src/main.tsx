@@ -42,6 +42,6 @@ startApplication(browserPlatform, ({ application, platform }) => {
 }).catch(() => view.render(
   <main className="loading-screen">
     <p role="alert">起動できませんでした。画面を再読み込みしてください。</p>
-    <button onClick={() => window.location.reload()}>再読み込み</button>
+    <button className="secondary-button" onClick={() => window.location.reload()}>再読み込み</button>
   </main>,
 ));

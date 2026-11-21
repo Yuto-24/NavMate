@@ -64,11 +64,11 @@ export function AccountControl({ auth, busy, onBeforeChange, networkAvailability
         {auth?.deleteAccount && (state.account || state.deletionPending) && <>
           {offline && <p>オフラインのためアカウントを削除できません。</p>}
           {confirmDeletion && <p>{devSharedMode ? "NavMate開発環境の個人データのみが削除されます。共通プロジェクトのデータやGoogleアカウント自体が削除されることはありません。続行しますか？" : "このアカウントの同期データと、この端末の保存データを削除します。元に戻せません。Googleアカウントは削除されません。"}</p>}
-          <button type="button" disabled={pending || busy || offline || state.signOutPending} onClick={() => {
+          <button type="button" className="danger-button" disabled={pending || busy || offline || state.signOutPending} onClick={() => {
             if (!confirmDeletion && !state.deletionPending) { setConfirmDeletion(true); return; }
             void act(() => auth.deleteAccount!()).then(success => { if (success) setConfirmDeletion(false); });
           }}>{state.deletionPending ? "削除を再試行" : confirmDeletion ? "NavMateアカウントを削除する" : "アカウントを削除"}</button>
-          {confirmDeletion && <button type="button" disabled={pending} onClick={() => setConfirmDeletion(false)}>キャンセル</button>}
+          {confirmDeletion && <button type="button" className="secondary-button" disabled={pending} onClick={() => setConfirmDeletion(false)}>キャンセル</button>}
         </>}
       </section>
     </div>, document.body)}

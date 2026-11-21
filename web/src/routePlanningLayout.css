@@ -234,7 +234,9 @@
 .is-route-building .route-strip li>span { overflow-wrap:anywhere; }
 .is-route-building .draft-import-controls { order:3; }
 .is-route-building .map-route-actions { order:4; margin:0; }
+.planning-pane .status-actions .primary-button:not(:disabled),
 .is-route-building .map-route-actions .primary-button:not(:disabled) { background:#c2410c; border-color:#c2410c; }
+.planning-pane .status-actions .primary-button:hover:not(:disabled),
 .is-route-building .map-route-actions .primary-button:hover:not(:disabled) { background:#9a3412; }
 @media(max-width:700px) {
  .app-workspace > .route-workspace { display:flex; flex-direction:column; height:auto; padding:14px; gap:0; }

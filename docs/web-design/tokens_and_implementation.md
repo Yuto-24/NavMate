@@ -31,3 +31,14 @@
 - **ダイアログ描画位置**：ヘッダーの `z-index` 制約を避けるため `document.body` 直下へポータル描画する。
 - **IME・確定ガード**：Check Point 名称入力の Enter 送信では `isComposing` / `keyCode === 229` およびキーリピートを除外し、非同期保存ロックでクリックとの二重送信を防ぐ。
 - **自動検証入口**：ヘッダー・レスポンシブ（320 / 390 / 1100 / 1239 / 1240 / 1241 / 1440 px）、NAV LOG 罫線、通知タイミング（`test:notification`）等の E2E スイート構成は [testing.md](../testing.md) および [static_web_browser_acceptance.md](../static_web_browser_acceptance.md) を参照してください。
+
+## ETD時計のフォーカス離脱
+
+2026-11-21、ETD欄のフォーカスで開く非モーダル時計をiPhone WebKitで確認した際、
+`popover="auto"` だけでは、別入力欄へのフォーカス移動後も時計が残り、計算ボタンを覆った。
+元のETD欄と時計を含む領域からフォーカスが外れたときも明示的に閉じる。
+時計内の時・分入力への移動では閉じず、直接入力と時計の確定前の値を区別する。
+
+根拠は [時計操作テスト](../../web/e2e/route-planning.spec.ts) の外部入力への移動と、
+[PNG出力テスト](../../web/e2e/navlog-png.spec.ts) のiPhone WebKit経路。
+修正後はChromium/WebKitの390・1440pxで時計操作、iPhone WebKitで計算からPNG出力まで成功した。
