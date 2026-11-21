@@ -13,20 +13,22 @@ Release from replacing 2.x. No legacy server stop is part of this mechanism.
 
 ## Events and identity
 
-`static-app-release.yml` has three entrances, all gated by repository variable
+`static-app-release.yml` has the following entrances, all gated by repository variable
 `STATIC_APP_RELEASE_ENABLED == true` (absent is disabled):
 
 - `workflow_run: completed` of successful `publish-github-release` pushes on
   `main` / `release/1.x` / `release/2.x`. This is the default bridge for Releases created with
   `GITHUB_TOKEN`; those Releases do not themselves trigger `release` workflows.
   No PAT, dispatch step or deployment tool backport is needed in the v1 publisher.
+- `test` のpush CI成功も同じcompletion bridgeに入ります。ReleaseがCIより先に作られた場合の
+  再判定であり、GitHub Release publisher自身に待機処理は追加しません。
 - `release: published` for Releases created through the UI or another authorized
   publisher. Drafts and prereleases are rejected. This entrance needs the workflow
   present in the released ref and environment permission for its tag (see setup).
 - Manual `workflow_dispatch` **on main**, with an existing numeric `release_id`,
   for a missed event, first selected Release or a safe retry. It is not a rollback.
 
-The bridge re-reads the publisher run (path, push event, success, same repository,
+The bridge re-reads the publisher or source CI run (path, push event, success, same repository,
 supported branch, full SHA), obtains VERSION from that commit, and requires the
 actual stable Release and immutable tag ancestor. Every entrance peels annotated
 tags, compares API resolution with the fetched tag, checks exact VERSION and
@@ -38,6 +40,18 @@ See [release_lines.md](release_lines.md) for maintenance branch initialization.
 Trusted tooling is checked out from main once, retained at that SHA in the plan;
 candidate release scripts only execute inside the existing credential-free Docker
 build. No publisher-run artifacts or caches are downloaded or executed.
+
+通常の新アプリ昇格は、**ReleaseタグのアプリSHA**と同じpush CIの成功を待ちます。
+toolingのSHAやPRの影響選択CIの成功では代用しません。必要なsuite・実行stepが欠ける、
+未完了・失敗・cancel・取得不能の場合はfeedを停止する前に終了し、現行配信と配信中SHAの
+天気更新を維持します。CI成功イベントで再判定し、イベントを取り逃した場合は既存のreplayを使います。
+実行中のworkflowでCIを待ち続けて公開用の排他を占有しません。
+
+成功Runの小さなWeb検査inventoryだけを取得し、SHA・Run/attempt・GitHubのartifact digest・
+toolingと同じ検査定義を照合します。Node・npm・依存lock等が一致する検査だけ省略します。
+記録が取得不能・期限切れ・不一致なら従来の検査を実行し、fresh rebuildと候補E2Eは常に維持します。
+承認済みの手動公開・復旧例外には、この新しい待機条件や省略を適用しません。
+詳細は[source CI再利用の判断記録](app_publication_audit.md#source-ci再利用issue-460)を参照してください。
 
 ## Publication and failure behavior
 

@@ -20,9 +20,17 @@ phase source-validation python scripts/validate_release.py
 phase source-validation python scripts/validate_performance_data.py data/performance
 phase source-validation python scripts/validate_runtime_data.py data
 phase source-validation python scripts/export_schemas.py --check
-phase source-validation npm --prefix web run typecheck
+if node /source-ci-inventory.mjs matches /source-ci-web.json typecheck; then
+  phase source-typecheck-reused true
+else
+  phase source-validation npm --prefix web run typecheck
+fi
 phase static-build npm --prefix web run build:static
-phase artifact-tests npm --prefix web run test:static-artifact
+if node /source-ci-inventory.mjs matches /source-ci-web.json test:static-artifact; then
+  phase source-artifact-tests-reused true
+else
+  phase artifact-tests npm --prefix web run test:static-artifact
+fi
 python -m http.server 4121 --bind 127.0.0.1 --directory web/dist-static > /tmp/static-server.log 2>&1 &
 server_pid=$!
 trap 'kill "$server_pid"' EXIT

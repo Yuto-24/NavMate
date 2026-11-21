@@ -84,7 +84,7 @@ def test_unpublished_or_nonstable_releases_fail(field, value):
 
 
 @pytest.mark.parametrize("field,value", [("status", "in_progress"), ("conclusion", "failure"),
-    ("event", "pull_request"), ("path", ".github/workflows/test.yml"),
+    ("event", "pull_request"), ("path", ".github/workflows/unrelated.yml"),
     ("head_repository", {"full_name": "fork/repo"}), ("head_branch", "dev"),
     ("head_sha", "main")])
 def test_bridge_never_trusts_failed_foreign_or_unrelated_runs(field, value):
@@ -93,6 +93,15 @@ def test_bridge_never_trusts_failed_foreign_or_unrelated_runs(field, value):
     with pytest.raises(app.Blocked, match="trusted release publisher"):
         auto.select_release(op, {"repository": REPO, "action": "completed",
                                  "workflow_run": {"id": 42}}, "workflow_run")
+
+
+def test_source_ci_completion_retries_release_without_waiting_in_publisher():
+    op = Source()
+    op.run["path"] = auto.source_ci.WORKFLOW
+    selected = auto.select_release(op, {"repository": REPO, "action": "completed",
+                                        "workflow_run": {"id": 42}}, "workflow_run")
+    assert selected == op.selected
+    assert auto.candidate(op, selected) == NEW
 
 
 @pytest.mark.parametrize("damage", ["deleted", "changed", "moved", "version", "foreign"])
@@ -206,7 +215,7 @@ def test_automation_workflow_contract():
     triggers = workflow.split("\non:\n")[1].split("\npermissions:")[0]
     assert all(event not in triggers for event in ("push:", "pull_request", "schedule:"))
     assert "types: [published]" in triggers
-    assert "workflows: [publish-github-release]" in triggers
+    assert "workflows: [publish-github-release, test]" in triggers
     assert "vars.STATIC_APP_RELEASE_ENABLED == 'true'" in workflow
     assert "environment: static-production" in workflow and "static-publication" not in workflow
     assert "ref: main" in workflow and "persist-credentials: false" in workflow
