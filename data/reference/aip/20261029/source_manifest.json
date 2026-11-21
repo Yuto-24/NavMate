@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "dataset_id": "jcab-aip-map-20261029",
-  "state": "raw_source_archives_vendored_runtime_not_imported",
+  "state": "raw_source_archives_vendored_runtime_normalized_at_build",
   "effective_date": "2026-10-29",
   "published_notice_date": "2026-10-22",
   "publisher": "国土交通省航空局 航空情報センター",
@@ -127,8 +127,8 @@
     }
   ],
   "verified_shape_geometry": "WGS84 EPSG:4326; 25 layers / 5276 features; zero invalid and zero empty geometries (Shapefile)",
-  "source_availability": "Original KML, Shapefile, and Documents ZIPs are vendored under data/reference/aip/20261029/sources; SHA-256 values are tracked here. Runtime data is not yet imported.",
-  "runtime_status": "NOT_IMPORTED",
+  "source_availability": "Original KML, Shapefile, and Documents ZIPs are vendored under data/reference/aip/20261029/sources; SHA-256 values are tracked here. Static builds normalize the registered sources without modifying the ZIPs.",
+  "runtime_status": "NORMALIZED_AT_BUILD",
   "sources": {
     "terms": "https://top.swim.mlit.go.jp/swim/terms.html",
     "portal": "https://top.swim.mlit.go.jp/swim/"
@@ -148,5 +148,5 @@
       "shapefile_record_count": 79
     }
   ],
-  "format_reconciliation_status": "NOT_RECONCILED; resolve format differences during issue #149 runtime import; original ZIPs are unchanged."
+  "format_reconciliation_status": "Build validates the known approach-control differences and ships a checksummed reconciliation report; Shapefile records are retained separately, without claiming geometric or vertical equivalence."
 }
