@@ -1267,13 +1267,14 @@ tbody tr:last-child td { border-bottom: 0; }
 /* Count from CUT so adding VOR/DME columns cannot move the paper boundaries:
    TO, TAS, MC, MH, ZONE/CUM ETE, ETO, ATE, FUEL, then the right outer frame. */
 .nav-log-table tr > :is(th, td):is(
-  :nth-last-child(19), :nth-last-child(15), :nth-last-child(12),
+  :nth-last-child(20), :nth-last-child(15), :nth-last-child(12),
   :nth-last-child(9), :nth-last-child(6), :nth-last-child(5),
   :nth-last-child(3), :nth-last-child(2), :last-child
 ) { border-right: 2px solid var(--nav-log-grid); }
 .nav-log-table col.nav-log-vor-column { width: 90px; }
 .nav-log-table col.nav-log-from-column { width: var(--nav-log-from-width); }
 .nav-log-table col.nav-log-to-column { width: var(--nav-log-to-width); }
+.nav-log-table col.nav-log-sea-column { width: 80px; }
 .nav-log-table col.nav-log-pa-column { width: 70px; }
 .nav-log-table col.nav-log-toat-column { width: 60px; }
 .nav-log-table col.nav-log-cas-column, .nav-log-table col.nav-log-tas-column { width: 60px; }
@@ -1761,10 +1762,11 @@ tbody tr:last-child td { border-bottom: 0; }
 .sea-panel { margin-block: 1rem; }
 .sea-panel > details { margin-top: 0.75rem; }
 .sea-panel label { display: block; margin-block: 0.5rem; }
+.sea-panel label.checkbox-row { display: flex; }
+.sea-panel > a { margin-left: 12px; font-size: 12px; }
+.sea-panel input[type="file"]::file-selector-button { border: 1px solid var(--slate-200); border-radius: var(--radius-sm); background: var(--slate-50); color: var(--brand-950); padding: 8px 12px; font: inherit; cursor: pointer; }
+.sea-warning { color: var(--amber-700); font-size: 12px; margin-block: 6px; }
 .sea-panel code { display: block; overflow-wrap: anywhere; }
-.nav-log-sea-table { border-collapse: collapse; width: 100%; min-width: 560px; }
-.nav-log-sea-table th, .nav-log-sea-table td { border: 1px solid #777; padding: 0.3rem; }
-.nav-log-sea-table input { width: 6rem; }
 
 .danger-button { color: var(--red-700); background: var(--red-50); border: 1px solid var(--red-700); }
 .danger-button:hover:not(:disabled) { background: #fde3e0; }

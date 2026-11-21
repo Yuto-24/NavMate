@@ -1,7 +1,7 @@
 import { resolveVorStations, retainVorStations, selectVorStation as updateVorSelection } from "../vorSelection";
 import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from "react";
 import type { VorColumn } from "../applicationSession";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Download, Plus, Trash2 } from "lucide-react";
 
@@ -29,6 +29,8 @@ import type {
   FlightPhase,
   NavLogDisplayCell, NavLogDisplayRow, SectionResult,
 } from "../types";
+import { SeaCell } from "./SeaCell";
+import { seaIntervalsByRow, seaOnlyRowsByParent } from "../seaDisplay";
 import { SeaPanel } from "./SeaPanel";
 import type { SeaPlan, SeaUpdate } from "../sea";
 import { RjfmGuidancePanel } from "./RjfmGuidancePanel";
@@ -56,6 +58,7 @@ const NAV_LOG_COLUMN_WIDTHS_PX = {
   vor: 90,
   from: 110,
   to: 110,
+  sea: 80,
   pa: 70,
   toat: 60,
   cas: 60,
@@ -679,6 +682,8 @@ export function NavLogTable({
     }
   };
   const displayRows: NavLogDisplayRow[] = outcome.display_rows;
+  const seaByRow = seaIntervalsByRow(displayRows, sea?.intervals ?? []);
+  const seaOnlyByParent = seaOnlyRowsByParent(displayRows, sea?.intervals ?? []);
   useLayoutEffect(() => {
     let cancelled = false;
     const measure = () => {
@@ -733,7 +738,7 @@ export function NavLogTable({
     () => resolveVorStations(vorColumns, automaticCandidates, vorSelectionKey),
     [automaticCandidates, vorColumns, vorSelectionKey],
   );
-  const navLogColumnCount = 20 + vorColumns.length;
+  const navLogColumnCount = 21 + vorColumns.length;
   const navLogWidth = BASE_NAV_LOG_WIDTH_PX
     - NAV_LOG_COLUMN_WIDTHS_PX.from - NAV_LOG_COLUMN_WIDTHS_PX.to
     + nameWidths.from + nameWidths.to
@@ -851,7 +856,7 @@ export function NavLogTable({
           <colgroup>
             {vorColumns.map((column) => <col key={column.id} className="nav-log-vor-column" />)}
             <col className="nav-log-from-column" /><col className="nav-log-to-column" />
-            <col className="nav-log-pa-column" /><col className="nav-log-toat-column" />
+            <col className="nav-log-sea-column" /><col className="nav-log-pa-column" /><col className="nav-log-toat-column" />
             <col className="nav-log-cas-column" /><col className="nav-log-tas-column" />
             <col className="nav-log-tc-column" /><col className="nav-log-variation-column" />
             <col className="nav-log-mc-column" /><col className="nav-log-wind-column" />
@@ -912,6 +917,7 @@ export function NavLogTable({
               ))}
               <th className="route-name-header route-from-cell">FROM</th>
               <th className="route-name-header route-to-cell">TO</th>
+              <th>SEA<br /><small>ft MSL</small></th>
               <th>PA<br /><small>ft</small></th>
               <th>TOAT<br /><small>°C</small></th>
               <th>CAS<br /><small>kt</small></th>
@@ -968,6 +974,7 @@ export function NavLogTable({
               const windInputSection = row.wind_source_section_id === null
                 ? inputSection
                 : inputSections.get(row.wind_source_section_id);
+              const seaInterval = seaOnlyByParent.has(row.sequence) ? undefined : seaByRow.get(row.sequence);
               const hideVorReference = row.row_type === "CALCULATION_ZONE"
                 && row.to_node_id === null
                 && row.to_name.split(" / ").some(marker => marker === "RCA" || marker === "EOC");
@@ -977,6 +984,7 @@ export function NavLogTable({
                   ? "nav-destination-info-row"
                   : "nav-leg-detail-row";
               return (
+                <Fragment key={row.sequence}>
                 <tr
                   className={rowClass}
                   key={row.sequence}
@@ -1019,6 +1027,9 @@ export function NavLogTable({
                   >
                     {row.to_name}
                   </td>
+                  <SeaCell interval={seaInterval} disabled={seaDisabled || !onSeaUpdate}
+                    onSave={value => onSeaUpdate!({ project_id: project.id, geometry_key: sea!.geometry_key,
+                      manual: { [seaInterval!.key]: value } })} />
                   <DisplayResultCells
                     roundingMode={roundingMode}
                     row={row}
@@ -1035,6 +1046,18 @@ export function NavLogTable({
                     onEdit={onEdit}
                   />
                 </tr>
+                {seaOnlyByParent.get(row.sequence)?.map(interval => (
+                  <tr className="nav-leg-detail-row" key={interval.key} data-sea-only="true">
+                    {vorColumns.map(column => <td key={column.id} />)}
+                    <td className="route-name-cell route-from-cell" />
+                    <td className="route-name-cell route-to-cell" data-display-text={interval.to_name}>{interval.to_name}</td>
+                    <SeaCell interval={interval} disabled={seaDisabled || !onSeaUpdate}
+                      onSave={value => onSeaUpdate!({ project_id: project.id, geometry_key: sea!.geometry_key,
+                        manual: { [interval.key]: value } })} />
+                    {Array.from({ length: navLogColumnCount - vorColumns.length - 3 }, (_, index) => <td key={index} />)}
+                  </tr>
+                ))}
+                </Fragment>
               );
             })}
           </tbody>

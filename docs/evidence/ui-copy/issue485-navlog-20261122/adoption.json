@@ -1,0 +1,340 @@
+{
+  "items": [
+    {
+      "id": "rad-mode",
+      "text": "RAD反方位",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。 RAD反方位とPNGのRAD 反方位は、操作名とモード列挙の既存表記として維持する。",
+      "response_quote": "- `rad-mode`: 「RAD反方位」 — **採用可**。本人指定どおり180°を省いた簡潔な表現で、VOR/DME列追加ボタン直右のcheckboxラベルとして機能が一目で伝わる（懸念: PNG見出しの「RAD 反方位」との半角スペース有無の差は意図どおりか要留意）。"
+    },
+    {
+      "id": "png-save",
+      "text": "PNG",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-save`: 「PNG」 — **採用可**。本人指定の「PNG」＋ダウンロードアイコン構成によりGoogle Earthと同列の独立行ボタンに簡潔に収まり、PNG出力操作であることが明確。"
+    },
+    {
+      "id": "png-busy",
+      "text": "PNGを作成中…",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-busy`: 「PNGを作成中…」 — **採用可**。ボタン内の作成中表示として自然かつ簡潔で、PNG生成処理が進行中であることが的確に伝わる。"
+    },
+    {
+      "id": "png-start",
+      "text": "PNGのダウンロードを開始しました。",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-start`: 「PNGのダウンロードを開始しました。」 — **採用可**。実際のブラウザ挙動（ダウンロード開始）に即した正確な文言で、5秒表示の画面上部Toast通知として適切。"
+    },
+    {
+      "id": "png-failure",
+      "text": "PNGを保存できませんでした。もう一度お試しください。",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-failure`: 「PNGを保存できませんでした。もう一度お試しください。」 — **採用可**。保存失敗の事実と再試行の案内が明確で、Toast通知およびエラー履歴の双方に適している。"
+    },
+    {
+      "id": "png-mode-caption",
+      "text": "四捨五入",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。 RAD反方位とPNGのRAD 反方位は、操作名とモード列挙の既存表記として維持する。",
+      "response_quote": "- `png-mode-caption`: 「四捨五入」 — **採用可**。合成後の4通り全文（「NAV LOG — 四捨五入 / RAD 反方位」「NAV LOG — 通常 / RAD 反方位」「NAV LOG — 四捨五入 / RAD 通常」「NAV LOG — 通常 / RAD 通常」）はいずれも転記時の丸め・RAD前提が明瞭（懸念: 画面側の「RAD反方位」と異なり半角スペースが入る点のみ統一意図を確認）。"
+    },
+    {
+      "id": "png-title",
+      "text": "NAV LOG",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-title`: 「NAV LOG」 — **採用可**。既存表記に沿った標準的な航法日誌タイトルで、モード表示を併記した清書PNGの見出しとして適切。"
+    },
+    {
+      "id": "png-vor-header",
+      "text": "VOR/DME",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-vor-header`: 「VOR/DME」 — **採用可**。本人指定の2段見出し（「VOR/DME」＋「局ID 局名」）の1段目として簡潔で、未選択列除外・90px幅内折り返しの前提とも整合する。"
+    },
+    {
+      "id": "rad-tooltip",
+      "text": "RAD反方位",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `rad-tooltip`: 「RAD反方位」 — **採用可**。ON/OFFの合成全文（「AIP 2026-08-06 / RAD反方位・距離」「AIP 2026-08-06 / 局からTOへのRAD・距離」）ともにAIP日付と方位定義が明確で、checkbox表記とも一致している。"
+    },
+    {
+      "id": "rad-cell-tooltip",
+      "text": "RAD反方位",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `rad-cell-tooltip`: 「RAD反方位」 — **採用可**。ON/OFF/未選択の3状態の合成全文いずれも局識別子・方位定義・表示専用セルであることや未選択時の案内が過不足なく伝わる。"
+    },
+    {
+      "id": "rounding-options",
+      "text": "四捨五入モード",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `rounding-options`: 「四捨五入モード」 — **採用可**。本人指定どおり可視ラベルを削除しつつradio groupのaria-labelに残すことで、簡潔な画面と支援技術向けの説明を両立している。"
+    },
+    {
+      "id": "png-column-855",
+      "text": "PA",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-855`: 「PA」 — **採用可**。合成見出し「PA\\nft」は既存画面どおりの表記・単位であり、本人指定の列順（TO | SEA | PA）でも視認性が高い。"
+    },
+    {
+      "id": "png-column-856",
+      "text": "TOAT",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-856`: 「TOAT」 — **採用可**。合成見出し「TOAT\\n°C」は既存画面どおりの表記・単位であり、紙NAVLOG転記時の対応関係が明確。"
+    },
+    {
+      "id": "png-column-857",
+      "text": "CAS",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-857`: 「CAS」 — **採用可**。合成見出し「CAS\\nkt」は既存画面どおりの標準略語・単位であり、清書PNGの列見出しとして適切。"
+    },
+    {
+      "id": "png-column-858",
+      "text": "TAS",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-858`: 「TAS」 — **採用可**。合成見出し「TAS\\nkt」は既存画面どおりの標準略語・単位であり、清書PNGの列見出しとして適切。"
+    },
+    {
+      "id": "png-column-859",
+      "text": "TC",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-859`: 「TC」 — **採用可**。合成見出し「TC」は既存画面どおりの標準略語であり、NAVLOG列見出しとして過不足ない。"
+    },
+    {
+      "id": "png-column-860",
+      "text": "VAR",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-860`: 「VAR」 — **採用可**。合成見出し「VAR」は既存画面どおりの標準略語であり、NAVLOG列見出しとして適切。"
+    },
+    {
+      "id": "png-column-861",
+      "text": "MC",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-861`: 「MC」 — **採用可**。合成見出し「MC」は既存画面どおりの標準略語であり、NAVLOG列見出しとして適切。"
+    },
+    {
+      "id": "png-column-862",
+      "text": "WIND",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-862`: 「WIND」 — **採用可**。合成見出し「WIND」は既存画面どおりで、セル値（風向/風速・CALM・未取得）と整合している。"
+    },
+    {
+      "id": "png-column-863",
+      "text": "WCA",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-863`: 「WCA」 — **採用可**。合成見出し「WCA」は既存画面どおりの標準略語であり、NAVLOG列見出しとして適切。"
+    },
+    {
+      "id": "png-column-864",
+      "text": "MH",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-864`: 「MH」 — **採用可**。合成見出し「MH」は既存画面どおりの標準略語であり、NAVLOG列見出しとして適切。"
+    },
+    {
+      "id": "png-column-865",
+      "text": "ZONE / CUM",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-865`: 「ZONE / CUM」 — **採用可**。合成見出し「ZONE / CUM\\nDIST NM」は既存画面どおりで、親セルの「区間値 / 累計値」構造と明確に対応している。"
+    },
+    {
+      "id": "png-column-866",
+      "text": "GS",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-866`: 「GS」 — **採用可**。合成見出し「GS\\nkt」は既存画面どおりの標準略語・単位であり、対地速度列として適切。"
+    },
+    {
+      "id": "png-column-867",
+      "text": "ZONE / CUM",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-867`: 「ZONE / CUM」 — **採用可**。合成見出し「ZONE / CUM\\nETE min」は既存画面どおりで、親セルの「区間値 / 累計値」構造と明確に対応している。"
+    },
+    {
+      "id": "png-column-868",
+      "text": "ETO",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-868`: 「ETO」 — **採用可**。合成見出し「ETO」は既存画面どおりの標準略語であり、転記用NAVLOG列見出しとして適切。"
+    },
+    {
+      "id": "png-column-869",
+      "text": "ATO",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-869`: 「ATO」 — **採用可**。合成見出し「ATO」は既存画面どおりの標準略語であり、転記用NAVLOG列見出しとして適切。"
+    },
+    {
+      "id": "png-column-870",
+      "text": "ATE",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-870`: 「ATE」 — **採用可**。合成見出し「ATE」は既存画面どおりの標準略語であり、転記用NAVLOG列見出しとして適切。"
+    },
+    {
+      "id": "png-column-871",
+      "text": "SECT / REM",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-871`: 「SECT / REM」 — **採用可**。合成見出し「SECT / REM\\nFUEL gal」は既存画面どおりで、親セルの「区間消費 / 残量」構造と明確に対応している。"
+    },
+    {
+      "id": "png-column-872",
+      "text": "30° CUT",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-872`: 「30° CUT」 — **採用可**。合成見出し「30° CUT\\nsec」は既存画面どおりの項目名・単位であり、清書PNGの列見出しとして適切。"
+    },
+    {
+      "id": "png-from",
+      "text": "FROM",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-from`: 「FROM」 — **採用可**。既存画面どおりの出発地点列見出しで、省略なし表示およびTO列との経路順の分かりやすさに適合。"
+    },
+    {
+      "id": "png-to",
+      "text": "TO",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-to`: 「TO」 — **採用可**。既存画面どおりの到着地点列見出しで、FROM列との対比および本人指定の列順（TO | SEA | PA）に適合。"
+    },
+    {
+      "id": "png-fuel-table",
+      "text": "TIME / FUEL PLAN",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-fuel-table`: 「TIME / FUEL PLAN」 — **採用可**。既存画面の見出しをそのまま転用しており、NAV LOG直下の時間・燃料計画表タイトルとして明瞭。"
+    },
+    {
+      "id": "fuel-time",
+      "text": "TIME",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-time`: 「TIME」 — **採用可**。既存画面と同一の上段列名で、「0 : 10」形式の時間欄見出しとして適切。"
+    },
+    {
+      "id": "fuel-fuel",
+      "text": "FUEL",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-fuel`: 「FUEL」 — **採用可**。既存画面と同一の上段列名で、「1.5 G」形式の燃料欄見出しとして適切。"
+    },
+    {
+      "id": "fuel-taxi-run-up",
+      "text": "TAXI・RUN UP",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-taxi-run-up`: 「TAXI・RUN UP」 — **採用可**。既存画面の行名をそのまま転用しており、現行表記維持の指定および表内の視認性に適合。"
+    },
+    {
+      "id": "fuel-bof",
+      "text": "BOF",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-bof`: 「BOF」 — **採用可**。既存画面の行名をそのまま転用しており、現行表記維持の指定に適合。"
+    },
+    {
+      "id": "fuel-climb",
+      "text": "CLIMB",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-climb`: 「CLIMB」 — **採用可**。既存画面のフェーズ行名をそのまま転用しており、上昇区間の時間・燃料行として明確。"
+    },
+    {
+      "id": "fuel-cruise",
+      "text": "CRUISE",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-cruise`: 「CRUISE」 — **採用可**。既存画面のフェーズ行名をそのまま転用しており、巡航区間の時間・燃料行として明確。"
+    },
+    {
+      "id": "fuel-descent",
+      "text": "DESCENT",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-descent`: 「DESCENT」 — **採用可**。既存画面のフェーズ行名をそのまま転用しており、降下区間の時間・燃料行として明確。"
+    },
+    {
+      "id": "fuel-tgl",
+      "text": "TGL",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-tgl`: 「TGL」 — **採用可**。既存画面の行名をそのまま転用しており、現行表記維持の指定に適合。"
+    },
+    {
+      "id": "fuel-additional",
+      "text": "ADDITIONAL",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-additional`: 「ADDITIONAL」 — **採用可**。既存画面の行名をそのまま転用しており、追加時間・燃料行として明確。"
+    },
+    {
+      "id": "fuel-reserve",
+      "text": "RESERVE",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-reserve`: 「RESERVE」 — **採用可**。既存画面の行名をそのまま転用しており、予備時間・燃料行として明確。"
+    },
+    {
+      "id": "fuel-min-required",
+      "text": "MIN REQUIRED",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-min-required`: 「MIN REQUIRED」 — **採用可**。既存画面の行名をそのまま転用しており、最低必要時間・燃料行として明確。"
+    },
+    {
+      "id": "fuel-extra",
+      "text": "EXTRA",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-extra`: 「EXTRA」 — **採用可**。既存画面の行名をそのまま転用しており、余裕時間・燃料行として明確。"
+    },
+    {
+      "id": "fuel-total",
+      "text": "TOTAL",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-total`: 「TOTAL」 — **採用可**。既存画面の行名をそのまま転用しており、合計時間・燃料行として明確。"
+    },
+    {
+      "id": "fuel-unit",
+      "text": "G",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-unit`: 「G」 — **採用可**。NAV LOG側の「gal」とは表記が異なるものの本人による現行表記維持の明示指定に沿っており、Fuel Table内の単位として採用可。"
+    },
+    {
+      "id": "rounding-normal",
+      "text": "通常",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `rounding-normal`: 「通常」 — **採用可**。「四捨五入」と対になるラジオ選択肢として簡潔かつ直感的で、PNGモード見出しとも表記が一致している。"
+    },
+    {
+      "id": "rounding-enabled",
+      "text": "四捨五入",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `rounding-enabled`: 「四捨五入」 — **採用可**。「通常」と対になるラジオ選択肢として機能が直接的に伝わり、PNGモード見出しとも表記が一致している。"
+    },
+    {
+      "id": "unit-ft",
+      "text": "ft",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-ft`: 「ft」 — **採用可**。PA列2行目の単位表記として既存画面どおりで、フィート単位であることが明確。"
+    },
+    {
+      "id": "unit-°C",
+      "text": "°C",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-°C`: 「°C」 — **採用可**。TOAT列2行目の単位表記として既存画面どおりで、摂氏温度であることが明確。"
+    },
+    {
+      "id": "unit-kt",
+      "text": "kt",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-kt`: 「kt」 — **採用可**。CAS・TAS・GS列2行目の単位表記として既存画面どおりで、ノット単位であることが明確。"
+    },
+    {
+      "id": "unit-DIST-NM",
+      "text": "DIST NM",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-DIST-NM`: 「DIST NM」 — **採用可**。ZONE / CUM列2行目の種別・単位表記として既存画面どおりで、距離（海里）であることが明確。"
+    },
+    {
+      "id": "unit-ETE-min",
+      "text": "ETE min",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-ETE-min`: 「ETE min」 — **採用可**。ZONE / CUM列2行目の種別・単位表記として既存画面どおりで、所要時間（分）であることが明確。"
+    },
+    {
+      "id": "unit-FUEL-gal",
+      "text": "FUEL gal",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-FUEL-gal`: 「FUEL gal」 — **採用可**。SECT / REM列2行目の種別・単位表記として既存画面どおりで、燃料（ガロン）であることが明確。"
+    },
+    {
+      "id": "unit-sec",
+      "text": "sec",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-sec`: 「sec」 — **採用可**。30° CUT列2行目の単位表記として既存画面どおりで、秒単位であることが明確。"
+    },
+    {
+      "id": "paired-numeric-display",
+      "text": " / ",
+      "reason": "Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `paired-numeric-display`: 「 / 」 — **採用可**。前後スペース付きスラッシュは「ZONE / CUM」「SECT / REM」見出しと表記が揃っており、親レグの2値区切りと子レグでの非表示・右端揃え仕様に整合する。"
+    }
+  ]
+}
