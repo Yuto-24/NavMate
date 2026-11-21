@@ -1,0 +1,340 @@
+{
+  "items": [
+    {
+      "id": "rad-mode",
+      "text": "RAD反方位（180°）",
+      "response_quote": "| `rad-mode` | 採用可 | `RAD反方位（180°）` | **理由**: RADのみ180°反転する操作であることが簡潔かつ正確に伝わる。<br>**懸念**: 全VOR列への一括適用である点はラベル単体では明示されないが、上部配置とツールチップで補完されるため許容範囲。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-save",
+      "text": "NAVLOG・Fuel TableをPNG保存",
+      "response_quote": "| `png-save` | 採用可 | `NAVLOG・Fuel TableをPNG保存` | **理由**: 本人指定の呼称を維持しつつ、PNG保存ボタンであることが明確。<br>**懸念**: 今回NAVLOG本表とTIME / FUEL PLANの間にSEA一覧もPNG出力されるため、ボタン文言にSEA一覧への言及がなく出力内容と軽微な差異がある（NAVLOG付帯情報として許容するか、将来的に文言へ反映するかは留意点）。また無効時に押せない理由はボタン文言単体では分からない。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。 ボタンでSEAを個別列挙しない懸念は、NAVLOG内の一覧であるため許容。"
+    },
+    {
+      "id": "png-busy",
+      "text": "PNGを作成中…",
+      "response_quote": "| `png-busy` | 採用可 | `PNGを作成中…` | **理由**: 処理中であることが簡潔に伝わり、ボタン幅も圧迫しない。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-start",
+      "text": "PNGのダウンロードを開始しました。",
+      "response_quote": "| `png-start` | 採用可 | `PNGのダウンロードを開始しました。` | **理由**: 保存完了を断定せずブラウザのダウンロード開始として正確に伝えている。<br>**懸念**: 入力変更や再計算時に古いメッセージが残り続けると誤認を招くため、状態変化時のクリア挙動に留意。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-failure",
+      "text": "PNGを保存できませんでした。もう一度お試しください。",
+      "response_quote": "| `png-failure` | 採用可 | `PNGを保存できませんでした。もう一度お試しください。` | **理由**: 失敗の事実と再試行の案内が丁寧かつ簡潔。<br>**懸念**: ブラウザ制約等で再試行だけでは解消しない場合に原因が分かりにくい点は軽微な懸念（作業・計算結果が維持されるため実害は小さい）。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-mode-caption",
+      "text": "四捨五入",
+      "response_quote": "| `png-mode-caption` | 採用可 | `四捨五入` | **理由**: 合成後の4通り（`NAV LOG — 四捨五入 / RAD 反方位`、`NAV LOG — 通常 / RAD 反方位`、`NAV LOG — 四捨五入 / RAD 通常`、`NAV LOG — 通常 / RAD 通常`）いずれも転記時の前提条件が1行で判別できる。<br>**懸念**: チェックボックスの `RAD反方位（180°）` と比べスペース有無・`（180°）` の有無に微小な差がある点、および `通常 / RAD 通常` のように「通常」が並ぶ場合はラジオボタンの文脈を知らない初見者には左側の意味がやや伝わりにくい点。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-title",
+      "text": "NAV LOG",
+      "response_quote": "| `png-title` | 採用可 | `NAV LOG` | **理由**: 既存表題の維持であり、紙NAVLOG転記用の見出しとして適切。<br>**懸念**: ボタン側の `NAVLOG` とのスペース有無の差は既存呼称維持の制約どおりで問題なし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-vor-header",
+      "text": "VOR/DME",
+      "response_quote": "| `png-vor-header` | 採用可 | `VOR/DME` | **理由**: 1段目 `VOR/DME`、2段目 `局ID 局名`（例: `VOR/DME` + `MZE MIYAZAKI`）の2段構成は他列の2段見出しと調和し、未選択列の除外とも整合。<br>**懸念**: 90px幅内で長い局名が3行以上に折り返されて高さ超過・見切れが起きないか描画確認が望ましい。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "rad-tooltip",
+      "text": "RAD反方位",
+      "response_quote": "| `rad-tooltip` | 採用可 | `RAD反方位` | **理由**: ON（`AIP 2026-08-06 / RAD反方位・距離`）とOFF（`AIP 2026-08-06 / 局からTOへのRAD・距離`）の対比で違いが伝わり、チェックボックス文言とも整合。<br>**懸念**: `rad-cell-tooltip` のスラッシュ区切り（`RAD反方位 / 距離`）に対しこちらは中黒（`RAD反方位・距離`）と微小な差があるが支障はない。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "rad-cell-tooltip",
+      "text": "RAD反方位",
+      "response_quote": "| `rad-cell-tooltip` | 採用可 | `RAD反方位` | **理由**: ON（`MZE RAD反方位 / 距離（表示専用セル）`）、OFF（`MZE 局からTOへのRAD / 距離（表示専用セル）`）、未選択（`VOR/DME基準局を選択してください。`）の3状態とも明確で親切。<br>**懸念**: 特になし（区切り記号の微差は上記のとおり）。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "rounding-options",
+      "text": "四捨五入モード",
+      "response_quote": "| `rounding-options` | 採用可 | `四捨五入モード` | **理由**: ラジオボタン枠の見出しとして機能が明確で、RADチェックボックスとも分離されている。<br>**懸念**: 選択肢の `四捨五入` と語句が重複するが、意図が明瞭なため問題なし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-855",
+      "text": "PA",
+      "response_quote": "| `png-column-855` | 採用可 | `PA` | **理由**: 合成後 `PA\\nft`。既存の航空略記と単位を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-856",
+      "text": "TOAT",
+      "response_quote": "| `png-column-856` | 採用可 | `TOAT` | **理由**: 合成後 `TOAT\\n°C`。既存表記と単位を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-857",
+      "text": "CAS",
+      "response_quote": "| `png-column-857` | 採用可 | `CAS` | **理由**: 合成後 `CAS\\nkt`。既存略記と単位を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-858",
+      "text": "TAS",
+      "response_quote": "| `png-column-858` | 採用可 | `TAS` | **理由**: 合成後 `TAS\\nkt`。既存略記と単位を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-859",
+      "text": "TC",
+      "response_quote": "| `png-column-859` | 採用可 | `TC` | **理由**: 合成後 `TC`。既存略記を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-860",
+      "text": "VAR",
+      "response_quote": "| `png-column-860` | 採用可 | `VAR` | **理由**: 合成後 `VAR`。既存略記を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-861",
+      "text": "MC",
+      "response_quote": "| `png-column-861` | 採用可 | `MC` | **理由**: 合成後 `MC`。既存略記を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-862",
+      "text": "WIND",
+      "response_quote": "| `png-column-862` | 採用可 | `WIND` | **理由**: 合成後 `WIND`。既存表記を維持しており、値表記（`270/30`、`CALM`、`未取得`）とも整合。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-863",
+      "text": "WCA",
+      "response_quote": "| `png-column-863` | 採用可 | `WCA` | **理由**: 合成後 `WCA`。既存略記を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-864",
+      "text": "MH",
+      "response_quote": "| `png-column-864` | 採用可 | `MH` | **理由**: 合成後 `MH`。既存略記を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-865",
+      "text": "ZONE / CUM",
+      "response_quote": "| `png-column-865` | 採用可 | `ZONE / CUM` | **理由**: 合成後 `ZONE / CUM\\nDIST NM`。セル内の区間値/累計値表示と対応しており明瞭。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-866",
+      "text": "GS",
+      "response_quote": "| `png-column-866` | 採用可 | `GS` | **理由**: 合成後 `GS\\nkt`。既存略記と単位を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-867",
+      "text": "ZONE / CUM",
+      "response_quote": "| `png-column-867` | 採用可 | `ZONE / CUM` | **理由**: 合成後 `ZONE / CUM\\nETE min`。セル内の区間値/累計値表示と対応しており明瞭。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-868",
+      "text": "ETO",
+      "response_quote": "| `png-column-868` | 採用可 | `ETO` | **理由**: 合成後 `ETO`。紙NAVLOGの標準項目名であり適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-869",
+      "text": "ATO",
+      "response_quote": "| `png-column-869` | 採用可 | `ATO` | **理由**: 合成後 `ATO`。紙NAVLOGの標準項目名であり適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-870",
+      "text": "ATE",
+      "response_quote": "| `png-column-870` | 採用可 | `ATE` | **理由**: 合成後 `ATE`。紙NAVLOGの標準項目名であり適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-871",
+      "text": "SECT / REM",
+      "response_quote": "| `png-column-871` | 採用可 | `SECT / REM` | **理由**: 合成後 `SECT / REM\\nFUEL gal`。区間消費/残量と単位が明確に対応している。<br>**懸念**: Fuel Table側の単位 `G` との差異は既存呼称維持の制約どおりで問題なし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-column-872",
+      "text": "30° CUT",
+      "response_quote": "| `png-column-872` | 採用可 | `30° CUT` | **理由**: 合成後 `30° CUT\\nsec`。既存表記と単位を維持しており適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-from",
+      "text": "FROM",
+      "response_quote": "| `png-from` | 採用可 | `FROM` | **理由**: 経路の出発地点列見出しとして標準的・明瞭。<br>**懸念**: 長い地点名を省略しない方針のため、幅と折り返しの視認性のみ描画確認が望ましい。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-to",
+      "text": "TO",
+      "response_quote": "| `png-to` | 採用可 | `TO` | **理由**: 経路の到着地点列見出しとして標準的・明瞭。<br>**懸念**: `png-from` と同様。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "png-fuel-table",
+      "text": "TIME / FUEL PLAN",
+      "response_quote": "| `png-fuel-table` | 採用可 | `TIME / FUEL PLAN` | **理由**: 既存表見出しの維持であり適切。ボタン側の `Fuel Table` との併存も制約了承済み。<br>**懸念**: NAVLOG本表と本表の間にSEA一覧が入るため、PNG上で各表の区切り余白・見出し階層が混同されない構成になっているかの確認が望ましい。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-time",
+      "text": "TIME",
+      "response_quote": "| `fuel-time` | 採用可 | `TIME` | **理由**: Fuel Tableの上段列名として既存どおり簡潔・明瞭。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-fuel",
+      "text": "FUEL",
+      "response_quote": "| `fuel-fuel` | 採用可 | `FUEL` | **理由**: Fuel Tableの上段列名として既存どおり簡潔・明瞭。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-taxi-run-up",
+      "text": "TAXI・RUN UP",
+      "response_quote": "| `fuel-taxi-run-up` | 採用可 | `TAXI・RUN UP` | **理由**: 既存行名の維持として適切。<br>**懸念**: 英字間の全角中黒 `・` はやや独特だが、既存表記維持の制約どおり採用可。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-bof",
+      "text": "BOF",
+      "response_quote": "| `fuel-bof` | 採用可 | `BOF` | **理由**: 既存略記の維持として適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-climb",
+      "text": "CLIMB",
+      "response_quote": "| `fuel-climb` | 採用可 | `CLIMB` | **理由**: 既存行名の維持として適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-cruise",
+      "text": "CRUISE",
+      "response_quote": "| `fuel-cruise` | 採用可 | `CRUISE` | **理由**: 既存行名の維持として適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-descent",
+      "text": "DESCENT",
+      "response_quote": "| `fuel-descent` | 採用可 | `DESCENT` | **理由**: 既存行名の維持として適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-tgl",
+      "text": "TGL",
+      "response_quote": "| `fuel-tgl` | 採用可 | `TGL` | **理由**: 既存略記の維持として適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-additional",
+      "text": "ADDITIONAL",
+      "response_quote": "| `fuel-additional` | 採用可 | `ADDITIONAL` | **理由**: 既存行名の維持として適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-reserve",
+      "text": "RESERVE",
+      "response_quote": "| `fuel-reserve` | 採用可 | `RESERVE` | **理由**: 既存行名の維持として適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-min-required",
+      "text": "MIN REQUIRED",
+      "response_quote": "| `fuel-min-required` | 採用可 | `MIN REQUIRED` | **理由**: 既存行名の維持として適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-extra",
+      "text": "EXTRA",
+      "response_quote": "| `fuel-extra` | 採用可 | `EXTRA` | **理由**: 既存行名の維持として適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-total",
+      "text": "TOTAL",
+      "response_quote": "| `fuel-total` | 採用可 | `TOTAL` | **理由**: 既存行名の維持として適切。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "fuel-unit",
+      "text": "G",
+      "response_quote": "| `fuel-unit` | 採用可 | `G` | **理由**: 燃料欄の単位表記（例: `1.5 G`）として既存表記を維持する本人指定に合致。<br>**懸念**: NAVLOG本表の `gal` と表記が異なるが制約了承済みであり、FUEL列内のため誤認リスクは低い。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "rounding-normal",
+      "text": "通常",
+      "response_quote": "| `rounding-normal` | 採用可 | `通常` | **理由**: `四捨五入モード` 配下で `四捨五入` と対になるラジオ選択肢として明確。<br>**懸念**: 単独語では抽象的だが、見出し・対選択肢と一体表示されるため実運用上問題なし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "rounding-enabled",
+      "text": "四捨五入",
+      "response_quote": "| `rounding-enabled` | 採用可 | `四捨五入` | **理由**: ラジオ選択肢およびPNG見出し（`png-mode-caption`）と一致しており一貫性がある。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "unit-ft",
+      "text": "ft",
+      "response_quote": "| `unit-ft` | 採用可 | `ft` | **理由**: `PA\\nft` の2行目単位として標準的・既存どおり。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "unit-°C",
+      "text": "°C",
+      "response_quote": "| `unit-°C` | 採用可 | `°C` | **理由**: `TOAT\\n°C` の2行目単位として標準的・既存どおり。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "unit-kt",
+      "text": "kt",
+      "response_quote": "| `unit-kt` | 採用可 | `kt` | **理由**: `CAS` / `TAS` / `GS` の2行目単位として標準的・既存どおり。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "unit-DIST-NM",
+      "text": "DIST NM",
+      "response_quote": "| `unit-DIST-NM` | 採用可 | `DIST NM` | **理由**: `ZONE / CUM\\nDIST NM` の2行目表記として項目名と単位が明瞭。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "unit-ETE-min",
+      "text": "ETE min",
+      "response_quote": "| `unit-ETE-min` | 採用可 | `ETE min` | **理由**: `ZONE / CUM\\nETE min` の2行目表記として項目名と単位が明瞭。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "unit-FUEL-gal",
+      "text": "FUEL gal",
+      "response_quote": "| `unit-FUEL-gal` | 採用可 | `FUEL gal` | **理由**: `SECT / REM\\nFUEL gal` の2行目表記として項目名と単位が明瞭。<br>**懸念**: `G` との併存は制約了承済み。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "unit-sec",
+      "text": "sec",
+      "response_quote": "| `unit-sec` | 採用可 | `sec` | **理由**: `30° CUT\\nsec` の2行目単位として標準的・既存どおり。<br>**懸念**: 特になし。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    },
+    {
+      "id": "paired-numeric-display",
+      "text": " / ",
+      "response_quote": "| `paired-numeric-display` | 採用可 | ` / ` | **理由**: 前後スペース付きスラッシュにより親レグの区間値と累計/残量（例: `58.5 / 106`）の視認性が高く、見出し（`ZONE / CUM`・`SECT / REM`）とも統一されている。子レグはスラッシュなしで親の左側値右端に揃えるため、紙NAVLOG転記時の取り違えを防げる。<br>**懸念**: DIST/ETEは末尾 `.0` 省略・FUELは `.0` 保持と列ごとに小数表示規則が異なる点、および桁数増加・手入力マーク付与時に余白（上下4px・左右6px）内で折り返しや窮屈さが出ないかは描画上の確認ポイント。 |",
+      "reason": "Geminiが既存呼称・単位・表示文脈で採用可と確認。既存表の文言を維持し、SEAはNAVLOGの区間別付帯情報として同じPNGへ含める。"
+    }
+  ]
+}

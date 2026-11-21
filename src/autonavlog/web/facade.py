@@ -48,6 +48,7 @@ from autonavlog.application.rjfm_inbound_plan import (
     TARGET_ALTITUDE_FT_MSL as RJFM_INBOUND_TARGET_ALTITUDE_FT_MSL,
 )
 from autonavlog.application.rjfm_inbound_service import build_rjfm_inbound_guidance
+from autonavlog.application.sea import SeaUpdate, apply_sea, prune_sea, sea_plan
 from autonavlog.application.vertical_profile import project_vertical_profile
 from autonavlog.domain.airport_vor import AIRPORT_VORS
 from autonavlog.domain.calculation import CalculationOutcome, Issue
@@ -821,6 +822,27 @@ class AutoNavLogWebApplication:
             session.readiness = materialized.evaluation
             return self.present(session)
 
+    def update_sea(self, session: WebSession, request: SeaUpdate) -> dict[str, Any]:
+        with self.owner_operation(session.owner_id), session.lock:
+            if session.project is None:
+                raise WebApplicationError("PROJECT_REQUIRED", "先に経路を確定してください。")
+            working = session.project.model_copy(deep=True)
+            try:
+                apply_sea(working, request)
+            except ValueError as error:
+                raise WebApplicationError(
+                    "SEA_INPUT_INVALID",
+                    "経路とSEAの入力内容を確認し、必要に応じて地形を再取得してください。"
+                ) from error
+            self._persist_draft(session, working)
+            session.project = working
+            return self.present(session)
+
+    def sea_plan(self, session: WebSession) -> dict[str, Any]:
+        with self.owner_operation(session.owner_id), session.lock:
+            return ({"geometry_key": "", "intervals": []} if session.project is None
+                    else sea_plan(session.project, regions=True))
+
     def replace_check_points(
         self,
         session: WebSession,
@@ -1530,6 +1552,7 @@ class AutoNavLogWebApplication:
         *,
         set_last_opened: bool = False,
     ) -> None:
+        prune_sea(project)
         refresh_automatic_name(
             project,
             {summary.name for summary in self._owned_project_summaries(session)
@@ -1862,6 +1885,7 @@ class AutoNavLogWebApplication:
                 == [(node.id, node.name) for node in last.project.ordered_nodes()]
             )
         return {
+            "sea": None if session.project is None else sea_plan(session.project),
             "verticalProfile": vertical_profile,
             "verticalProfileStale": vertical_profile_stale,
             "roundingMode": session.rounding_mode,

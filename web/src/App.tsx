@@ -50,6 +50,7 @@ import { Header } from "./components/Header";
 import { InformationDialog } from "./components/InformationDialog";
 import { ImportCandidateDialog } from "./components/ImportCandidateDialog";
 import { ImportPlanPanel } from "./components/ImportPlanPanel";
+import { acquireSea, type SeaUpdate } from "./sea";
 import { NavLogTable } from "./components/NavLogTable";
 import { PasteDialog } from "./components/PasteDialog";
 import { RouteWorkspace } from "./components/RouteWorkspace";
@@ -134,6 +135,11 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const confirmDiscardMapDraft = () => (mapRouteDraft.length === 0 && !pendingImportDraft) || window.confirm("作成中の変更を破棄しますか？");
   const [form, setForm] = useState<PlanningForm>(() => initialPlanningForm());
   const [altitudeInputs, setAltitudeInputs] = useState<Record<string, string>>({});
+  const [seaBusy, setSeaBusy] = useState(false);
+  const [seaMessage, setSeaMessage] = useState("");
+  const seaRequestRef = useRef(false);
+  const seaControllerRef = useRef<AbortController | null>(null);
+  useEffect(() => () => seaControllerRef.current?.abort(), [state?.project?.id, state?.sea?.geometry_key]);
   const [navLogDrafts, setNavLogDrafts] = useState<NavLogEditDrafts>({});
   const [navLogEditErrors, setNavLogEditErrors] = useState<NavLogEditErrors>({});
   const [navLogEditVersion, setNavLogEditVersion] = useState(0);
@@ -644,6 +650,41 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         setBusy(false);
         setActiveOperation(null);
       }
+    }
+  };
+
+  const updateSea = async (patch: SeaUpdate): Promise<void> => {
+    if (!application.updateSea) return;
+    const next = await runTask(() => application.updateSea!(patch), {
+      apply: result => applyState(result, { preserveMapDraft: true, preserveRouteViewport: true }),
+      errorKey: "sea-save",
+    });
+    if (!next) throw new Error("SEAの保存を確認できませんでした。表示値を確認してから再試行してください。");
+  };
+  const acquireSeaForProject = async (): Promise<void> => {
+    if (seaRequestRef.current || !application.seaPlan || !application.updateSea || !state?.project) return;
+    const epoch = lifecycle.current;
+    const projectId = state.project.id;
+    seaRequestRef.current = true;
+    const controller = new AbortController();
+    seaControllerRef.current = controller;
+    setSeaBusy(true);
+    setSeaMessage("地形データを取得しています。NAV LOGの他の計算は引き続き利用できます。");
+    try {
+      const plan = await application.seaPlan();
+      const terrain = await acquireSea(plan, AbortSignal.any([controller.signal, AbortSignal.timeout(60_000)]));
+      if (controller.signal.aborted || epoch !== lifecycle.current || projectIdRef.current !== projectId) return;
+      const next = await application.updateSea({ project_id: projectId, geometry_key: plan.geometry_key, terrain });
+      if (controller.signal.aborted || epoch !== lifecycle.current || projectIdRef.current !== projectId) return;
+      applyState(next, { preserveMapDraft: true, preserveRouteViewport: true });
+      setSeaMessage("");
+    } catch {
+      if (epoch === lifecycle.current && projectIdRef.current === projectId)
+        setSeaMessage("地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。");
+    } finally {
+      seaRequestRef.current = false;
+      seaControllerRef.current = null;
+      setSeaBusy(false);
     }
   };
 
@@ -2055,6 +2096,11 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           aria-label="計算済みNAV LOG"
         >
           <NavLogTable
+            sea={state.readiness.calculationIsCurrent ? state.sea : null}
+            seaDisabled={busy || seaBusy}
+            seaMessage={seaMessage}
+            onSeaUpdate={application.updateSea ? updateSea : undefined}
+            onSeaAcquire={application.seaPlan ? acquireSeaForProject : undefined}
             radReciprocal={radReciprocal}
             onRadReciprocalChange={setRadReciprocal}
             exportDisabled={busy || !calculationInputsAreLocallyCurrent || !state.readiness.calculationIsCurrent || hasNavLogEditErrors(navLogEditErrors) || ["pending", "saving", "error"].includes(navLogEditStatus.kind)}

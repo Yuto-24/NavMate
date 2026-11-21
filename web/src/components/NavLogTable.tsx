@@ -29,6 +29,8 @@ import type {
   FlightPhase,
   NavLogDisplayCell, NavLogDisplayRow, SectionResult,
 } from "../types";
+import { SeaPanel } from "./SeaPanel";
+import type { SeaPlan, SeaUpdate } from "../sea";
 import { RjfmGuidancePanel } from "./RjfmGuidancePanel";
 
 function adopted<T>(value: AdoptedValue<T>): T | null {
@@ -614,6 +616,7 @@ function NavLogSummary({
 }
 
 export function NavLogTable({
+  sea, seaDisabled = true, seaMessage, onSeaUpdate, onSeaAcquire,
   roundingMode = true, roundingDisabled = true, onRoundingChange,
   radReciprocal = true, onRadReciprocalChange, exportDisabled = true, savePng,
   vorColumns, setVorColumns,
@@ -627,6 +630,11 @@ export function NavLogTable({
   editStatus,
   onEdit,
 }: {
+  sea?: SeaPlan | null;
+  seaDisabled?: boolean;
+  seaMessage?: string;
+  onSeaUpdate?: (patch: SeaUpdate) => Promise<void>;
+  onSeaAcquire?: () => Promise<void>;
   roundingMode?: boolean;
   radReciprocal?: boolean;
   onRadReciprocalChange?: (enabled: boolean) => void;
@@ -997,6 +1005,9 @@ export function NavLogTable({
           </table>
         </div>
       </div>
+      {sea && onSeaUpdate && onSeaAcquire && <SeaPanel projectId={project.id} plan={sea}
+        disabled={seaDisabled} onUpdate={onSeaUpdate} onAcquire={onSeaAcquire} />}
+      {seaMessage && <p role="status">{seaMessage}</p>}
       <div className="fuel-plan-with-advisory">
         <FuelPlanTable outcome={outcome} />
         {outcome.issues.filter(issue => issue.code === "FORECAST_STALE_RUN").map(issue => (

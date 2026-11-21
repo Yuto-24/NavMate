@@ -109,3 +109,14 @@ test("KML rejects unsafe XML and unsupported altitude/geometry without loading l
   expect(result.unchanged).toBe(true);
   expect(externalRequests).toEqual([]);
 });
+
+test("default GSI source calls native fetch with its browser receiver", async ({ page }) => {
+  let requests = 0;
+  await page.route("**/xyz/dem_png/**", route => { requests++; return route.fulfill({ status: 404, body: "missing fixture" }); });
+  const input = await page.evaluate(async () => {
+    const { GsiDemSource } = await import("/src/terrainTransport.ts");
+    return new GsiDemSource().tile(14174, 6668);
+  });
+  expect(input).toEqual({ status: "missing", reason: "http-404" });
+  expect(requests).toBe(1);
+});

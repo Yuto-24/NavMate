@@ -620,6 +620,7 @@ export interface WorkingRecovery {
 }
 
 export interface WebState {
+  sea?: import("./sea").SeaPlan | null;
   verticalProfile?: VerticalProfile | null;
   verticalProfileStale?: boolean;
   roundingMode?: boolean;

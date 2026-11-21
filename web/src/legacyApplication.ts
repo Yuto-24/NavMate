@@ -168,6 +168,8 @@ export class LegacyApplication implements AutoNavLogApplication {
     this.roundingMode = true;
   }
 
+  seaPlan() { return this.request<import("./sea").SeaPlan>("/api/project/sea"); }
+  updateSea(input: import("./sea").SeaUpdate) { return this.request<WebState>("/api/project/sea", { method: "PUT", body: input }); }
   importRoute(input: ImportRouteInput) { return this.request<WebState>("/api/import", { method: "POST", body: input }); }
   confirmRoute(input: ConfirmRouteInput) { return this.request<WebState>("/api/route/confirm", { method: "POST", body: input }); }
   updateProject(input: UpdateProjectInput) { return this.request<WebState>("/api/project", { method: "PUT", body: input }); }

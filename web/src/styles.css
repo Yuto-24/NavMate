@@ -1754,3 +1754,11 @@ tbody tr:last-child td { border-bottom: 0; }
 .nav-log-png-paper .vor-reference-header { width: auto; min-width: 0; font-size: 11px; }
 
 .nav-log-png-paper .nav-leg-spacer-row td { height: 20px; padding: 0; }
+
+.sea-panel { margin-block: 1rem; }
+.sea-panel > details { margin-top: 0.75rem; }
+.sea-panel label { display: block; margin-block: 0.5rem; }
+.sea-panel code { display: block; overflow-wrap: anywhere; }
+.nav-log-sea-table { border-collapse: collapse; width: 100%; min-width: 560px; }
+.nav-log-sea-table th, .nav-log-sea-table td { border: 1px solid #777; padding: 0.3rem; }
+.nav-log-sea-table input { width: 6rem; }

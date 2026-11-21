@@ -58,6 +58,8 @@ export interface AutoNavLogApplication {
   readonly checkpointLoads?: boolean;
   readonly auth?: AuthProvider;
   readonly sync?: import("./accountSync").AccountSyncControl;
+  seaPlan?(): Promise<import("./sea").SeaPlan>;
+  updateSea?(input: import("./sea").SeaUpdate): Promise<WebState>;
   refreshProjects?(): Promise<ApplicationSnapshot>;
   bootstrap(recovery?: WorkingRecovery): Promise<ApplicationSnapshot>;
   importRoute(input: ImportRouteInput): Promise<ApplicationSnapshot>;
