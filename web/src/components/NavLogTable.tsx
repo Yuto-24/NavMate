@@ -1,7 +1,7 @@
 import { resolveVorStations, retainVorStations, selectVorStation as updateVorSelection } from "../vorSelection";
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from "react";
 import type { VorColumn } from "../applicationSession";
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Download, Plus, Trash2 } from "lucide-react";
 
@@ -54,24 +54,24 @@ const NAV_LOG_COLUMN_WIDTHS_PX = {
   vor: 90,
   from: 110,
   to: 110,
-  pa: 75,
-  toat: 70,
+  pa: 70,
+  toat: 60,
   cas: 60,
   tas: 60,
-  tc: 50,
-  variation: 50,
-  mc: 50,
-  wind: 130,
-  wca: 50,
-  mh: 50,
+  tc: 45,
+  variation: 45,
+  mc: 45,
+  wind: 120,
+  wca: 45,
+  mh: 45,
   distance: 90,
-  gs: 50,
+  gs: 45,
   ete: 90,
-  eto: 60,
-  ato: 60,
-  ate: 60,
+  eto: 50,
+  ato: 50,
+  ate: 50,
   fuel: 90,
-  cut: 80,
+  cut: 65,
 } as const;
 const BASE_NAV_LOG_WIDTH_PX = Object.values(NAV_LOG_COLUMN_WIDTHS_PX)
   .filter((_, index) => index > 0)
@@ -654,6 +654,8 @@ export function NavLogTable({
   ) => void;
 }) {
   const sectionRef = useRef<HTMLElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [nameWidths, setNameWidths] = useState({ from: 110, to: 110 });
   const [exporting, setExporting] = useState(false);
   const exportPng = async () => {
     if (!sectionRef.current || !savePng || exporting || exportDisabled) return;
@@ -669,6 +671,33 @@ export function NavLogTable({
     }
   };
   const displayRows: NavLogDisplayRow[] = outcome.display_rows;
+  useLayoutEffect(() => {
+    let cancelled = false;
+    const measure = () => {
+      if (cancelled || !tableRef.current) return;
+      const context = document.createElement("canvas").getContext("2d");
+      if (!context) return;
+      const widths = { from: 64, to: 64 };
+      for (const side of ["from", "to"] as const) {
+        for (const cell of tableRef.current.querySelectorAll(`.route-${side}-cell`)) {
+          const style = getComputedStyle(cell);
+          // Match CSS whitespace collapsing without discarding nonbreaking spaces.
+          const text = (cell.textContent ?? "").replace(/[\t\n\f\r ]+/g, " ").replace(/^ | $/g, "");
+          context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+          const spacing = parseFloat(style.letterSpacing) || 0;
+          const width = context.measureText(text).width + text.length * spacing
+            + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+            + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+          widths[side] = Math.min(160, Math.max(widths[side], Math.ceil(width)));
+        }
+      }
+      setNameWidths(previous => previous.from === widths.from && previous.to === widths.to ? previous : widths);
+    };
+    measure();
+    // Re-measure after the bundled Japanese font replaces the initial fallback.
+    void document.fonts.ready.then(measure);
+    return () => { cancelled = true; };
+  }, [displayRows]);
   const automaticVorStation = useMemo(() => {
     const firstFromRow = displayRows.find(
       (row) => row.from_latitude_deg != null && row.from_longitude_deg != null,
@@ -698,6 +727,8 @@ export function NavLogTable({
   );
   const navLogColumnCount = 20 + vorColumns.length;
   const navLogWidth = BASE_NAV_LOG_WIDTH_PX
+    - NAV_LOG_COLUMN_WIDTHS_PX.from - NAV_LOG_COLUMN_WIDTHS_PX.to
+    + nameWidths.from + nameWidths.to
     + vorColumns.length * VOR_COLUMN_WIDTH_PX;
   const addVorColumn = () => {
     setVorColumns((current) => [
@@ -802,8 +833,12 @@ export function NavLogTable({
       <div className="table-scroll nav-log-scroll">
         <div className="nav-log-tables">
           <table
+            ref={tableRef}
             className="nav-log-table official-nav-log-table"
-            style={{ flexBasis: navLogWidth, width: navLogWidth, minWidth: navLogWidth }}
+            style={{ width: navLogWidth, minWidth: navLogWidth,
+              "--nav-log-from-width": `${nameWidths.from}px`,
+              "--nav-log-to-width": `${nameWidths.to}px`,
+            } as CSSProperties}
           >
           <colgroup>
             {vorColumns.map((column) => <col key={column.id} className="nav-log-vor-column" />)}

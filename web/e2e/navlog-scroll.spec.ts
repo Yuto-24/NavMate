@@ -181,3 +181,150 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await expect(toast).toHaveCount(0);
   await expect(page.locator(".nav-log-table")).toHaveText(firstTable, { useInnerText: true });
 });
+
+test("#412 rows align, names size independently, and sticky columns follow edits", async ({ page }, info) => {
+  await page.goto("/");
+  await enterImportWorkflow(page);
+  await page.locator('input[type="file"]').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
+  await confirmImportedDraft(page);
+  await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
+  await page.getByLabel("気象モード").selectOption("FTD");
+  await page.getByLabel("地上風向 ° FROM").fill("360");
+  await page.getByLabel("地上風速 kt").fill("15");
+  await page.getByLabel("5,000 ft風向 ° FROM").fill("270");
+  await page.getByLabel("5,000 ft風速 kt").fill("30");
+  await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
+  for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
+    await page.getByLabel(`${name}出発Legの計画高度`, { exact: true }).fill(altitude);
+  }
+  await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+  const table = page.locator(".nav-log-table");
+  await expect(table).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const widths = () => table.locator("thead .route-name-header")
+    .evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
+  const originalWidths = await widths();
+  expect(originalWidths.every(width => width < 110)).toBe(true);
+  // The same one-VOR table previously needed 1,535px, before its outer border.
+  expect((await table.boundingBox())!.width).toBeLessThan(1450);
+  const numericValues = () => table.locator("td[data-display-text]:not(.route-name-cell)")
+    .evaluateAll(cells => cells.map(cell => cell.getAttribute("data-display-text")));
+  const before = await numericValues();
+  const ordinaryRows = table.locator(".nav-leg-heading-row, .nav-leg-detail-row");
+  const heights = await ordinaryRows.evaluateAll(rows => rows
+    .filter(row => !Array.from(row.querySelectorAll("small")).some(el => el.textContent?.trim()))
+    .map(row => row.getBoundingClientRect().height));
+  expect(heights.length).toBeGreaterThan(5);
+  expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(1);
+  expect(Math.min(...heights)).toBeGreaterThanOrEqual(36);
+  expect(await table.locator(".nav-leg-spacer-row").first().evaluate(el => el.getBoundingClientRect().height)).toBeLessThan(10);
+  // Exercise longer paired numbers in the retained 90px columns without changing calculation data.
+  expect(await table.locator(".nav-leg-heading-row .nav-log-pair").evaluateAll(pairs => pairs.every(pair => {
+    const values = [pair.firstElementChild!, pair.lastElementChild!];
+    const original = values.map(value => value.textContent);
+    try {
+      values.forEach(value => { value.textContent = "999.9"; });
+      const cell = pair.closest("td")!.getBoundingClientRect();
+      return values.every(value => {
+        const range = document.createRange(); range.selectNodeContents(value);
+        const text = range.getBoundingClientRect();
+        return text.left >= cell.left && text.right <= cell.right;
+      });
+    } finally { values.forEach((value, index) => { value.textContent = original[index]; }); }
+  }))).toBe(true);
+
+  const checkLayout = async () => {
+    const scroll = page.locator(".nav-log-scroll");
+    for (const width of [390, 1100, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expectPlanningLayout(page, width);
+      for (const left of [0, 420, 10000]) {
+        await scroll.evaluate((el, value) => { el.scrollLeft = value; }, left);
+        await expectNavLogPaperGrid(page);
+        const geometry = await table.locator("thead .route-name-header").evaluateAll(cells => {
+          const [from, to] = cells.map(cell => cell.getBoundingClientRect());
+          return { gap: to.left - from.right, left: from.left,
+            offset: cells[0].closest(".nav-log-scroll")!.scrollLeft,
+            preceding: Array.from(cells[0].parentElement!.querySelectorAll(".vor-reference-header"))
+              .reduce((sum, cell) => sum + cell.getBoundingClientRect().width, 2),
+            scrollLeft: cells[0].closest(".nav-log-scroll")!.getBoundingClientRect().left };
+        });
+        expect(Math.abs(geometry.gap)).toBeLessThan(1);
+        expect(Math.abs(geometry.left - geometry.scrollLeft - Math.max(0, geometry.preceding - geometry.offset))).toBeLessThan(1);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    }
+  };
+  await checkLayout();
+  // The same editable DOM node retains focus while errors/manual notes expand its row.
+  const input = table.locator('input[aria-label$=" 手動気温"]').first();
+  await input.fill("999");
+  await expect(input).toBeFocused();
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  const inputRow = input.locator("xpath=ancestor::tr");
+  await expect(inputRow.locator(".nav-log-field-error")).toBeVisible();
+  expect((await inputRow.boundingBox())!.height).toBeGreaterThan(Math.max(...heights));
+  await input.fill("12");
+  await expect(input).toBeFocused();
+  await expect(input).toHaveAttribute("aria-invalid", "false");
+  await expect(inputRow.getByText("手入力", { exact: true })).toBeVisible();
+  await input.fill("");
+  await input.blur();
+  await expect(page.locator(".nav-log-edit-status-saved")).toBeVisible();
+  const direction = table.locator('input[aria-label$=" 手動風向"]').first();
+  const wind = table.locator('input[aria-label$=" 手動風速"]').first();
+  await direction.fill("360");
+  await wind.fill("201");
+  await expect(wind).toHaveAttribute("aria-invalid", "true");
+  const windCell = wind.locator("xpath=ancestor::td");
+  await expect(windCell.getByText("風向・風速を確認", { exact: true })).toBeVisible();
+  await wind.fill("200");
+  await expect(wind).toHaveAttribute("aria-invalid", "false");
+  await expect(wind).toBeFocused();
+  expect(await windCell.locator("input, small").evaluateAll(elements => elements.every(el => {
+    const rect = el.getBoundingClientRect(), cell = el.closest("td")!.getBoundingClientRect();
+    return rect.left >= cell.left && rect.right <= cell.right && rect.top >= cell.top && rect.bottom <= cell.bottom;
+  }))).toBe(true);
+  await wind.fill("");
+  await direction.fill("");
+  await wind.blur();
+  await expect(page.locator(".nav-log-edit-status-saved")).toBeVisible();
+
+  const rename = async (old: string, name: string) => {
+    await page.getByRole("button", { name: `${old}を編集`, exact: true }).click();
+    const field = page.getByRole("textbox", { name: `${old}の名称`, exact: true });
+    await field.fill(name);
+    await field.press("Enter");
+    await expect(field).toHaveCount(0);
+    await expect(table.locator(".route-to-cell").filter({ hasText: name }).first()).toHaveText(name);
+    await page.evaluate(() => document.fonts.ready);
+  };
+  const medium = "玉名周辺の通過地点";
+  await rename("玉名", medium);
+  const mediumWidths = await widths();
+  expect(mediumWidths[0]).toBeGreaterThan(originalWidths[0]);
+  // Detail TO cells have an inset, so sharing a single max width is incorrect.
+  expect(mediumWidths[1]).toBeGreaterThan(mediumWidths[0]);
+  const long = "玉名付近のとても長い名称を持つ訓練経路上の通過地点ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  await rename(medium, long);
+  expect((await widths()).every(width => width <= 160)).toBe(true);
+  const longCell = table.locator(".nav-leg-heading-row .route-to-cell").filter({ hasText: long });
+  expect((await longCell.boundingBox())!.height).toBeGreaterThan(Math.max(...heights));
+  const contentFits = await longCell.evaluate(cell => {
+    const range = document.createRange(); range.selectNodeContents(cell);
+    const text = range.getBoundingClientRect(), box = cell.getBoundingClientRect();
+    return text.left >= box.left && text.right <= box.right && text.top >= box.top && text.bottom <= box.bottom;
+  });
+  expect(contentFits).toBe(true);
+  for (let index = 0; index < 2; index++) await page.getByRole("button", { name: "VOR/DME列を追加" }).click();
+  await checkLayout();
+  await longCell.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("long-names.png") });
+  await page.getByRole("button", { name: /VOR\/DME .*列目を削除/ }).first().click();
+  await page.getByRole("button", { name: /VOR\/DME .*列目を削除/ }).first().click();
+  await rename(long, "玉名");
+  expect(await widths()).toEqual(originalWidths);
+  expect(await numericValues()).toEqual(before);
+  await checkLayout();
+  await table.screenshot({ path: info.outputPath("short-names.png") });
+});
