@@ -202,7 +202,7 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   await download.saveAs(path);
   const pngToast = page.locator("#app-notification-region .app-notification").filter({ hasText: "PNGのダウンロードを開始しました。" });
   await expect(pngToast).toBeVisible();
-  await expect(page.locator(".nav-log-section > p[role=status]")).toHaveCount(0);
+  await expect(page.locator(".nav-log-section > p[role=status]").filter({ hasText: "PNG" })).toHaveCount(0);
   expect((await pngToast.boundingBox())!.y).toBeLessThan(180);
   await info.attach("NAV LOG controls", { body: await page.screenshot({ path: `/tmp/navmate-ui-controls-${info.project.name}.png` }), contentType: "image/png" });
   const bytes = readFileSync(path);

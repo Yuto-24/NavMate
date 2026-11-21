@@ -78,7 +78,7 @@ async function readBounded(response: Response): Promise<Uint8Array<ArrayBuffer>>
 export class GsiDemSource {
   private readonly cache = new Map<string, { bytes: Uint8Array<ArrayBuffer>; provenance: TerrainProvenance }>();
   constructor(
-    private readonly fetcher: typeof fetch = fetch,
+    private readonly fetcher: typeof fetch = (...args) => fetch(...args),
     private readonly decode: typeof decodeDemPng = decodeDemPng,
   ) {}
 

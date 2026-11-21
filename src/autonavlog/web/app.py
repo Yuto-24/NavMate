@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from autonavlog.application.sea import SeaUpdate
 from autonavlog.importers.kml import (
     KmlDocumentSelectionRequired,
     KmlImportError,
@@ -74,7 +75,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "default-src 'self'; script-src 'self' https://apis.google.com; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: https://tile.openstreetmap.org; "
-            "connect-src 'self' https://maps.gsi.go.jp https://identitytoolkit.googleapis.com "
+            "connect-src 'self' https://maps.gsi.go.jp https://cyberjapandata.gsi.go.jp "
+            "https://identitytoolkit.googleapis.com "
             "https://securetoken.googleapis.com https://*.firebaseapp.com; "
             "frame-src https://*.firebaseapp.com; font-src 'self'; "
             "object-src 'none'; base-uri 'self'; "
@@ -420,6 +422,14 @@ def create_app(
         session: SessionDependency,
     ) -> dict[str, Any]:
         return web.update_project(session, payload)
+
+    @app.get("/api/project/sea")
+    def sea_plan(session: SessionDependency) -> dict[str, Any]:
+        return web.sea_plan(session)
+
+    @app.put("/api/project/sea")
+    def update_sea(payload: SeaUpdate, session: SessionDependency) -> dict[str, Any]:
+        return web.update_sea(session, payload)
 
     @app.put("/api/project/check-points")
     def replace_check_points(

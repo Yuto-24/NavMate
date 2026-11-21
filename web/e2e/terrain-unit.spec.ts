@@ -128,3 +128,22 @@ test("cache expiry, eviction and bounded response reads do not create valid stal
   expect(await oversized.tile(1, 1)).toEqual({ status: "invalid", reason: "payload-size" });
   expect(decoded).toBe(false);
 });
+
+test("SEA combines all strips, retains provenance, and any missing strip prevents confirmation", async () => {
+  const { acquireSea } = await import("../src/sea");
+  const interval = { key: "section-a", geometry_valid: true, regions: [region, region] } as import("../src/sea").SeaInterval;
+  const plan = { geometry_key: "fixture", intervals: [interval] };
+  let calls = 0;
+  const source = { tile: async (): Promise<TileInput> => { calls++; return available(); } };
+  const result = await acquireSea(plan, new AbortController().signal, source);
+  expect(result[interval.key]).toMatchObject({ complete: true, maximum_m: 100, required: 8, valid: 8 });
+  expect(result[interval.key]!.provenance).toEqual([provenance]);
+  expect(calls).toBe(4); // Adjacent strips reuse validated inputs.
+  const missing = await acquireSea(plan, new AbortController().signal, {
+    tile: async (x): Promise<TileInput> => x === 14173 ? available() : { status: "missing", reason: "404" },
+  });
+  expect(missing[interval.key]).toMatchObject({ complete: false, maximum_m: 100, missing: 2 });
+  const cancelled = await acquireSea(plan, AbortSignal.abort(), source);
+  expect(cancelled[interval.key]!.complete).toBe(false);
+  expect(cancelled[interval.key]!.maximum_m).toBeNull();
+});

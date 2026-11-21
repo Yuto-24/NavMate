@@ -253,6 +253,16 @@ test("download and Clipboard export the displayed result, survive denial, and re
     await actions.scrollIntoViewIfNeeded();
     await page.screenshot({ path: test.info().outputPath(`navlog-export-${width}.png`) });
   }
+  const seaRows = page.locator(".nav-log-sea-table tbody tr");
+  const manualSea = seaRows.first().getByRole("spinbutton");
+  await expect(manualSea).toBeEnabled();
+  await manualSea.fill("3500");
+  await manualSea.blur();
+  await expect(seaRows.first()).toContainText("手動");
+  const displayedSea = await seaRows.evaluateAll(rows => rows.map(row => ({
+    from_name: row.children[0]!.textContent, to_name: row.children[1]!.textContent,
+    value_ft: row.children[2]!.getAttribute("data-display-text"),
+  })));
   const original = (await snapshot(page)).working;
   const downloadKml = async () => {
     const pending = page.waitForEvent("download");
@@ -280,31 +290,16 @@ test("download and Clipboard export the displayed result, survive denial, and re
   expect(originalKml.paths.every(path => path.mode === "absolute" && path.extrude === "1")).toBe(true);
   expect(originalKml.names).toEqual(expect.arrayContaining(["CLIMB", "CRUISE", "DESCENT", "RCA", "EOC"]));
   expect(initialKml).not.toContain("再計算前の結果を出力します。");
-  // Uncalculated planning edits must not relabel or recalculate the exported result.
-  await page.getByLabel("TGL", { exact: true }).fill("2");
-  await expect(page.locator("#kml-export-notice")).toContainText("再計算前の結果を出力します。");
-  await expect(page.locator("#kml-export-notice")).toHaveCSS("position", "static");
-  await expect(page.locator("#kml-export-notice")).toHaveCSS("background-color", "rgb(254, 242, 214)");
-  const noticeContrast = await page.locator("#kml-export-notice").evaluate(element => {
-    const style = getComputedStyle(element);
-    const luminance = (color: string) => color.match(/[\d.]+/g)!.slice(0, 3)
-      .map(value => Number(value) / 255)
-      .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
-      .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index]!, 0);
-    const values = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => b - a);
-    return (values[0]! + .05) / (values[1]! + .05);
-  });
-  expect(noticeContrast).toBeGreaterThanOrEqual(4.5);
-  const staleKml = await downloadKml();
-  expect(staleKml).toContain("再計算前の結果を出力します。");
-  expect(await inspectKml(staleKml)).toEqual(originalKml);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "NAV LOG JSONをダウンロード" }).click();
   const file = await download;
   expect(file.suggestedFilename()).toBe("autonavlog-navlog.json");
   const text = readFileSync((await file.path())!, "utf8");
   const result = JSON.parse(text);
-  expect(result).toEqual({ format: "autonavlog.navlog", version: 1, outcome: original.outcome, destinationWind: original.destination_wind });
+  expect(result).toEqual({ format: "autonavlog.navlog", version: 1, outcome: original.outcome, destinationWind: original.destination_wind, sea: result.sea });
+  expect(result.sea.intervals.map((item: any) => ({ from_name: item.from_name, to_name: item.to_name,
+    value_ft: item.value_ft?.toString() ?? "—" }))).toEqual(displayedSea);
+  expect(result.sea.intervals[0]).toMatchObject({ manual_ft: 3500, value_ft: 3500, status: "manual" });
   await page.getByRole("button", { name: "NAV LOG JSONをコピー" }).click();
   await expect(page.getByRole("status").filter({ hasText: "NAV LOG JSONをコピーしました。" })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(text);
@@ -340,8 +335,31 @@ test("download and Clipboard export the displayed result, survive denial, and re
   // Autosave can update readiness status while the keyboard moves between buttons.
   expect({ ...retriedExport, outcome: { ...retriedExport.outcome, status: null } }).toEqual({
     format: "autonavlog.navlog", version: 1,
-    outcome: { ...retrySnapshot.outcome, status: null }, destinationWind: retrySnapshot.destination_wind,
+    outcome: { ...retrySnapshot.outcome, status: null }, destinationWind: retrySnapshot.destination_wind, sea: result.sea,
   });
+  // Uncalculated planning edits must not relabel or recalculate the exported result.
+  await page.getByLabel("TGL", { exact: true }).fill("2");
+  await expect(page.locator("#kml-export-notice")).toContainText("再計算前の結果を出力します。");
+  await expect(page.locator("#kml-export-notice")).toHaveCSS("position", "static");
+  await expect(page.locator("#kml-export-notice")).toHaveCSS("background-color", "rgb(254, 242, 214)");
+  const noticeContrast = await page.locator("#kml-export-notice").evaluate(element => {
+    const style = getComputedStyle(element);
+    const luminance = (color: string) => color.match(/[\d.]+/g)!.slice(0, 3)
+      .map(value => Number(value) / 255)
+      .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
+      .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index]!, 0);
+    const values = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => b - a);
+    return (values[0]! + .05) / (values[1]! + .05);
+  });
+  expect(noticeContrast).toBeGreaterThanOrEqual(4.5);
+  const staleKml = await downloadKml();
+  expect(staleKml).toContain("再計算前の結果を出力します。");
+  expect(await inspectKml(staleKml)).toEqual(originalKml);
+  await expect.poll(async () => (await snapshot(page)).working.project.tgl_count).toBe(2);
+  await expect(page.locator(".nav-log-sea-table")).toHaveCount(0);
+  await copy.click();
+  const staleExport = JSON.parse(await page.evaluate(() => (window as any).retriedExport));
+  expect(staleExport).not.toHaveProperty("sea");
   await page.evaluate(() => { URL.createObjectURL = undefined as any; });
   await page.getByRole("button", { name: "NAV LOG JSONをダウンロード" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "この環境ではファイルを保存できません" })).toBeVisible();

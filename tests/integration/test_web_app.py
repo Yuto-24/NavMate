@@ -306,6 +306,9 @@ async def test_web_route_calculation_save_and_fail_closed_state(
         content_security_policy = created.headers["content-security-policy"]
         assert "img-src 'self' data: https://tile.openstreetmap.org;" in content_security_policy
         assert "connect-src 'self' https://maps.gsi.go.jp" in content_security_policy
+        connect_sources = content_security_policy.split("connect-src ", 1)[1].split(";", 1)[0]
+        assert "https://cyberjapandata.gsi.go.jp" in connect_sources.split()
+        assert "*" not in connect_sources.split()
         assert "https://maps.gsi.go.jp" not in content_security_policy.split("img-src", 1)[1].split(
             ";", 1
         )[0]

@@ -11,6 +11,7 @@ export function exportNavLog(state: WebState): PlatformFile {
     content: new TextEncoder().encode(JSON.stringify({
       format: "autonavlog.navlog", version: 1,
       outcome: state.outcome, destinationWind: state.destinationWind,
+      ...(state.readiness?.calculationIsCurrent && state.sea ? { sea: state.sea } : {}),
     }, null, 2) + "\n"),
   };
 }

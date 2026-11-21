@@ -17,6 +17,7 @@ from pydantic import BaseModel, ValidationError
 
 from autonavlog.application.project_fingerprints import forecast_selection_fingerprint
 from autonavlog.application.project_service import ProjectService
+from autonavlog.application.sea import SeaUpdate
 from autonavlog.domain.calculation import Issue
 from autonavlog.domain.enums import IssueSeverity
 from autonavlog.domain.project_naming import refresh_automatic_name
@@ -518,6 +519,10 @@ class LocalApplication:
                                else str(error))
                     raise WebApplicationError(error.code, message) from error
                 raise
+        elif path == "seaPlan":
+            return json.dumps(self.app.sea_plan(self.session), ensure_ascii=False, allow_nan=False)
+        elif path == "updateSea":
+            state = self.app.update_sea(self.session, _validate_request(SeaUpdate, payload))
         elif path == "replaceCheckPoints":
             state = self.app.replace_check_points(
                 self.session, _validate_request(ReplaceCheckPointsRequest, payload)

@@ -1088,3 +1088,39 @@ def test_cut_restore_updates_only_derived_seconds_without_calculation(
         assert again["workingRecovery"] == restored["workingRecovery"]
     finally:
         replacement.close()
+
+
+def test_sea_manual_saved_recovery_recalculation_and_weather_independence(local):
+    state = calculate(local)
+    before = state["outcome"]
+    plan = json.loads(local.dispatch("seaPlan"))
+    assert all(item["regions"] for item in plan["intervals"])
+    keys = [item["key"] for item in plan["intervals"]]
+    state = json.loads(local.dispatch("updateSea", {
+        "project_id": state["project"]["id"], "geometry_key": plan["geometry_key"],
+        "manual": {keys[0]: 3500},
+        "terrain": {keys[0]: {"complete": True, "maximum_m": 304.8,
+                               "required": 50, "valid": 50}},
+    }))
+    assert state["sea"]["intervals"][0]["automatic_ft"] == 2000
+    assert state["sea"]["intervals"][0]["manual_ft"] == 3500
+    assert state["outcome"] == before
+    assert state["readiness"]["calculationIsCurrent"]
+    recalculated = json.loads(local.dispatch("calculate"))
+    assert recalculated["outcome"]["summary"] == before["summary"]
+    assert recalculated["outcome"]["fuel_plan"] == before["fuel_plan"]
+    assert recalculated["sea"]["intervals"][0]["manual_ft"] == 3500
+    from autonavlog.local_persistence import migrate_record
+    saved = migrate_record({
+        "schemaVersion": 2, "id": recalculated["project"]["id"],
+        "token": "b582c3d0-7f2c-41d9-bb2a-512af997f865",
+        "draft": recalculated["project"], "checkpoint": recalculated["project"],
+        "lastCalculation": recalculated["workingRecovery"]["last_calculation"],
+        "updatedAt": recalculated["project"]["updated_at"],
+    })
+    recovery = {**recalculated["workingRecovery"], "project": saved.draft.model_dump(mode="json"),
+                "last_calculation": saved.lastCalculation.model_dump(mode="json")}
+    restored = json.loads(local.dispatch("bootstrap", recovery))
+    assert restored["sea"]["intervals"][0]["manual_ft"] == 3500
+    assert restored["outcome"]["fuel_plan"] == before["fuel_plan"]
+    assert restored["sea"]["intervals"][1]["warning"] == "unconfirmed"
