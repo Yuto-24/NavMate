@@ -96,6 +96,17 @@ def _intervals(project: Project) -> list[dict[str, Any]]:
     return intervals
 
 
+def _supported_inverse(coordinates: list[list[float]]) -> dict[str, float] | None:
+    """Share the acquisition range with adoption of posted and saved evidence."""
+    (lon1, lat1), (lon2, lat2) = coordinates
+    if not all(math.isfinite(v) for point in coordinates for v in point):
+        return None
+    if max(abs(lat1), abs(lat2)) > 50 or abs(lon1 - lon2) >= 180:
+        return None
+    inverse = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2)
+    return inverse if 0 < inverse["s12"] <= 250 * METERS_PER_NM else None
+
+
 def _regions(coordinates: list[list[float]]) -> list[list[list[float]]]:
     """Short WGS84 strips plus a circumscribed forward end cap.
 
@@ -104,15 +115,11 @@ def _regions(coordinates: list[list[float]]) -> list[list[list[float]]]:
     The start boundary is never shifted backwards. Closed DEM footprints add
     their own raster-scale conservatism. KML uses exact geodesic distance below.
     """
-    (lon1, lat1), (lon2, lat2) = coordinates
-    if not all(math.isfinite(v) for point in coordinates for v in point):
+    inverse = _supported_inverse(coordinates)
+    if inverse is None:
         return []
-    if max(abs(lat1), abs(lat2)) > 50 or abs(lon1 - lon2) >= 180:
-        return []
-    inverse = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2)
+    (lon1, lat1), _ = coordinates
     length = inverse["s12"]
-    if not 0 < length <= 250 * METERS_PER_NM:
-        return []
     line = Geodesic.WGS84.Line(lat1, lon1, inverse["azi1"])
     count = math.ceil(length / METERS_PER_NM)
     stations = [line.Position(length * i / count) for i in range(count + 1)]
@@ -218,7 +225,7 @@ def sea_plan(project: Project, *, regions: bool = False) -> dict[str, Any]:
     records = _records(project)
     for item in intervals:
         record = records.get(item["key"], SeaRecord()) if item["geometry_valid"] else SeaRecord()
-        auto = automatic_sea(record)
+        auto = automatic_sea(record) if _supported_inverse(item["coordinates"]) else None
         item.update(
             {
                 "automatic_ft": auto,

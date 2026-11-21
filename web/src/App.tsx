@@ -137,9 +137,13 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const [altitudeInputs, setAltitudeInputs] = useState<Record<string, string>>({});
   const [seaBusy, setSeaBusy] = useState(false);
   const [seaMessage, setSeaMessage] = useState("");
-  const seaRequestRef = useRef(false);
   const seaControllerRef = useRef<AbortController | null>(null);
-  useEffect(() => () => seaControllerRef.current?.abort(), [state?.project?.id, state?.sea?.geometry_key]);
+  useEffect(() => () => {
+    seaControllerRef.current?.abort();
+    seaControllerRef.current = null;
+    setSeaMessage("");
+    setSeaBusy(false);
+  }, [state?.project?.id, state?.sea?.geometry_key]);
   const [navLogDrafts, setNavLogDrafts] = useState<NavLogEditDrafts>({});
   const [navLogEditErrors, setNavLogEditErrors] = useState<NavLogEditErrors>({});
   const [navLogEditVersion, setNavLogEditVersion] = useState(0);
@@ -662,10 +666,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     if (!next) throw new Error("SEAの保存を確認できませんでした。表示値を確認してから再試行してください。");
   };
   const acquireSeaForProject = async (): Promise<void> => {
-    if (seaRequestRef.current || !application.seaPlan || !application.updateSea || !state?.project) return;
+    if (seaControllerRef.current || !application.seaPlan || !application.updateSea || !state?.project) return;
     const epoch = lifecycle.current;
     const projectId = state.project.id;
-    seaRequestRef.current = true;
     const controller = new AbortController();
     seaControllerRef.current = controller;
     setSeaBusy(true);
@@ -679,12 +682,15 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       applyState(next, { preserveMapDraft: true, preserveRouteViewport: true });
       setSeaMessage("");
     } catch {
-      if (epoch === lifecycle.current && projectIdRef.current === projectId)
+      if (seaControllerRef.current === controller && !controller.signal.aborted
+        && epoch === lifecycle.current && projectIdRef.current === projectId)
         setSeaMessage("地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。");
     } finally {
-      seaRequestRef.current = false;
-      seaControllerRef.current = null;
-      setSeaBusy(false);
+      if (seaControllerRef.current === controller) {
+        seaControllerRef.current = null;
+        setSeaBusy(false);
+        if (controller.signal.aborted) setSeaMessage("");
+      }
     }
   };
 
@@ -2105,6 +2111,30 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             onRadReciprocalChange={setRadReciprocal}
             exportDisabled={busy || !calculationInputsAreLocallyCurrent || !state.readiness.calculationIsCurrent || hasNavLogEditErrors(navLogEditErrors) || ["pending", "saving", "error"].includes(navLogEditStatus.kind)}
             savePng={platform.files.save}
+            onExportMessage={(message, kind) => {
+              if (kind === "error") {
+                recordOperationError("export-png", message);
+                setError(message);
+              } else {
+                const resolved = operationErrorsRef.current["export-png"];
+                recordOperationError("export-png", null);
+                setError(current => current === resolved ? null : current);
+                setNotice(message);
+              }
+            }}
+            kmlExport={<>
+              <button className="primary-button" disabled={busy || !state.verticalProfile}
+                aria-describedby={(!state.verticalProfile || state.verticalProfileStale || !calculationInputsAreLocallyCurrent) ? "kml-export-notice" : undefined}
+                onClick={() => void runTask(
+                  () => platform.files.save(exportVerticalProfileKml(state.verticalProfile!,
+                    Boolean(state.verticalProfileStale) || !calculationInputsAreLocallyCurrent)),
+                  { errorKey: "export-kml", success: kmlCopy.saved },
+                )}>{kmlCopy.download}</button>
+              {(!state.verticalProfile || state.verticalProfileStale || !calculationInputsAreLocallyCurrent) &&
+                <div id="kml-export-notice" className="message-bar message-warning kml-export-notice" role="status">
+                  {!state.verticalProfile ? kmlCopy.unavailable : kmlCopy.stale}
+                </div>}
+            </>}
             roundingMode={state.roundingMode ?? true}
             roundingDisabled={busy || !calculationInputsAreLocallyCurrent || hasNavLogEditErrors(navLogEditErrors) || (!(state.roundingMode ?? true) && !canCalculate) || navLogEditStatus.kind === "saving"}
             onRoundingChange={(enabled) => void handleCalculate(enabled)}
@@ -2129,15 +2159,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
               () => platform.clipboard.writeText(new TextDecoder().decode(exportNavLog(state).content)),
               { errorKey: "copy-json", success: "NAV LOG JSONをコピーしました。" },
             )}>NAV LOG JSONをコピー</button>
-            <button className="secondary-button" disabled={busy || !state.verticalProfile}
-              aria-describedby="kml-export-notice" onClick={() => void runTask(
-                () => platform.files.save(exportVerticalProfileKml(state.verticalProfile!,
-                  Boolean(state.verticalProfileStale) || !calculationInputsAreLocallyCurrent)),
-                { errorKey: "export-kml", success: kmlCopy.saved },
-              )}>{kmlCopy.download}</button>
           </div>
-          <p id="kml-export-notice" role="status">{!state.verticalProfile ? kmlCopy.unavailable
-            : (state.verticalProfileStale || !calculationInputsAreLocallyCurrent) ? kmlCopy.stale : null}</p>
         </div>
       )}
       {currentRjfmInboundGuidance && (

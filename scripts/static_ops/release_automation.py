@@ -17,6 +17,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 from scripts.release_content import parse_version_source, version_tuple  # noqa: E402
 from scripts.static_ops import app_release as app  # noqa: E402
+from scripts.static_ops import source_ci  # noqa: E402
 
 PUBLISHER = ".github/workflows/publish-github-release.yml"
 DEPLOYER = ".github/workflows/" + app.APP_WORKFLOW
@@ -57,11 +58,11 @@ def select_release(operator: app.Operator, event: dict, name: str) -> dict:
         app.require(
             event.get("action") == "completed" and run.get("status") == "completed"
             and run.get("conclusion") == "success" and run.get("event") == "push"
-            and run.get("path") == PUBLISHER
+            and run.get("path") in (PUBLISHER, source_ci.WORKFLOW)
             and run.get("head_repository", {}).get("full_name") == app.REPO
             and run.get("head_branch") in ("main", "release/1.x", "release/2.x")
             and re.fullmatch(r"[0-9a-f]{40}", run.get("head_sha", "")),
-            "Successful trusted release publisher run required",
+            "Successful trusted release publisher or source CI run required",
         )
         branch, head = run["head_branch"], run["head_sha"]
         operator.git("fetch", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}")
@@ -139,6 +140,11 @@ class ActionsOperator(app.Operator):
         )
 
     def snapshot(self, sha: str, current: str, *, paused: bool = False) -> dict:
+        with self.measure("source-ci"):
+            try:
+                receipt = source_ci.require_success(self.gh, sha)
+            except source_ci.Unavailable as error:
+                raise app.Blocked(str(error)) from None
         app.require(self.gh("actions/variables/STATIC_APP_RELEASE_ENABLED").get("value") == "true",
                     "Unattended app release opt-in missing or withdrawn")
         app.require(candidate(self, self.selected) == sha, "Selected release SHA changed")
@@ -147,7 +153,12 @@ class ActionsOperator(app.Operator):
         app.require(disposition(value["version"], sha, canonical, current) == "PUBLISH",
                     "Release no longer newer than production")
         value["github_release"] = self.selected
+        value["source_ci"] = receipt
         return value
+
+    def source_evidence(self, snapshot: dict) -> dict | None:
+        client = source_ci.GitHub(self.env.get("GH_TOKEN", ""))
+        return source_ci.web_inventory(self.gh, client.download, snapshot["source_ci"], self.root)
 
 
 def execute(operator: ActionsOperator, sha: str, current: str, store: Path,

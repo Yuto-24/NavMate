@@ -21,6 +21,7 @@ RUN python -m pip install 'setuptools>=69' wheel \
     && npm --prefix web exec -- playwright install --with-deps chromium
 COPY scripts ./scripts
 COPY web/scripts ./web/scripts
+COPY .github/workflows/test.yml ./.github/workflows/test.yml
 ENTRYPOINT ["python", "/opt/runtime/scripts/static_ops/local_runtime.py"]
 
 FROM python:3.12-slim-bookworm AS web

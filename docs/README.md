@@ -33,7 +33,7 @@
 | 一次資料の確認状況 | [一次資料の確認状況](primary_source_audit.md) | SR22 AFM/POH・公開航空資料・内部参照の確認粒度と確認状態の定義 |
 | データ来歴 | [データ来歴](data_provenance.md) | 同梱性能データ、空港・RJFM 参照、VOR/DME 局、気象、AIP データの来歴 |
 | VREP 登録カタログ | [登録 VREP カタログと地図選択仕様](reference/vrep.md) | 登録 VREP カタログ（16 空港 115 点）の選択・永続化と [承認済み原典表](reference/vrep-169-confirmed-source.md) |
-| AIP 地図表示用データ | [AIP 地図表示用データの出典・取込準備](reference/aip_map_geodata_20261029.md) | SWIM 配布 ZIP（[ソース記録](../data/reference/aip/20261029/sources/README.md)）の採用範囲と取込条件 |
+| AIP 地図表示用データ | [AIP 地図表示用データの出典・正規化](reference/aip_map_geodata_20261029.md) | SWIM 配布 ZIP（[ソース記録](../data/reference/aip/20261029/sources/README.md)）の採用範囲と正規化・形式間照合 |
 
 ### 気象・選択・予備経路
 

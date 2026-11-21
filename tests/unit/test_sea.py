@@ -229,3 +229,33 @@ def test_dense_outside_survey_is_rejected_before_precise_search(monkeypatch):
     apply_sea(project, patch(project, terrain={key: complete(30.48)}, kml=kml))
     assert calls == []
     assert sea_plan(project)["intervals"][0]["automatic_ft"] == 1100
+
+
+@pytest.mark.parametrize(
+    "coordinates",
+    [
+        [[131, 51], [131.1, 51]],
+        [[131, -51], [131.1, -51]],
+        [[131, 32], [140, 32]],
+        [[179.9, 32], [-179.9, 32]],
+        [[131, 32], [131, 32]],
+    ],
+)
+def test_unsupported_automatic_input_and_saved_records_preserve_manual(coordinates):
+    project = _project()
+    for node, (lon, lat) in zip(project.route_nodes, coordinates, strict=True):
+        node.longitude_deg, node.latitude_deg = lon, lat
+    interval = sea_plan(project, regions=True)["intervals"][0]
+    assert interval["regions"] == []
+    key = interval["key"]
+    apply_sea(project, patch(project, terrain={key: complete(304.8)}, manual={key: 2500}))
+    # The same policy applies to posted evidence and a round trip through storage.
+    for saved in (project, Project.model_validate_json(project.model_dump_json())):
+        value = sea_plan(saved)["intervals"][0]
+        assert value["automatic_ft"] is None
+        assert value["manual_ft"] == value["value_ft"] == 2500
+        assert value["status"] == "manual" and value["warning"] is None
+    apply_sea(project, patch(project, manual={key: None}))
+    value = sea_plan(project)["intervals"][0]
+    assert value["automatic_ft"] is None and value["value_ft"] is None
+    assert value["status"] == "unknown" and value["warning"] == "unconfirmed"

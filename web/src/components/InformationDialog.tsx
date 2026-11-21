@@ -51,17 +51,14 @@ export function InformationDialog({ open, releases, knownIssues, onClose, onOpen
         <button className="icon-button" type="button" onClick={onClose} aria-label="お知らせを閉じる" data-modal-autofocus><X aria-hidden="true" size={20} /></button>
       </div>
       {devSharedMode && <section aria-labelledby="shared-storage-heading">
-        <h3 id="shared-storage-heading">端末内に保存</h3>
-        <p>NavMate開発環境では、未ログイン時には共通プロジェクトが利用され、Googleログイン中は個人専用プロジェクトへ切り替わります。</p>
-        <p>Projectの変更はまず端末のブラウザに保存されますが、これは同期の完了を意味しません。未同期の編集は、その端末でのみ利用可能です。</p>
-        <p>プロジェクトと最後の計算結果は、このブラウザに保存されます。ブラウザのデータ削除、容量不足による自動削除、プライベートブラウズの終了で失われる場合があります。</p>
+        <h3 id="shared-storage-heading">保存と同期</h3>
+        <p>ログインすると、個人プロジェクトが同期されます。未ログイン時は開発用の共通プロジェクトを利用します。</p>
+        <p>端末内の保存データは、ブラウザのデータ削除などで失われることがあります。</p>
       </section>}
       {import.meta.env.VITE_CALCULATION_MODE === "local" && !devSharedMode && <section aria-labelledby="local-storage-heading">
         <h3 id="local-storage-heading">保存と同期</h3>
-        <p>プロジェクトと計算結果はブラウザに保存されます。データ削除・容量不足・プライベートブラウズ終了で失われることがあります。</p>
-        <p>Googleアカウントに同期した内容は別端末でも開けます。未同期の変更はこの端末だけに残ります。</p>
-        <p>NAV LOGのJSONは、プロジェクトのバックアップには使えません。</p>
-        <p>起動・データ取得にはネット接続が必要です。更新時は再読み込みしてください。</p>
+        <p>ログインすると、プロジェクトと計算結果が同期されます。</p>
+        <p>未ログイン時は端末内に保存され、ブラウザのデータ削除などで失われることがあります。</p>
       </section>}
       {knownIssues.length > 0 && <section className="information-known-issues" aria-labelledby="known-issues-heading">
         <h3 id="known-issues-heading">既知の不具合</h3>

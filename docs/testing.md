@@ -640,3 +640,35 @@ Local wheel 2.5.0 の不一致により、保存した MSM Advisory が NAV LOG 
 - `sea.spec.ts`は1100 px/1440 pxの操作領域位置、手動値の保存・再計算、固定DEM、
   低い手動値の警告、KML最高点と失敗時の保持を検証します。外部GSIの経路全域被覆や
   実機・本番での受入を証明するものではありません。
+- 自動SEAの対応範囲は取得時だけでなく、更新入力・保存レコードの採用時にも検証します。
+  緯度・距離・日付変更線・零長区間の不適合では自動値を未確定とし、手動値は保持します。
+- `sea.spec.ts`ではKMLのファイル読込を遅延させ、読込から保存まで取込と解除を相互に
+  無効化することを確認します。Project切替時は取得済みProjectへ戻し、古い取得の完了が
+  新しい取得の進行表示を消さないことも検証します。
+- JSON出力は計算済み状態のSEAを画面の区間・手動値と照合します。未再計算の入力変更後を
+  検証するときは自動保存の反映も待ち、フォームの即時表示と保存済み状態を混同しません。
+  PNG通知の配置検査はPNG文言で絞り、同じ領域にあるSEAの取得中表示を誤検出しないようにします。
+- CSPの通信可否はViteだけでは確かめられません。2026-11-21のPR #482修正では、隔離Composeの
+  FastAPIが配信するCSP下でDEM宛fetchが発生し、CSP違反がないことをChromiumで確認しました。
+  応答は固定fixtureであり、GSI実データの受入とは分けて扱います。
+
+## AIP地図参照データ（Issue #311）
+
+`npm --prefix web run prepare:local` は既存のLocal wheel/data生成後、
+`scripts/reference/build_aip_runtime.py` を実行する。Python 3.12と `.[test]` の
+固定版pyshp・Shapelyを使用し、ブラウザ/PyodideやLegacy runtimeには追加しない。
+`web/public-local/reference/aip/` の25 GeoJSON・照合記録・manifestは生成物でありGitへ登録しない。
+再生成は `prepare:local` から行うと旧生成物を除去できる。
+
+`tests/unit/test_aip_runtime.py` は実原本3 ZIPの検証、全件のgeometry検査、再生成のバイト一致、
+欠損高度・未知条件の保持、進入管制空域の形式間差、KS4の非重複、計算fingerprintの不変性を確認する。
+離陸飛行経路の非ゼロZ座標と欠損Mを原本順のXY・部分境界とともに保持することも照合する。
+破損原本・不正/空/重複geometry・未知CRSを拒否する合成入力も含む。
+`npm --prefix web run test:static-artifact` は欠落・改変・アプリとの版数差・件数差を拒否する。
+Python suiteを選択する提出前検証は通常どおりDocker test stageの全検査を実行する。
+
+EFF20261029の注意点は[正規化・照合記録](reference/aip_map_geodata_20261029.md#形式間照合eff20261029原本2026-11-21確認)
+を参照する。特にKMLの件数差は一律の重複除去では解消できず、Hiroshima・Sapporoには
+水平形状差もある。照合記録の原本内indexは0始まりで、緯度経度の一致比較許容値は1e-9度。
+比較許容値は出力geometryの丸めや航空上の境界誤差を意味しない。
+生成物は出典内位置と元属性を保持し、計算用KS4-3の境界・誤差モデルは置換しない。

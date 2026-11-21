@@ -62,6 +62,9 @@ class ControlledUpdater(Updater):
         self.during_build = None
         self.weather_noop = False
 
+    def source_validation(self, kind, sha, *, inventory=True):
+        return None
+
     def build(self, kind, sha, source, job):
         self.calls.append((kind, sha))
         if (kind, sha) in self.fail:
@@ -89,6 +92,56 @@ def runtime(tmp_path):
     commit(repo)
     settings = Settings(repo, tmp_path / "state", tmp_path / "published")
     return ControlledUpdater(settings)
+
+
+@pytest.mark.parametrize("failure", ["missing", "unavailable", "cancelled"])
+def test_ci_wait_keeps_publication_and_active_sha_weather(runtime, monkeypatch, failure):
+    from scripts.static_ops import source_ci
+
+    now = time.time()
+    runtime.tick(now)
+    old = runtime.s.active()
+    active_sha = load(old / "release.json")["commit"]
+    new_sha = commit(runtime.s.source)
+
+    def get(_client, _endpoint):
+        if failure == "unavailable":
+            raise OSError("outage")
+        return {"workflow_runs": [] if failure == "missing" else [
+            {"id": 1, "head_sha": new_sha, "event": "push", "status": "completed",
+             "conclusion": "cancelled"}]}
+
+    monkeypatch.setattr(source_ci.GitHub, "__call__", get)
+    runtime.source_validation = Updater.source_validation.__get__(runtime)
+    runtime.next_weather = 0
+    runtime.tick(now + 1)
+    # Weather publishes the old app with all local checks selected (no inventory).
+    assert runtime.calls[-1] == ("weather", active_sha)
+    assert runtime.source_inventory is None
+    assert load(runtime.s.active() / "release.json")["commit"] == active_sha
+    assert runtime.s.active("previous") == old
+    assert runtime.status["failed_main_sha"] == new_sha
+    assert ("main", new_sha) not in runtime.calls
+
+
+def test_ci_revoked_before_main_pointer_switch_retains_current(runtime, monkeypatch):
+    from scripts.static_ops import source_ci
+
+    runtime.tick(time.time())
+    old = runtime.s.active()
+    new_sha = commit(runtime.s.source)
+    runtime.next_weather = float("inf")
+
+    def validate(kind, sha, *, inventory=True):
+        if not inventory:
+            raise source_ci.Unavailable("Source CI cancelled")
+        return None
+
+    runtime.source_validation = validate
+    runtime.tick(time.time())
+    assert ("main", new_sha) in runtime.calls
+    assert runtime.s.active() == old
+    assert runtime.status["failed_main_sha"] == new_sha
 
 
 def test_main_change_noop_and_restart(runtime):

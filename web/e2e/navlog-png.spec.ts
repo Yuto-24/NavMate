@@ -119,7 +119,7 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   await expect(boundaries).toHaveCount(2);
   for (const cell of await boundaries.locator(".vor-reference-cell").all()) await expect(cell).toBeEmpty();
   await expect(page.locator(".nav-leg-heading-row .vor-reference-cell").first()).not.toBeEmpty();
-  const reciprocal = page.getByRole("checkbox", { name: "RAD反方位（180°）" });
+  const reciprocal = page.getByRole("checkbox", { name: "RAD反方位" });
   const rounding = page.getByRole("radio", { name: "四捨五入", exact: true });
   await expect(reciprocal).toBeChecked();
   await expect(rounding).toBeChecked();
@@ -167,11 +167,24 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   await page.getByLabel("VOR基準局", { exact: true }).selectOption("AKE");
   for (let index = 0; index < 3; index++) await page.getByRole("button", { name: "VOR/DME列を追加" }).click();
   await page.getByLabel("VOR基準局", { exact: true }).selectOption("SUC");
-  const output = page.getByRole("button", { name: "NAVLOG・Fuel TableをPNG保存" });
+  const output = page.getByRole("button", { name: "PNG" });
   await expect(output).toBeEnabled();
   for (const width of [1100, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await expectPlanningLayout(page, width);
+    const summary = (await page.locator(".nav-log-summary").boundingBox())!;
+    const actions = (await page.locator(".nav-log-download-actions").boundingBox())!;
+    const toolbar = (await page.locator(".nav-log-toolbar").boundingBox())!;
+    expect(actions.y).toBeGreaterThanOrEqual(summary.y + summary.height);
+    expect(toolbar.y).toBeGreaterThanOrEqual(actions.y + actions.height);
+    const add = (await page.getByRole("button", { name: "VOR/DME列を追加" }).boundingBox())!;
+    const rad = (await page.locator(".nav-log-rad-control").boundingBox())!;
+    expect(rad.x).toBeGreaterThan(add.x + add.width);
+    expect(Math.abs(rad.y - add.y)).toBeLessThan(3);
+    await expect(page.getByText("四捨五入モード", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".status-actions .primary-button")).toHaveCSS("background-color", "rgb(194, 65, 12)");
+    await expect(output).toHaveCSS("background-color", "rgb(34, 92, 77)");
+    await expect(page.getByRole("button", { name: "Google Earth 用にエクスポート" })).toHaveCSS("background-color", "rgb(34, 92, 77)");
   }
   await page.locator(".nav-log-scroll").evaluate(el => { el.scrollLeft = el.scrollWidth; });
   const expectedCells = await page.locator(".nav-log-table").evaluate(table => {
@@ -187,6 +200,11 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   const download = await downloadPromise;
   const path = info.outputPath("NAVLOG.png");
   await download.saveAs(path);
+  const pngToast = page.locator("#app-notification-region .app-notification").filter({ hasText: "PNGのダウンロードを開始しました。" });
+  await expect(pngToast).toBeVisible();
+  await expect(page.locator(".nav-log-section > p[role=status]").filter({ hasText: "PNG" })).toHaveCount(0);
+  expect((await pngToast.boundingBox())!.y).toBeLessThan(180);
+  await info.attach("NAV LOG controls", { body: await page.screenshot({ path: `/tmp/navmate-ui-controls-${info.project.name}.png` }), contentType: "image/png" });
   const bytes = readFileSync(path);
   expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
   expect(bytes.readUInt32BE(16)).toBeGreaterThan(bytes.readUInt32BE(20));
@@ -244,7 +262,7 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   // Encoding failure preserves the live table and makes retry possible.
   await page.evaluate(() => { (window as any).failPng = true; });
   await output.click();
-  await expect(page.getByRole("status").filter({ hasText: "PNGを保存できませんでした" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "PNGを保存できませんでした" })).toBeVisible();
   await expect(output).toBeEnabled();
   await expect(reciprocal).toBeChecked();
   await expect(page.locator(".nav-log-png-paper")).toHaveCount(0);

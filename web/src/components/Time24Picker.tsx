@@ -1,4 +1,3 @@
-import { Clock3 } from "lucide-react";
 import { useId, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 import "./Time24Picker.css";
 
@@ -13,8 +12,8 @@ const validTime = (value: string) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
 /** A dialog edits a temporary value; only confirmation updates the planning form. */
 export function Time24Picker({ value, onChange, disabled = false }: Time24PickerProps) {
   const id = useId();
-  const dialog = useRef<HTMLDialogElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLInputElement>(null);
   const [hour, setHour] = useState(0);
   const [minute, setMinute] = useState(0);
   const [mode, setMode] = useState<"hour" | "minute">("hour");
@@ -25,11 +24,28 @@ export function Time24Picker({ value, onChange, disabled = false }: Time24Picker
     dialog.current?.querySelector<HTMLButtonElement>(`.time24-tick[data-tick="${Math.floor(minute / 5) * 5}"]`)?.focus();
   }, [mode, minute]);
   const [dragging, setDragging] = useState(false);
-  const close = () => { dialog.current?.close(); trigger.current?.focus(); };
+  const restoringFocus = useRef(false);
+  const close = () => {
+    dialog.current?.hidePopover();
+    restoringFocus.current = true;
+    trigger.current?.focus({ preventScroll: true });
+    restoringFocus.current = false;
+  };
   const open = () => {
+    if (disabled || restoringFocus.current || dialog.current?.matches(":popover-open")) return;
     const [h, m] = validTime(value) ? value.split(":").map(Number) : [0, 0];
     setHour(h ?? 0); setMinute(m ?? 0); setMode("hour"); setDragging(false);
-    dialog.current?.showModal();
+    const bounds = trigger.current?.getBoundingClientRect();
+    if (dialog.current && bounds) {
+      const width = Math.min(336, window.innerWidth - 32);
+      // Keep the field available for typing while the non-modal clock is open.
+      const left = bounds.left >= width + 24 ? bounds.left - width - 8
+        : Math.min(bounds.left, window.innerWidth - width - 16);
+      dialog.current.style.left = `${Math.max(16, left)}px`;
+      dialog.current.showPopover();
+      const height = dialog.current.getBoundingClientRect().height;
+      dialog.current.style.top = `${Math.max(16, Math.min(bounds.bottom + 8, window.innerHeight - height - 16))}px`;
+    }
   };
   const pick = (event: PointerEvent<HTMLDivElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -47,17 +63,27 @@ export function Time24Picker({ value, onChange, disabled = false }: Time24Picker
   const angle = (mode === "hour" ? hour % 12 / 12 : minute / 60) * 360;
   const inner = mode === "hour" && (hour === 0 || hour > 12);
   const values = mode === "hour" ? Array.from({ length: 24 }, (_, i) => i) : Array.from({ length: 12 }, (_, i) => i * 5);
-  return <div className="flight-time-field time24-field">
+  return <div className="flight-time-field time24-field" onBlur={event => {
+    if (!event.currentTarget.contains(event.relatedTarget)) dialog.current?.hidePopover();
+  }}>
     <label htmlFor={`${id}-input`}>ETD JST</label>
     <div className="time24-input-row">
-      <input id={`${id}-input`} type="text" inputMode="text" placeholder="HH:mm" maxLength={5}
+      <input ref={trigger} id={`${id}-input`} type="text" inputMode="numeric" placeholder="HH:mm" maxLength={5}
         pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]" value={value} disabled={disabled}
-        onChange={event => onChange(event.target.value)} />
-      <button ref={trigger} className="time24-trigger" type="button" aria-label="ETD を時計で選択"
-        aria-haspopup="dialog" disabled={disabled} onClick={open}><Clock3 size={17} aria-hidden="true" /></button>
+        aria-haspopup="dialog" aria-controls={`${id}-clock`} onFocus={open} onClick={open}
+        onKeyDown={event => { if (event.key === "Escape") close(); }}
+        onChange={event => {
+          const raw = event.target.value;
+          const next = /^\d{3,4}$/.test(raw) ? `${raw.slice(0, 2)}:${raw.slice(2)}` : raw;
+          onChange(next);
+          if (validTime(next)) {
+            const [h, m] = next.split(":").map(Number);
+            setHour(h!); setMinute(m!);
+          }
+        }} />
     </div>
-    <dialog ref={dialog} className="time24-dialog" aria-labelledby={`${id}-title`}
-      onCancel={() => { setDragging(false); }} onClose={() => { setDragging(false); trigger.current?.focus(); }}>
+    <div ref={dialog} id={`${id}-clock`} popover="auto" role="dialog" className="time24-dialog" aria-labelledby={`${id}-title`}
+      onToggle={event => { if (event.newState === "closed") setDragging(false); }}>
       <h2 id={`${id}-title`}>ETD JST の時刻選択</h2>
       <div className="time24-values">
         <button type="button" aria-label="時を選択" aria-pressed={mode === "hour"} onClick={() => setMode("hour")}>{two(hour)}</button>
@@ -65,7 +91,7 @@ export function Time24Picker({ value, onChange, disabled = false }: Time24Picker
         <button type="button" aria-label="分を選択" aria-pressed={mode === "minute"} onClick={() => setMode("minute")}>{two(minute)}</button>
       </div>
       <div className="time24-dial" role="group" aria-label={mode === "hour" ? "時（24時間）" : "分"}
-        onPointerDown={event => { if (event.target !== event.currentTarget) return; event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); pick(event); }}
+        onPointerDown={event => { if (event.target !== event.currentTarget) return; event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); pick(event); }}
         onPointerMove={event => { if (dragging) pick(event); }}
         onPointerUp={event => { if (!dragging) return; pick(event); setDragging(false); if (mode === "hour") setMode("minute"); }}
         onPointerCancel={() => setDragging(false)}>
@@ -102,6 +128,6 @@ export function Time24Picker({ value, onChange, disabled = false }: Time24Picker
         <button type="button" className="secondary-button" onClick={close}>キャンセル</button>
         <button type="button" className="primary-button" disabled={disabled} onClick={() => { onChange(`${two(hour)}:${two(minute)}`); close(); }}>確定</button>
       </div>
-    </dialog>
+    </div>
   </div>;
 }
