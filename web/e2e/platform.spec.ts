@@ -245,8 +245,14 @@ test("download and Clipboard export the displayed result, survive denial, and re
     else expect(buttons[1]!.y).toBe(buttons[0]!.y);
     expect(buttons[1]!.x + buttons[1]!.width).toBeLessThanOrEqual(width);
     const scroll = content.locator(".nav-log-scroll");
-    await scroll.evaluate(element => { element.scrollLeft = element.scrollWidth; });
-    if (width <= 1440) expect(await scroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+    const { maxScroll, scrollLeft } = await scroll.evaluate(element => {
+      const maxScroll = element.scrollWidth - element.clientWidth;
+      element.scrollLeft = element.scrollWidth;
+      return { maxScroll, scrollLeft: element.scrollLeft };
+    });
+    // Compact columns may fit on desktop; mobile must still exercise scrolling.
+    if (width === 390) expect(maxScroll).toBeGreaterThan(0);
+    expect(scrollLeft).toBeCloseTo(maxScroll, 0);
     expect((await actions.boundingBox())!.x).toBe(boxes[3]!.x);
     expect((await actions.boundingBox())!.width).toBe(boxes[3]!.width);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
