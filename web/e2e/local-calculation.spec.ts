@@ -85,11 +85,11 @@ for (const width of [390, 1100, 1440]) {
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
     await expect(page.locator(".nav-log-table")).toBeVisible();
     await expect(page.getByRole("radio", { name: "四捨五入", exact: true })).toBeChecked();
-    await expect(page.getByRole("checkbox", { name: "RAD反方位（180°）" })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "RAD反方位" })).toBeChecked();
     // Keep the existing unrounded Golden as a regression oracle, explicitly selecting it.
     await page.getByRole("radio", { name: "通常", exact: true }).click();
     await expect(page.getByRole("radio", { name: "通常", exact: true })).toBeEnabled();
-    await page.getByRole("checkbox", { name: "RAD反方位（180°）" }).uncheck();
+    await page.getByRole("checkbox", { name: "RAD反方位" }).uncheck();
     if (width === 1100) {
       const displayed = await page.locator(".nav-log-table").innerText();
       const calculations = await page.evaluate(() => (window as any).localCalculationCount);
@@ -264,8 +264,8 @@ for (const width of [390, 1100, 1440]) {
       await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
       await expect(mode).toBeChecked();
       await expect(mode).toBeEnabled();
-      await expect(page.getByRole("checkbox", { name: "RAD反方位（180°）" })).toBeChecked();
-      await page.getByRole("checkbox", { name: "RAD反方位（180°）" }).uncheck();
+      await expect(page.getByRole("checkbox", { name: "RAD反方位" })).toBeChecked();
+      await page.getByRole("checkbox", { name: "RAD反方位" }).uncheck();
       await normal.click();
       await expect(normal).toBeChecked();
       await expect(normal).toBeEnabled();
@@ -275,8 +275,8 @@ for (const width of [390, 1100, 1440]) {
       await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
       await expect(mode).toBeChecked();
       await expect(mode).toBeEnabled();
-      await expect(page.getByRole("checkbox", { name: "RAD反方位（180°）" })).toBeChecked();
-      await page.getByRole("checkbox", { name: "RAD反方位（180°）" }).uncheck();
+      await expect(page.getByRole("checkbox", { name: "RAD反方位" })).toBeChecked();
+      await page.getByRole("checkbox", { name: "RAD反方位" }).uncheck();
       await normal.click();
       await expect(normal).toBeChecked();
       await expect(normal).toBeEnabled();

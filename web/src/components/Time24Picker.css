@@ -2,9 +2,7 @@
 .time24-field > label { font-size:11px; font-weight:700; }
 .time24-input-row { display:flex; gap:4px; min-width:0; }
 .time24-input-row > input { flex:1; min-width:0; }
-.time24-trigger { flex:none; width:34px; height:34px; display:grid; place-items:center; padding:0; border:1px solid #a8bac3; border-radius:5px; background:white; color:#28594e; }
-.time24-dialog { width:min(336px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; padding:20px; border:1px solid #c9d7d4; border-radius:12px; background:#f8faf9; color:#25483f; box-sizing:border-box; }
-.time24-dialog::backdrop { background:rgb(19 39 34 / 35%); }
+.time24-dialog { position:fixed; margin:0; box-shadow:0 8px 24px #0003; width:min(336px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; padding:20px; border:1px solid #c9d7d4; border-radius:12px; background:#f8faf9; color:#25483f; box-sizing:border-box; }
 .time24-dialog h2 { font-size:15px; margin:0 0 12px; }
 .time24-values { display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:14px; font-size:25px; }
 .time24-values button { border:0; border-radius:6px; background:#e8eeeb; color:#34544b; font-size:28px; padding:7px 14px; }
@@ -18,7 +16,6 @@
 .time24-exact-inputs input { width:64px !important; min-height:34px; padding:4px 6px; border:1px solid #a8bac3; border-radius:5px; }
 .time24-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
 .time24-actions button { min-height:36px; padding:6px 14px; }
-.time24-dialog button:focus-visible,.time24-trigger:focus-visible { outline:2px solid #286e9b; outline-offset:2px; }
-@media(max-width:700px) { .time24-trigger { width:40px; height:34px; } }
+.time24-dialog button:focus-visible { outline:2px solid #286e9b; outline-offset:2px; }
 .time24-actions { align-items:center; }
 .time24-actions button { height:40px; min-height:40px; margin:0 !important; }

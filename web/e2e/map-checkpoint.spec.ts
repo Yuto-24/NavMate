@@ -199,7 +199,7 @@ test("green theme keeps readable controls, keyboard selection and aviation color
     await expect(header).toHaveCSS("background-color", "rgb(255, 255, 255)");
     await expect(primary).toBeEnabled();
     await page.mouse.move(0, 0);
-    await expect(primary).toHaveCSS("background-color", "rgb(34, 92, 77)");
+    await expect(primary).toHaveCSS("background-color", "rgb(194, 65, 12)");
     const savedProjects = header.getByLabel("保存済み", { exact: true });
     for (const element of [header, primary, selected, savedProjects]) {
       const colors = await element.evaluate(el => {
@@ -209,8 +209,8 @@ test("green theme keeps readable controls, keyboard selection and aviation color
       expect(contrast(colors[0]!, colors[1]!)).toBeGreaterThanOrEqual(4.5);
     }
     await primary.hover();
-    await expect(primary).toHaveCSS("background-color", "rgb(27, 75, 63)");
-    expect(contrast(await primary.evaluate(el => getComputedStyle(el).color), "rgb(27, 75, 63)")).toBeGreaterThanOrEqual(4.5);
+    await expect(primary).toHaveCSS("background-color", "rgb(154, 52, 18)");
+    expect(contrast(await primary.evaluate(el => getComputedStyle(el).color), "rgb(154, 52, 18)")).toBeGreaterThanOrEqual(4.5);
     await expect(selected).toHaveCSS("text-decoration-line", "underline");
     const standard = page.locator('.descent-rate-segments input[value="500"]');
     await standard.focus();

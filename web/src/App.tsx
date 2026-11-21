@@ -2059,6 +2059,30 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             onRadReciprocalChange={setRadReciprocal}
             exportDisabled={busy || !calculationInputsAreLocallyCurrent || !state.readiness.calculationIsCurrent || hasNavLogEditErrors(navLogEditErrors) || ["pending", "saving", "error"].includes(navLogEditStatus.kind)}
             savePng={platform.files.save}
+            onExportMessage={(message, kind) => {
+              if (kind === "error") {
+                recordOperationError("export-png", message);
+                setError(message);
+              } else {
+                const resolved = operationErrorsRef.current["export-png"];
+                recordOperationError("export-png", null);
+                setError(current => current === resolved ? null : current);
+                setNotice(message);
+              }
+            }}
+            kmlExport={<>
+              <button className="primary-button" disabled={busy || !state.verticalProfile}
+                aria-describedby={(!state.verticalProfile || state.verticalProfileStale || !calculationInputsAreLocallyCurrent) ? "kml-export-notice" : undefined}
+                onClick={() => void runTask(
+                  () => platform.files.save(exportVerticalProfileKml(state.verticalProfile!,
+                    Boolean(state.verticalProfileStale) || !calculationInputsAreLocallyCurrent)),
+                  { errorKey: "export-kml", success: kmlCopy.saved },
+                )}>{kmlCopy.download}</button>
+              {(!state.verticalProfile || state.verticalProfileStale || !calculationInputsAreLocallyCurrent) &&
+                <div id="kml-export-notice" className="message-bar message-warning kml-export-notice" role="status">
+                  {!state.verticalProfile ? kmlCopy.unavailable : kmlCopy.stale}
+                </div>}
+            </>}
             roundingMode={state.roundingMode ?? true}
             roundingDisabled={busy || !calculationInputsAreLocallyCurrent || hasNavLogEditErrors(navLogEditErrors) || (!(state.roundingMode ?? true) && !canCalculate) || navLogEditStatus.kind === "saving"}
             onRoundingChange={(enabled) => void handleCalculate(enabled)}
@@ -2083,15 +2107,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
               () => platform.clipboard.writeText(new TextDecoder().decode(exportNavLog(state).content)),
               { errorKey: "copy-json", success: "NAV LOG JSONをコピーしました。" },
             )}>NAV LOG JSONをコピー</button>
-            <button className="secondary-button" disabled={busy || !state.verticalProfile}
-              aria-describedby="kml-export-notice" onClick={() => void runTask(
-                () => platform.files.save(exportVerticalProfileKml(state.verticalProfile!,
-                  Boolean(state.verticalProfileStale) || !calculationInputsAreLocallyCurrent)),
-                { errorKey: "export-kml", success: kmlCopy.saved },
-              )}>{kmlCopy.download}</button>
           </div>
-          <p id="kml-export-notice" role="status">{!state.verticalProfile ? kmlCopy.unavailable
-            : (state.verticalProfileStale || !calculationInputsAreLocallyCurrent) ? kmlCopy.stale : null}</p>
         </div>
       )}
       {currentRjfmInboundGuidance && (

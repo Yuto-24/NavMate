@@ -228,7 +228,7 @@ test("download and Clipboard export the displayed result, survive denial, and re
       return {
         boxes: [".nav-log-summary", ".nav-log-scroll", ".fuel-plan-section", ".navlog-export-actions"].map(rect),
         section: rect(".nav-log-section"),
-        buttons: [1, 2, 3].map(index => rect(`.navlog-export-actions button:nth-child(${index})`)),
+        buttons: [1, 2].map(index => rect(`.navlog-export-actions button:nth-child(${index})`)),
       };
     });
     for (let i = 1; i < boxes.length; i++) {
@@ -236,15 +236,14 @@ test("download and Clipboard export the displayed result, survive denial, and re
     }
     expect(boxes[3]!.y - section.y - section.height).toBeGreaterThanOrEqual(16);
     const actions = content.locator(".navlog-export-actions");
-    await expect(actions.locator("button")).toHaveCount(3);
+    await expect(actions.locator("button")).toHaveCount(2);
     expect(await actions.evaluate(element => getComputedStyle(element).gap)).toBe("8px");
     expect(await actions.evaluate(element => element.closest(".nav-log-scroll"))).toBeNull();
     expect(buttons[0]!.x).toBe(boxes[0]!.x);
     expect(boxes[3]!.width - 32).toBe(boxes[0]!.width);
     if (width === 390) expect(buttons[1]!.y).toBeGreaterThanOrEqual(buttons[0]!.y + buttons[0]!.height + 8);
     else expect(buttons[1]!.y).toBe(buttons[0]!.y);
-    expect(buttons[2]!.y).toBeGreaterThanOrEqual(buttons[1]!.y);
-    expect(buttons[2]!.x + buttons[2]!.width).toBeLessThanOrEqual(width);
+    expect(buttons[1]!.x + buttons[1]!.width).toBeLessThanOrEqual(width);
     const scroll = content.locator(".nav-log-scroll");
     await scroll.evaluate(element => { element.scrollLeft = element.scrollWidth; });
     if (width <= 1440) expect(await scroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
@@ -262,7 +261,7 @@ test("download and Clipboard export the displayed result, survive denial, and re
     expect(downloaded.suggestedFilename()).toBe(`${original.last_calculation.project.name}.kml`);
     return readFileSync((await downloaded.path())!, "utf8");
   };
-  await expect(page.locator("#kml-export-notice")).toBeEmpty();
+  await expect(page.locator("#kml-export-notice")).toHaveCount(0);
   const initialKml = await downloadKml();
   const inspectKml = (text: string) => page.evaluate(text => {
     const doc = new DOMParser().parseFromString(text, "application/xml");
@@ -284,6 +283,18 @@ test("download and Clipboard export the displayed result, survive denial, and re
   // Uncalculated planning edits must not relabel or recalculate the exported result.
   await page.getByLabel("TGL", { exact: true }).fill("2");
   await expect(page.locator("#kml-export-notice")).toContainText("再計算前の結果を出力します。");
+  await expect(page.locator("#kml-export-notice")).toHaveCSS("position", "static");
+  await expect(page.locator("#kml-export-notice")).toHaveCSS("background-color", "rgb(254, 242, 214)");
+  const noticeContrast = await page.locator("#kml-export-notice").evaluate(element => {
+    const style = getComputedStyle(element);
+    const luminance = (color: string) => color.match(/[\d.]+/g)!.slice(0, 3)
+      .map(value => Number(value) / 255)
+      .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
+      .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index]!, 0);
+    const values = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => b - a);
+    return (values[0]! + .05) / (values[1]! + .05);
+  });
+  expect(noticeContrast).toBeGreaterThanOrEqual(4.5);
   const staleKml = await downloadKml();
   expect(staleKml).toContain("再計算前の結果を出力します。");
   expect(await inspectKml(staleKml)).toEqual(originalKml);

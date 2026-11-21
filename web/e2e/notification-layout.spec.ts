@@ -22,6 +22,7 @@ for (const width of [390, 1100, 1440]) {
       expect(r!.x).toBeGreaterThanOrEqual(0);
       expect(r!.x+r!.width).toBeLessThanOrEqual(width);
       expect(r!.y).toBeGreaterThanOrEqual(56);
+      expect(r!.y).toBeLessThanOrEqual(80);
       await notification.getByRole('button',{name:'メッセージを閉じる'}).click();
       await expect(notification).toHaveCount(0);
       expect(await geometry()).toEqual(before);
