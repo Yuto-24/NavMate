@@ -285,6 +285,16 @@ test("download and Clipboard export the displayed result, survive denial, and re
   await expect(page.locator("#kml-export-notice")).toContainText("再計算前の結果を出力します。");
   await expect(page.locator("#kml-export-notice")).toHaveCSS("position", "static");
   await expect(page.locator("#kml-export-notice")).toHaveCSS("background-color", "rgb(254, 242, 214)");
+  const noticeContrast = await page.locator("#kml-export-notice").evaluate(element => {
+    const style = getComputedStyle(element);
+    const luminance = (color: string) => color.match(/[\d.]+/g)!.slice(0, 3)
+      .map(value => Number(value) / 255)
+      .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
+      .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index]!, 0);
+    const values = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => b - a);
+    return (values[0]! + .05) / (values[1]! + .05);
+  });
+  expect(noticeContrast).toBeGreaterThanOrEqual(4.5);
   const staleKml = await downloadKml();
   expect(staleKml).toContain("再計算前の結果を出力します。");
   expect(await inspectKml(staleKml)).toEqual(originalKml);

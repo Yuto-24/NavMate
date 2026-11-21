@@ -42,8 +42,9 @@ export function Time24Picker({ value, onChange, disabled = false }: Time24Picker
       const left = bounds.left >= width + 24 ? bounds.left - width - 8
         : Math.min(bounds.left, window.innerWidth - width - 16);
       dialog.current.style.left = `${Math.max(16, left)}px`;
-      dialog.current.style.top = `${Math.max(16, Math.min(bounds.bottom + 8, window.innerHeight - 480))}px`;
       dialog.current.showPopover();
+      const height = dialog.current.getBoundingClientRect().height;
+      dialog.current.style.top = `${Math.max(16, Math.min(bounds.bottom + 8, window.innerHeight - height - 16))}px`;
     }
   };
   const pick = (event: PointerEvent<HTMLDivElement>) => {
@@ -90,7 +91,7 @@ export function Time24Picker({ value, onChange, disabled = false }: Time24Picker
         <button type="button" aria-label="分を選択" aria-pressed={mode === "minute"} onClick={() => setMode("minute")}>{two(minute)}</button>
       </div>
       <div className="time24-dial" role="group" aria-label={mode === "hour" ? "時（24時間）" : "分"}
-        onPointerDown={event => { if (event.target !== event.currentTarget) return; event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); pick(event); }}
+        onPointerDown={event => { if (event.target !== event.currentTarget) return; event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); pick(event); }}
         onPointerMove={event => { if (dragging) pick(event); }}
         onPointerUp={event => { if (!dragging) return; pick(event); setDragging(false); if (mode === "hour") setMode("minute"); }}
         onPointerCancel={() => setDragging(false)}>

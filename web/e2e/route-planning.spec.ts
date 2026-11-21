@@ -265,3 +265,60 @@ for (const width of [390, 1440]) test(`24h ETD dial confirms, cancels and preser
   await expect(page.getByRole('heading',{name:'確定済み経路',exact:true})).toHaveCount(0);
   await expect(page.getByRole('region',{name:'確定済み経路',exact:true})).toBeVisible();
 });
+
+for (const width of [1100, 1440]) test(`ETD clock actions fit a short ${width}px viewport`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 600 });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '経路作成', exact: true })).toBeVisible({ timeout: 120000 });
+  await page.locator('input[type=file]').setInputFiles({ name: 'dial.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(route) });
+  await confirmImportedDraft(page);
+  const input = page.getByLabel('ETD JST', { exact: true });
+  await input.scrollIntoViewIfNeeded();
+  expect((await input.boundingBox())!.y + (await input.boundingBox())!.height).toBeGreaterThan(112);
+  await input.focus();
+  const dialog = page.getByRole('dialog', { name: 'ETD JST の時刻選択', exact: true });
+  await expect(dialog).toBeVisible();
+  const box = (await dialog.boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(16);
+  expect(box.y + box.height).toBeLessThanOrEqual(584);
+  for (const name of ['キャンセル', '確定']) {
+    const action = dialog.getByRole('button', { name, exact: true });
+    await action.scrollIntoViewIfNeeded();
+    const actionBox = (await action.boundingBox())!;
+    expect(actionBox.y).toBeGreaterThanOrEqual(box.y);
+    expect(actionBox.y + actionBox.height).toBeLessThanOrEqual(584);
+  }
+  await dialog.getByRole('button', { name: 'キャンセル', exact: true }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test('ETD dial drag from blank space preserves focus and commits hour and minute', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '経路作成', exact: true })).toBeVisible({ timeout: 120000 });
+  await page.locator('input[type=file]').setInputFiles({ name: 'dial.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(route) });
+  await confirmImportedDraft(page);
+  const input = page.getByLabel('ETD JST', { exact: true });
+  await input.fill('09:17');
+  const dialog = page.getByRole('dialog', { name: 'ETD JST の時刻選択', exact: true });
+  const dial = dialog.locator('.time24-dial');
+  const box = (await dial.boundingBox())!;
+  // Both start points are clear of numbered buttons. Exercise real browser blur behavior.
+  await page.mouse.move(box.x + box.width / 2 + 10, box.y + box.height / 2 + 10);
+  await page.mouse.down();
+  await expect(dialog).toBeVisible();
+  await page.mouse.move(box.x + box.width * .74, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect(dialog.getByRole('group', { name: '分', exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('ETD の時', { exact: true })).toHaveValue('15');
+  await page.mouse.move(box.x + box.width / 2 + 10, box.y + box.height / 2 + 10);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * .88, { steps: 5 });
+  await page.mouse.up();
+  await expect(dialog.getByLabel('ETD の分', { exact: true })).toHaveValue('30');
+  await dialog.getByRole('button', { name: '確定', exact: true }).click();
+  await expect(input).toHaveValue('15:30');
+  await input.click();
+  await page.getByLabel('DATE', { exact: true }).click();
+  await expect(dialog).toBeHidden();
+});

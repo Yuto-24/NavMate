@@ -42,3 +42,9 @@
 根拠は [時計操作テスト](../../web/e2e/route-planning.spec.ts) の外部入力への移動と、
 [PNG出力テスト](../../web/e2e/navlog-png.spec.ts) のiPhone WebKit経路。
 修正後はChromium/WebKitの390・1440pxで時計操作、iPhone WebKitで計算からPNG出力まで成功した。
+
+PR #479の追補では、ダイヤルの空白部分の押下が `relatedTarget=null` のblurを起こし、
+同じ領域内のドラッグでも閉じることをChromium/WebKitで再現した。
+空白部分のpointerdownだけ既定のフォーカス解除を抑止し、外部入力への移動時の閉鎖は維持する。
+また、時計を固定の高さと仮定すると600px高の画面では操作行が下端からはみ出すため、
+表示後の実測高さで位置を補正する。1100・1440px幅で下端16pxの余白と操作到達を検証する。
