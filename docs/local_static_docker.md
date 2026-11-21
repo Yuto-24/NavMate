@@ -122,8 +122,14 @@ Codex worktreeでは先に `scripts/codex/setup_worktree.sh` を実行し、専�
 - `source` はgit-sync **v4.8.0**でmainを5分ごとに取得します。ホストのcheckoutには書き込みません。
 - `updater` はcommitごとの専用領域で、バージョン・データ・schema・型・配布物・Staticブラウザ検査を実行します。
   新しいcommitが途中で到着した場合、その時点で古くなった候補は配信しません。
+- 新アプリの昇格には、アプリと同じSHAのpush CIで必要なsuiteが実行・成功した証拠を要求します。
+  未完了・失敗・cancel・取得不能なら現在の配布物を保持し、15分後に再確認します。
+  PRの影響選択CIや、tooling側のSHAの成功で代用しません。
+  型検査と配布物検査器の単体テストだけは、CIの実行記録と依存関係・toolchainが一致すれば省略します。
+  記録の欠落・期限切れ・環境差があれば従来どおり実行します。
 - MSMは起動時と1時間ごとに確認し、新しい完全なRunがある場合に取得・生成します。
   配信中のアプリSHAからMSMを同梱して再ビルドします。mainの失敗時も、このMSM更新は独立して続きます。
+  配信中SHAのCIを取得できない場合も、従来のローカル検査をすべて行って更新を続けます。
 - 検査が成功した配布物だけを、ディレクトリのポインタ交換で切り替えます。
   Webコンテナの再作成やブラウザの強制再読み込みは行いません。
 - 失敗は15分後に再試行し、1処理は45分で打ち切ります。失敗した候補で現在の配布物を置き換えません。
@@ -136,6 +142,16 @@ MSMカタログの期限は生成から6時間です。更新が止まって失�
 mainの自動更新対象はアプリです。Compose、Python、Node、git-sync、更新処理自体の変更は、
 ホスト側のcheckoutを更新して上記の `up --build` を再実行します。
 イメージは固定tagを使い、勝手に新しい基盤へ追随しません。
+
+CIのRun/job確認は公開GitHub APIを使用します。artifact取得まで利用する場合は、updater専用の
+環境変数 `LOCAL_SOURCE_CI_TOKEN` に、このリポジトリの **Actions readのみ** の認証情報を渡します。
+公開Web設定の `.env.local-static` やブラウザ向け設定には記載せず、別の非公開env fileをCompose overrideで
+updaterだけへ追加してください。tokenは候補build・Web配信へ引き継ぎません。
+tokenなしでもCIの確認と従来の検査は行い、artifact取得不能だけを理由に検査を省きません。
+APIの制限でRun/jobを確認できない間は新アプリだけが待機します。
+
+再利用対象・最新attemptの扱い・計測の読み方は
+[source CI再利用の判断記録](app_publication_audit.md#source-ci再利用issue-460)を参照してください。
 
 ## MSM取得キャッシュの容量管理
 

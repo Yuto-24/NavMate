@@ -949,6 +949,8 @@ class Operator:
         config = public_configuration(snapshot["variables"])
         metrics = destination / "metrics"
         metrics.mkdir(mode=0o700)
+        evidence = self.source_evidence(snapshot)
+        write_json(destination / "source-ci-web.json", evidence)
         args = [
             "docker",
             "run",
@@ -963,6 +965,12 @@ class Operator:
             "--mount",
             f"type=bind,source={self.root / 'scripts/static_ops/release_timing.py'},"
             "target=/release_timing.py,readonly",
+            "--mount",
+            f"type=bind,source={self.root / 'web/scripts/source-ci-inventory.mjs'},"
+            "target=/source-ci-inventory.mjs,readonly",
+            "--mount",
+            f"type=bind,source={destination / 'source-ci-web.json'},"
+            "target=/source-ci-web.json,readonly",
         ]
         for name in gate.CONFIGURATION:
             args += ["--env", name]
@@ -1007,6 +1015,10 @@ class Operator:
         gate.upload_context(app, destination / "upload", expected)
         self.validate_build(destination, sha, snapshot)
         return candidate
+
+    def source_evidence(self, snapshot: dict) -> dict | None:
+        # Explicitly approved manual publication keeps its existing local checks.
+        return None
 
     def seal_build(self, app: Path, expected: dict) -> dict:
         # Validate the untrusted tree before any host-side write (including symlinks).

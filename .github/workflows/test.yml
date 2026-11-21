@@ -282,6 +282,16 @@ jobs:
       - run: npm --prefix web run test:release-notes
       - run: npm --prefix web run typecheck
       - run: npm --prefix web run build
+      - name: Record successful Web source checks
+        # Keep the evidence reader/writer regression with its Node toolchain.
+        run: |
+          node --test web/scripts/source-ci-inventory.test.mjs
+          node web/scripts/source-ci-inventory.mjs write "$RUNNER_TEMP/source-ci-web.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-ci-web-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/source-ci-web.json
+          if-no-files-found: error
 
   taf-proxy:
     needs: release-sources

@@ -28,6 +28,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import urlopen
 
+if not __package__ and Path(__file__).parent.name == "static_ops":
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 PUBLIC_KEYS = ("VITE_TAF_PROXY_URL",)
 DEV_FIREBASE_KEYS = ("VITE_DEV_FIREBASE_API_KEY", "VITE_DEV_FIREBASE_AUTH_DOMAIN",
                      "VITE_DEV_FIREBASE_PROJECT_ID", "VITE_DEV_FIREBASE_APP_ID")
@@ -233,6 +236,27 @@ class Updater:
         self.mutex = threading.Lock()
         # Restart always rechecks the feed, without retrying a known failed main too soon.
         self.next_weather = 0.0
+        self.source_inventory = None
+
+    def source_validation(self, kind: str, sha: str, *, inventory: bool = True) -> dict | None:
+        """CI failures hold new apps; active-SHA weather falls back to local checks."""
+        from scripts.static_ops import source_ci
+
+        client = source_ci.GitHub(os.getenv("LOCAL_SOURCE_CI_TOKEN", ""))
+        started = time.monotonic()
+        try:
+            receipt = source_ci.require_success(client, sha)
+        except source_ci.Unavailable:
+            event("source_ci", kind=kind, sha=sha, result="WAIT" if kind == "main" else "RERUN",
+                  seconds=round(time.monotonic() - started, 3))
+            if kind == "main":
+                raise
+            return None
+        value = (source_ci.web_inventory(client, client.download, receipt, self.s.tooling)
+                 if inventory else None)
+        event("source_ci", kind=kind, **receipt, result="VERIFIED",
+              web_inventory=value is not None, seconds=round(time.monotonic() - started, 3))
+        return value
 
     def save_status(self, **values) -> None:
         """Serialize heartbeat and job writes to private, atomically replaced status."""
@@ -297,6 +321,16 @@ class Updater:
                   str(destination)], self.s.state)
         self.run(["git", "checkout", "--detach", sha], destination)
 
+    def checked(self, phase: str, args: list[str], app: Path) -> None:
+        started = time.monotonic()
+        success = False
+        try:
+            self.run(args, app)
+            success = True
+        finally:
+            event("validation_phase", phase=phase, status="OK" if success else "BLOCKED",
+                  seconds=round(time.monotonic() - started, 3))
+
     def configuration(self) -> dict:
         """Keep development storage separate from production accounts and Legacy migration."""
         config = {key: os.environ[key] for key in PUBLIC_KEYS if os.environ.get(key)}
@@ -346,6 +380,18 @@ class Updater:
         self.run([python, "-m", "pip", "install", "setuptools>=69", "wheel",
                   str(wheels[0].relative_to(app)), ".[msm,test]"], app)
         self.run(["npm", "--prefix", "web", "ci"], app)
+        evidence = job / "source-ci-web.json"
+        evidence.write_text(json.dumps(self.source_inventory))
+        reused = set()
+        for check in ("typecheck", "test:static-artifact") if self.source_inventory else ():
+            # This trusted helper runs after the candidate's normal locked install.
+            try:
+                self.run(["node", str(self.s.tooling / "web/scripts/source-ci-inventory.mjs"),
+                          "matches", str(evidence), check], app)
+                reused.add(check)
+            except RuntimeError:
+                pass
+        event("source_checks", sha=sha, reused=sorted(reused))
         if current:
             shutil.copytree(current / "weather/msm", feed)
         else:
@@ -369,17 +415,22 @@ class Updater:
                      [python, "scripts/validate_performance_data.py", "data/performance"],
                      [python, "scripts/validate_runtime_data.py", "data"],
                      [python, "scripts/export_schemas.py", "--check"],
-                     [python, "-m", "pytest", "tests/unit/test_version.py"],
-                     ["npm", "--prefix", "web", "run", "typecheck"],
+                     [python, "-m", "pytest", "tests/unit/test_version.py"]):
+            self.checked("source-validation", args, app)
+        if "typecheck" not in reused:
+            self.checked("source-validation", ["npm", "--prefix", "web", "run", "typecheck"], app)
+        self.checked("static-build",
                      ["npm", "--prefix", "web", "run", "build:static", "--", "--local-runtime"],
-                     ["npm", "--prefix", "web", "run", "test:static-artifact"]):
-            self.run(args, app)
+                     app)
+        if "test:static-artifact" not in reused:
+            self.checked("artifact-tests",
+                         ["npm", "--prefix", "web", "run", "test:static-artifact"], app)
         dist = app / "web/dist-static"
         self.run(["npm", "--prefix", "web", "exec", "--", "playwright", "install", "chromium"],
                  app)
         with local_server(dist) as origin:
             self.env["AUTONAVLOG_LOCAL_URL"] = origin
-            self.run(["npm", "--prefix", "web", "run", "test:static"], app)
+            self.checked("e2e", ["npm", "--prefix", "web", "run", "test:static"], app)
         # Browser checks can cross a forecast-hour boundary. Revalidate at publication time.
         self.run(validator, self.s.tooling)
         self.run(["npm", "--prefix", str(self.s.tooling / "web"), "run", "check:static",
@@ -399,6 +450,8 @@ class Updater:
 
     def promote(self, dist: Path, sha: str, kind: str) -> None:
         """Recheck candidate identity before switching the complete publication pointer."""
+        if kind == "main":
+            self.source_validation(kind, sha, inventory=False)
         old = self.s.active()
         if kind == "main" and self.desired()[0] != sha:
             raise Superseded()
@@ -465,6 +518,7 @@ class Updater:
         try:
             with (self.s.state / "logs" / (name + ".log")).open("wb") as stream:
                 self.log = stream
+                self.source_inventory = self.source_validation(kind, sha)
                 dist = self.build(kind, sha, source, job)
                 if dist is not None:
                     self.promote(dist, sha, kind)

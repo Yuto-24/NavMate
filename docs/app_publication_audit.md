@@ -81,6 +81,58 @@ MSM workflowは[Issue #362の公開後検証](https://github.com/Yuto-24/NavMate
 この区別を明記していないため、本調査では上記コード上の範囲を採用する。
 アプリへのpayload検証追加は別の動作変更として判断する。
 
+## source CI再利用（Issue #460）
+
+2026-11-21の実装判断。通常の新アプリ昇格では、アプリSHAの成功CIを確認してからbuildへ進む。
+CIが未成功・取得不能の場合は昇格だけを保留する。Localは配信中SHAの天気更新を先に処理し、
+Staticはfeed停止前のpreflightで終了する。停止後に別の障害が起きた場合の復旧条件は既存どおり。
+承認済みの手動公開・復旧例外と、GitHub Release publisherは変更しない。
+
+| 検査 | 再利用条件／再実行する理由 |
+| --- | --- |
+| 独立したWeb型検査 | 同じアプリSHA・package/lock・Node/npmの完全な版・OS種別/CPU構成を照合して再利用。検査定義もtoolingと一致する必要がある |
+| 配布物検査器の単体テスト | 上記に加えGitの版も照合。fixtureを検査するsourceテストであり、実際の配布候補の検査とは異なる |
+| Pythonのrelease・data・schema・Localのversion検査 | インストール済みPython依存関係や生成物の同等性を今回のWeb inventoryでは保証しないため再実行 |
+| Static build内のtsc、fresh rebuild | 配布前に生成するファイルを含むため維持。独立したtypecheckを省略してもbuild内のtscは実行する |
+| 候補Static E2E・実成果物hash/manifest/identity・実feed | 生成bytes・Run・coverage・freshnessを対象に常に実行 |
+| 設定・Rules・停止制御・競合・公開前後照合 | 変化し得る外部状態を対象に常に実行 |
+
+GitHubの `test.yml` からアプリSHAに一致する最新push Runを選び、最新attemptの
+`release-sources`・`pytest`・`web`・`local-browser`・`account-sync`・`ci-required`の成功と、
+Webのinstall・型検査・単体テストstepの実行成功を確認する。PRのgreenやtooling SHAで代用しない。
+最新attemptに必要なjobがない場合も昇格を保留するため、失敗jobだけの再実行で一部のjobしか
+記録されないときは、同じSHAの全jobがそろうattemptが必要になる。
+
+省略には、そのRun/attemptの `source-ci-web-*` artifactを追加で照合する。
+GitHub側のdigest、artifact内のSHA/Run/attempt、workflowと記録スクリプトのhashを確認し、
+候補の通常の `npm ci` 後に実行環境を比較する。artifact内のコードを実行せず、小さいJSONだけ読む。
+記録の作成時と再利用時にはGitの作業ツリーも照合し、同じHEADでもsourceが変更されていれば再利用しない。
+workflow変更後に古いLocal updaterを使う場合、定義が一致するまで検査を再実行する。
+artifactの欠落・期限切れ・取得不能・環境差は再実行への切替条件であり、無条件な省略にはしない。
+
+Staticの既存timingには `source-ci`、`source-typecheck-reused`、
+`source-artifact-tests-reused`を追加した。再利用markerの時間は省略した検査の所要時間ではない。
+残る `source-validation`・`static-build`・`artifact-tests`・`e2e` と分けて読む。
+Localは `source_ci` にRun/attemptと確認時間、`source_checks` に省略対象、
+`validation_phase` に残る検査・build・E2Eの時間と成否を記録する。
+省略による差分を比較する際は、同じ候補・環境で再利用あり／なしを比較し、
+feed取得やcache条件の違いを短縮効果に含めない。
+
+オフライン回帰は、CI欠落・cancel・通信障害下の配信保持と配信中SHAの天気更新、
+切替直前のCI失効、環境不一致による再実行、実際のbuild shellの省略／再実行分岐を対象とする。
+Hostedの新artifact取得と実更新の短縮時間は、統合後の運用観測が必要であり、
+合成証拠によるテストを本番受入や実測短縮率として扱わない。
+
+同日の隔離Local updater imageで、同じsourceとimage内のlock済み依存関係を使って各1回測定した。
+独立typecheckは0.363秒、配布物検査器の単体テストは0.795秒、再利用入力の照合はそれぞれ
+0.078秒／0.071秒だった。GitHub通信・fresh build・feed取得・E2Eを含まないsourceコマンドの測定であり、
+公開全体の短縮ではない。build内のtscは残り、artifact取得のコストも増えるため、
+この測定だけでは更新全体が速くなったとは結論しない。
+
+同日に既存main SHA `5bdbb1e4` の[成功Run 44779930976](https://github.com/Yuto-24/NavMate/actions/runs/44779930976)
+を実APIで一度照合し、Run/attempt・必要job/stepの成功を確認した。この旧Runには新しいWeb inventoryが
+ないため再利用不可となり、ローカル検査へ戻る判定も確認した。新inventoryのHosted受渡しは未確認。
+
 ## build-onceの判断
 
 **現時点では採用を保留し、再buildを維持する。** 単に`fresh`を`prepared`へ置換しない。
