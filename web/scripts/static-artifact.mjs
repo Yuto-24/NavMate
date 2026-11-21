@@ -60,7 +60,9 @@ export function checkArtifact(root, { freshWeather = true, allowDirty = false, l
   }
   const reference = manifest.mapReference;
   if (!reference || !/^reference\/aip\/manifest-[a-f0-9]{64}\.json$/.test(reference.file)
-    || files[reference.file]?.sha256 !== reference.sha256 || files[reference.file]?.bytes !== reference.bytes) {
+    || !files[reference.file] || typeof reference.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(reference.sha256)
+    || !Number.isSafeInteger(reference.bytes) || reference.bytes <= 0
+    || files[reference.file].sha256 !== reference.sha256 || files[reference.file].bytes !== reference.bytes) {
     throw new Error("Missing or mismatched AIP reference manifest");
   }
   const aip = JSON.parse(readFileSync(join(root, reference.file)));
@@ -72,10 +74,19 @@ export function checkArtifact(root, { freshWeather = true, allowDirty = false, l
     throw new Error("AIP reference version or layer inventory mismatch");
   }
   for (const asset of [...aip.layers, aip.reconciliation]) {
+    const file = asset && files["reference/aip/" + asset.file];
     if (!asset || !/^[A-Za-z0-9_-]+-[a-f0-9]{64}\.(geojson|json)$/.test(asset.file)
-      || files["reference/aip/" + asset.file]?.sha256 !== asset.sha256
-      || files["reference/aip/" + asset.file]?.bytes !== asset.bytes) {
+      || !file || typeof asset.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(asset.sha256)
+      || !Number.isSafeInteger(asset.bytes) || asset.bytes <= 0
+      || file.sha256 !== asset.sha256 || file.bytes !== asset.bytes) {
       throw new Error("AIP reference asset mismatch");
+    }
+  }
+  for (const layer of aip.layers) {
+    const collection = JSON.parse(readFileSync(join(root, "reference/aip", layer.file)));
+    if (collection?.type !== "FeatureCollection" || !Array.isArray(collection.features)
+      || collection.features.length !== layer.feature_count) {
+      throw new Error("AIP reference feature count mismatch");
     }
   }
   const weatherExpiry = {};

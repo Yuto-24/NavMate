@@ -183,13 +183,15 @@ def test_bad_geometry_is_rejected(geometry):
         validate_geometry(geometry)
 
 
-def shape_archive(records, *, crs=PRJ):
+def shape_archive(records, *, crs=PRJ, shape_type=shapefile.POINT):
     buffers = {name: io.BytesIO() for name in ("shp", "shx", "dbf")}
-    with shapefile.Writer(**buffers, shapeType=shapefile.POINT) as writer:
+    with shapefile.Writer(**buffers, shapeType=shape_type) as writer:
         writer.field("NAME", "C")
         for name, coordinates in records:
             if coordinates is None:
                 writer.null()
+            elif shape_type == shapefile.POLYGONZ:
+                writer.polyz(coordinates)
             else:
                 writer.point(*coordinates)
             writer.record(name)
@@ -201,6 +203,52 @@ def shape_archive(records, *, crs=PRJ):
         zipped.writestr(stem + ".prj", crs)
         zipped.writestr(stem + ".cpg", "UTF-8")
     return ZipFile(archive)
+
+
+def polygon_z_rings():
+    # Clockwise shell, counterclockwise hole, varying Z/M at each vertex.
+    return [
+        [[x, y, 100 + i, 200 + i] for i, (x, y) in enumerate(ring)]
+        for ring in (
+            [(0, 0), (0, 4), (4, 4), (4, 0)],
+            [(1, 1), (2, 1), (2, 2), (1, 2)],
+        )
+    ]
+
+
+@pytest.mark.parametrize("offset", [1, 2])
+def test_polygon_z_duplicate_rejects_rotated_ring_start(offset):
+    rings = polygon_z_rings()
+    rotated = [ring[offset:] + ring[:offset] for ring in rings]
+
+    def close(parts):
+        return [ring + [ring[0]] for ring in parts]
+
+    with shape_archive(
+        [("same", close(rings)), ("same", close(rotated))], shape_type=shapefile.POLYGONZ
+    ) as archive:
+        with pytest.raises(ValueError, match="Duplicate source feature"):
+            read_shape_layer(archive, "Test")
+
+
+@pytest.mark.parametrize("axis", [2, 3])
+@pytest.mark.parametrize("vertex", [1, -1])
+def test_polygon_z_distinct_ordinates_and_original_closed_arrays_survive(axis, vertex):
+    rings = polygon_z_rings()
+    first = [ring + [ring[0]] for ring in rings]
+    second = [[point.copy() for point in ring] for ring in first]
+    second[1][vertex][axis] += 10
+    with shape_archive(
+        [("same", first), ("same", second)], shape_type=shapefile.POLYGONZ
+    ) as archive:
+        rows = read_shape_layer(archive, "Test")
+    assert len(rows) == 2
+    for (_, _, ordinates), parts in zip(rows, (first, second), strict=True):
+        vertices = [point for ring in parts for point in ring]
+        assert ordinates["points"] == [point[:2] for point in vertices]
+        assert ordinates["z"] == [point[2] for point in vertices]
+        assert ordinates["m"] == [point[3] for point in vertices]
+        assert ordinates["parts"] == [0, 5]
 
 
 @pytest.mark.parametrize(

@@ -230,19 +230,24 @@ def read_shape_layer(archive, layer):
             if ordinates:
                 # Coordinate/ordinate associations, independent of ring direction.
                 points = ordinates["points"]
-                key += (
-                    tuple(
-                        sorted(
-                            encoded([point, z, m])
-                            for point, z, m in zip(
-                                points,
-                                ordinates["z"] or [None] * len(points),
-                                ordinates["m"] or [None] * len(points),
-                                strict=True,
-                            )
-                        )
-                    ),
-                )
+                vertices = [
+                    encoded([point, z, m])
+                    for point, z, m in zip(
+                        points,
+                        ordinates["z"] or [None] * len(points),
+                        ordinates["m"] or [None] * len(points),
+                        strict=True,
+                    )
+                ]
+                closing = set()
+                if ordinates["shape_type"] in (shapefile.POLYGONZ, shapefile.POLYGONM):
+                    starts = ordinates["parts"]
+                    for start, end in zip(starts, [*starts[1:], len(vertices)], strict=True):
+                        # Ignore only a repeated closing XY/Z/M association in
+                        # the comparison key; never alter the source arrays.
+                        if vertices[start] == vertices[end - 1]:
+                            closing.add(end - 1)
+                key += (tuple(sorted(v for i, v in enumerate(vertices) if i not in closing)),)
             require(key not in seen, f"Duplicate source feature: {layer}:{index}")
             seen.add(key)
             rows.append((raw, geometry, ordinates))

@@ -22,7 +22,9 @@ function fixture(t) {
   };
   const layers = source.layers.map(layer => ({ ...layer,
     kml_count: source.kml_shapefile_count_differences.find(row => row.layer_id === layer.id)?.kml_placemark_count ?? layer.feature_count,
-    ...aipAsset(layer.id, { type: "FeatureCollection", features: [] }) }));
+    ...aipAsset(layer.id, { type: "FeatureCollection", features: Array.from({ length: layer.feature_count },
+      (_, index) => ({ type: "Feature", id: `${layer.id}:${index}`, properties: {},
+        geometry: { type: "Point", coordinates: [index % 180, 0] } })) }) }));
   const aip = aipAsset("manifest", { schema_version: 1, app_version: "1.0.0", feature_count: 5276,
     kml_placemark_count: 5271, layers, reconciliation: aipAsset("reconciliation", []) });
   put("local/manifest.json", { version: "1.0.0", pyodideVersion: "0.27.7", wheels: ["core.whl"], data: "data.zip",
@@ -253,4 +255,52 @@ test("AIP metadata must match the application version and complete source counts
     seal();
     assert.throws(() => checkArtifact(root), /AIP reference version or layer inventory mismatch/);
   }
+});
+
+function repackageAip(fixture, change) {
+  const { root, put, seal } = fixture;
+  const local = JSON.parse(readFileSync(join(root, "local/manifest.json")));
+  const aip = JSON.parse(readFileSync(join(root, local.mapReference.file)));
+  change(aip);
+  const content = JSON.stringify(aip);
+  const file = `reference/aip/manifest-${sha256(content)}.json`;
+  put(file, content);
+  put("local/manifest.json", { ...local, mapReference: {
+    file, sha256: sha256(content), bytes: Buffer.byteLength(content) } });
+  seal();
+}
+
+for (const kind of ["layer", "reconciliation"]) {
+  test(`AIP ${kind} missing from inventory cannot hide behind absent integrity fields`, t => {
+    const scenario = fixture(t);
+    repackageAip(scenario, aip => {
+      const asset = kind === "layer" ? aip.layers[0] : aip.reconciliation;
+      asset.file = `absent-${"0".repeat(64)}.json`;
+      delete asset.sha256; delete asset.bytes;
+    });
+    assert.throws(() => checkArtifact(scenario.root), /AIP reference asset mismatch/);
+  });
+}
+
+test("AIP integrity attributes must be a SHA-256 string and positive integer size", t => {
+  for (const change of [{ sha256: null }, { sha256: 123 }, { sha256: "bad" },
+    { bytes: null }, { bytes: "10" }, { bytes: -1 }, { bytes: 1.5 }, { bytes: 0 }]) {
+    const scenario = fixture(t);
+    repackageAip(scenario, aip => Object.assign(aip.layers[0], change));
+    assert.throws(() => checkArtifact(scenario.root), /AIP reference asset mismatch/);
+  }
+});
+
+test("AIP GeoJSON feature count must match declarations even after rehashing", t => {
+  const scenario = fixture(t);
+  repackageAip(scenario, aip => {
+    const asset = aip.layers[0];
+    const collection = JSON.parse(readFileSync(join(scenario.root, "reference/aip", asset.file)));
+    collection.features.pop();
+    const content = JSON.stringify(collection);
+    Object.assign(asset, { file: `${asset.id}-${sha256(content)}.geojson`,
+      sha256: sha256(content), bytes: Buffer.byteLength(content) });
+    scenario.put(`reference/aip/${asset.file}`, content);
+  });
+  assert.throws(() => checkArtifact(scenario.root), /AIP reference feature count mismatch/);
 });
