@@ -21,6 +21,8 @@
 
 ## Product constraints
 
+- Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.
+
 - Route creation/re-edit and flight planning use one map and one operation pane. Above 700 px, keep the map on the left and the aligned operation pane on the right; only the operation contents scroll. At 700 px and below, place the map before the operation pane without pinning it over inputs. Keep readiness and calculation at the operation footer, with NAV LOG and its guidance below the workspace. Preserve calculation, persistence, and the NAV LOG table itself.
 - Any layout change needs browser coverage around 1,100 px and above 1,240 px, asserting workflow-region order/position rather than visibility alone. See `docs/web-design/README.md` for the UI reference.
 - For release-management, version metadata, documentation, or CI changes without user-facing behavior or layout changes, skip browser automation, screenshots, and visual checks unless the user explicitly requests them. Use only applicable focused source, build, or health checks.
