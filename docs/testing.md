@@ -625,6 +625,39 @@ Local wheel 2.5.0 の不一致により、保存した MSM Advisory が NAV LOG 
 - `npm --prefix web run test:terrain`：Chromium / WebKit 上で PNG 数値復号、KML の有効・不正・標高基準未確認・障害物除外、境界判定、外部通信抑止を検証します。
 - 実データ限定確認（2026-11-09）：`dem_png/14/14174/6668.png`（HTTP 200、102,668 bytes、CORS `Access-Control-Allow-Origin: *`、SHA-256 `c30fad6bc8ca2ce64e4d6cb297425ba507ac0f3bec709bebfc7713387da396b4`）について、Python 標準ライブラリの独立復号と Chromium / WebKit で全 65,536 画素（うち欠損 2,942 画素）の一致を確認済み。これは 1 タイルの取得・復号確認であり、経路全域の被覆や SEA の正確さを保証するものではありません。仕様は [terrain_inputs.md](terrain_inputs.md) を参照してください。
 
+#### SEA取得とLocal開発サーバーの切り分け（Issue #314）
+
+2026-11-21、SEAの固定DEMブラウザ試験で次を確認しました。
+
+- DEM要求が一度も送信されず未確定になる場合は、取得クラスの既定fetch呼出しも調べます。
+  ブラウザ標準fetchをクラスのメンバーとして直接呼ぶと、receiverが変わり
+  `Illegal invocation`で通信前に失敗しました。既定fetchをラッパーで呼ぶ修正を行い、
+  `terrain-browser.spec.ts`で実リクエストの発生と404の欠損分類をChromium/WebKitで検証しています。
+  注入した偽fetchだけではこの問題を検出できません。
+- Local wheelとmanifestを生成し直した後、起動済みViteが古いmanifestハッシュを保持し、
+  正常な整合性チェックによって起動が止まる場合がありました。生成物の一致を確認し、
+  開発サーバーを再起動した後に失敗ケースだけを再実行します。整合性検証は無効化しません。
+- `sea.spec.ts`は1100 px/1440 pxの操作領域位置、手動値の保存・再計算、固定DEM、
+  低い手動値の警告、KML最高点と失敗時の保持を検証します。外部GSIの経路全域被覆や
+  実機・本番での受入を証明するものではありません。
+- 自動SEAの対応範囲は取得時だけでなく、更新入力・保存レコードの採用時にも検証します。
+  緯度・距離・日付変更線・零長区間の不適合では自動値を未確定とし、手動値は保持します。
+- `sea.spec.ts`ではKMLのファイル読込を遅延させ、読込から保存まで取込と解除を相互に
+  無効化することを確認します。`notification-layout.spec.ts`ではProject切替時に取得済みProjectへ戻し、
+  古い取得の完了が新しい取得の進行表示を消さないことを検証します。
+- JSON出力は計算済み状態のSEAを画面の区間・手動値と照合します。未再計算の入力変更後を
+  検証するときは自動保存の反映も待ち、フォームの即時表示と保存済み状態を混同しません。
+  PNG通知の配置検査はPNG文言で絞り、同じ領域にあるSEAの取得中表示を誤検出しないようにします。
+- 開発用HTML harnessを使うテストは、そのページを配信するVite付きsuiteへ置きます。
+  2026-11-22に確認した[PR #482のCI失敗](https://github.com/Yuto-24/NavMate/actions/runs/44911160660/job/136867138319)では、
+  Local suiteが`dist-local`を静的配信する一方、SEAの競合テストがビルドに含まれない
+  `notification-harness`へアクセスして起動待ちになりました。該当テストを既存の
+  `test:notification`へ移し、製品buildにテストページを追加せずCIの実行対象を維持します。
+  Local suiteの再現には、開発サーバーではなくCIと同じ静的配信を使用します。
+- CSPの通信可否はViteだけでは確かめられません。2026-11-21のPR #482修正では、隔離Composeの
+  FastAPIが配信するCSP下でDEM宛fetchが発生し、CSP違反がないことをChromiumで確認しました。
+  応答は固定fixtureであり、GSI実データの受入とは分けて扱います。
+
 ## AIP地図参照データ（Issue #311）
 
 `npm --prefix web run prepare:local` は既存のLocal wheel/data生成後、

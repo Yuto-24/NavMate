@@ -23,7 +23,7 @@ NavMate の表示内容は非公式の地上準備資料です。運航資料、
 
 機能の詳細と適用条件は [計算規則](docs/calculation_rules.md)、[MAP での経路作成・再編集・KML/KMZ 取込](docs/map_route_builder.md)、[気象モデル選択（MSM → GSM）](docs/forecast_selection.md) を参照してください。JSON や 3D KML の出力は Project のバックアップ形式ではありません。
 
-SEA・DEM を利用する地形高度の評価は、現行の NAV LOG 計算には含めていません（入力検証境界の仕様は [地形入力と被覆の検証](docs/terrain_inputs.md)）。気象・地形・空域表示は飛行可否や経路の安全性を保証しません。
+NAV LOGでは、C'k Point間の地形を評価したSEAと手動値を表示します（[区間別SEAの仕様・制約](docs/sea.md)、[地形入力と被覆の検証](docs/terrain_inputs.md)）。気象・地形・空域表示は飛行可否や経路の安全性を保証しません。
 
 ## 利用とデータ保存
 

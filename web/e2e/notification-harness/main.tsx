@@ -64,6 +64,19 @@ startApplication(browserPlatform, ({ application, platform }) => {
       return originalImport(input);
     };
   }
+  if (new URLSearchParams(location.search).has("pending-sea") && application.seaPlan) {
+    const plan = application.seaPlan.bind(application);
+    const control = { hold: false, releases: [] as (() => void)[], completed: 0 };
+    (window as any).seaTest = control;
+    application.seaPlan = async () => {
+      const result = await plan();
+      if (control.hold) {
+        await new Promise<void>(resolve => control.releases.push(resolve));
+        control.completed++;
+      }
+      return result;
+    };
+  }
   // Unmount the previous account immediately, including dialogs and pending UI work.
   flushSync(() => view.render(
     <StrictMode>{localMode

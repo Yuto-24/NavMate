@@ -127,14 +127,17 @@ export class LocalApplication implements AutoNavLogApplication {
     }
     return this.present(state);
   }
+  seaPlan() { return this.serial(() => this.request<import("./sea").SeaPlan>("seaPlan")); }
+  updateSea(input: import("./sea").SeaUpdate) { return this.execute("updateSea", input); }
   refreshProjects() { return this.serial(async () => this.present(await this.request<WebState>("state"))); }
   private assertResolved() {
     const status = this.sync?.getState();
     if (status?.conflicts.length || status?.imports.length) throw new ApplicationError("表示中のプロジェクトの選択を完了してください。", "PROJECT_REVISION_CONFLICT");
   }
   private execute(operation: string, input?: unknown, progress?: ProgressListener): Promise<WebState> {
-    // Invalidate immediately, before a queued edit waits for network work.
-    this.invalidatePending();
+    // SEA evidence does not change flight inputs or cancel an in-flight weather fallback.
+    // Other edits invalidate immediately, before waiting for network work.
+    if (operation !== "updateSea") this.invalidatePending();
     const generation = this.generation;
     return this.serial(async () => {
       this.assertResolved();
@@ -195,7 +198,7 @@ export class LocalApplication implements AutoNavLogApplication {
       if (operation === "importRoute") return this.present(state);
       try { return await this.persist(state); }
       catch (error) {
-        if ((operation === "confirmRoute" || operation === "calculate") && error instanceof ApplicationError) {
+        if ((operation === "confirmRoute" || operation === "calculate" || operation === "updateSea") && error instanceof ApplicationError) {
           // Python has committed the result; retain it for recovery/save retry.
           const committed = await this.present(state).catch(() => state);
           throw new ApplicationError(error.message, error.code,
