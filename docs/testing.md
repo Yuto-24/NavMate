@@ -467,6 +467,9 @@ NAV LOG scroll→browser acceptance→TAFの順序で実行する。
 各runnerのemulatorは独立し、ランダムsubjectとcontextによる分離も維持する。
 Firestore Rules→storage-upgrade→migrationはcontracts runnerで全対象を順番に実行する。
 共有開発は別runnerで、起動前にrelease notesを生成する。
+`dev-shared`で計算済みProjectを別端末から開く場合、NAV LOG表示だけでなく自動SEA更新の完了を待ってから保存する。
+地形応答を固定fixtureにし、「地形を再取得」ボタンが有効になるまで待つことで、外部取得の遅延と保存token更新の競合を避ける。
+[PR #493のCI](https://github.com/Yuto-24/NavMate/actions/runs/45040943412/job/137265089639)では、保存後のSEA更新と別端末の読込が重なり、同期の競合保護によって読込が拒否された。
 `web`でLocalと同期のexact-once分配を検査し、各集約checkは全matrix entryの成功を要求する。
 失敗・skip・cancelした群を成功扱いにしない。retry、timeout、既存assertionは維持する。
 ローカルのPlaywright configの既定値は1 workerのままとする。
