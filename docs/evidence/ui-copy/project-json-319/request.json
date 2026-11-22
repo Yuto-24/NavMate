@@ -1,0 +1,45 @@
+{
+  "mode": "proposal",
+  "items": [
+    {
+      "id": "export",
+      "text": "ProjectをJSONで書き出す",
+      "location": "Projectメニュー",
+      "purpose": "確定済み入力のファイル出力",
+      "context": "Issue #319。計算結果・未確定Route Draftを含めない。未計算でも出力可能。取込は独立Projectとして保存し現在の作業は維持する。",
+      "constraints": "短く自然な日本語。URL共有ではない。"
+    },
+    {
+      "id": "import",
+      "text": "Project JSONを取り込む",
+      "location": "Projectメニュー",
+      "purpose": "新規保存済みProjectを追加",
+      "context": "Issue #319。計算結果・未確定Route Draftを含めない。未計算でも出力可能。取込は独立Projectとして保存し現在の作業は維持する。",
+      "constraints": "短く自然な日本語。URL共有ではない。"
+    },
+    {
+      "id": "success",
+      "text": "Projectを追加しました。保存済み一覧から開けます。",
+      "location": "取込成功通知",
+      "purpose": "現在の作業が維持されることと次の操作",
+      "context": "Issue #319。計算結果・未確定Route Draftを含めない。未計算でも出力可能。取込は独立Projectとして保存し現在の作業は維持する。",
+      "constraints": "短く自然な日本語。URL共有ではない。"
+    },
+    {
+      "id": "size",
+      "text": "Project JSONは2 MiB以下にしてください。",
+      "location": "ファイル選択後のエラー",
+      "purpose": "容量超過を説明",
+      "context": "Issue #319。計算結果・未確定Route Draftを含めない。未計算でも出力可能。取込は独立Projectとして保存し現在の作業は維持する。",
+      "constraints": "短く自然な日本語。URL共有ではない。"
+    },
+    {
+      "id": "error",
+      "text": "Project JSONを処理できません",
+      "location": "検証エラーの接頭辞",
+      "purpose": "後ろに形式や型などの具体的な理由を表示",
+      "context": "Issue #319。計算結果・未確定Route Draftを含めない。未計算でも出力可能。取込は独立Projectとして保存し現在の作業は維持する。",
+      "constraints": "短く自然な日本語。URL共有ではない。"
+    }
+  ]
+}

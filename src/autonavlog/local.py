@@ -40,6 +40,7 @@ from autonavlog.importers.kml import (
 )
 from autonavlog.local_persistence import migrate_record
 from autonavlog.performance.repository import PerformanceRepository
+from autonavlog.project_exchange import export_project, import_project
 from autonavlog.storage.airports import AirportRepository
 from autonavlog.storage.local import LocalProjectRepository
 from autonavlog.storage.reference_data import ReferenceDataCatalogRepository
@@ -414,6 +415,27 @@ class LocalApplication:
                     record.lastCalculation.project.revision = 0
                     record.lastCalculation.outcome.project_id = identity
             return migrate_record(record.model_dump(mode="json")).model_dump_json()
+        if path in {"exportProject", "prepareProjectImport"}:
+            try:
+                if path == "exportProject":
+                    if self.session.project is None:
+                        raise ValueError("Project is required")
+                    return json.dumps(export_project(self.session.project), ensure_ascii=False)
+                imported_project = import_project(payload["text"])
+                return imported_project.model_dump_json()
+            except ValidationError as error:
+                # Do not echo untrusted file contents in the user-facing error.
+                issues = error.errors(include_url=False, include_input=False)
+                reason = " / ".join(
+                    f"{'.'.join(map(str, item['loc']))}: {item['msg']}" for item in issues[:3]
+                )
+                raise WebApplicationError(
+                    "PROJECT_JSON_INVALID", f"Project JSONを処理できません: {reason}"
+                ) from error
+            except (ValueError, TypeError, RecursionError) as error:
+                raise WebApplicationError(
+                    "PROJECT_JSON_INVALID", f"Project JSONを処理できません: {error}"
+                ) from error
         if path == "validateRecord":
             return migrate_record(payload).model_dump_json()
         if path == "state":

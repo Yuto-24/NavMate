@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { test, artifactSessionKey, artifactDatabase, blockDevCloud } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
@@ -651,4 +652,78 @@ test("#280 #465 saved CUT seconds and legacy Last Calculation reopen without rec
   await load(page, saved.id);
   await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell").nth(0)).toHaveText("—");
   await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell").nth(1)).toHaveText("0");
+});
+
+test("#319 Project JSON transfers uncalculated inputs into independent saved Projects", async ({ page, browser }) => {
+  await start(page);
+  await confirm(page, "FTD");
+  await expect.poll(async () => (await working(page)).project?.weather_mode).toBe("FTD");
+  await openProjectMenu(page);
+  await page.screenshot({ path: test.info().outputPath("project-menu.png") });
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "JSONファイルに書き出す", exact: true }).click();
+  const download = await downloadPromise;
+  const content = readFileSync((await download.path())!);
+  const exported = JSON.parse(content.toString());
+  expect(exported.format).toBe("navmate.project");
+  expect(exported.inputs.weather_mode).toBe("FTD");
+  expect(exported.inputs.id).toBeUndefined();
+  expect(exported.inputs.selected_forecast_run_id).toBeUndefined();
+  const source = await working(page);
+  expect(source.outcome).toBeNull();
+  const receiver = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  await blockApi(receiver);
+  const target = await receiver.newPage();
+  try {
+    await start(target);
+    // A pending map route is kept across success, cancellation, and rejection.
+    await target.locator("#route-file").setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+    await expect(target.getByRole("button", { name: "経路を確定", exact: true })).toBeEnabled();
+    const before = await target.evaluate(key => JSON.parse(sessionStorage.getItem(key)!), sessionKey);
+    await openProjectMenu(target);
+    const picker = target.waitForEvent("filechooser");
+    await target.getByText("JSONファイルから追加", { exact: true }).click();
+    await (await picker).setFiles({ name: "project.json", mimeType: "application/json", buffer: content });
+    await expect(target.getByRole("status").filter({ hasText: "Projectを追加しました" })).toBeVisible();
+    const first = await records(target);
+    expect(first).toHaveLength(1);
+    expect(first[0].id).not.toBe(source.project.id);
+    expect(first[0].lastCalculation).toBeNull();
+    expect((await working(target)).project).toBeNull();
+    expect(await target.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).mapRouteDraft, sessionKey)).toEqual(before.mapRouteDraft);
+    await openProjectMenu(target);
+    await target.getByLabel("JSONファイルから追加").setInputFiles([]);
+    expect(await records(target)).toEqual(first);
+    await openProjectMenu(target);
+    await target.getByLabel("JSONファイルから追加").setInputFiles({ name: "future.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ ...exported, version: 999 })) });
+    await expect(target.locator("#app-notification-region").getByText(/unsupported Project JSON version/)).toBeVisible();
+    expect(await records(target)).toEqual(first);
+    await openProjectMenu(target);
+    await target.getByLabel("JSONファイルから追加").setInputFiles({ name: "same.json", mimeType: "application/json", buffer: content });
+    await expect.poll(async () => (await records(target)).length).toBe(2);
+    target.once("dialog", dialog => dialog.accept());
+    await load(target, first[0].id);
+    await expect(target.getByLabel("気象モード")).toHaveValue("FTD");
+    await target.reload();
+    await expect(target.getByRole("button", { name: "プロジェクトメニュー", exact: true })).toBeVisible({ timeout: 120_000 });
+    expect((await working(target)).project.id).toBe(first[0].id);
+    await calculate(target);
+    for (const width of [1100, 1440]) {
+      await target.setViewportSize({ width, height: 1000 });
+      await expectPlanningLayout(target, width);
+    }
+    await target.getByLabel("DATE", { exact: true }).fill("2026-09-12");
+    await target.getByRole("button", { name: "経路を編集", exact: true }).click();
+    target.once("dialog", dialog => dialog.accept());
+    await target.getByRole("button", { name: "経路をクリア", exact: true }).click();
+    await openProjectMenu(target);
+    const staleDownload = target.waitForEvent("download");
+    await target.getByRole("button", { name: "JSONファイルに書き出す", exact: true }).click();
+    const changed = JSON.parse(readFileSync((await (await staleDownload).path())!, "utf8"));
+    expect(changed.inputs.flight_date).toBe("2026-09-12");
+    expect(changed.inputs.route_nodes).toEqual(exported.inputs.route_nodes);
+    expect(changed.planning.calculated_against_fingerprint).toBeUndefined();
+    expect(Object.keys(changed).sort()).toEqual(["format", "inputs", "manual_sea", "planning", "version"]);
+  } finally { await receiver.close(); }
+  expect((await working(page)).project.id).toBe(source.project.id);
 });

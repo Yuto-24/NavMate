@@ -200,6 +200,11 @@ test("#218 panel pointer actions survive input blur and keyboard departure still
   await openProjectMenu(page);
   await selector.focus();
   await page.keyboard.press("Tab");
+  const projectFile = page.getByLabel("JSONファイルから追加", { exact: true });
+  await expect(projectFile).toBeFocused();
+  await expect(projectFile.locator("..")).toHaveCSS("outline-style", "solid");
+  await expect(project).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Tab");
   await expect(project).toHaveAttribute("aria-expanded", "false");
   const more = page.getByRole("button", { name: /^その他/ });
   await more.focus();

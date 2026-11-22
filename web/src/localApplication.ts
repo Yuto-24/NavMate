@@ -4,7 +4,7 @@ import { accountBoundaryClosed, type AuthProvider } from "./auth";
 import { ApplicationError } from "./application";
 import type { AutoNavLogApplication, CalculationOptions, ImportRouteInput, ConfirmRouteInput, UpdateProjectInput, ProgressListener, LoadProjectOptions } from "./application";
 import { sameProjectContent, sameProjectDraft } from "./projectLoad";
-import type { CheckPointInput, WebState, WorkingRecovery } from "./types";
+import type { CheckPointInput, Project, WebState, WorkingRecovery } from "./types";
 import { LocalClient } from "./localClient";
 import { StartupProgressStore } from "./startupProgress";
 import type { LocalProjectRepository, LocalProjectRecord, LocalProjectRepositoryFactory } from "./localProjectRepository";
@@ -235,6 +235,22 @@ export class LocalApplication implements AutoNavLogApplication {
     const state = await this.execute("calculate", options && { rounding_mode: options.roundingMode }, onProgress);
     onProgress?.({ percent: 100, message: "計算が完了しました。" });
     return state;
+  }
+  exportProject() { return this.serial(() => this.request<string>("exportProject")); }
+  importProject(text: string) {
+    return this.serial(async () => {
+      this.assertResolved();
+      // Prepare is pure: a rejected file or write never changes the active work.
+      const project = await this.request<Project>("prepareProjectImport", { text });
+      const state = await this.request<WebState>("state");
+      const record: LocalProjectRecord = {
+        schemaVersion: 2, id: project.id, token: crypto.randomUUID(),
+        draft: project, checkpoint: structuredClone(project), lastCalculation: null,
+        updatedAt: project.updated_at,
+      };
+      await this.repository.write(record, null, false);
+      return this.present(state);
+    });
   }
   saveProject(name: string) {
     this.invalidatePending();

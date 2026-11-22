@@ -538,3 +538,74 @@ for (const selectedMode of [false, true]) {
     ]);
   });
 }
+
+test("#319 imports add independent saved Projects without opening or replacing current work", async () => {
+  const { randomUUID } = await import("node:crypto");
+  const factory = new IDBFactory();
+  const current = { id: randomUUID(), metadata: {}, name: "same", revision: 0, status: "DRAFT", updated_at: new Date().toISOString() } as any;
+  let fail = false;
+  const operations: string[] = [];
+  const app = new LocalApplication(validate => new IndexedDbProjectRepository(validate, async () => {}, () => factory), () => ({
+    request: async <T>(operation: string, input?: any) => {
+      operations.push(operation);
+      if (operation === "prepareProjectImport") {
+        if (input.text === "invalid") throw new ApplicationError("invalid file", "PROJECT_JSON_INVALID");
+        return { ...current, id: randomUUID() } as T;
+      }
+      if (operation === "validateRecord") {
+        if (fail) throw new ApplicationError("storage failed", "LOCAL_STORAGE_FAILED");
+        return input as T;
+      }
+      if (operation === "exportProject") return 'input-only' as T;
+      return { ...state, project: current, workingRecovery: { project: current, outcome: null } } as T;
+    }, dispose() {},
+  }));
+  await app.saveProject("same");
+  const before = await app.refreshProjects();
+  const first = await app.importProject("file");
+  const second = await app.importProject("file");
+  expect(first.project!.id).toBe(current.id);
+  expect(second.project!.id).toBe(current.id);
+  expect(second.savedProjects).toHaveLength(3);
+  expect(new Set(second.savedProjects.map(row => row.id)).size).toBe(3);
+  expect(second.savedProjects.every(row => row.kind === "SAVED")).toBe(true);
+  await expect(app.importProject("invalid")).rejects.toMatchObject({ code: "PROJECT_JSON_INVALID" });
+  fail = true;
+  await expect(app.importProject("file")).rejects.toMatchObject({ code: "LOCAL_STORAGE_FAILED" });
+  fail = false;
+  expect((await app.refreshProjects()).savedProjects).toEqual(second.savedProjects);
+  expect(second.savedProjects.find(row => row.id === current.id)).toEqual(before.savedProjects[0]);
+  expect(await app.exportProject()).toBe("input-only");
+  expect(operations).not.toContain("bootstrap");
+  app.dispose();
+});
+
+test("#319 imported Project belongs to the receiving Account repository and its new sync revision", async () => {
+  const { AccountProjectRepository } = await import("../src/accountProjectRepository");
+  const factory = new IDBFactory();
+  let repository!: InstanceType<typeof AccountProjectRepository>;
+  const project = { id: crypto.randomUUID(), name: "received", revision: 0, status: "DRAFT",
+    updated_at: new Date().toISOString(), metadata: {} } as any;
+  const app = new LocalApplication(validate => {
+    repository = new AccountProjectRepository(validate,
+      { account_id: "receiver", assertActive() {}, onClose: () => () => {} }, "receiving-device",
+      async record => record, () => factory);
+    return repository;
+  }, () => ({
+    request: async <T>(operation: string, input?: unknown) => {
+      if (operation === "prepareProjectImport") return project as T;
+      if (operation === "validateRecord") return input as T;
+      return { ...state } as T;
+    }, dispose() {},
+  }));
+  await app.importProject("validated inputs");
+  const pending = (await repository.pending()).flat();
+  expect(pending).toHaveLength(1);
+  expect(pending[0].expectedVersion).toBeNull();
+  expect(pending[0].value.revision).toBe(1);
+  expect(pending[0].value.record!.draft.revision).toBe(0);
+  expect(pending[0].value.record!.lastCalculation).toBeNull();
+  const anonymous = new IndexedDbProjectRepository(async raw => raw as any, async () => {}, () => factory);
+  expect((await anonymous.list()).projects).toEqual([]);
+  app.dispose();
+});
