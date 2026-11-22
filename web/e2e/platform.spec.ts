@@ -220,29 +220,39 @@ test("download and Clipboard export the displayed result, survive denial, and re
     expect(regions[4].y).toBeGreaterThanOrEqual(regions[3].bottom);
     const content = page.locator(".nav-log-focus-target");
     // Read one layout snapshot so smooth scrolling cannot mix viewport coordinates.
-    const { boxes, section, buttons } = await content.evaluate(element => {
+    const { boxes, footer, sea, buttons } = await content.evaluate(element => {
       const rect = (selector: string) => {
         const box = element.querySelector(selector)!.getBoundingClientRect();
         return { x: box.x, y: box.y, width: box.width, height: box.height };
       };
       return {
         boxes: [".nav-log-summary", ".nav-log-scroll", ".fuel-plan-section", ".navlog-export-actions"].map(rect),
-        section: rect(".nav-log-section"),
+        footer: rect(".nav-log-footer"),
+        sea: rect(".sea-panel"),
         buttons: [1, 2].map(index => rect(`.navlog-export-actions button:nth-child(${index})`)),
       };
     });
-    for (let i = 1; i < boxes.length; i++) {
+    for (let i = 1; i < 3; i++) {
       expect(boxes[i]!.y).toBeGreaterThanOrEqual(boxes[i - 1]!.y + boxes[i - 1]!.height);
     }
-    expect(boxes[3]!.y - section.y - section.height).toBeGreaterThanOrEqual(16);
+    expect(boxes[3]!.y).toBeGreaterThanOrEqual(sea.y + sea.height + 16);
+    expect(boxes[3]!.y + boxes[3]!.height).toBeCloseTo(footer.y + footer.height, 0);
     const actions = content.locator(".navlog-export-actions");
     await expect(actions.locator("button")).toHaveCount(2);
     expect(await actions.evaluate(element => getComputedStyle(element).gap)).toBe("8px");
     expect(await actions.evaluate(element => element.closest(".nav-log-scroll"))).toBeNull();
-    expect(buttons[0]!.x).toBe(boxes[0]!.x);
-    expect(boxes[3]!.width - 32).toBe(boxes[0]!.width);
-    if (width === 390) expect(buttons[1]!.y).toBeGreaterThanOrEqual(buttons[0]!.y + buttons[0]!.height + 8);
-    else expect(buttons[1]!.y).toBe(buttons[0]!.y);
+    if (width === 390) {
+      expect(sea.y).toBeGreaterThanOrEqual(boxes[2]!.y + boxes[2]!.height + 16);
+      expect(buttons[0]!.x).toBe(boxes[0]!.x);
+      expect(buttons[1]!.y).toBeGreaterThanOrEqual(buttons[0]!.y + buttons[0]!.height + 8);
+    } else {
+      expect(sea.x).toBeGreaterThanOrEqual(boxes[2]!.x + boxes[2]!.width + 32);
+      expect(sea.y).toBeCloseTo(boxes[2]!.y, 0);
+      expect(boxes[2]!.width).toBe(420);
+      expect(boxes[3]!.y + boxes[3]!.height).toBeGreaterThanOrEqual(boxes[2]!.y + boxes[2]!.height);
+      expect(buttons[1]!.y).toBe(buttons[0]!.y);
+      expect(buttons[1]!.x + buttons[1]!.width).toBeCloseTo(boxes[0]!.x + boxes[0]!.width, 0);
+    }
     expect(buttons[1]!.x + buttons[1]!.width).toBeLessThanOrEqual(width);
     const scroll = content.locator(".nav-log-scroll");
     const { maxScroll, scrollLeft } = await scroll.evaluate(element => {

@@ -2149,17 +2149,17 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             editErrors={navLogEditErrors}
             editStatus={navLogEditStatus}
             onEdit={handleNavLogEdit}
+            jsonExport={<>
+              <button className="secondary-button" disabled={busy} onClick={() => void runTask(
+                () => platform.files.save(exportNavLog(state)),
+                { errorKey: "export-json", success: "NAV LOG JSONのダウンロードを開始しました。" },
+              )}>NAV LOG JSONをダウンロード</button>
+              <button className="secondary-button" disabled={busy} onClick={() => void runTask(
+                () => platform.clipboard.writeText(new TextDecoder().decode(exportNavLog(state).content)),
+                { errorKey: "copy-json", success: "NAV LOG JSONをコピーしました。" },
+              )}>NAV LOG JSONをコピー</button>
+            </>}
           />
-          <div className="navlog-export-actions">
-            <button className="secondary-button" disabled={busy} onClick={() => void runTask(
-              () => platform.files.save(exportNavLog(state)),
-              { errorKey: "export-json", success: "NAV LOG JSONのダウンロードを開始しました。" },
-            )}>NAV LOG JSONをダウンロード</button>
-            <button className="secondary-button" disabled={busy} onClick={() => void runTask(
-              () => platform.clipboard.writeText(new TextDecoder().decode(exportNavLog(state).content)),
-              { errorKey: "copy-json", success: "NAV LOG JSONをコピーしました。" },
-            )}>NAV LOG JSONをコピー</button>
-          </div>
         </div>
       )}
       {currentRjfmInboundGuidance && (

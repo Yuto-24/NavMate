@@ -1382,9 +1382,11 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .display-state-symbol { font-size: 15px !important; font-weight: 800; }
 
-.fuel-plan-with-advisory { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
-.fuel-plan-section { margin-top: 14px; flex: 0 1 420px; min-width: 0; }
-.forecast-advisory { margin-top: 14px; flex: 1 1 240px; color: inherit; }
+.nav-log-footer { display: flex; flex-wrap: wrap; align-items: stretch; gap: 16px 32px; margin-top: 14px; }
+.fuel-plan-section { flex: 0 1 420px; min-width: 0; }
+.nav-log-footer-details { display: flex; flex-direction: column; flex: 1 1 360px; gap: 16px; min-width: 0; }
+.nav-log-footer-details > p { margin: 0; }
+.forecast-advisory { color: inherit; }
 .forecast-advisory p { margin: 6px 0 0; overflow-wrap: anywhere; }
 .issue-advisory, .issue-advisory strong { color: inherit; }
 .fuel-plan-heading { margin: 0 0 7px; }
@@ -1690,10 +1692,13 @@ tbody tr:last-child td { border-bottom: 0; }
 .navlog-export-actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.5rem;
-  max-width: 1530px;
-  margin: 1rem auto 0;
-  padding: 0 16px 24px;
+  margin-top: auto;
+}
+
+@media (max-width: 700px) {
+  .navlog-export-actions { justify-content: flex-start; }
 }
 
 .account-dialog { max-width: 480px; padding: 24px; white-space: normal; color: var(--brand-950); }
@@ -1759,7 +1764,7 @@ tbody tr:last-child td { border-bottom: 0; }
 
 .nav-log-png-paper .nav-leg-spacer-row td { height: 20px; padding: 0; }
 
-.sea-panel { margin-block: 1rem; }
+.sea-panel { margin: 0; }
 .sea-panel > a { margin-left: 12px; font-size: 12px; }
 .sea-warning { color: var(--amber-700); font-size: 12px; margin-block: 6px; }
 

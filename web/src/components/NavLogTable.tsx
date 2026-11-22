@@ -621,7 +621,7 @@ function NavLogSummary({
 export function NavLogTable({
   sea, seaDisabled = true, seaMessage, onSeaUpdate, onSeaAcquire,
   roundingMode = true, roundingDisabled = true, onRoundingChange,
-  radReciprocal = true, onRadReciprocalChange, exportDisabled = true, savePng, onExportMessage, kmlExport,
+  radReciprocal = true, onRadReciprocalChange, exportDisabled = true, savePng, onExportMessage, kmlExport, jsonExport,
   vorColumns, setVorColumns,
   outcome,
   destinationWind,
@@ -645,6 +645,7 @@ export function NavLogTable({
   savePng?: (file: PlatformFile) => Promise<void>;
   onExportMessage?: (message: string, kind: "success" | "error") => void;
   kmlExport?: ReactNode;
+  jsonExport?: ReactNode;
   roundingDisabled?: boolean;
   onRoundingChange?: (enabled: boolean) => void;
   vorColumns: VorColumn[];
@@ -1064,17 +1065,20 @@ export function NavLogTable({
           </table>
         </div>
       </div>
-      {sea && onSeaUpdate && onSeaAcquire && <SeaPanel projectId={project.id} plan={sea}
-        disabled={seaDisabled} onAcquire={onSeaAcquire} />}
-      {seaMessage && <p role="status">{seaMessage}</p>}
-      <div className="fuel-plan-with-advisory">
+      <div className="nav-log-footer">
         <FuelPlanTable outcome={outcome} />
-        {outcome.issues.filter(issue => issue.code === "FORECAST_STALE_RUN").map(issue => (
-          <aside className="forecast-advisory" key={issue.code} aria-label="Advisory">
-            <strong>Advisory</strong>
-            <p>{issue.message}</p>
-          </aside>
-        ))}
+        <div className="nav-log-footer-details">
+          {sea && onSeaUpdate && onSeaAcquire && <SeaPanel projectId={project.id} plan={sea}
+            disabled={seaDisabled} onAcquire={onSeaAcquire} />}
+          {seaMessage && <p role="status">{seaMessage}</p>}
+          {outcome.issues.filter(issue => issue.code === "FORECAST_STALE_RUN").map(issue => (
+            <aside className="forecast-advisory" key={issue.code} aria-label="Advisory">
+              <strong>Advisory</strong>
+              <p>{issue.message}</p>
+            </aside>
+          ))}
+          {jsonExport && <div className="navlog-export-actions">{jsonExport}</div>}
+        </div>
       </div>
       {rjfmGuidance && <RjfmGuidancePanel guidance={rjfmGuidance} />}
     </section>
