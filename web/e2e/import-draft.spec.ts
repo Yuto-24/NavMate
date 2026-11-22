@@ -1,4 +1,5 @@
 import { expectPlanningLayout } from "./helpers/planningLayout";
+import { selectAirport } from "./helpers/mapCandidates";
 import { openProjectMenu } from "./helpers/header";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -88,6 +89,38 @@ test("#176 unmatched imported endpoints survive reload without enabling confirma
   await expect(page.getByRole("button", { name: "経路を確定", exact: true })).toBeDisabled();
   expect((await snapshot(page)).working.project).toBeNull();
   expect((await snapshot(page)).mapRouteDraft).toEqual([]);
+});
+
+for (const restorePending of [false, true]) test(`#176 #170 unmatched TO becomes editable and confirms after airport selection (old pending: ${restorePending})`, async ({ page }) => {
+  await start(page);
+  await upload(page, kml(route("unmatched TO", "131.4486,31.8772,0 131.2,32,0 131.1,31.9,0")));
+  await expect(strip(page).locator("li")).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "経路を確定", exact: true })).toBeDisabled();
+  const before = (await snapshot(page)).mapRouteDraft;
+  expect(before.map((point: { name: string }) => point.name)).toEqual(["RJFM", "WP1", "WP2"]);
+  expect(before.slice(1).map((point: { latitude_deg: number; longitude_deg: number }) =>
+    [point.latitude_deg, point.longitude_deg])).toEqual([[32, 131.2], [31.9, 131.1]]);
+  if (restorePending) {
+    // Reproduce the previous version's selected preview, with no adopted Draft.
+    await page.evaluate(() => {
+      const key = "autonavlog.working-session.v1";
+      const session = JSON.parse(sessionStorage.getItem(key)!);
+      session.pendingImportDraft = true;
+      session.mapRouteDraft = [];
+      sessionStorage.setItem(key, JSON.stringify(session));
+    });
+  }
+  await page.reload();
+  await expect(strip(page).locator("li")).toHaveCount(3);
+  await expect.poll(async () => (await snapshot(page)).pendingImportDraft).toBe(false);
+  expect((await snapshot(page)).mapRouteDraft).toEqual(before);
+  await selectAirport(page, "RJFM");
+  await expect(strip(page).locator("li")).toHaveCount(4);
+  expect((await snapshot(page)).mapRouteDraft.slice(0, 3)).toEqual(before);
+  await page.getByRole("button", { name: "経路を確定", exact: true }).click();
+  await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
+  const project = (await snapshot(page)).working.project;
+  expect(project.route_nodes.map((point: { name: string }) => point.name)).toEqual(["RJFM", "WP1", "WP2", "RJFM"]);
 });
 
 test("#176 denied Clipboard falls back to manual paste without losing the Draft", async ({ page }) => {

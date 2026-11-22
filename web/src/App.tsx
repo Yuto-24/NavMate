@@ -6,7 +6,7 @@ import { useNotificationState } from "./useNotificationState";
 import { localMode, localAccountScope } from "./executionMode";
 import type { ReferencePointSnapshot } from "./referencePoints";
 import { importCandidateToMapDraft } from "./importRouteDraft";
-import { canConfirmMapDraft, nextWaypointName, routeDraftFromProject, type MapRoutePoint } from "./mapRouteDraft";
+import { canConfirmMapDraft, validMapDraft, nextWaypointName, routeDraftFromProject, type MapRoutePoint } from "./mapRouteDraft";
 import { AccountSyncControl } from "./components/AccountSyncControl";
 import { useCallback, useSyncExternalStore, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
@@ -482,7 +482,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         setSelectedImportCandidate(restored.selectedImportCandidate ?? "");
         const restoredImport = pendingImport ? candidateFromKey(next.import.candidates, restored.form.candidateKey) : null;
         const restoredDraft = restoredImport ? importCandidateToMapDraft(restoredImport, next.airports) : null;
-        if (restoredDraft?.status === "ready") {
+        if (restoredDraft && restoredDraft.status !== "invalid" && validMapDraft(restoredDraft.points)) {
           setMapRouteDraft(restoredDraft.points);
           setPendingImportDraft(false);
         }
@@ -741,7 +741,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     setError(null);
     setImportFitCoordinates(draft.points.map(point => [point.latitude_deg, point.longitude_deg]));
     setForm(current => ({ ...current, candidateKey: key }));
-    if (draft.status === "ready") {
+    if (validMapDraft(draft.points)) {
       setMapRouteDraft(draft.points);
       setPendingImportDraft(false);
       setNotice("経路候補を読み込みました。地図と記載順を確認してください。");

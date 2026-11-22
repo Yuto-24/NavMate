@@ -14,8 +14,9 @@ function validCoordinate(latitude: number, longitude: number): boolean {
 
 /** Adapt the common KML/KMZ parser's candidate without confirming or mutating a Project.
  * Airport IDs are the facade's existing 5 NM match; do not introduce another distance
- * model here (the accompanying display distances are rounded). Unmatched endpoints
- * remain visible in the preview, but must not be persisted as a valid Map Draft.
+ * model here (the accompanying display distances are rounded). A matched departure
+ * allows ordinary Draft editing even while the destination is still unmatched;
+ * confirmation continues to require both airport endpoints.
  */
 export function importCandidateToMapDraft(
   candidate: RouteCandidate,
