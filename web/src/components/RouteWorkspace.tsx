@@ -252,6 +252,7 @@ export function RouteWorkspace({
   const mapFrameRef = useRef<HTMLDivElement>(null);
   const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
   const [checkpointSlots, setCheckpointSlots] = useState<Record<string, HTMLElement>>({});
+  const [checkpointAddSlot, setCheckpointAddSlot] = useState<HTMLSpanElement | null>(null);
   const registerCheckpointSlot = useCallback((id: string, element: HTMLDivElement | null) => {
     setCheckpointSlots(current => {
       if (current[id] === element || (!element && !current[id])) return current;
@@ -963,9 +964,24 @@ export function RouteWorkspace({
 
       {!mapBuilder && planningPanel}
       {mapBuilder && <RouteStrip {...mapBuilder}>{planningPanel}</RouteStrip>}
-      {project && !mapBuilder && (
+      {!mapBuilder && <>
+      {project && phaseEditing && (
+        <div className="phase-edit-note" role="status">
+          CLIMB / DESCENT を別Legへ選ぶと、既存の同Phaseは自動でCRUISEへ戻ります。
+          RCA・EOC・性能・時間・燃料計算が変わるため、計画意図を確認して変更してください。
+        </div>
+      )}
+      <div className="route-timeline-heading">
+        <strong>経路</strong>
+        {project && <div className="route-timeline-actions">
+          <span ref={setCheckpointAddSlot} />
+          {hasEditablePhaseSections && <button className="phase-edit-toggle" type="button" disabled={busy} aria-pressed={phaseEditing} onClick={() => setPhaseEditing(v=>!v)}>{phaseEditing ? "飛行段階の編集を完了" : "飛行段階を編集"}</button>}
+        </div>}
+      </div>
+      {project && (
         <CheckPointEditor
           slots={checkpointSlots}
+          addButtonSlot={checkpointAddSlot}
           draft={checkPointDraft}
           setDraft={setCheckPointDraft}
           nodes={nodes}
@@ -980,15 +996,6 @@ export function RouteWorkspace({
           onReplace={onReplaceCheckPoints}
         />
       )}
-
-      {!mapBuilder && <>
-      {project && phaseEditing && (
-        <div className="phase-edit-note" role="status">
-          CLIMB / DESCENT を別Legへ選ぶと、既存の同Phaseは自動でCRUISEへ戻ります。
-          RCA・EOC・性能・時間・燃料計算が変わるため、計画意図を確認して変更してください。
-        </div>
-      )}
-      <div className="route-timeline-heading"><strong>経路</strong>{project && hasEditablePhaseSections && <button className="phase-edit-toggle" type="button" disabled={busy} aria-pressed={phaseEditing} onClick={() => setPhaseEditing(v=>!v)}>{phaseEditing ? "飛行段階の編集を完了" : "飛行段階を編集"}</button>}</div>
       <ol className="route-timeline">
             {!mapBuilder && nodes.map((node, index) => {
               const section = sectionByFromNode.get(node.id);

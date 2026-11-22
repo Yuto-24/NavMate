@@ -6,6 +6,7 @@ Read [the workflow](README.md) before adding or applying lessons. For the full m
 - [ETD時計のフォーカス離脱](../web-design/tokens_and_implementation.md#etd時計のフォーカス離脱): フォーカスで開くnative popoverは、別入力欄への移動でも明示的に閉じる。iPhone WebKitで計算ボタンの遮蔽を再現し、時計内移動を保った修正を検証。
 - [Agent workflow](../agent_workflow.md)
 - [PR本文更新によるCIキャンセル](../testing.md#pr本文更新によるciキャンセル): PR #478。本文編集もCIを起動し、先行Runのcancelledが集約失敗へ波及する。テスト本体の失敗と分け、本文を先に更新して最後にpushする。
+- [多数のassertionによるPlaywrightの記録負荷](../testing.md#多数のassertionによるplaywrightの記録負荷): PR #494。iPad WebKitの格子検証で約5万4千件のassertion記録が累積しtimeout。Playwright 1.62.1の親step検索を確認し、検証内容を保って反復単位の `test.step()` で区切る。
 - [スクロール中の位置測定と時計の停止](../testing.md#スクロール中の位置測定と時計の停止): PR #489。別々の座標取得と停止時刻の取得・指定の間に時間が進む問題。位置の同時測定と、固定時刻からの時計制御で検証条件を保つ。
 - [EOC高度連続性とsnap時間差](../testing.md#eocの高度連続性とsnap時間差issue-470): #470。前段の実効CRUISE時間による高度到達と、snapによる描画時間差を分離。旧Goldenの高度不連続、保存済みsnap根拠の照合、30秒以内の描画補正の検証境界。
 - [再利用イメージのPython Reference版ずれ](../testing.md#再利用イメージの-python-reference-と-local-wheel): Issue #418。PYTHONPATHだけではdistribution metadataは更新されず、古い版番号が計算fingerprintに入る。Local wheelと現行パッケージを揃える。旧環境での変更前UIの失敗だけから既存不具合と断定しない。

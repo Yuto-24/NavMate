@@ -51,16 +51,21 @@
   gap: 6px;
 }
 
-.phase-edit-toggle {
+.phase-edit-toggle,
+.route-timeline-actions .checkpoint-add-button {
   min-height: 24px;
   padding: 0 7px;
-  color: #43596e;
-  background: #ffffff;
-  border: 1px solid #aebbc7;
+  border: 1px solid;
   border-radius: 5px;
   font-size: 9px;
   font-weight: 750;
   line-height: 1;
+}
+
+.phase-edit-toggle {
+  color: #43596e;
+  background: #ffffff;
+  border-color: #aebbc7;
 }
 
 .phase-edit-toggle:hover:not(:disabled),

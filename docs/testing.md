@@ -603,6 +603,26 @@ Node、Python、Java、npm / pip の導入と現在の checkout のビルドは�
 コンテナ取得と npm / pip / Firebase emulator の外部取得は残ります。コンテナ利用だけから
 高速化を断定せず、Hosted Run の Initialize containers、依存導入、テスト本体を分けて比較します。
 
+#### 多数のassertionによるPlaywrightの記録負荷
+
+2026-11-23（JST）、[PR #494のiPad WebKitテスト](https://github.com/Yuto-24/NavMate/actions/runs/45041039018/job/137265396511)で、
+NAV LOGの格子検証を27回繰り返す `#412` テストが180秒の上限に達しました。
+traceには54,622件のassertionがあり、個別assertionの失敗はありませんでした。
+起動は約10秒で完了していました。
+同じ1,957件の検証でも、1回目は約1.17秒、26回目は約12.13秒を要しました。
+
+Playwright 1.62.1では、明示的な親stepがないassertionを記録する際に、既存stepを再帰的に検索します。
+このテストでは格子検証1回ごとに `test.step()` で親を設定し、検索の累積を避けます。
+全セルの検証、画面幅・スクロール位置、許容値、180秒の上限は変更しません。
+
+同じhelperへ合成gridを渡す比較では、54,423件の検証が53.0秒から18.7秒になりました。
+2pxの位置ずれを与えると、従来どおり1pxの許容値を超えて失敗することも確認しました。
+この比較はブラウザを使わず、記録処理と失敗の伝播を検証したものです。
+
+この知見は当該traceとPlaywright 1.62.1の実装に基づく観測です。
+別のtimeoutへ適用する前に、起動・操作待ちとassertionの記録時間を切り分けてください。
+修正後のHosted CI成功を示すものではありません。
+
 #### スクロール中の位置測定と時計の停止
 
 2026-11-22、[PR #489のCI](https://github.com/Yuto-24/NavMate/actions/runs/44998138669)で、

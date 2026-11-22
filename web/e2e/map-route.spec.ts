@@ -161,7 +161,7 @@ for (const width of [1100, 1440]) {
     for (const [name, altitude] of [["RJFM", "6500"], ["WP1", "7500"], ["WP2", "6500"]]) {
       await page.getByLabel(`${name}出発Legの計画高度`, { exact: true }).fill(altitude!);
     }
-    await page.getByRole("button", { name: "1番目のLegへ地図からチェックポイントを追加", exact: true }).click();
+    await page.getByRole("button", { name: "チェックポイントを追加", exact: true }).click();
     await clickMapCoordinate(page, 32.0, 130.9);
     const cp = page.locator(".checkpoint-form");
     await cp.getByLabel("名称", { exact: true }).fill("MAP CP");

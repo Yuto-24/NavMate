@@ -34,7 +34,7 @@ async function importLocalRoute(page: Page) {
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("気象モード").selectOption("FTD");
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
-  await expect(page.getByRole("button", { name: "1番目のLegへ地図からチェックポイントを追加" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "チェックポイントを追加" })).toBeEnabled();
 }
 
 test.beforeEach(async ({ page, context }) => {
@@ -254,7 +254,7 @@ test("green theme keeps readable controls, keyboard selection and aviation color
   await dialog.screenshot({ path: info.outputPath("green-account-focus.png") });
   await close.click();
   await primary.click();
-  await expect(page.getByRole("button", { name: "1番目のLegへ地図からチェックポイントを追加" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "チェックポイントを追加" })).toBeEnabled();
   await expect(page.locator(".rjfm-pca-boundary")).toHaveAttribute("stroke", "#a45b13");
   await expect(page.locator(".rjfm-training-airspace-boundary").first()).toHaveAttribute("stroke", "#315caa");
 

@@ -23,6 +23,7 @@ interface PickedCoordinate {
 
 interface CheckPointEditorProps {
   slots?: Record<string, HTMLElement>;
+  addButtonSlot?: HTMLElement | null;
   draft: Draft;
   setDraft: Dispatch<SetStateAction<Draft>>;
   nodes: RouteNode[];
@@ -39,6 +40,7 @@ interface CheckPointEditorProps {
 
 export function CheckPointEditor({
   slots,
+  addButtonSlot,
   draft, setDraft,
   nodes,
   sections,
@@ -95,10 +97,8 @@ export function CheckPointEditor({
     });
   }, [coordinatesValid, latitude, longitude, nodeById, sections]);
   const selectedLegMatches = matchingSections.some(section => section.id === draft.linkedSectionId);
-  const effectiveLinkedSectionId = slots
-    ? selectedLegMatches ? draft.linkedSectionId : ""
-    : matchingSections.length === 1 ? matchingSections[0]!.id
-      : selectedLegMatches ? draft.linkedSectionId : "";
+  const effectiveLinkedSectionId = matchingSections.length === 1 ? matchingSections[0]!.id
+    : selectedLegMatches ? draft.linkedSectionId : "";
 
   useEffect(() => {
     if (!pickedCoordinate) return;
@@ -204,7 +204,7 @@ export function CheckPointEditor({
               {nameIsBlocking ? "チェックポイントの名称・未入力（入力必須）" : ""}
             </small>}
           </label>
-          {(matchingSections.length > 1 || (coordinatesValid && !selectedLegMatches)) && (
+          {matchingSections.length > 1 && (
             <label>
               <span>関連Leg</span>
               <select
@@ -230,9 +230,7 @@ export function CheckPointEditor({
           )}
           <p id={!draft.id ? "checkpoint-name-warning" : undefined} className="checkpoint-leg-status" role="status" aria-live="polite">
             {coordinatesValid && matchingSections.length === 0
-              ? "Leg線分内にabeam点があり、横ずれ10 NM以内となる関連Legがありません。"
-              : coordinatesValid && slots && draft.linkedSectionId && !selectedLegMatches && matchingSections.length > 0
-                ? "選択したLegの範囲外です。地図で選び直すか、関連Legを選択してください。" : ""}
+              ? "Leg線分内にabeam点があり、横ずれ10 NM以内となる関連Legがありません。" : ""}
           </p>
           <div className="checkpoint-form-actions">
             <button
@@ -294,27 +292,31 @@ export function CheckPointEditor({
             );
   };
   const sorted = [...checkPoints].sort((a, b) => (projectionById.get(a.id)?.along_section_distance_nm ?? Infinity) - (projectionById.get(b.id)?.along_section_distance_nm ?? Infinity));
+  const addButton = (
+    <button
+      className={slots ? "checkpoint-add-button" : "secondary-button checkpoint-add-button"}
+      type="button"
+      aria-label="チェックポイントを追加"
+      onClick={() => {
+        onPickedCoordinateClear();
+        setDraft(initialDraft());
+        setEditorOpen(true);
+        onPickingFromMapChange(true);
+      }}
+      disabled={busy || !sections.length}
+    >
+      <Plus aria-hidden="true" size={13} />
+      CPを追加
+    </button>
+  );
   return (
     <section className="checkpoint-editor" aria-label="チェックポイント設定">
+      {addButtonSlot && createPortal(addButton, addButtonSlot)}
       {!slots && <div className="section-heading-row">
         <div>
           <h3>チェックポイント</h3>
         </div>
-        <button
-          className="secondary-button checkpoint-add-button"
-          type="button"
-          aria-label="チェックポイントを追加"
-          onClick={() => {
-            onPickedCoordinateClear();
-            setDraft(initialDraft());
-            setEditorOpen(true);
-            onPickingFromMapChange(true);
-          }}
-          disabled={busy || !sections.length}
-        >
-          <Plus aria-hidden="true" size={16} />
-          CPを追加
-        </button>
+        {addButton}
       </div>}
 
 
@@ -330,12 +332,6 @@ export function CheckPointEditor({
         return target ? createPortal(<>
           {sorted.filter(item => item.linked_section_id === section.id).map(renderRow)}
           {draft.linkedSectionId === section.id && form}
-          <button type="button" className="icon-button checkpoint-inline-add" aria-label={`${section.sequence + 1}番目のLegへ地図からチェックポイントを追加`} title="CPを追加" disabled={busy} onClick={() => {
-            onPickedCoordinateClear();
-            setDraft({ ...initialDraft(), linkedSectionId: section.id });
-            setEditorOpen(true);
-            onPickingFromMapChange(true);
-          }}><Plus aria-hidden="true" size={13} /><span>CPを追加</span></button>
         </>, target, section.id) : null;
       })}
     </section>
