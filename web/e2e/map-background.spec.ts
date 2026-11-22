@@ -137,6 +137,16 @@ for (const width of [390, 1100, 1440]) {
     const frameBox = (await page.locator(".map-frame").boundingBox())!;
     expect(menuBox.x).toBeGreaterThanOrEqual(frameBox.x);
     expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(frameBox.x + frameBox.width);
+    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(frameBox.y + frameBox.height);
+    const lastCategory = page.getByLabel("回廊", { exact: true });
+    await lastCategory.scrollIntoViewIfNeeded();
+    await expect(lastCategory).toBeInViewport();
+    const source = page.getByRole("link", { name: "航空情報センター AIP", exact: true });
+    await source.scrollIntoViewIfNeeded();
+    expect(await source.evaluate(element => {
+      const box = element.getBoundingClientRect();
+      return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+    })).toBe(true);
     await page.getByText("空域レイヤー", { exact: true }).click();
     await page.getByRole("button", { name: "経路を編集", exact: true }).click();
     await expect(page.locator(".route-workspace.is-route-building")).toBeVisible();

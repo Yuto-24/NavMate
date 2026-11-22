@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { GeoJSON, Pane } from "react-leaflet";
 import { aipCategories, type AipAirspace } from "../aipAirspace";
 
@@ -13,7 +14,27 @@ export function AipAirspaceLayers({ data, hidden }: { data: AipAirspace; hidden:
 export function AipAirspaceControl({ data, failed, hidden, onChange }: {
   data: AipAirspace | null; failed: boolean; hidden: string[]; onChange: (id: string) => void;
 }) {
-  return <details className="aip-layer-control">
+  const controlRef = useRef<HTMLDetailsElement>(null);
+  useLayoutEffect(() => {
+    const control = controlRef.current!;
+    const frame = control.closest<HTMLElement>(".map-frame")!;
+    const toolbar = control.parentElement!;
+    const options = control.querySelector<HTMLElement>(".aip-layer-options")!;
+    const updateHeight = () => {
+      if (!control.open) return;
+      const available = frame.getBoundingClientRect().bottom - options.getBoundingClientRect().top - 8;
+      options.style.setProperty("--aip-available-height", `${Math.max(0, available)}px`);
+    };
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(frame);
+    observer.observe(toolbar);
+    control.addEventListener("toggle", updateHeight);
+    return () => {
+      observer.disconnect();
+      control.removeEventListener("toggle", updateHeight);
+    };
+  }, []);
+  return <details ref={controlRef} className="aip-layer-control">
     <summary>空域レイヤー</summary>
     <div className="aip-layer-options">
       {aipCategories.map(([id, label]) => <label key={id}>
