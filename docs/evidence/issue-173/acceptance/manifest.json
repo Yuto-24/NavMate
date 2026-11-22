@@ -1,0 +1,141 @@
+{
+  "source_sha": "349a14e30896b52369ca0f7e34557104ec7f1618",
+  "generated_date_jst": "2026-11-23",
+  "google_earth_visual_acceptance": "NOT_VERIFIED",
+  "issue_173": "KEEP_OPEN",
+  "input_provenance": {
+    "general-ftd": "scripts.local_reference.reference_state(local=True, manual=True)",
+    "rjfm-return": "generate.py: return_state(500/1000); tests/fixtures/issue_117_ftd.json FTD weather",
+    "snapshot_archive": "sources.zip: saved Last Calculation and common profile per case"
+  },
+  "sha256": {
+    "sources.zip": "01df3b259acaa16f5fd3a22b00017108429e53a5270666b3f156ee14c21b718e",
+    "general-ftd.kml": "01affe5450e135ef58b2b369ccfc34ba3c1cc64788c60f1892b9a4b2d4dd3f93",
+    "rjfm-return-500.kml": "08f1c5c31818b4a205d41840fbe3dfc44d6e8ed3727317bc3d978d3fae5a462c",
+    "rjfm-return-1000.kml": "196ac989e01d223b808725fcebc0c96ed182acb6d61d8b553e3675a1caf03c72"
+  },
+  "expected": {
+    "general-ftd": {
+      "start_altitude_ft_msl": 7500,
+      "target_altitude_ft_msl": 2500,
+      "vertical_seconds": 300,
+      "deceleration_seconds": 60,
+      "eoc": {
+        "latitude_deg": 32.848386398683736,
+        "longitude_deg": 130.5252322459639,
+        "altitude_ft_msl": 7500.0,
+        "elapsed_seconds": 2804.719932754767,
+        "distance_nm": 103.35071784230065
+      },
+      "level_off": {
+        "latitude_deg": 33.001247614472895,
+        "longitude_deg": 130.4634425391593,
+        "altitude_ft_msl": 2500.0,
+        "elapsed_seconds": 3104.719932754767,
+        "distance_nm": 113.55691359634677
+      },
+      "descent_end": {
+        "latitude_deg": 33.02960582095061,
+        "longitude_deg": 130.4440880275259,
+        "altitude_ft_msl": 2500.0,
+        "elapsed_seconds": 3164.719932754767,
+        "distance_nm": 115.51583372544447
+      },
+      "arrival_end": {
+        "latitude_deg": 33.1497222222,
+        "longitude_deg": 130.3022222222,
+        "altitude_ft_msl": 6.0,
+        "elapsed_seconds": 3461.050826883,
+        "distance_nm": 125.6589716549808
+      },
+      "ground_check_points": [
+        {
+          "name": "MSM CORE CP",
+          "kind": "CHECK_POINT",
+          "point": {
+            "latitude_deg": 32.50460068844866,
+            "longitude_deg": 130.43684708443092,
+            "altitude_ft_msl": 7500.0,
+            "elapsed_seconds": 2358.5686089547894,
+            "distance_nm": 82.28363006566468
+          },
+          "reference_latitude_deg": 32.504600817641105,
+          "reference_longitude_deg": 130.43684711751482
+        }
+      ],
+      "kml_structure_and_coordinates": "passed"
+    },
+    "rjfm-return-500": {
+      "start_altitude_ft_msl": 4500,
+      "target_altitude_ft_msl": 1500,
+      "vertical_seconds": 360,
+      "deceleration_seconds": 0,
+      "eoc": {
+        "latitude_deg": 31.985137767624444,
+        "longitude_deg": 131.42429852046251,
+        "altitude_ft_msl": 4500.0,
+        "elapsed_seconds": 2177.1189126341305,
+        "distance_nm": 90.91337292398956
+      },
+      "level_off": {
+        "latitude_deg": 31.94977931375621,
+        "longitude_deg": 131.3535165268158,
+        "altitude_ft_msl": 1500.0,
+        "elapsed_seconds": 2537.1189126341305,
+        "distance_nm": 95.10069737627659
+      },
+      "descent_end": {
+        "latitude_deg": 31.94977931375621,
+        "longitude_deg": 131.3535165268158,
+        "altitude_ft_msl": 1500.0,
+        "elapsed_seconds": 2537.1189126341305,
+        "distance_nm": 95.10069737627659
+      },
+      "arrival_end": {
+        "latitude_deg": 31.8772222222,
+        "longitude_deg": 131.4486111111,
+        "altitude_ft_msl": 19.000000000000227,
+        "elapsed_seconds": 2728.8565531460654,
+        "distance_nm": 101.61666113923302
+      },
+      "ground_check_points": [],
+      "kml_structure_and_coordinates": "passed"
+    },
+    "rjfm-return-1000": {
+      "start_altitude_ft_msl": 4500,
+      "target_altitude_ft_msl": 1500,
+      "vertical_seconds": 180,
+      "deceleration_seconds": 0,
+      "eoc": {
+        "latitude_deg": 31.985137767624444,
+        "longitude_deg": 131.42429852046251,
+        "altitude_ft_msl": 4500.0,
+        "elapsed_seconds": 2177.1189126341305,
+        "distance_nm": 90.91337292398956
+      },
+      "level_off": {
+        "latitude_deg": 31.94977931375621,
+        "longitude_deg": 131.3535165268158,
+        "altitude_ft_msl": 1500.0,
+        "elapsed_seconds": 2357.1189126341305,
+        "distance_nm": 95.10069737627659
+      },
+      "descent_end": {
+        "latitude_deg": 31.94977931375621,
+        "longitude_deg": 131.3535165268158,
+        "altitude_ft_msl": 1500.0,
+        "elapsed_seconds": 2357.1189126341305,
+        "distance_nm": 95.10069737627659
+      },
+      "arrival_end": {
+        "latitude_deg": 31.8772222222,
+        "longitude_deg": 131.4486111111,
+        "altitude_ft_msl": 19.000000000000227,
+        "elapsed_seconds": 2548.8565531460654,
+        "distance_nm": 101.61666113923302
+      },
+      "ground_check_points": [],
+      "kml_structure_and_coordinates": "passed"
+    }
+  }
+}

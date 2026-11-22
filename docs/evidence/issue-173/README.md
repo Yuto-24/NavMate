@@ -14,6 +14,15 @@
 [#472 EOC高度連続性](https://github.com/Yuto-24/NavMate/pull/472)で確定した、根拠のあるsnap時間差を30秒以内に限って描画補正する例外は維持します。
 RJFM帰路も距離÷GSで時計を置き換えず、保存された運用時間を使用します。仕様は[Platform Capability](../../platform_capabilities.md#3d-kml-エクスポートgoogle-earth-用にエクスポート)と[計算規則](../../calculation_rules.md#descent--eoc)を参照してください。
 
+## ローカル検証結果
+
+生成元SHAの実装をDocker test stageで検証し、全pytestは3,824件成功・1件スキップでした。
+root実行でスキップされた権限テスト1件は非rootで補完実行し成功しています。
+Ruff・mypy・release・データ/schema検査・wheel/sdistビルドも成功しました。
+Web型検査、Local静的ビルド、Platform／KML unit 8件、KML保存・stale・再読込を含むブラウザ回帰1件が成功しています。
+同封ZIPのprofileからKML3件を再生成し、byte単位で一致することも確認しました。
+Hosted CI、CodeRabbit、Google Earth実表示、本番公開の結果を示すものではありません。
+
 ## 受入ファイルと期待値
 
 生成元コミットSHA、ファイルSHA-256、EOC・LEVEL OFF・到着点の座標／MSL高度／経過秒は[manifest.json](acceptance/manifest.json)に記録します。
@@ -53,3 +62,4 @@ python docs/evidence/issue-173/verify.py /tmp/navmate-173-acceptance "$(git rev-
 `verify.py`はKML構造・座標・既知の降下時間を検査し、期待値とハッシュを記録します。
 
 文書草稿はGemini 4 Neon Highで作成し、最終文面は実装・生成結果に合わせて修正しています。
+GPT-6.1 Solが最終文面・生成処理・ZIP内データ・KML・manifestを読み取り専用で照合し、必須修正なしと確認しました。
