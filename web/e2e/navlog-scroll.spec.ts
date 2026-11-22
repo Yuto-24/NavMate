@@ -239,7 +239,7 @@ test("#412 rows align, names size independently, and sticky columns follow edits
       await expectPlanningLayout(page, width);
       for (const left of [0, 420, 10000]) {
         await scroll.evaluate((el, value) => { el.scrollLeft = value; }, left);
-        await expectNavLogPaperGrid(page);
+        await test.step(`NAV LOG grid at ${width}px, scroll ${left}px`, () => expectNavLogPaperGrid(page));
         const geometry = await table.locator("thead .route-name-header").evaluateAll(cells => {
           const [from, to] = cells.map(cell => cell.getBoundingClientRect());
           return { gap: to.left - from.right, left: from.left,

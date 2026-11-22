@@ -294,7 +294,7 @@ export function CheckPointEditor({
   const sorted = [...checkPoints].sort((a, b) => (projectionById.get(a.id)?.along_section_distance_nm ?? Infinity) - (projectionById.get(b.id)?.along_section_distance_nm ?? Infinity));
   const addButton = (
     <button
-      className={`${slots ? "phase-edit-toggle" : "secondary-button"} checkpoint-add-button`}
+      className={slots ? "checkpoint-add-button" : "secondary-button checkpoint-add-button"}
       type="button"
       aria-label="チェックポイントを追加"
       onClick={() => {
