@@ -112,6 +112,10 @@ def test_return_completion_geometry_descent_and_restore(
         assert "FLIGHT_PHASE_SEQUENCE_INVALID" not in {
             issue["code"] for issue in calculated["outcome"]["issues"]
         }
+        for issues in (calculated["outcome"]["issues"], calculated["readiness"]["issues"]):
+            assert "RJFM_INBOUND_DIRECT_DISTANCE_SHORTFALL" not in {
+                issue["code"] for issue in issues
+            }
         outcome = CalculationOutcome.model_validate_json(json.dumps(calculated["outcome"]))
         profile = calculated["verticalProfile"]
         assert profile is not None

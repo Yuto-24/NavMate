@@ -308,7 +308,12 @@ async def test_production_available_reference_returns_numeric_v2_guidance(
         # the validated real-reference solver can provide an extension candidate.
         confirmed_project = confirmed.json()["project"]
         assert confirmed_project["sections"][-1]["planned_altitude_ft_msl"] == 1500
-        automatic_outcome = (await _wait_for_calculation(client))["outcome"]
+        automatic_state = await _wait_for_calculation(client)
+        automatic_outcome = automatic_state["outcome"]
+        for issues in (automatic_outcome["issues"], automatic_state["readiness"]["issues"]):
+            assert "RJFM_INBOUND_DIRECT_DISTANCE_SHORTFALL" not in {
+                issue["code"] for issue in issues
+            }
         automatic_guidance = automatic_outcome["rjfm_inbound_guidance"]
         assert automatic_guidance is not None
         assert automatic_guidance["status"] == "AVAILABLE"
@@ -416,7 +421,12 @@ async def test_corrupt_production_reference_is_nonblocking_and_suppresses_numeri
             },
         )
         assert confirmed.status_code == 200, confirmed.text
-        outcome = (await _wait_for_calculation(client))["outcome"]
+        calculated = await _wait_for_calculation(client)
+        outcome = calculated["outcome"]
+        for issues in (outcome["issues"], calculated["readiness"]["issues"]):
+            assert "RJFM_INBOUND_DIRECT_DISTANCE_SHORTFALL" not in {
+                issue["code"] for issue in issues
+            }
         guidance = outcome["rjfm_inbound_guidance"]
         assert guidance is not None
         assert guidance["status"] == "UNAVAILABLE"

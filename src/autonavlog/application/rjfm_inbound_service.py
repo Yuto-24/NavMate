@@ -93,11 +93,11 @@ def _build_rjfm_inbound_guidance(
     generated_against_fingerprint: str,
     solver: InboundSolver = solve_rjfm_inbound_west_extension,
 ) -> RjfmInboundGuidance | None:
-    """Build one transient diagnostic from current, authoritative NAV LOG inputs.
+    """Build one diagnostic from current, authoritative NAV LOG inputs.
 
-    The caller must not persist the result. Persisting a computed turn point
-    would allow route, forecast, rate, altitude, or reference edits to revive
-    stale numeric guidance after reload.
+    The caller may retain this result in Last Calculation for auditability.
+    Presentation must suppress numeric guidance when the current inputs or
+    active reference pack no longer match its calculation fingerprint.
     """
 
     plan = state.rjfm_inbound_plan
