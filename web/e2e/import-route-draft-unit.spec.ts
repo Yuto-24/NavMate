@@ -53,6 +53,7 @@ test("missing or stale airport matches stay unconfirmable without losing importe
     expect(result.status).toBe("unmatched-endpoints");
     if (result.status === "invalid") return;
     expect(result.missingEndpoints).toEqual(["departure"]);
+    expect(validMapDraft(result.points)).toBe(false);
     expect(result.points[0]).toMatchObject({ latitude_deg: 31.88, longitude_deg: 131.45, airport_id: null });
     expect(canConfirmMapDraft(result.points)).toBe(false);
   }
@@ -60,6 +61,7 @@ test("missing or stale airport matches stay unconfirmable without losing importe
   expect(result.status).toBe("unmatched-endpoints");
   if (result.status === "invalid") return;
   expect(result.missingEndpoints).toEqual(["destination"]);
+  expect(validMapDraft(result.points)).toBe(true);
   expect(canConfirmMapDraft(result.points)).toBe(false);
   const neither = importCandidateToMapDraft(candidate, []);
   expect(neither.status !== "invalid" && neither.missingEndpoints).toEqual(["departure", "destination"]);
