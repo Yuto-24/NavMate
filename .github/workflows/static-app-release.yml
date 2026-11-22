@@ -6,9 +6,9 @@ on:
     types: [published]
   # GITHUB_TOKEN-created Releases do not emit downstream release workflows.
   # This completion bridge also works for release/1.x without deploying its tooling.
+  # Only Release publisher completion is relevant; ordinary test pushes must not trigger.
   workflow_run:
-    # The source CI completion retries a Release that arrived before its tests.
-    workflows: [publish-github-release, test]
+    workflows: [publish-github-release]
     types: [completed]
     branches: [main, release/1.x, release/2.x]
   workflow_dispatch:
@@ -45,16 +45,44 @@ permissions:
   actions: read
   id-token: write
 
-concurrency:
-  group: static-production
-  cancel-in-progress: false
-  queue: max
-
 jobs:
-  publish:
+  # Release events only. Wait for the exact tag's push CI before taking the
+  # static-production lease, so routine CI completions cannot launch this workflow.
+  source-ci:
     if: >-
       github.repository == 'Yuto-24/NavMate' &&
       vars.STATIC_APP_RELEASE_ENABLED == 'true' &&
+      (github.event_name == 'release' ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Wait for the Release tag's successful full push CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/static_ops/release_ci_gate.py
+
+  publish:
+    needs: [source-ci]
+    concurrency:
+      group: static-production
+      cancel-in-progress: false
+      queue: max
+    if: >-
+      always() &&
+      github.repository == 'Yuto-24/NavMate' &&
+      vars.STATIC_APP_RELEASE_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || needs.source-ci.result == 'success') &&
       (github.event_name != 'workflow_dispatch' || (github.ref == 'refs/heads/main' && inputs.operation == 'replay-release' && inputs.release_id != '')) &&
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
@@ -131,6 +159,10 @@ jobs:
   # WIF provider accepts ONLY this workflow_ref + environment:static-production.
   # An explicit dispatch-only job avoids running the publisher or loosening IAM.
   readback:
+    concurrency:
+      group: static-production
+      cancel-in-progress: false
+      queue: max
     if: >-
       github.repository == 'Yuto-24/NavMate' &&
       github.event_name == 'workflow_dispatch' &&
@@ -172,6 +204,10 @@ jobs:
   # Same WIF workflow_ref/environment, with a separate, prepare-only entry point.
   # The operation identifier is deliberately specific to the reviewed #431 inputs.
   manual-prepare:
+    concurrency:
+      group: static-production
+      cancel-in-progress: false
+      queue: max
     if: >-
       github.repository == 'Yuto-24/NavMate' &&
       github.event_name == 'workflow_dispatch' &&
@@ -256,6 +292,10 @@ jobs:
 
   # Separate explicit approval; no release event, policy approval, or automatic retry.
   manual-publish:
+    concurrency:
+      group: static-production
+      cancel-in-progress: false
+      queue: max
     if: >-
       github.repository == 'Yuto-24/NavMate' &&
       github.event_name == 'workflow_dispatch' &&
