@@ -247,7 +247,8 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   const boundaryRows = snapshot.snapshot.rows.filter((row: string[]) => ["RCA", "EOC"].includes(row[3]));
   expect(boundaryRows).toHaveLength(2);
   expect(boundaryRows.every((row: string[]) => row[0] === "" && row[1] === "")).toBe(true);
-  expect(snapshot.snapshot.rows[0]).toHaveLength(22); // 20 base columns + two selected VORs.
+  expect(snapshot.snapshot.rows[0]).toContain("SEAft MSL");
+  expect(snapshot.snapshot.rows[0]).toHaveLength(23); // 21 base columns + two selected VORs.
   expect(snapshot.snapshot.spacers).toHaveLength(snapshot.snapshot.parents - 1);
   expect(snapshot.snapshot.spacers.every((row: any) => row.height >= 20 && row.next.includes("nav-leg-heading-row"))).toBe(true);
   expect(snapshot.snapshot.emptyActuals.every((value: string) => value === "")).toBe(true);

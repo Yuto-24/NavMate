@@ -9,9 +9,8 @@ export async function exportNavLogPng(section: HTMLElement, modeText: string): P
   const title = document.createElement("h2");
   title.textContent = `NAV LOG — ${modeText}`;
   paper.append(title);
-  for (const selector of [".nav-log-table", ".nav-log-sea-table", ".fuel-plan-table"]) {
+  for (const selector of [".nav-log-table", ".fuel-plan-table"]) {
     const original = section.querySelector<HTMLTableElement>(selector);
-    if (!original && selector === ".nav-log-sea-table") continue;
     if (!original) throw new Error("Missing NAV LOG table");
     if (selector === ".fuel-plan-table") {
       const heading = document.createElement("h3");

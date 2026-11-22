@@ -259,15 +259,17 @@ test("download and Clipboard export the displayed result, survive denial, and re
     await actions.scrollIntoViewIfNeeded();
     await page.screenshot({ path: test.info().outputPath(`navlog-export-${width}.png`) });
   }
-  const seaRows = page.locator(".nav-log-sea-table tbody tr");
-  const manualSea = seaRows.first().getByRole("spinbutton");
+  const seaCells = page.locator(".nav-log-table .nav-log-sea-cell")
+    .filter({ has: page.getByRole("spinbutton") });
+  const manualSea = seaCells.first().getByRole("spinbutton");
   await expect(manualSea).toBeEnabled();
   await manualSea.fill("3500");
   await manualSea.blur();
-  await expect(seaRows.first()).toContainText("手動");
-  const displayedSea = await seaRows.evaluateAll(rows => rows.map(row => ({
-    from_name: row.children[0]!.textContent, to_name: row.children[1]!.textContent,
-    value_ft: row.children[2]!.getAttribute("data-display-text"),
+  await expect(seaCells.first()).toHaveAttribute("data-display-text", "3500");
+  const displayedSea = await seaCells.evaluateAll(cells => cells.map(cell => ({
+    label: cell.querySelector("input")!.getAttribute("aria-label"),
+    to_name: cell.closest("tr")!.querySelector(".route-to-cell")!.textContent,
+    value_ft: cell.getAttribute("data-display-text"),
   })));
   const original = (await snapshot(page)).working;
   const downloadKml = async () => {
@@ -303,8 +305,9 @@ test("download and Clipboard export the displayed result, survive denial, and re
   const text = readFileSync((await file.path())!, "utf8");
   const result = JSON.parse(text);
   expect(result).toEqual({ format: "autonavlog.navlog", version: 1, outcome: original.outcome, destinationWind: original.destination_wind, sea: result.sea });
-  expect(result.sea.intervals.map((item: any) => ({ from_name: item.from_name, to_name: item.to_name,
-    value_ft: item.value_ft?.toString() ?? "—" }))).toEqual(displayedSea);
+  expect(result.sea.intervals.map((item: any) => ({
+    label: `${item.from_name} → ${item.to_name} 手動SEA（ft MSL）`, to_name: item.to_name,
+    value_ft: item.value_ft?.toString() ?? "未確定" }))).toEqual(displayedSea);
   expect(result.sea.intervals[0]).toMatchObject({ manual_ft: 3500, value_ft: 3500, status: "manual" });
   await page.getByRole("button", { name: "NAV LOG JSONをコピー" }).click();
   await expect(page.getByRole("status").filter({ hasText: "NAV LOG JSONをコピーしました。" })).toBeVisible();
@@ -362,7 +365,7 @@ test("download and Clipboard export the displayed result, survive denial, and re
   expect(staleKml).toContain("再計算前の結果を出力します。");
   expect(await inspectKml(staleKml)).toEqual(originalKml);
   await expect.poll(async () => (await snapshot(page)).working.project.tgl_count).toBe(2);
-  await expect(page.locator(".nav-log-sea-table")).toHaveCount(0);
+  await expect(seaCells).toHaveCount(0);
   await copy.click();
   const staleExport = JSON.parse(await page.evaluate(() => (window as any).retriedExport));
   expect(staleExport).not.toHaveProperty("sea");
