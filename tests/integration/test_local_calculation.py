@@ -898,6 +898,31 @@ def test_ftd_never_requests_forecast_refresh(local):
     assert not local.app.forecast_refresh_requested(local.session, local.session.project)
 
 
+@pytest.mark.parametrize("duration_delta", [-60, 60])
+def test_saved_descent_time_mismatch_disables_profile_without_rewriting_navlog(
+    local, duration_delta,
+):
+    state = calculate(local)
+    assert state["verticalProfile"] is not None
+    recovery = state["workingRecovery"]
+    last = recovery["last_calculation"]
+    for zone in last["outcome"]["sections"]:
+        if zone["phase"] == "DESCENT":
+            metadata = zone["performance_metadata"]
+            assert "eoc_snap" not in metadata
+            metadata["deceleration_duration_seconds"] += duration_delta
+            metadata["planned_duration_seconds"] += duration_delta
+    saved = json.loads(json.dumps(last))
+    restored = json.loads(local.dispatch("bootstrap", recovery))
+    assert restored["verticalProfile"] is None
+    assert restored["workingRecovery"]["last_calculation"] == saved
+    assert restored["outcome"]["sections"] == state["outcome"]["sections"]
+    assert restored["readiness"]["calculationIsCurrent"]
+    # Only an explicit successful recalculation replaces the inconsistent snapshot.
+    recalculated = json.loads(local.dispatch("calculate"))
+    assert recalculated["verticalProfile"] == state["verticalProfile"]
+
+
 @pytest.mark.parametrize("save_between_clicks", [False, True])
 def test_portable_forecast_refresh_acquires_new_run_before_shared_calculation(save_between_clicks):
     from datetime import UTC, datetime, timedelta

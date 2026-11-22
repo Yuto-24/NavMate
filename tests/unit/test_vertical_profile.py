@@ -41,24 +41,28 @@ def _zone(index, phase, start, end, seconds, cumulative,
 
 
 @pytest.mark.parametrize("deceleration", [0, 60])
-def test_shared_projection_preserves_descent_clock_across_splits(project, deceleration):
+@pytest.mark.parametrize("roundoff", [-5e-7, 0, 5e-7])
+def test_shared_projection_preserves_descent_clock_across_splits(project, deceleration, roundoff):
     metadata = {"cruise_altitude_ft_msl": 5500, "target_altitude_ft_msl": 1500,
                 "descent_rate_fpm": 500, "vertical_descent_duration_seconds": 480,
                 "deceleration_duration_seconds": deceleration}
     zones = [_zone(0, "CRUISE", 0, 10, 100, 100),
              _zone(1, "DESCENT", 10, 20, 240, 340, metadata),
-             _zone(2, "DESCENT", 20, 30, 240 + deceleration, 580 + deceleration, metadata)]
+             _zone(2, "DESCENT", 20, 30, 240 + deceleration + roundoff,
+                   580 + deceleration + roundoff, metadata)]
     outcome = CalculationOutcome.model_construct(
         project_id=project.id, sections=zones, converged=True,
     )
     profile = project_vertical_profile(project, outcome)
     assert profile.segments[1].points[-1].altitude_ft_msl == 3500
     level = next(marker.point for marker in profile.markers if marker.kind == "LEVEL_OFF")
-    assert level.altitude_ft_msl == 1500
-    assert level.elapsed_seconds == 580
-    assert profile.segments[-1].points[-1].elapsed_seconds - level.elapsed_seconds == deceleration
+    assert level.altitude_ft_msl == pytest.approx(1500, abs=1e-5)
+    assert level.elapsed_seconds == pytest.approx(580, abs=1e-6)
+    assert profile.segments[-1].points[-1].elapsed_seconds - level.elapsed_seconds == pytest.approx(
+        deceleration, abs=1e-6,
+    )
     assert profile.segments[-1].points[-1].distance_nm == 30
-    assert profile.segments[-1].points[-1].altitude_ft_msl == 1500
+    assert profile.segments[-1].points[-1].altitude_ft_msl == pytest.approx(1500, abs=1e-5)
     # No metadata fallback to the working Project's descent rate.
     zones[-1].performance_metadata = {}
     with pytest.raises(ValueError, match="metadata"):
@@ -94,6 +98,27 @@ def test_eoc_snap_drawing_adjusts_only_the_rate_and_retains_level_minute(project
     zones[0].planned_altitude_ft_msl = _value(6500)
     with pytest.raises(ValueError, match="Discontinuous"):
         project_vertical_profile(project, outcome)
+
+
+@pytest.mark.parametrize("deceleration", [0, 60])
+@pytest.mark.parametrize("extra_seconds", [-60, -0.001, 0.001, 60])
+def test_descent_duration_mismatch_without_snap_is_rejected(
+    project, deceleration, extra_seconds,
+):
+    metadata = {"cruise_altitude_ft_msl": 5500, "target_altitude_ft_msl": 1500,
+                "descent_rate_fpm": 500, "vertical_descent_duration_seconds": 480,
+                "deceleration_duration_seconds": deceleration}
+    duration = 480 + deceleration + extra_seconds
+    zones = [_zone(0, "CRUISE", 0, 10, 100, 100),
+             _zone(1, "DESCENT", 10, 20, 240, 340, metadata),
+             _zone(2, "DESCENT", 20, 30, duration - 240, 100 + duration, metadata)]
+    outcome = CalculationOutcome.model_construct(
+        project_id=project.id, sections=zones, converged=True,
+    )
+    original = outcome.model_dump(mode="json")
+    with pytest.raises(ValueError, match="saved descent profile"):
+        project_vertical_profile(project, outcome)
+    assert outcome.model_dump(mode="json") == original
 
 
 @pytest.mark.parametrize("snap", [
