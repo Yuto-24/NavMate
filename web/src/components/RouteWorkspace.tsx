@@ -1,3 +1,5 @@
+import { AipAirspaceControl, AipAirspaceLayers } from "./AipAirspace";
+import { aipCategories, aipPreferenceKey, loadAipAirspace, type AipAirspace } from "../aipAirspace";
 import { Maximize, Minimize, Pencil } from "lucide-react";
 import { MapDraftLayers, RouteStrip, type MapRouteBuilderProps } from "./MapRouteBuilder";
 import { MapViewport } from "./MapViewport";
@@ -242,6 +244,26 @@ export function RouteWorkspace({
     try { return viewportStorage.getItem("autonavlog.map-background.v1") === "imagery" ? "imagery" : "map"; }
     catch { return "map"; }
   });
+  const [aip, setAip] = useState<AipAirspace | null>(null);
+  const [aipFailed, setAipFailed] = useState(false);
+  const [hiddenAip, setHiddenAip] = useState<string[]>(() => {
+    try {
+      const value: unknown = JSON.parse(viewportStorage.getItem(aipPreferenceKey) ?? "[]");
+      return Array.isArray(value) ? value.filter((id): id is string => aipCategories.some(([known]) => known === id)) : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    if (!localMode) return;
+    let active = true;
+    void loadAipAirspace().then(data => { if (active) setAip(data); })
+      .catch(() => { if (active) setAipFailed(true); });
+    return () => { active = false; };
+  }, []);
+  const toggleAip = (id: string) => {
+    const next = hiddenAip.includes(id) ? hiddenAip.filter(value => value !== id) : [...hiddenAip, id];
+    setHiddenAip(next);
+    try { viewportStorage.setItem(aipPreferenceKey, JSON.stringify(next)); } catch { /* Device storage may be blocked. */ }
+  };
   const [pickingCheckPoint, setPickingCheckPoint] = useState(false);
   const [phaseEditing, setPhaseEditing] = useState(false);
   const [customAltitudeSections, setCustomAltitudeSections] = useState<Record<string, boolean>>({});
@@ -462,7 +484,7 @@ export function RouteWorkspace({
         featureNamePrefix: civilAirspaceReference.featureNamePrefix,
       });
   useEffect(() => {
-    if (civilAirspaceReference === null) {
+    if (localMode || civilAirspaceReference === null) {
       setTrainingAirspace({ status: "idle", polygons: [], boundaries: [] });
       return undefined;
     }
@@ -626,6 +648,7 @@ export function RouteWorkspace({
         }}
       >
         <div className="map-toolbar">
+          {localMode && <AipAirspaceControl data={aip} failed={aipFailed} hidden={hiddenAip} onChange={toggleAip} />}
       {localMode && <label className="map-background-picker">
         <span>背景地図</span>
         <select value={mapBackground} onChange={(event) => {
@@ -657,6 +680,7 @@ export function RouteWorkspace({
         >
           <MapBackground imagery={localMode && mapBackground === "imagery"} />
           <MapAttributionLayout />
+          {localMode && aip && <AipAirspaceLayers data={aip} hidden={hiddenAip} />}
           {rjfmMapReference && pcaCoordinates.length >= 3 && (
             <>
               <Polygon

@@ -6,26 +6,6 @@ const routeKml = `<?xml version="1.0" encoding="UTF-8"?>
 <LineString><coordinates>131.4486111111,31.8772222222,0 131.5,32.4,0 131.65,33.1,0 131.7,33.4,0 131.7372222222,33.4794444444,0</coordinates></LineString>
 </Placemark></Document></kml>`;
 
-// Small deterministic responses obey the production parser's approved tile/name
-// contracts. Geometry is synthetic: this test checks interaction, not source data.
-async function mockAirspace(page: Page) {
-  await page.route("https://maps.gsi.go.jp/xyz/kokuarea_minkankunren/8/221/*.geojson", async route => {
-    const north = route.request().url().endsWith("/103.geojson");
-    const names = north ? ["KS4-1/4", "KS4-1", "KS4-3", "KS4-5"]
-      : ["KS4-2", "KS4-7", "KS4-6", "KS4-1/4", "KS4-1", "KS4-3", "KS4-5", "KS4-8"];
-    const south = north ? 32.12 : 31.88;
-    const ring = [[131.25, south], [131.48, south], [131.48, south + 0.06], [131.25, south + 0.06], [131.25, south]];
-    const features = names.flatMap(name => {
-      const properties = { "空域名称": name, "下限": "SFC", "上限": "5000FT", "管轄機関": "テスト" };
-      return [
-        { type: "Feature", properties, geometry: { type: "Polygon", coordinates: [ring] } },
-        { type: "Feature", properties, geometry: { type: "LineString", coordinates: ring } },
-      ];
-    });
-    await route.fulfill({ contentType: "application/geo+json", headers: { "Access-Control-Allow-Origin": "*" }, body: JSON.stringify({ type: "FeatureCollection", features }) });
-  });
-}
-
 async function importLocalRoute(page: Page) {
   await page.goto("/");
   await enterImportWorkflow(page);
@@ -39,24 +19,20 @@ async function importLocalRoute(page: Page) {
 
 test.beforeEach(async ({ page, context }) => {
   await context.route("**/api/**", route => route.abort());
-  await mockAirspace(page);
 });
 
-// Each overlay gets the same initial view: one successful drag can move the
-// other synthetic overlay outside the viewport through Leaflet inertia.
+// Test fill and stroke hit locations independently against bundled AIP geometry.
 for (const [geometry, selector] of [
-  ["polygons", ".rjfm-training-airspace"],
-  ["boundaries", ".rjfm-training-airspace-boundary"],
+  ["polygons", ".aip-Civil_training_and_testing_areas"],
+  ["boundaries", ".aip-Civil_training_and_testing_areas"],
 ] as const) {
-  test(`KS4 display-only ${geometry} pass hover and drag through to the map`, async ({ page, isMobile }) => {
+  test(`AIP display-only ${geometry} pass hover and drag through to the map`, async ({ page, isMobile }) => {
     test.skip(isMobile, "Mouse hover/pan is covered in both desktop engines");
     await page.setViewportSize({ width: 1440, height: 1000 });
     await importLocalRoute(page);
-    await expect(page.locator(".rjfm-training-airspace")).toHaveCount(12);
-    await expect(page.locator(".rjfm-training-airspace-boundary")).toHaveCount(12);
-    await expect(page.locator(".rjfm-training-airspace").first()).toHaveAttribute("stroke", "none");
-    await expect(page.locator(".rjfm-training-airspace-boundary").first()).toHaveAttribute("stroke", "#315caa");
-    const trainingPaths = page.locator(".rjfm-training-airspace, .rjfm-training-airspace-boundary");
+    await expect(page.locator(".aip-Civil_training_and_testing_areas")).toHaveCount(132);
+    await expect(page.locator(".aip-Civil_training_and_testing_areas").first()).toHaveAttribute("stroke", "#315caa");
+    const trainingPaths = page.locator(".aip-Civil_training_and_testing_areas");
     expect(await trainingPaths.evaluateAll(paths => paths.every(path =>
       !path.classList.contains("leaflet-interactive") && getComputedStyle(path).pointerEvents === "none",
     ))).toBe(true);
@@ -66,12 +42,12 @@ for (const [geometry, selector] of [
     const map = page.locator(".route-map");
     await map.scrollIntoViewIfNeeded();
     // Use real SVG geometry, including clipping, rather than dragging an arbitrary map point.
-    const point = await map.evaluate((element, selector) => {
+    const point = await map.evaluate((element, { selector, geometry }) => {
       const bounds = element.getBoundingClientRect();
       for (const path of element.querySelectorAll<SVGPathElement>(selector)) {
         const matrix = path.getScreenCTM();
         if (!matrix) continue;
-        if (selector.endsWith("-boundary")) {
+        if (geometry === "boundaries") {
           // A coarse screen grid can miss a thin stroke after a fractional pan.
           // Sample the actual path centerline, still checking stroke and clipping.
           const length = path.getTotalLength();
@@ -98,7 +74,7 @@ for (const [geometry, selector] of [
         }
       }
       return null;
-    }, selector);
+    }, { selector, geometry });
     expect(point, `visible geometry for ${selector}`).not.toBeNull();
     await page.mouse.move(point!.x, point!.y);
     await expect(page.locator(".leaflet-tooltip").filter({ hasText: /KS4-/ })).toHaveCount(0);
@@ -110,7 +86,7 @@ for (const [geometry, selector] of [
     await expect.poll(() => pane.getAttribute("style")).not.toBe(before);
     await expect(pane).not.toHaveClass(/leaflet-pan-anim/);
     expect(await page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("");
-    await expect(trainingPaths).toHaveCount(24);
+    await expect(trainingPaths).toHaveCount(132);
   });
 }
 
@@ -119,7 +95,7 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
   page.on("pageerror", error => errors.push(error.message));
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
-  await page.route("https://maps.gsi.go.jp/xyz/kokuarea_minkankunren/8/221/*.geojson", async route => {
+  await page.route("**/reference/aip/Civil_training_and_testing_areas-*.geojson", async route => {
     await pending;
     await route.fallback();
   });
@@ -128,17 +104,15 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
     importLocalRoute(page),
     (async () => {
       try {
-        // Expand the new optional legend before asserting its unchanged loading state.
-        await page.getByRole("button", { name: "RJFM空域凡例を表示", exact: true }).click({ timeout: 120_000 });
-        await expect(legend).toContainText("空域情報を取得中…", { timeout: 120_000 });
+        await page.getByText("空域レイヤー", { exact: true }).click({ timeout: 120_000 });
+        await expect(page.locator(".aip-layer-options")).toContainText("AIP空域を読み込み中…");
       } finally {
         release();
       }
     })(),
   ]);
-  await expect(page.locator(".rjfm-training-airspace")).toHaveCount(12);
-  await expect(page.locator(".rjfm-training-airspace-boundary")).toHaveCount(12);
-  await expect(legend).not.toContainText("空域情報を取得中…");
+  await expect(page.locator(".aip-Civil_training_and_testing_areas")).toHaveCount(132);
+  await page.getByRole("button", { name: "RJFM空域凡例を表示", exact: true }).click();
   await expect(legend).not.toContainText("区画を表示");
   await expect(legend).not.toContainText("民間訓練試験空域 KS4（GSI）");
   await expect(legend).toContainText("PCA：約656–2,625 ft（200–800 m）");
@@ -153,7 +127,7 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
     await expect(page).toHaveTitle(/NavMate/);
     await expect(page.locator("vite-error-overlay")).toHaveCount(0);
     await expect(page.locator(".brand-subtitle")).not.toContainText(" / Local");
-    await expect(page.locator(".rjfm-airspace-credit")).toHaveText("国土交通省・国土地理院データを加工");
+    await expect(page.locator(".aip-layer-options")).toContainText("航空情報センター AIP");
     const boxes = await page.evaluate(() => [".map-frame", ".planning-pane"].map(selector => {
       const r = document.querySelector(selector)!.getBoundingClientRect();
       return { x:r.x,y:r.y,width:r.width,height:r.height };
@@ -164,16 +138,16 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     await page.locator(".map-frame").screenshot({ path: info.outputPath(`pca-${width}.png`) });
   }
-  await page.route("https://maps.gsi.go.jp/xyz/kokuarea_minkankunren/8/221/*.geojson", route => route.abort());
+  await page.route("**/reference/aip/Civil_training_and_testing_areas-*.geojson", route => route.abort());
   await page.reload();
   await expect(page.getByRole("button", { name: "RJFM空域凡例を表示", exact: true })).toHaveAttribute("aria-expanded", "false");
-  await expect(legend.locator(".rjfm-airspace-status")).toBeVisible();
-  await expect(legend).toContainText("空域情報を取得できず非表示");
+  await page.getByText("空域レイヤー", { exact: true }).click();
+  await expect(page.locator(".aip-layer-options")).toContainText("AIP空域を読み込めませんでした。");
   for (const width of [390, 1440]) {
     await page.setViewportSize({width,height:950});
     await page.screenshot({path:info.outputPath(`airspace-failure-${width}.png`),fullPage:true});
   }
-  await expect(page.locator(".rjfm-training-airspace")).toHaveCount(0);
+  await expect(page.locator(".aip-Civil_training_and_testing_areas")).toHaveCount(0);
   await expect(boundary).toHaveCount(1);
   expect(errors).toEqual([]);
 });
@@ -256,6 +230,6 @@ test("green theme keeps readable controls, keyboard selection and aviation color
   await primary.click();
   await expect(page.getByRole("button", { name: "1番目のLegへ地図からチェックポイントを追加" })).toBeEnabled();
   await expect(page.locator(".rjfm-pca-boundary")).toHaveAttribute("stroke", "#a45b13");
-  await expect(page.locator(".rjfm-training-airspace-boundary").first()).toHaveAttribute("stroke", "#315caa");
+  await expect(page.locator(".aip-Civil_training_and_testing_areas").first()).toHaveAttribute("stroke", "#315caa");
 
 });
