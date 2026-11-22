@@ -209,6 +209,18 @@ EOCの不整合を調べるときは、前段の高度変更が未完了なの�
   保存されたsnap位置と時間差の一致、30秒の境界、描画の減速60秒、旧結果の無補正を検証します。
   この描画上の許容値は運用上の近似で、実際の旋回軌跡や機体性能を検証したものではありません。
 
+## DESCENT時間とGoogle Earth受入（Issue #173）
+
+DESCENT区間合計と保存済み垂直降下・減速時間の不整合は、過不足の両方向を検証します。
+`test_vertical_profile.py`では減速0秒／60秒、区間分割、浮動小数点誤差とsnap例外を、
+`test_local_calculation.py`では不整合な保存結果を復元してもNAV LOGを変更せず、
+明示的な再計算まで共通プロファイルを出力しないことを確認します。
+RJFM帰路は距離÷GSではなく保存運用時間を使うため、一般EOCと同じ時計で再計算してはいけません。
+既存の`test_issue_235_return_policy.py`で360秒／180秒・減速0秒・実経路・保存復元を確認します。
+
+[Google Earth受入資料](evidence/issue-173/README.md)に生成条件、元データ、期待値と未確認事項を記録します。
+構造・数値の自動検証はGoogle Earthの実表示受入を代替しません。
+
 ## 同じ条件で比較する
 
 Dockerのtest stageがサポートするCI検査環境です（[README](../README.md)）。
@@ -455,6 +467,9 @@ NAV LOG scroll→browser acceptance→TAFの順序で実行する。
 各runnerのemulatorは独立し、ランダムsubjectとcontextによる分離も維持する。
 Firestore Rules→storage-upgrade→migrationはcontracts runnerで全対象を順番に実行する。
 共有開発は別runnerで、起動前にrelease notesを生成する。
+`dev-shared`で計算済みProjectを別端末から開く場合、NAV LOG表示だけでなく自動SEA更新の完了を待ってから保存する。
+地形応答を固定fixtureにし、「地形を再取得」ボタンが有効になるまで待つことで、外部取得の遅延と保存token更新の競合を避ける。
+[PR #493のCI](https://github.com/Yuto-24/NavMate/actions/runs/45040943412/job/137265089639)では、保存後のSEA更新と別端末の読込が重なり、同期の競合保護によって読込が拒否された。
 `web`でLocalと同期のexact-once分配を検査し、各集約checkは全matrix entryの成功を要求する。
 失敗・skip・cancelした群を成功扱いにしない。retry、timeout、既存assertionは維持する。
 ローカルのPlaywright configの既定値は1 workerのままとする。

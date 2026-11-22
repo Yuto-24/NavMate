@@ -100,7 +100,7 @@ Flight Phaseは`CLIMB`、`CRUISE`、`DESCENT`、`VISUAL_ARRIVAL`を扱います�
 - 前Legへ遡る際、そのLegの計画高度が次のLegより低ければBlockerにします。さらに手前から低い計画高度の区間を飛び越える扱いにはしません。
 - EOCとPhysical Turn Pointの経路上距離差が0.5 NM未満なら、内部計算上もTurn Pointへsnapします。ちょうど0.5 NMではsnapしません。
 - snap後も、選択降下率から求めた降下計画とlevel-off後の60秒は保持します。NAV LOGの各ZoneのETEはsnap後の距離とLeg別GSから求めるため、降下計画の時間との差が生じ得ます。これは四捨五入モードとは独立した規則です。
-- 共通Vertical Profile／3D KMLでは、保存されたsnap前後の位置から生じた時間差と確認でき、差の絶対値が30秒以内の場合に限り、描画用の降下率を調整します。EOC高度からVREP高度までを連続して描き、最後の減速60秒を確保します。NAV LOGの選択降下率・GS・ETE・燃料は変更しません。高度不連続、snapの根拠がない時間不足、30秒を超える差、減速時間を確保できないケースは描画補正しません。描画不能を理由に正常なNAV LOGをBlockerへ変えません。
+- 共通Vertical Profile／3D KMLでは、保存されたsnap前後の位置から生じた時間差と確認でき、差の絶対値が30秒以内の場合に限り、描画用の降下率を調整します。EOC高度からVREP高度までを連続して描き、最後の減速60秒を確保します。NAV LOGの選択降下率・GS・ETE・燃料は変更しません。高度不連続、snapの根拠がない時間の過不足、30秒を超える差、減速時間を確保できないケースは描画補正しません。描画不能を理由に正常なNAV LOGをBlockerへ変えません。
 - EOC後のTOAT、風、WCA、MH、GSは継承境界として最初のDESCENT行へ明示します。TOATはそのCalculation ZoneのDESCENT phaseの実効値を使い、直前と同値でも省略しません。以後の通常区間は既存の継承表示を維持します。
 
 ## VISUAL ARRIVAL

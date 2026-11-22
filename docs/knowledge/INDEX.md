@@ -8,6 +8,7 @@ Read [the workflow](README.md) before adding or applying lessons. For the full m
 - [PR本文更新によるCIキャンセル](../testing.md#pr本文更新によるciキャンセル): PR #478。本文編集もCIを起動し、先行Runのcancelledが集約失敗へ波及する。テスト本体の失敗と分け、本文を先に更新して最後にpushする。
 - [多数のassertionによるPlaywrightの記録負荷](../testing.md#多数のassertionによるplaywrightの記録負荷): PR #494。iPad WebKitの格子検証で約5万4千件のassertion記録が累積しtimeout。Playwright 1.62.1の親step検索を確認し、検証内容を保って反復単位の `test.step()` で区切る。
 - [スクロール中の位置測定と時計の停止](../testing.md#スクロール中の位置測定と時計の停止): PR #489。別々の座標取得と停止時刻の取得・指定の間に時間が進む問題。位置の同時測定と、固定時刻からの時計制御で検証条件を保つ。
+- [DESCENT時間とGoogle Earth受入](../testing.md#descent時間とgoogle-earth受入issue-173): #173。時間不足だけでなく超過も検証し、RJFM帰路の保存運用時間と一般EOCのsnap例外を維持する。数値・KML構造検証とEarth実表示受入を分ける。
 - [EOC高度連続性とsnap時間差](../testing.md#eocの高度連続性とsnap時間差issue-470): #470。前段の実効CRUISE時間による高度到達と、snapによる描画時間差を分離。旧Goldenの高度不連続、保存済みsnap根拠の照合、30秒以内の描画補正の検証境界。
 - [再利用イメージのPython Reference版ずれ](../testing.md#再利用イメージの-python-reference-と-local-wheel): Issue #418。PYTHONPATHだけではdistribution metadataは更新されず、古い版番号が計算fingerprintに入る。Local wheelと現行パッケージを揃える。旧環境での変更前UIの失敗だけから既存不具合と断定しない。
 - [Large Account Sync payloads](../firebase_account_operations.md#3-large-payload-gzip-v1-rollout-and-compatibility): Legacy移行のバッチ容量制限とFirestoreの1文書上限は別。Project・checkpoint・Last Calculationを欠落なく保存する可逆圧縮（[仕様正本](../account_sync.md#large-project-payloads)）、旧クライアントの停止、NavMate先行更新、再試行記録の互換性。ローカル合成データで検証し、本番反映・再移行は別途承認。

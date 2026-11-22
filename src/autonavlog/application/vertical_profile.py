@@ -116,7 +116,10 @@ def _descent_for_drawing(
                     / vertical_seconds * 60.0
                 ),
             )
-    if duration + 1e-6 < profile.planned_duration_seconds:
+    # An unexplained surplus would silently extend the saved level/deceleration
+    # interval, just as a deficit would truncate it. Only the snap above may
+    # change the drawing clock; RJFM uses its saved operational zone times.
+    if abs(duration - profile.planned_duration_seconds) > 1e-6:
         raise ValueError("Missing or incomplete saved descent profile")
     return profile
 
