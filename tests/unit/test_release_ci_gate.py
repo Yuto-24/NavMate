@@ -4,7 +4,8 @@ import base64
 
 import pytest
 
-from scripts.static_ops import release_ci_gate as gate, source_ci
+from scripts.static_ops import release_ci_gate as gate
+from scripts.static_ops import source_ci
 
 
 REPO = {"full_name": "Yuto-24/NavMate"}
