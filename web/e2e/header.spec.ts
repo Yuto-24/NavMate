@@ -43,6 +43,8 @@ async function assertWorkflow(page: Page, width: number) {
 }
 
 test("#218 single-row sticky header preserves workflow, long names and keyboard/menu access", async ({ page }, info) => {
+  // Header snapshots must not change when live DEM acquisition finishes.
+  await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
   await page.goto("/");
   await enterImportWorkflow(page);
   await page.setViewportSize({ width: 320, height: 900 });
@@ -64,6 +66,8 @@ test("#218 single-row sticky header preserves workflow, long names and keyboard/
   }
   await page.getByRole("button", { name: "NAV LOGを作る", exact: true }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
+  // Full-range SEA evaluation has a 60s acquisition budget, followed by persistence.
+  await expect(page.getByRole("button", { name: "地形を再取得", exact: true })).toBeEnabled({ timeout: 90_000 });
   const result = await page.locator(".nav-log-table").innerText();
   const longName = "長いプロジェクト名を狭い画面でも全文確認する".repeat(2);
   await openProjectMenu(page);
