@@ -7,7 +7,6 @@ import pytest
 from scripts.static_ops import release_ci_gate as gate
 from scripts.static_ops import source_ci
 
-
 REPO = {"full_name": "Yuto-24/NavMate"}
 HEAD = "a" * 40
 TAGGED = "b" * 40
