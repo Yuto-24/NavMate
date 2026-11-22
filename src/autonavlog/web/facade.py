@@ -832,7 +832,7 @@ class AutoNavLogWebApplication:
             except ValueError as error:
                 raise WebApplicationError(
                     "SEA_INPUT_INVALID",
-                    "経路とSEAの入力内容を確認し、必要に応じて地形を再取得してください。"
+                    "SEAを自動保存できませんでした。表示は元の値に戻っています。経路の切替・変更があった、対象区間が無効になっている、または入力内容が正しくない可能性があります。現在の経路と入力内容を確認のうえ、再入力してください。"
                 ) from error
             self._persist_draft(session, working)
             session.project = working

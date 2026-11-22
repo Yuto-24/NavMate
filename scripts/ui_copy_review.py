@@ -20,6 +20,12 @@ PROMPT = """UI文言を確認してください。ツール実行・ファイル
 """
 
 
+PROPOSAL_PROMPT = """利用者の視点からUI文言を提案してください。ツール実行・ファイル操作は禁止です。
+本人指定の意図と制約を守り、各idに候補と理由、懸念を示してください。
+最終文言は実装担当が判断します。
+"""
+
+
 def read_json(path: Path) -> dict:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -42,6 +48,9 @@ def request_items(request: dict) -> list[dict]:
     items = request.get("items")
     if not isinstance(items, list) or not items:
         raise ValueError("No copy items")
+    mode = request.get("mode", "review")
+    if mode not in ("review", "proposal"):
+        raise ValueError("Unknown copy evidence mode")
     ids = set()
     for item in items:
         for key in ("id", "text", "location", "purpose", "context", "constraints"):
@@ -49,11 +58,12 @@ def request_items(request: dict) -> list[dict]:
         if item["id"] in ids:
             raise ValueError("Duplicate item id")
         ids.add(item["id"])
-        source = item["source"]
-        for key in ("path", "start", "end", "expected"):
-            required_text(source, key)
-        if item["text"] not in source["expected"]:
-            raise ValueError("Copy missing from expected source")
+        if mode == "review":
+            source = item["source"]
+            for key in ("path", "start", "end", "expected"):
+                required_text(source, key)
+            if item["text"] not in source["expected"]:
+                raise ValueError("Copy missing from expected source")
     return items
 
 
@@ -76,7 +86,8 @@ def prompt_for(request: dict) -> str:
             for item in items
         ]
     }
-    return PROMPT + json.dumps(public_input, ensure_ascii=False, indent=2) + "\n"
+    prompt = PROPOSAL_PROMPT if request.get("mode") == "proposal" else PROMPT
+    return prompt + json.dumps(public_input, ensure_ascii=False, indent=2) + "\n"
 
 
 def run(directory: Path, model: str, timeout: int) -> None:
@@ -184,9 +195,17 @@ def check(directory: Path, root: Path = ROOT) -> None:
         decision = next(d for d in decisions if d["id"] == item["id"])
         required_text(decision, "reason")
         quote = required_text(decision, "response_quote")
-        if decision["text"] != item["text"] or item["text"] not in quote or quote not in output:
+        final_text = required_text(decision, "text")
+        proposal = request.get("mode") == "proposal"
+        if quote not in output or (proposal and item["id"] not in quote) or (
+            not proposal and (final_text != item["text"] or item["text"] not in quote)
+        ):
             raise ValueError(f"Adoption is not linked to reviewed copy: {item['id']}")
-        source = item["source"]
+        source = decision["source"] if proposal else item["source"]
+        for key in ("path", "start", "end", "expected"):
+            required_text(source, key)
+        if final_text not in source["expected"]:
+            raise ValueError("Copy missing from expected source")
         path = (root / source["path"]).resolve()
         if not path.is_relative_to(root.resolve()):
             raise ValueError("Source must be inside repository")

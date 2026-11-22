@@ -176,3 +176,28 @@ def test_changed_input_during_execution_is_not_certified(monkeypatch, prepared):
     review.run(directory, "gemini-test", 10)
     with pytest.raises(ValueError, match="Evidence changed"):
         review.check(directory, root)
+
+
+def test_proposal_checks_final_copy_and_evidence(monkeypatch, prepared):
+    root, directory = prepared
+    request = review.read_json(directory / "request.json")
+    request["mode"] = "proposal"
+    request["items"][0].pop("source")
+    write_json(directory / "request.json", request)
+    capture(
+        monkeypatch, directory, response={"status": "SUCCESS", "response": "paste: 提案は取り込み"}
+    )
+    source = '<aside name="MAP"><button onClick={paste}>ペーストする</button></aside>'
+    (root / "view.tsx").write_text(source)
+    write_json(directory / "adoption.json", {"items": [{
+        "id": "paste", "text": "ペーストする", "reason": "操作に合わせて調整",
+        "response_quote": "paste: 提案は取り込み",
+        "source": {
+            "path": "view.tsx", "start": '<aside name="MAP">',
+            "end": "</aside>", "expected": source,
+        },
+    }]})
+    review.check(directory, root)
+    (root / "view.tsx").write_text(source.replace("ペーストする", "別の操作"))
+    with pytest.raises(ValueError, match="source context"):
+        review.check(directory, root)

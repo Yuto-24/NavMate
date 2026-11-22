@@ -1065,7 +1065,7 @@ export function NavLogTable({
         </div>
       </div>
       {sea && onSeaUpdate && onSeaAcquire && <SeaPanel projectId={project.id} plan={sea}
-        disabled={seaDisabled} onUpdate={onSeaUpdate} onAcquire={onSeaAcquire} />}
+        disabled={seaDisabled} onAcquire={onSeaAcquire} />}
       {seaMessage && <p role="status">{seaMessage}</p>}
       <div className="fuel-plan-with-advisory">
         <FuelPlanTable outcome={outcome} />

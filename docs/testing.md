@@ -654,7 +654,7 @@ Local wheel 2.5.0 の不一致により、保存した MSM Advisory が NAV LOG 
   正常な整合性チェックによって起動が止まる場合がありました。生成物の一致を確認し、
   開発サーバーを再起動した後に失敗ケースだけを再実行します。整合性検証は無効化しません。
 - `sea.spec.ts`は1100 px/1440 pxの操作領域位置、手動値の保存・再計算、固定DEM、
-  低い手動値の警告、KML最高点と失敗時の保持を検証します。外部GSIの経路全域被覆や
+  低い手動値の警告、地形KML入力と診断一覧の非表示、診断情報の保持を検証します。外部GSIの経路全域被覆や
   実機・本番での受入を証明するものではありません。
 - 2026-11-22、#485の本表統合では、同名CPでもsectionと投影終点で各SEAを対応させます。RCA/EOCの計算境界は
   SEAを分割しません。最終VISUAL_ARRIVALは既存の計算子行を省く一方でSEAはCPで分割されるため、
@@ -662,8 +662,9 @@ Local wheel 2.5.0 の不一致により、保存した MSM Advisory が NAV LOG 
   個別手動値の再読込を検証します。取得や保存の仕様は変更しません。
 - 自動SEAの対応範囲は取得時だけでなく、更新入力・保存レコードの採用時にも検証します。
   緯度・距離・日付変更線・零長区間の不適合では自動値を未確定とし、手動値は保持します。
-- `sea.spec.ts`ではKMLのファイル読込を遅延させ、読込から保存まで取込と解除を相互に
-  無効化することを確認します。`notification-layout.spec.ts`ではProject切替時に取得済みProjectへ戻し、
+- 地形KMLの取込UIを廃止したため、ファイル読込中の取込・解除操作を検査する旧caseは廃止します。
+  内部のKML入力契約は`test:terrain`、保存済み地形点の計算は`test_sea.py`で検証します。
+  `notification-layout.spec.ts`ではProject切替時に取得済みProjectへ戻し、
   古い取得の完了が新しい取得の進行表示を消さないことを検証します。
 - JSON出力は計算済み状態のSEAを画面の区間・手動値と照合します。未再計算の入力変更後を
   検証するときは自動保存の反映も待ち、フォームの即時表示と保存済み状態を混同しません。
@@ -677,6 +678,45 @@ Local wheel 2.5.0 の不一致により、保存した MSM Advisory が NAV LOG 
 - CSPの通信可否はViteだけでは確かめられません。2026-11-21のPR #482修正では、隔離Composeの
   FastAPIが配信するCSP下でDEM宛fetchが発生し、CSP違反がないことをChromiumで確認しました。
   応答は固定fixtureであり、GSI実データの受入とは分けて扱います。
+
+#### SEA診断情報の確認と再利用
+
+画面から地形KML入力と診断一覧を削除しても、次の保存・取得経路は維持します。
+表示方針と情報の用途は[区間別SEA](sea.md#診断情報の保持と再利用)を正本とします。
+
+| 保存場所・参照先 | 内容 |
+| --- | --- |
+| `Project.metadata.sea.policy` | 評価方式の識別子 |
+| `Project.metadata.sea.records[intervalKey].terrain` | `complete`、`maximum_m`、`required` / `valid` / `missing` / `not_acquired` / `invalid`、`provenance` |
+| 各`terrain.provenance` | 検証できたタイルの`url`、`acquiredAt`、`sha256`、`source`、`unit`、`horizontalReference`、`verticalReference` |
+| `Project.metadata.sea.records[intervalKey]` | 上記地形情報に加え、`manual_ft`と保存済みKMLの区間最高値`kml_maximum_m` |
+| `Project.metadata.sea.kml` | 旧画面で取り込んだ地形点、採否、確認根拠・出典。KMLのXML原文は保存しない |
+| `WebState.sea` | 現経路の区間識別・座標、地形情報、自動値・手動値・表示値・警告、KML出典の抜粋。保存データから`sea_plan()`で生成する |
+
+永続データの正本はProjectのmetadataです。SEA更新は通常のProject保存を通り、画面非表示にしても
+再読込で失われません。区間形状が変われば対応しないrecordは除外され、再取得では現在の記録が
+更新されます。取得履歴を蓄積するログではありません。
+
+現行のNAV LOG JSON出力からも確認できます。計算が最新でSEA状態が存在する場合、
+`web/src/navLogExport.ts`はトップレベルの`sea`へ`WebState.sea`を出力します。
+これは`outcome`内の項目ではありません。未再計算の入力変更後には含まれず、
+KMLの全点やProject全体のバックアップにもなりません。
+
+調査では、対象区間の`key`を対応させ、`terrain`の被覆・画素数と`automatic_ft` / `manual_ft` /
+`value_ft` / `warning`を確認します。再取得前後を比較したい場合は更新前の出力も残し、
+タイルのURL・取得日時・ハッシュを照合します。将来の不具合報告機能では、この既存データから
+対象区間分を抽出できます。報告用の収集・送信機能は未実装です。現行JSONには経路座標なども含むため、
+そのまま匿名化済みの報告データとして扱わず、報告に不要なProject・個人・気象情報は含めない設計にします。
+
+再利用時には次の限界を保ちます。
+
+- `web/src/sea.ts`は部分領域を順に評価し、不完全被覆でその区間の残りを打ち切ります。
+  画素数は検査済み部分領域の加算で、未検査領域を含みません。部分領域間で重なる画素もあるため、
+  一意な面積や区間全体の取得率へそのまま換算しません。
+- 保存する`provenance`は復号・検証できたタイルの情報です。失敗タイルごとのHTTP状態・理由、
+  PNG原本、全画素標高、検査済み領域のポリゴン一覧はProjectへ保存しません。
+- SHA-256は取得した内容の識別に使います。GSIの正式な版番号・完全性証明ではなく、
+  ハッシュだけから原タイルを復元したり、当時の取得失敗を再現したりはできません。
 
 ## AIP地図参照データ（Issue #311）
 

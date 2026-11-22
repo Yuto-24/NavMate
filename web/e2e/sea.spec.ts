@@ -31,6 +31,8 @@ for (const width of [1100, 1440]) {
     expect(headers.slice(headers.indexOf("TO"), headers.indexOf("TO") + 3)).toEqual(["TO", "SEAft MSL", "PAft"]);
     await expect(page.getByText("経路の左右3 NM", { exact: false })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "地形を再取得" })).toHaveClass(/secondary-button/);
+    await expect(page.locator(".sea-panel details, .sea-panel input, .sea-panel code")).toHaveCount(0);
+    await expect(page.getByText("地形点KML・DEMの取得状況と出典", { exact: true })).toHaveCount(0);
     const first = table.locator(".nav-log-sea-cell").filter({ has: page.getByRole("spinbutton") }).first();
     await expect(first).toHaveAttribute("data-display-text", "未確定");
     const input = first.getByRole("spinbutton");
@@ -38,7 +40,7 @@ for (const width of [1100, 1440]) {
     await input.fill("3500"); await input.blur();
     await expect(first).toHaveAttribute("data-display-text", "3500");
     await expect(first).not.toHaveAttribute("data-display-text", "未確定");
-    await expect(page.locator(".sea-warning").first()).toContainText("自動値との照合は未実施");
+    await expect(page.locator(".sea-warning").first()).toContainText("手入力値の比較および安全性の確認はできません");
     const result = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.outcome, artifactSessionKey);
     await page.reload();
     await expect(input).toHaveValue("3500");
@@ -103,8 +105,9 @@ for (const width of [1100, 1440]) {
   });
 }
 
-test("#314 complete DEM, low manual warning, verified KML and failed import preservation", async ({ page }) => {
-  test.setTimeout(180_000);
+test("#314 complete DEM, low manual warning and retained diagnostics without detail UI", async ({ page }) => {
+  // Allow initial readiness, reload recovery, and explicit DEM reacquisition to complete.
+  test.setTimeout(300_000);
   const { deflateSync } = await import("node:zlib");
   // Numeric RGB fixture, 30.48 m = exactly 100 ft. PNG chunks have genuine CRCs.
   const crc = (data: Buffer) => {
@@ -140,38 +143,29 @@ test("#314 complete DEM, low manual warning, verified KML and failed import pres
   await expect(first).toHaveAttribute("data-display-text", "1100");
   await input.fill("1000"); await input.blur();
   await expect(page.locator(".sea-warning").first()).toContainText("手動SEAが自動値（1100 ft）を下回っています。");
-  const project = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project, artifactSessionKey);
-  const start = project.route_nodes[0];
-  await page.getByText("地形点KML・DEMの取得状況と出典", { exact: true }).click();
-  await page.getByLabel("資料の作成元・識別子", { exact: true }).fill("Synthetic SEA fixture");
-  await page.getByLabel("DEMとの標高基準・測量時点の照合根拠", { exact: true }).fill("TP fixture, same epoch");
-  await page.getByRole("checkbox", { name: "KML内の全点の標高値は地表の標高で、単位はm、基準はT.P.（東京湾平均海面）であると確認しました。" }).check();
-  const upload = page.getByLabel("地形点KML", { exact: true });
-  // Hold File.text before parsing: clear and a second import must remain unavailable.
-  await page.evaluate(() => {
-    const read = File.prototype.text;
-    File.prototype.text = async function () {
-      await new Promise<void>(resolve => { (window as any).finishTerrainRead = resolve; });
-      return read.call(this);
-    };
-    (window as any).restoreTerrainRead = () => { File.prototype.text = read; };
-  });
-  await upload.setInputFiles({ name: "terrain.kml", mimeType: "application/xml", buffer: Buffer.from(
-    `<kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><Point><altitudeMode>absolute</altitudeMode><coordinates>${start.longitude_deg},${start.latitude_deg},609.6</coordinates></Point></Placemark></kml>`) });
-  const clear = page.getByRole("button", { name: "地形点KMLを解除", exact: true });
-  await expect(upload).toBeDisabled();
-  await expect(clear).toBeDisabled();
-  await page.evaluate(() => { (window as any).restoreTerrainRead(); (window as any).finishTerrainRead(); });
-  await expect(page.locator(".sea-warning").first()).toContainText("自動値（3000 ft）");
-  await expect(input).toHaveValue("1000");
-  await expect(upload).toBeEnabled();
-  await upload.setInputFiles({ name: "bad.kml", mimeType: "application/xml", buffer: Buffer.from("invalid") });
-  await expect(page.getByRole("status").filter({ hasText: "地形点KMLを取り込めません" })).toBeVisible();
-  await expect(page.locator(".sea-warning").first()).toContainText("自動値（3000 ft）");
-  await clear.click();
-  await expect(page.locator(".sea-warning").first()).toContainText("自動値（1100 ft）");
-  await expect(page.getByText(/採用中のKML：/)).toHaveCount(0);
+  const saved = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.metadata.sea, artifactSessionKey);
+  const records = Object.values(saved.records) as { terrain: { complete: boolean; required: number; valid: number; provenance: { url: string; acquiredAt: string; sha256: string }[] } }[];
+  const terrain = records[0]!.terrain;
+  expect(terrain.complete).toBe(true);
+  expect(terrain.required).toBeGreaterThan(0);
+  expect(terrain.valid).toBe(terrain.required);
+  expect(terrain.provenance.length).toBeGreaterThan(0);
+  const { createHash } = await import("node:crypto");
+  for (const source of terrain.provenance) {
+    expect(source.url).toMatch(/^https:\/\/cyberjapandata\.gsi\.go\.jp\/xyz\/dem_png\/14\/\d+\/\d+\.png$/);
+    expect(Number.isFinite(Date.parse(source.acquiredAt))).toBe(true);
+    expect(source.sha256).toBe(createHash("sha256").update(png).digest("hex"));
+    await expect(page.getByText(source.sha256, { exact: true })).toHaveCount(0);
+  }
+  await expect(page.locator(".sea-panel details, .sea-panel input, .sea-panel code")).toHaveCount(0);
   await page.reload();
+  await expect(input).toHaveValue("1000");
+  await expect(page.locator(".sea-warning").first()).toContainText("自動値（1100 ft）");
+  const restored = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.metadata.sea, artifactSessionKey);
+  expect(restored).toEqual(saved);
+  await page.getByRole("button", { name: "地形を再取得" }).click();
+  await expect(input).toBeEnabled({ timeout: 90_000 });
+  await expect(input).toHaveValue("1000");
   await expect(page.locator(".sea-warning").first()).toContainText("自動値（1100 ft）");
 });
 
