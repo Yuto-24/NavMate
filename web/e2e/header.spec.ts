@@ -143,7 +143,8 @@ test("#218 single-row sticky header preserves workflow, long names and keyboard/
     if (width === 320 || width === 1440) await page.screenshot({ path: info.outputPath(`more-menu-${width}.png`) });
     await project.click();
     await expect(page.locator(".more-panel")).toBeHidden();
-    await page.mouse.click(width / 2, 500);
+    // A fixed viewport coordinate can hit the map attribution and navigate away.
+    await page.locator(".app-header").click({ position: { x: 1, y: 1 } });
     await expect(page.locator(".project-panel")).toBeHidden();
     await openInformation(page);
     const dialog = page.getByRole("dialog", { name: "お知らせ", exact: true });

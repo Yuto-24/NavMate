@@ -389,27 +389,13 @@ test("download and Clipboard export the displayed result, survive denial, and re
 });
 
 test("source links open without an opener and cannot unlock a pending save", async ({ page, context }) => {
-  // Credit visibility follows successful live-layer loading; keep this interaction
-  // test independent of GSI network availability with a valid two-tile contract.
-  await context.route("https://maps.gsi.go.jp/xyz/kokuarea_minkankunren/8/221/*.geojson", async route => {
-    const north = route.request().url().endsWith("/103.geojson");
-    const names = north ? ["KS4-1/4", "KS4-1", "KS4-3", "KS4-5"]
-      : ["KS4-2", "KS4-7", "KS4-6", "KS4-1/4", "KS4-1", "KS4-3", "KS4-5", "KS4-8"];
-    const lat = north ? 32 : 31;
-    const ring = [[131, lat], [131.1, lat], [131.1, lat + .1], [131, lat + .1], [131, lat]];
-    await route.fulfill({ contentType: "application/geo+json", body: JSON.stringify({
-      type: "FeatureCollection", features: names.flatMap(name => ["Polygon", "LineString"].map(type => ({
-        type: "Feature", properties: { "空域名称": name, "下限": "0 ft", "上限": "10000 ft", "管轄機関": "Fixture" },
-        geometry: { type, coordinates: type === "Polygon" ? [ring] : ring },
-      }))),
-    }) });
-  });
   await open(page);
   await drop(page, "route.kml", kml);
   await confirmImportedDraft(page);
   await page.getByLabel("気象モード").selectOption("FTD");
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
-  const link = page.getByRole("link", { name: "国土交通省", exact: true });
+  await page.getByText("空域レイヤー", { exact: true }).click();
+  const link = page.getByRole("link", { name: "航空情報センター AIP", exact: true });
   const href = (await link.getAttribute("href"))!;
   await context.route(href, route => route.fulfill({ contentType: "text/html", body: "<title>Reference</title>" }));
   for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
@@ -549,4 +535,28 @@ test("delayed replacement import retains planning edits before route confirmatio
   await expect(page.getByLabel("気象モード")).toHaveValue("FORECAST");
   await page.getByLabel("地図とKML記載順を確認しました").check();
   await expect(page.getByRole("button", { name: "経路を確定", exact: true })).toBeEnabled();
+});
+
+test("#312 layer preferences preserve Project and Last Calculation", async ({ page }) => {
+  await open(page);
+  await drop(page, "route.kml", kml);
+  await confirmImportedDraft(page);
+  await page.getByLabel("気象モード").selectOption("FTD");
+  await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
+  for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
+    await page.getByLabel(name + "出発Legの計画高度", { exact: true }).fill(altitude);
+  }
+  await page.getByRole("button", { name: /^NAV LOGを作る$/ }).click();
+  await expect.poll(async () => (await snapshot(page)).working.outcome).not.toBeNull();
+  const before = (await snapshot(page)).working;
+  await page.getByText("空域レイヤー", { exact: true }).click();
+  await page.getByLabel("民間訓練・試験空域", { exact: true }).uncheck();
+  await expect(page.locator(".aip-Civil_training_and_testing_areas")).toHaveCount(0);
+  expect((await snapshot(page)).working).toEqual(before);
+  expect(await page.evaluate(() => localStorage.getItem("autonavlog.aip-layers.v1")))
+    .toContain("Civil_training_and_testing_areas");
+  await page.reload();
+  await expect(page.getByRole("button", { name: /^NAV LOGを再計算$/ })).toBeVisible();
+  expect((await snapshot(page)).working.project).toEqual(before.project);
+  expect((await snapshot(page)).working.outcome).toEqual(before.outcome);
 });
