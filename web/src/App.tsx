@@ -1,3 +1,4 @@
+import { seaCruiseCautions } from "./seaDisplay";
 import { TransientMessage } from "./components/TransientMessage";
 import { StartupScreen } from "./components/StartupScreen";
 import { flushSync } from "react-dom";
@@ -2093,6 +2094,13 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         />
 
       </main>
+
+      {state.project && state.sea && seaCruiseCautions(state.sea.intervals,
+        state.project.sections, state.project.route_nodes,
+        state.readiness.calculationIsCurrent && calculationInputsAreLocallyCurrent ? state.outcome?.sections ?? null : null,
+      ).map(({ interval, altitude }) => <p className="sea-caution" role="status" key={interval.key}>
+        {interval.from_name} → {interval.to_name}：Caution — 巡航高度（{altitude} ft）が自動SEA（{interval.automatic_ft} ft）を下回っています。
+      </p>)}
 
       {state.outcome && state.project && (
         <div

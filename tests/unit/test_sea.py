@@ -26,6 +26,11 @@ def complete(maximum: float) -> SeaTerrain:
 
 
 def patch(project, **values):
+    # Seed legacy storage directly; the retired API must no longer accept edits.
+    manual = values.pop("manual", {})
+    raw = project.metadata.setdefault("sea", {"policy": "sea-3nm-forward-cap-v1", "records": {}})
+    for key, value in manual.items():
+        raw["records"].setdefault(key, {})["manual_ft"] = value
     return SeaUpdate(
         project_id=project.id, geometry_key=sea_plan(project)["geometry_key"], **values
     )
@@ -84,7 +89,7 @@ def test_checkpoint_intervals_are_independent_and_manual_survives_non_geometry_e
     )
     values = sea_plan(project)["intervals"]
     assert [item["automatic_ft"] for item in values] == [1100, 2000]
-    assert [item["warning"] for item in values] == ["below-automatic", None]
+    assert [item["warning"] for item in values] == [None, None]
     project.sections[0].planned_altitude_ft_msl = 7000
     project.sections[0] = project.sections[0].model_copy(
         update={"manual_wind_direction_deg": 270, "manual_wind_speed_kt": 30}
@@ -100,12 +105,13 @@ def test_checkpoint_intervals_are_independent_and_manual_survives_non_geometry_e
     assert all(item["manual_ft"] is None for item in sea_plan(project)["intervals"])
 
 
-def test_unknown_automatic_allows_manual_and_clearing_restores_warning():
+def test_legacy_manual_does_not_hide_unknown_automatic():
     project = _project()
     key = sea_plan(project)["intervals"][0]["key"]
     apply_sea(project, patch(project, manual={key: 2500}))
     item = sea_plan(project)["intervals"][0]
-    assert item["automatic_ft"] is None and item["status"] == "manual" and item["warning"] is None
+    assert item["automatic_ft"] is None
+    assert item["status"] == "unknown" and item["warning"] == "unconfirmed"
     apply_sea(project, patch(project, manual={key: None}))
     assert sea_plan(project)["intervals"][0]["warning"] == "unconfirmed"
 
@@ -253,9 +259,20 @@ def test_unsupported_automatic_input_and_saved_records_preserve_manual(coordinat
     for saved in (project, Project.model_validate_json(project.model_dump_json())):
         value = sea_plan(saved)["intervals"][0]
         assert value["automatic_ft"] is None
-        assert value["manual_ft"] == value["value_ft"] == 2500
-        assert value["status"] == "manual" and value["warning"] is None
+        assert value["manual_ft"] == 2500
+        assert value["value_ft"] is None
+        assert value["status"] == "unknown" and value["warning"] == "unconfirmed"
     apply_sea(project, patch(project, manual={key: None}))
     value = sea_plan(project)["intervals"][0]
     assert value["automatic_ft"] is None and value["value_ft"] is None
     assert value["status"] == "unknown" and value["warning"] == "unconfirmed"
+
+
+def test_retired_manual_update_is_rejected_without_mutation():
+    project = _project()
+    plan = sea_plan(project)
+    before = project.model_dump()
+    with pytest.raises(ValueError, match="manual-sea-retired"):
+        apply_sea(project, SeaUpdate(project_id=project.id, geometry_key=plan["geometry_key"],
+                                    manual={plan["intervals"][0]["key"]: 2000}))
+    assert project.model_dump() == before
