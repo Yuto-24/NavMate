@@ -40,7 +40,7 @@ for (const width of [1100, 1440]) {
     await input.fill("3500"); await input.blur();
     await expect(first).toHaveAttribute("data-display-text", "3500");
     await expect(first).not.toHaveAttribute("data-display-text", "未確定");
-    await expect(page.locator(".sea-warning").first()).toContainText("自動値との照合は未実施");
+    await expect(page.locator(".sea-warning").first()).toContainText("手入力値の比較および安全性の確認はできません");
     const result = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.outcome, artifactSessionKey);
     await page.reload();
     await expect(input).toHaveValue("3500");
