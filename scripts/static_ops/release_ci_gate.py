@@ -81,7 +81,9 @@ def await_source_ci(get, sha: str, *, timeout: float = 2400, interval: float = 1
         except source_ci.Unavailable:
             remaining = deadline - monotonic()
             if remaining <= 0:
-                raise source_ci.Unavailable("Release source CI did not pass before timeout") from None
+                raise source_ci.Unavailable(
+                    "Release source CI did not pass before timeout"
+                ) from None
             sleep(min(interval, remaining))
 
 
@@ -91,11 +93,16 @@ def main() -> None:
     tag = release_tag(get, os.environ["GITHUB_EVENT_NAME"], event)
     sha = release_commit(get, tag)
     receipt = await_source_ci(get, sha)
-    print(f"Release {tag}: source CI run {receipt['run_id']} attempt {receipt['run_attempt']} passed")
+    print(
+        f"Release {tag}: source CI run {receipt['run_id']} "
+        f"attempt {receipt['run_attempt']} passed"
+    )
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception:
-        raise SystemExit("Release source CI preflight BLOCKED: inspect the source CI and replay") from None
+        raise SystemExit(
+            "Release source CI preflight BLOCKED: inspect the source CI and replay"
+        ) from None

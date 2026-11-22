@@ -4,8 +4,7 @@ import base64
 
 import pytest
 
-from scripts.static_ops import release_ci_gate as gate
-from scripts.static_ops import source_ci
+from scripts.static_ops import release_ci_gate as gate, source_ci
 
 
 REPO = {"full_name": "Yuto-24/NavMate"}
@@ -107,8 +106,11 @@ def test_waits_for_success_and_times_out_without_deploying(monkeypatch):
         return {"sha": sha, "run_id": 42, "run_attempt": 1}
 
     monkeypatch.setattr(gate.source_ci, "require_success", require_success)
-    tick = lambda: now[0]
-    sleep = lambda seconds: now.__setitem__(0, now[0] + seconds)
+    def tick():
+        return now[0]
+
+    def sleep(seconds):
+        now[0] += seconds
     assert gate.await_source_ci(lambda _: None, TAGGED, timeout=30, interval=10,
                                 monotonic=tick, sleep=sleep)["run_id"] == 42
     assert now == [20]
