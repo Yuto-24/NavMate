@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import { inventory, checkArtifact, limits, sha256, sourceDirty } from "./static-artifact.mjs";
 const msmFile = `weather/msm/${sha256("msm")}.npz`;
 const gsmFile = `weather/gsm/${sha256("gsm")}.npz`;
-function fixture(t) {
+function fixture(t, { version = "1.0.0", commit } = {}) {
   const root = mkdtempSync(join(tmpdir(), "static-artifact-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const name of ["local", "weather/msm", "reference/aip"]) mkdirSync(join(root, name), { recursive: true });
@@ -25,9 +25,9 @@ function fixture(t) {
     ...aipAsset(layer.id, { type: "FeatureCollection", features: Array.from({ length: layer.feature_count },
       (_, index) => ({ type: "Feature", id: `${layer.id}:${index}`, properties: {},
         geometry: { type: "Point", coordinates: [index % 180, 0] } })) }) }));
-  const aip = aipAsset("manifest", { schema_version: 1, app_version: "1.0.0", feature_count: 5276,
+  const aip = aipAsset("manifest", { schema_version: 1, app_version: version, feature_count: 5276,
     kml_placemark_count: 5271, layers, reconciliation: aipAsset("reconciliation", []) });
-  put("local/manifest.json", { version: "1.0.0", pyodideVersion: "0.27.7", wheels: ["core.whl"], data: "data.zip",
+  put("local/manifest.json", { version, pyodideVersion: "0.27.7", wheels: ["core.whl"], data: "data.zip",
     mapReference: { ...aip, file: `reference/aip/${aip.file}` },
     sha256: { "core.whl": sha256("local/core.whl"), "data.zip": sha256("local/data.zip") } });
   put(msmFile, "msm");
@@ -38,7 +38,7 @@ function fixture(t) {
   });
   const seal = () => {
     const files = inventory(root); delete files["release.json"];
-    put("release.json", { version: "1.0.0", pyodideVersion: "0.27.7", dirty: false, files });
+    put("release.json", { version, commit, pyodideVersion: "0.27.7", dirty: false, files });
   };
   seal(); return { root, put, seal };
 }
@@ -240,6 +240,71 @@ test("AIP reference is required and its files are checked beyond the release inv
   assert.throws(() => checkArtifact(root), /AIP reference asset mismatch/);
   delete local.mapReference; put("local/manifest.json", local); seal();
   assert.throws(() => checkArtifact(root), /AIP reference manifest/);
+});
+
+const approvedPreAipCommit = "ab26080419f1a375db786b045c43aca828b02d7c";
+function preAipFixture(t, options = {}) {
+  const scenario = fixture(t, { version: "2.5.2", commit: approvedPreAipCommit, ...options });
+  const manifest = JSON.parse(readFileSync(join(scenario.root, "local/manifest.json")));
+  delete manifest.mapReference;
+  scenario.put("local/manifest.json", manifest);
+  rmSync(join(scenario.root, "reference"), { recursive: true });
+  scenario.seal();
+  return scenario;
+}
+
+test("trusted weather renewal accepts the approved pre-AIP app through the real CLI", t => {
+  const { root } = preAipFixture(t);
+  assert.throws(() => checkArtifact(root), /AIP reference manifest/);
+  assert.equal(checkArtifact(root, { expectedCommit: approvedPreAipCommit }).version, "2.5.2");
+  const cli = join(import.meta.dirname, "check-static.mjs");
+  const report = JSON.parse(execFileSync(process.execPath,
+    [cli, root, `--expected-commit=${approvedPreAipCommit}`], { encoding: "utf8" }));
+  assert.equal(report.version, "2.5.2");
+  assert.equal(report.fileCount, 9);
+  assert.equal(report.freshWeather, true);
+  for (const options of [["--expected-commit=ab260804"],
+    [`--expected-commit=${approvedPreAipCommit}`, `--expected-commit=${approvedPreAipCommit}`]]) {
+    assert.throws(() => execFileSync(process.execPath, [cli, root, ...options], { stdio: "pipe" }));
+  }
+});
+
+test("legacy compatibility cannot be selected by artifact metadata or a new same-version commit", t => {
+  const newCommit = "1".repeat(40);
+  const legacy = preAipFixture(t);
+  assert.throws(() => checkArtifact(legacy.root), /AIP reference manifest/);
+  assert.throws(() => checkArtifact(legacy.root, { expectedCommit: newCommit }), /commit/i);
+  const newer = preAipFixture(t, { commit: newCommit });
+  assert.throws(() => checkArtifact(newer.root, { expectedCommit: approvedPreAipCommit }), /commit/i);
+  assert.throws(() => checkArtifact(newer.root, { expectedCommit: newCommit }), /AIP reference manifest/);
+  const wrongVersion = preAipFixture(t, { version: "2.5.3" });
+  assert.throws(() => checkArtifact(wrongVersion.root, { expectedCommit: approvedPreAipCommit }), /AIP reference manifest/);
+});
+
+test("legacy compatibility rejects malformed or orphaned AIP data", t => {
+  const options = { expectedCommit: approvedPreAipCommit };
+  for (const mapReference of [null, {}, { file: "missing.json" }]) {
+    const { root, put, seal } = preAipFixture(t);
+    const manifest = JSON.parse(readFileSync(join(root, "local/manifest.json")));
+    put("local/manifest.json", { ...manifest, mapReference }); seal();
+    assert.throws(() => checkArtifact(root, options), /AIP reference manifest/);
+  }
+  const { root, put, seal } = preAipFixture(t);
+  mkdirSync(join(root, "reference/aip"), { recursive: true });
+  put("reference/aip/orphan.json", {}); seal();
+  assert.throws(() => checkArtifact(root, options), /AIP reference manifest/);
+});
+
+test("legacy compatibility retains local integrity and weather expiry checks", t => {
+  const options = { expectedCommit: approvedPreAipCommit };
+  const local = preAipFixture(t);
+  local.put("local/core.whl", "corrupt"); local.seal();
+  assert.throws(() => checkArtifact(local.root, options), /Local asset hash mismatch/);
+  const weather = preAipFixture(t);
+  const catalog = JSON.parse(readFileSync(join(weather.root, "weather/msm/catalog.json")));
+  weather.put("weather/msm/catalog.json", { ...catalog,
+    generated_at: "1999-12-31T23:00:00Z", expires_at: "2000-01-01T00:00:00Z" }); weather.seal();
+  assert.throws(() => checkArtifact(weather.root, options), /catalog expired/);
 });
 
 test("AIP metadata must match the application version and complete source counts", t => {

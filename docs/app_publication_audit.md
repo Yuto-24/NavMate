@@ -81,6 +81,28 @@ MSM workflowは[Issue #362の公開後検証](https://github.com/Yuto-24/NavMate
 この区別を明記していないため、本調査では上記コード上の範囲を採用する。
 アプリへのpayload検証追加は別の動作変更として判断する。
 
+## 2026-11-22: 承認済みアプリとAIP検査の配布形式不一致
+
+MSM更新では、承認済みアプリを固定したまま、mainの独立した検査ツールを使う。
+[PR #480](https://github.com/Yuto-24/NavMate/pull/480)でAIP参照データの生成と必須検査を追加した後、
+本番v2.5.2の成果物には `mapReference` がなく、
+[更新Run 44915593724](https://github.com/Yuto-24/NavMate/actions/runs/44915593724/job/136880657554)から
+[確認した8回目のRun 44972955614](https://github.com/Yuto-24/NavMate/actions/runs/44972955614/job/137056739574)まで、
+候補のブラウザテスト成功後に `Missing or mismatched AIP reference manifest` で停止した。
+旧アプリの生成処理と新しい検査ツールの組合せが原因であり、気象Runの再取得では解消しない。
+
+修正ではMSM workflowが `--expected-commit` に承認済みSHAを渡し、検査器が成果物のSHAと照合する。
+旧形式を受け入れる対象は、確認済みのv2.5.2
+(`ab26080419f1a375db786b045c43aca828b02d7c`) のcleanな本番成果物に限定する。
+`mapReference` とAIPファイルが両方存在しない場合だけ互換対象とし、壊れた参照や残存ファイルは拒否する。
+通常のbuild・アプリ公開検査はAIPを必須とし、inventory・Localのハッシュ・気象の検査も維持する。
+未公開のmainにも同じ版番号が残るため、版番号や成果物自身の申告だけでは旧形式と判定しない。
+
+`test:static-artifact` で、旧形式を実CLIへ渡す更新経路、期待SHAの不一致、
+同じ版番号の新コミットからのAIP全欠落、壊れた参照、気象失効を検証する。
+ローカルの互換性検証と、本番MSMの公開・鮮度回復は別の結果として扱う。
+この記録は上記障害に対する観測と修正範囲であり、本番復旧の受入記録ではない。
+
 ## source CI再利用（Issue #460）
 
 2026-11-21の実装判断。通常の新アプリ昇格では、アプリSHAの成功CIを確認してからbuildへ進む。

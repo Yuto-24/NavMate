@@ -26,9 +26,12 @@ export function inventory(root) {
   if (Object.keys(files).length > limits.files) throw new Error("Pages file count exceeds 20000");
   return files;
 }
-export function checkArtifact(root, { freshWeather = true, allowDirty = false, localRuntime = false } = {}) {
+export function checkArtifact(root, { freshWeather = true, allowDirty = false, localRuntime = false, expectedCommit } = {}) {
   const files = inventory(root);
   const release = JSON.parse(readFileSync(join(root, "release.json")));
+  if (expectedCommit !== undefined && (!/^[a-f0-9]{40}$/.test(expectedCommit) || release.commit !== expectedCommit)) {
+    throw new Error("Artifact commit differs from expected application commit");
+  }
   if (release.localRuntime === true && !localRuntime) throw new Error("Local runtime artifact cannot pass a production check");
   if (localRuntime) {
     const config = release.configuration ?? {};
@@ -59,34 +62,42 @@ export function checkArtifact(root, { freshWeather = true, allowDirty = false, l
     if (files["local/" + name]?.sha256 !== manifest.sha256[name]) throw new Error("Local asset hash mismatch: " + name);
   }
   const reference = manifest.mapReference;
-  if (!reference || !/^reference\/aip\/manifest-[a-f0-9]{64}\.json$/.test(reference.file)
-    || !files[reference.file] || typeof reference.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(reference.sha256)
-    || !Number.isSafeInteger(reference.bytes) || reference.bytes <= 0
-    || files[reference.file].sha256 !== reference.sha256 || files[reference.file].bytes !== reference.bytes) {
-    throw new Error("Missing or mismatched AIP reference manifest");
-  }
-  const aip = JSON.parse(readFileSync(join(root, reference.file)));
-  if (aip.schema_version !== 1 || aip.app_version !== release.version || !Array.isArray(aip.layers)
-    || aip.layers.length !== 25 || new Set(aip.layers.map(layer => layer.id)).size !== 25
-    || aip.feature_count !== 5276 || aip.kml_placemark_count !== 5271
-    || aip.layers.reduce((sum, layer) => sum + layer.feature_count, 0) !== aip.feature_count
-    || aip.layers.reduce((sum, layer) => sum + layer.kml_count, 0) !== aip.kml_placemark_count) {
-    throw new Error("AIP reference version or layer inventory mismatch");
-  }
-  for (const asset of [...aip.layers, aip.reconciliation]) {
-    const file = asset && files["reference/aip/" + asset.file];
-    if (!asset || !/^[A-Za-z0-9_-]+-[a-f0-9]{64}\.(geojson|json)$/.test(asset.file)
-      || !file || typeof asset.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(asset.sha256)
-      || !Number.isSafeInteger(asset.bytes) || asset.bytes <= 0
-      || file.sha256 !== asset.sha256 || file.bytes !== asset.bytes) {
-      throw new Error("AIP reference asset mismatch");
+  // PR #480 added AIP after this production release. Only a trusted caller may
+  // select its old format; candidate metadata and version alone are insufficient.
+  const preAipRelease = expectedCommit === "ab26080419f1a375db786b045c43aca828b02d7c"
+    && release.version === "2.5.2" && release.dirty === false && release.localRuntime !== true
+    && !Object.hasOwn(manifest, "mapReference")
+    && !Object.keys(files).some(name => name.startsWith("reference/aip/"));
+  if (!preAipRelease) {
+    if (!reference || !/^reference\/aip\/manifest-[a-f0-9]{64}\.json$/.test(reference.file)
+      || !files[reference.file] || typeof reference.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(reference.sha256)
+      || !Number.isSafeInteger(reference.bytes) || reference.bytes <= 0
+      || files[reference.file].sha256 !== reference.sha256 || files[reference.file].bytes !== reference.bytes) {
+      throw new Error("Missing or mismatched AIP reference manifest");
     }
-  }
-  for (const layer of aip.layers) {
-    const collection = JSON.parse(readFileSync(join(root, "reference/aip", layer.file)));
-    if (collection?.type !== "FeatureCollection" || !Array.isArray(collection.features)
-      || collection.features.length !== layer.feature_count) {
-      throw new Error("AIP reference feature count mismatch");
+    const aip = JSON.parse(readFileSync(join(root, reference.file)));
+    if (aip.schema_version !== 1 || aip.app_version !== release.version || !Array.isArray(aip.layers)
+      || aip.layers.length !== 25 || new Set(aip.layers.map(layer => layer.id)).size !== 25
+      || aip.feature_count !== 5276 || aip.kml_placemark_count !== 5271
+      || aip.layers.reduce((sum, layer) => sum + layer.feature_count, 0) !== aip.feature_count
+      || aip.layers.reduce((sum, layer) => sum + layer.kml_count, 0) !== aip.kml_placemark_count) {
+      throw new Error("AIP reference version or layer inventory mismatch");
+    }
+    for (const asset of [...aip.layers, aip.reconciliation]) {
+      const file = asset && files["reference/aip/" + asset.file];
+      if (!asset || !/^[A-Za-z0-9_-]+-[a-f0-9]{64}\.(geojson|json)$/.test(asset.file)
+        || !file || typeof asset.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(asset.sha256)
+        || !Number.isSafeInteger(asset.bytes) || asset.bytes <= 0
+        || file.sha256 !== asset.sha256 || file.bytes !== asset.bytes) {
+        throw new Error("AIP reference asset mismatch");
+      }
+    }
+    for (const layer of aip.layers) {
+      const collection = JSON.parse(readFileSync(join(root, "reference/aip", layer.file)));
+      if (collection?.type !== "FeatureCollection" || !Array.isArray(collection.features)
+        || collection.features.length !== layer.feature_count) {
+        throw new Error("AIP reference feature count mismatch");
+      }
     }
   }
   const weatherExpiry = {};
