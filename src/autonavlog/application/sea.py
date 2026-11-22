@@ -230,17 +230,9 @@ def sea_plan(project: Project, *, regions: bool = False) -> dict[str, Any]:
             {
                 "automatic_ft": auto,
                 "manual_ft": record.manual_ft,
-                "value_ft": record.manual_ft if record.manual_ft is not None else auto,
-                "status": "manual"
-                if record.manual_ft is not None
-                else "automatic"
-                if auto is not None
-                else "unknown",
-                "warning": "below-automatic"
-                if record.manual_ft is not None and auto is not None and record.manual_ft < auto
-                else "unconfirmed"
-                if record.manual_ft is None and auto is None
-                else None,
+                "value_ft": auto,
+                "status": "automatic" if auto is not None else "unknown",
+                "warning": "unconfirmed" if auto is None else None,
                 "terrain": record.terrain.model_dump(mode="json"),
             }
         )
@@ -271,6 +263,8 @@ def sea_plan(project: Project, *, regions: bool = False) -> dict[str, Any]:
 
 
 def apply_sea(project: Project, update: SeaUpdate) -> None:
+    if update.manual:
+        raise ValueError("manual-sea-retired")
     plan = sea_plan(project)
     if project.id != update.project_id or plan["geometry_key"] != update.geometry_key:
         raise ValueError("stale-sea-geometry")
@@ -282,8 +276,6 @@ def apply_sea(project: Project, update: SeaUpdate) -> None:
     records = {key: records.get(key, SeaRecord()) for key in current}
     for key, terrain in (update.terrain or {}).items():
         records[key].terrain = terrain
-    for key, manual in (update.manual or {}).items():
-        records[key] = SeaRecord.model_validate({**records[key].model_dump(), "manual_ft": manual})
     previous = project.metadata.get("sea", {})
     kml = (
         update.kml

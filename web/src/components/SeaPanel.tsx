@@ -18,12 +18,10 @@ export function SeaPanel({ projectId, plan, disabled, onAcquire }: {
   return <section className="sea-panel" aria-label="区間別SEA">
     <button className="secondary-button" type="button" disabled={disabled} onClick={() => void onAcquire()}>地形を再取得</button>
     <a href="https://cyberjapandata.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener noreferrer">地形標高データ出典：国土地理院 DEM10B</a>
-    {plan.intervals.filter(interval => interval.warning || (interval.status === "manual" && interval.automatic_ft === null))
+    {plan.intervals.filter(interval => interval.automatic_ft === null)
       .map(interval => <p className="sea-warning" key={interval.key}>
         {interval.from_name} → {interval.to_name}：
-        {interval.warning === "below-automatic" ? `手動SEAが自動値（${interval.automatic_ft} ft）を下回っています。`
-          : interval.warning === "unconfirmed" ? "地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。"
-          : "地形データの不足などによりSEAの自動値を算出できないため、手入力値の比較および安全性の確認はできません。航空図などの公式資料で別途ご確認ください。"}
+        地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。
       </p>)}
   </section>;
 }

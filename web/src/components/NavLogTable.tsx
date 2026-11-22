@@ -1028,9 +1028,7 @@ export function NavLogTable({
                   >
                     {row.to_name}
                   </td>
-                  <SeaCell interval={seaInterval} disabled={seaDisabled || !onSeaUpdate}
-                    onSave={value => onSeaUpdate!({ project_id: project.id, geometry_key: sea!.geometry_key,
-                      manual: { [seaInterval!.key]: value } })} />
+                  <SeaCell interval={seaInterval} />
                   <DisplayResultCells
                     roundingMode={roundingMode}
                     row={row}
@@ -1052,9 +1050,7 @@ export function NavLogTable({
                     {vorColumns.map(column => <td key={column.id} />)}
                     <td className="route-name-cell route-from-cell" />
                     <td className="route-name-cell route-to-cell" data-display-text={interval.to_name}>{interval.to_name}</td>
-                    <SeaCell interval={interval} disabled={seaDisabled || !onSeaUpdate}
-                      onSave={value => onSeaUpdate!({ project_id: project.id, geometry_key: sea!.geometry_key,
-                        manual: { [interval.key]: value } })} />
+                    <SeaCell interval={interval} />
                     {Array.from({ length: navLogColumnCount - vorColumns.length - 3 }, (_, index) => <td key={index} />)}
                   </tr>
                 ))}

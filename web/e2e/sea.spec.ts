@@ -4,7 +4,7 @@ import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 
 for (const width of [1100, 1440]) {
-  test(`#314 SEA unknown/manual, reload, recalculation and workflow positions ${width}px`, async ({ page }) => {
+  test(`#314 SEA automatic/unknown, reload, recalculation and workflow positions ${width}px`, async ({ page }) => {
     test.setTimeout(180_000);
     const errors: string[] = [];
     page.on("pageerror", e => errors.push(e.message));
@@ -33,21 +33,15 @@ for (const width of [1100, 1440]) {
     await expect(page.getByRole("button", { name: "地形を再取得" })).toHaveClass(/secondary-button/);
     await expect(page.locator(".sea-panel details, .sea-panel input, .sea-panel code")).toHaveCount(0);
     await expect(page.getByText("地形点KML・DEMの取得状況と出典", { exact: true })).toHaveCount(0);
-    const first = table.locator(".nav-log-sea-cell").filter({ has: page.getByRole("spinbutton") }).first();
+    const first = table.locator(".nav-log-sea-cell").filter({ hasText: /未確定|[0-9]/ }).first();
     await expect(first).toHaveAttribute("data-display-text", "未確定");
-    const input = first.getByRole("spinbutton");
-    await expect(input).toBeEnabled({ timeout: 90_000 });
-    await input.fill("3500"); await input.blur();
-    await expect(first).toHaveAttribute("data-display-text", "3500");
-    await expect(first).not.toHaveAttribute("data-display-text", "未確定");
-    await expect(page.locator(".sea-warning").first()).toContainText("手入力値の比較および安全性の確認はできません");
+    await expect(first.locator("input")).toHaveCount(0);
+    await expect(page.locator(".sea-warning").first()).toContainText("SEAは未確定です");
     const result = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.outcome, artifactSessionKey);
     await page.reload();
-    await expect(input).toHaveValue("3500");
-    await expect(first).toHaveAttribute("data-display-text", "3500");
+    await expect(first).toHaveAttribute("data-display-text", "未確定");
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-    await expect(input).toBeEnabled({ timeout: 90_000 });
-    await expect(input).toHaveValue("3500");
+    await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
     const again = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.outcome, artifactSessionKey);
     expect(again.summary).toEqual(result.summary);
     expect(again.fuel_plan).toEqual(result.fuel_plan);
@@ -62,7 +56,6 @@ for (const width of [1100, 1440]) {
     expect(Math.abs(map!.y - pane!.y)).toBeLessThan(3);
     expect(navlog!.y).toBeGreaterThan(map!.y + map!.height);
     expect(sea!.y).toBeGreaterThan(navlog!.y);
-    await input.fill(""); await input.blur();
     await expect(first).toHaveAttribute("data-display-text", "未確定");
     if (width === 1440) {
       // Seed two CPs on one physical Leg, then let the real Local engine project
@@ -85,27 +78,23 @@ for (const width of [1100, 1440]) {
       await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
       const cpRows = table.locator('tr[data-row-type="CALCULATION_ZONE"]').filter({ has: page.locator('.route-to-cell', { hasText: /^SEA CP$/ }) });
       await expect(cpRows).toHaveCount(2);
-      const cpInputs = cpRows.locator(".nav-log-sea-cell input");
-      await expect(cpInputs).toHaveCount(2);
-      for (const [index, value] of ["4100", "5200"].entries()) {
-        await expect(cpInputs.nth(index)).toBeEnabled({ timeout: 90_000 });
-        await cpInputs.nth(index).fill(value); await cpInputs.nth(index).blur();
-        await expect(cpRows.nth(index).locator(".nav-log-sea-cell")).toHaveAttribute("data-display-text", value);
-      }
+      const cpCells = cpRows.locator(".nav-log-sea-cell");
+      await expect(cpCells).toHaveCount(2);
+      await expect(cpCells.locator("input")).toHaveCount(0);
       await page.reload();
-      await expect(cpInputs.nth(0)).toHaveValue("4100");
-      await expect(cpInputs.nth(1)).toHaveValue("5200");
+      await expect(cpCells).toHaveCount(2);
+      for (const cell of await cpCells.all()) await expect(cell).toHaveText("未確定");
       const state = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working, artifactSessionKey);
       expect(state.outcome.check_point_projections).toHaveLength(2);
-      const seaCells = await table.locator(".nav-log-sea-cell input").count();
-      expect(seaCells).toBe(state.project.sections.length + 2);
+      await expect(table.locator(".nav-log-sea-cell").filter({ hasText: /未確定|[0-9]/ }))
+        .toHaveCount(state.project.sections.length + 2);
     }
     await page.locator(".nav-log-section").screenshot({ path: `/tmp/issue485-sea-${width}.png` });
     expect(errors).toEqual([]);
   });
 }
 
-test("#314 complete DEM, low manual warning and retained diagnostics without detail UI", async ({ page }) => {
+test("#314 complete DEM, automatic values and retained diagnostics without detail UI", async ({ page }) => {
   // Allow initial readiness, reload recovery, and explicit DEM reacquisition to complete.
   test.setTimeout(300_000);
   const { deflateSync } = await import("node:zlib");
@@ -136,13 +125,9 @@ test("#314 complete DEM, low manual warning and retained diagnostics without det
     await input.fill(altitude!); await input.blur();
   }
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-  const first = page.locator(".nav-log-sea-cell").filter({ has: page.getByRole("spinbutton") }).first();
-  const input = first.getByRole("spinbutton");
-  await expect(input).toBeEnabled({ timeout: 90_000 });
-  await expect(input).toHaveAttribute("placeholder", "1100");
-  await expect(first).toHaveAttribute("data-display-text", "1100");
-  await input.fill("1000"); await input.blur();
-  await expect(page.locator(".sea-warning").first()).toContainText("手動SEAが自動値（1100 ft）を下回っています。");
+  const first = page.locator(".nav-log-sea-cell").filter({ hasText: /未確定|[0-9]/ }).first();
+  await expect(first).toHaveAttribute("data-display-text", "1100", { timeout: 90_000 });
+  await expect(first.locator("input")).toHaveCount(0);
   const saved = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.metadata.sea, artifactSessionKey);
   const records = Object.values(saved.records) as { terrain: { complete: boolean; required: number; valid: number; provenance: { url: string; acquiredAt: string; sha256: string }[] } }[];
   const terrain = records[0]!.terrain;
@@ -159,17 +144,39 @@ test("#314 complete DEM, low manual warning and retained diagnostics without det
   }
   await expect(page.locator(".sea-panel details, .sea-panel input, .sea-panel code")).toHaveCount(0);
   await page.reload();
-  await expect(input).toHaveValue("1000");
-  await expect(page.locator(".sea-warning").first()).toContainText("自動値（1100 ft）");
+  await expect(first).toHaveAttribute("data-display-text", "1100");
+  await expect(page.locator(".sea-caution")).toHaveCount(0);
   const restored = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.metadata.sea, artifactSessionKey);
   expect(restored).toEqual(saved);
   await page.getByRole("button", { name: "地形を再取得" }).click();
-  await expect(input).toBeEnabled({ timeout: 90_000 });
-  await expect(input).toHaveValue("1000");
-  await expect(page.locator(".sea-warning").first()).toContainText("自動値（1100 ft）");
+  await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
+  await expect(first).toHaveAttribute("data-display-text", "1100");
+  await expect(page.locator(".sea-caution")).toHaveCount(0);
+  // Restore an old manual override alongside complete high terrain: only the
+  // automatic reference participates, while saved navigation values stay intact.
+  await page.evaluate(key => {
+    const session = JSON.parse(sessionStorage.getItem(key)!);
+    for (const record of Object.values(session.working.project.metadata.sea.records) as any[]) {
+      record.manual_ft = 1;
+      record.terrain.maximum_m = 3048;
+    }
+    sessionStorage.setItem(key, JSON.stringify(session));
+  }, artifactSessionKey);
+  await page.reload();
+  await expect(first).toHaveAttribute("data-display-text", "11000");
+  await expect(page.locator(".sea-caution").first()).toContainText("自動SEA（11000 ft）");
+  const altitude = page.locator(".nav-log-table").getByRole("spinbutton", { name: /計画高度$/ }).first();
+  await altitude.fill("8500");
+  await expect(page.locator(".sea-caution")).toHaveCount(0);
+  await altitude.blur();
+  // NAV LOG edits invoke the existing automatic recalculation.
+  await expect(page.locator(".sea-caution").first()).toBeVisible();
+  await page.getByRole("button", { name: "地形を再取得" }).click();
+  await expect(first).toHaveAttribute("data-display-text", "1100", { timeout: 90_000 });
+  await expect(page.locator(".sea-caution")).toHaveCount(0);
 });
 
-test("#314 #485 final visual CP intervals retain SEA values and manual editors in NAV LOG", async ({ page }) => {
+test("#314 #485 final visual CP intervals retain SEA values without manual editors in NAV LOG", async ({ page }) => {
   await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
   await page.goto("/");
   await enterImportWorkflow(page);
@@ -205,13 +212,10 @@ test("#314 #485 final visual CP intervals retain SEA values and manual editors i
   const rows = page.locator(".nav-log-table tr[data-sea-only]");
   await expect(rows).toHaveCount(3);
   expect(await rows.locator(".route-to-cell").allTextContents()).toEqual(["VISUAL CP 1", "VISUAL CP 2", "RJFS"]);
-  for (const [index, value] of ["2100", "3200", "4300"].entries()) {
-    const input = rows.nth(index).getByRole("spinbutton");
-    await expect(input).toBeEnabled({ timeout: 90_000 });
-    await input.fill(value); await input.blur();
-    await expect(rows.nth(index).locator(".nav-log-sea-cell")).toHaveAttribute("data-display-text", value);
-  }
+  await expect(rows.locator("input")).toHaveCount(0);
+  for (const cell of await rows.locator(".nav-log-sea-cell").all()) await expect(cell).toHaveText("未確定");
   expect(await rows.first().locator(".nav-log-sea-cell ~ td").allTextContents()).toEqual(Array(18).fill(""));
   await page.reload();
-  for (const [index, value] of ["2100", "3200", "4300"].entries()) await expect(rows.nth(index).getByRole("spinbutton")).toHaveValue(value);
+  await expect(rows).toHaveCount(3);
+  for (const cell of await rows.locator(".nav-log-sea-cell").all()) await expect(cell).toHaveText("未確定");
 });
