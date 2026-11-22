@@ -54,7 +54,7 @@ async function checkToastLayout(page: Page, width: number) {
 }
 
 test("first Local NAV LOG calculation and recalculation scroll to the result", async ({ page }) => {
-  await page.clock.install();
+  await page.clock.install({ time: new Date("2026-09-11T00:00:00Z") });
   await page.addInitScript(() => {
     const original = Element.prototype.scrollIntoView;
     const originalPostMessage = Worker.prototype.postMessage;
@@ -94,7 +94,8 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   const toast = page.locator(".calculation-toast");
   // Freeze before calculation so layout/assertion time on slower CI runners
   // cannot consume the toast's five-second lifetime.
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 200));
+  // The fixed target exceeds the test timeout, avoiding a clock-read round trip.
+  await page.clock.pauseAt(new Date("2026-09-11T01:00:00Z"));
   await page.getByRole("button", { name: "NAV LOGを作る", exact: true }).click();
   await expect(toast).toHaveText("NAV LOGを計算しました。準備状況と各値を確認してください。");
   await page.clock.runFor(500); // Run the existing scroll-to-result frame.
@@ -112,12 +113,10 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await expect(toast).toHaveCount(0);
   await expect(page.locator(".nav-log-table")).toHaveText(firstTable, { useInnerText: true });
   await expect(page.locator(".status-rail")).toHaveText(readiness, { useInnerText: true });
-  await page.clock.resume();
-
-  await page.evaluate(() => window.scrollTo(0, 0));
+  // Keep timers paused through recalculation; only runFor advances toast time.
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   await expect.poll(() => page.getByLabel("計算済みNAV LOG").evaluate((element) => element.getBoundingClientRect().top))
     .toBeGreaterThan(await page.evaluate(() => window.innerHeight / 3));
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 200));
   await page.getByRole("button", { name: "NAV LOGを再計算", exact: true }).click();
   await expect(toast).toBeVisible();
   await page.clock.runFor(500);

@@ -49,8 +49,13 @@ for (const width of [1100, 1440]) {
     const again = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.outcome, artifactSessionKey);
     expect(again.summary).toEqual(result.summary);
     expect(again.fuel_plan).toEqual(result.fuel_plan);
-    const [map, pane, navlog, sea] = await Promise.all([".map-frame", ".planning-pane", ".nav-log-scroll", ".sea-panel"]
-      .map(selector => page.locator(selector).boundingBox()));
+    // Sample one frame, as in expectPlanningLayout: recalculation scrolls smoothly.
+    const [map, pane, navlog, sea] = await page.evaluate(() =>
+      [".map-frame", ".planning-pane", ".nav-log-scroll", ".sea-panel"].map(selector => {
+        const { x, y, width, height } = document.querySelector(selector)!.getBoundingClientRect();
+        return { x, y, width, height };
+      }),
+    );
     expect(map!.x + map!.width).toBeLessThanOrEqual(pane!.x + 2);
     expect(Math.abs(map!.y - pane!.y)).toBeLessThan(3);
     expect(navlog!.y).toBeGreaterThan(map!.y + map!.height);
