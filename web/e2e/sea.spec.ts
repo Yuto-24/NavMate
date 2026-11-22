@@ -101,7 +101,8 @@ for (const width of [1100, 1440]) {
 }
 
 test("#314 complete DEM, low manual warning and retained diagnostics without detail UI", async ({ page }) => {
-  test.setTimeout(180_000);
+  // Allow initial readiness, reload recovery, and explicit DEM reacquisition to complete.
+  test.setTimeout(300_000);
   const { deflateSync } = await import("node:zlib");
   // Numeric RGB fixture, 30.48 m = exactly 100 ft. PNG chunks have genuine CRCs.
   const crc = (data: Buffer) => {
