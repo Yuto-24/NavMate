@@ -153,10 +153,10 @@ test("#218 single-row sticky header preserves workflow, long names and keyboard/
     await expect(page.getByRole("button", { name: "その他", exact: true })).toBeFocused();
   }
   await expect(page.locator(".nav-log-table")).toHaveText(result, { useInnerText: true });
-  // Native focus scrolling must reserve the fixed header's height.
-  await page.getByLabel("DATE", { exact: true }).focus();
-  const date = await page.getByLabel("DATE", { exact: true }).boundingBox();
-  expect(date!.y).toBeGreaterThanOrEqual(56);
+  // Native focus scrolling can settle after focus returns; keep the header-clearance check.
+  const date = page.getByLabel("DATE", { exact: true });
+  await date.focus();
+  await expect.poll(async () => (await date.boundingBox())?.y ?? -Infinity).toBeGreaterThanOrEqual(56);
 });
 
 test("#218 panel pointer actions survive input blur and keyboard departure still closes panels", async ({ page }) => {
