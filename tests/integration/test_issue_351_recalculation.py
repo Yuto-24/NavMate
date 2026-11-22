@@ -10,6 +10,29 @@ from autonavlog.domain.calculation import Issue
 from autonavlog.domain.enums import IssueSeverity
 
 
+def test_saved_shortfall_warning_is_preserved_until_recalculation(local):
+    state = calculate(local)
+    recovery = state["workingRecovery"]
+    historical = Issue(
+        code="RJFM_INBOUND_DIRECT_DISTANCE_SHORTFALL",
+        severity=IssueSeverity.WARNING,
+        message="historical shortfall",
+    ).model_dump(mode="json")
+    recovery["outcome"]["issues"].append(historical)
+    recovery["last_calculation"]["outcome"]["issues"].append(historical)
+
+    restored = json.loads(local.dispatch("bootstrap", recovery))
+    assert restored["readiness"]["calculationIsCurrent"]
+    assert historical in restored["outcome"]["issues"]
+    assert restored["workingRecovery"]["last_calculation"] == recovery["last_calculation"]
+
+    recalculated = json.loads(local.dispatch("calculate"))
+    assert recalculated["readiness"]["calculationIsCurrent"]
+    for issues in (recalculated["outcome"]["issues"], recalculated["readiness"]["issues"]):
+        assert historical["code"] not in {issue["code"] for issue in issues}
+    assert recalculated["workingRecovery"]["last_calculation"] != recovery["last_calculation"]
+
+
 def test_stale_recovery_discards_historical_diagnostics_but_validates_current_route(local):
     state = calculate(local)
     recovery = state["workingRecovery"]

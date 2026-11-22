@@ -520,6 +520,13 @@ for (const width of [1100, 1440]) {
       "CLIMB", "CRUISE", "CRUISE", "DESCENT", "VISUAL_ARRIVAL",
     ]);
     expect(state.outcome.issues.map((i: any) => i.code)).not.toContain("FLIGHT_PHASE_SEQUENCE_INVALID");
+    for (const issues of [state.outcome.issues, state.readiness.issues]) {
+      expect(issues.map((i: any) => i.code)).not.toContain("RJFM_INBOUND_DIRECT_DISTANCE_SHORTFALL");
+    }
+    expect(state.outcome.rjfm_inbound_guidance).not.toBeNull();
+    const guidance = page.getByRole("complementary", { name: "RJFM帰路の経路延長案内" });
+    await expect(guidance).toBeVisible();
+    await expect(guidance.locator(".rjfm-guidance-intro")).toHaveText(state.outcome.rjfm_inbound_guidance.message);
     const descent = state.outcome.sections.find((s: any) => s.performance_metadata.type === "rjfm_inbound_operational_descent");
     expect(descent.performance_metadata.planned_duration_seconds).toBe(explicit ? 180 : 360);
     expect(descent.section_fuel_gal.automatic_value).toBeCloseTo(explicit ? 0.6 : 1.2);

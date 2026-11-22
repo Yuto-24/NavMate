@@ -13,7 +13,6 @@ from autonavlog.domain.calculation import (
     FuelPlan,
     Issue,
     NavLogDisplayRow,
-    RjfmInboundGuidance,
     SectionResult,
 )
 from autonavlog.domain.enums import (
@@ -847,10 +846,6 @@ class CalculationService:
         issues = self._deduplicate_issues(issues)
         project_status = self._status(working, issues)
         report(88, "燃料計画とNAV LOGを仕上げています。")
-        inbound_shortfall = next(
-            (issue for issue in issues if issue.code == "RJFM_INBOUND_DIRECT_DISTANCE_SHORTFALL"),
-            None,
-        )
         return CalculationOutcome(
             project_id=working.id,
             selected_forecast_run_id=selected_run_id,
@@ -864,22 +859,6 @@ class CalculationService:
             derived_points=derived_points,
             check_point_projections=check_point_projections,
             arrival_altitude=arrival_altitude,
-            rjfm_inbound_guidance=(
-                None if rjfm_inbound_plan is None else RjfmInboundGuidance(
-                    status="WARNING" if inbound_shortfall is not None else "UNAVAILABLE",
-                    reason_code=(
-                        "DIRECT_DISTANCE_SHORTFALL" if inbound_shortfall is not None
-                        else "EXTENSION_SOLVER_NOT_IMPLEMENTED"
-                    ),
-                    message=(
-                        inbound_shortfall.message if inbound_shortfall is not None
-                        else (
-                            "RJFM帰路の経路延長案内は未計算です。"
-                            "NAV LOGの物理経路と運用降下時間は保持しています。"
-                        )
-                    ),
-                )
-            ),
             fuel_plan=fuel_plan,
             summary=build_navlog_summary(
                 final.sections,
@@ -1931,20 +1910,6 @@ class CalculationService:
         arita_return = is_arita_node(geometries[end_index].end)
         deceleration_seconds = 0.0 if arita_return else 60.0
         duration = vertical_seconds + deceleration_seconds
-        if direct_total + 1e-9 < duration:
-            issues.append(
-                Issue(
-                    code="RJFM_INBOUND_DIRECT_DISTANCE_SHORTFALL",
-                    severity=IssueSeverity.WARNING,
-                    message="UMKからVREPへの直線経路だけでは、計画降下に必要な時間が不足しています。実飛行ではUMK通過後の経路延長が必要です。",
-                    section_id=source.id,
-                    acknowledgement_required=False,
-                    metadata={
-                        "available_direct_seconds": direct_total,
-                        "required_operational_seconds": duration,
-                    },
-                )
-            )
         offsets = self._route_leg_offsets(geometries)
         if cruise_cas is None:
             cruise_cas = cas_from_tas(

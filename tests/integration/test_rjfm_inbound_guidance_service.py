@@ -150,6 +150,10 @@ def test_service_uses_authoritative_operational_descent_and_keeps_core_unchanged
     performance_repository,
 ) -> None:
     project, outcome, state = _calculated_inbound(airports, performance_repository)
+    assert outcome.rjfm_inbound_guidance is None
+    assert "RJFM_INBOUND_DIRECT_DISTANCE_SHORTFALL" not in {
+        issue.code for issue in outcome.issues
+    }
     reference = _available_reference()
     captured: list[InboundGuidanceRequest] = []
     core_before = outcome.model_dump(mode="json")

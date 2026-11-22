@@ -603,6 +603,22 @@ Node、Python、Java、npm / pip の導入と現在の checkout のビルドは�
 コンテナ取得と npm / pip / Firebase emulator の外部取得は残ります。コンテナ利用だけから
 高速化を断定せず、Hosted Run の Initialize containers、依存導入、テスト本体を分けて比較します。
 
+#### スクロール中の位置測定と時計の停止
+
+2026-11-22、[PR #489のCI](https://github.com/Yuto-24/NavMate/actions/runs/44998138669)で、
+既存ブラウザテストの2つの同期問題を確認しました。
+
+- `navlog-scroll.spec.ts` のiPhone WebKitでは、`Date.now() + 200` の取得完了から
+  `clock.pauseAt()` の開始まで約600 msかかり、停止先が過去になって失敗しました。
+  固定時刻から時計を開始し、テストの制限時間より十分先の固定時刻で停止します。
+  トーストの表示・再計算・期限の検証中は停止を保ち、`runFor()`で必要な時間だけ進めます。
+- `sea.spec.ts` の1440 pxでは、再計算直後に個別の `boundingBox()` で取得したMAPと
+  操作パネルの上端に22 pxの差が出ました。自動スクロール中の `Promise.all()` は
+  同じ時点の座標取得を保証しません。既存の `expectPlanningLayout` と同じく、
+  1回の `page.evaluate()` 内で比較対象を測り、位置・順序の許容範囲は維持します。
+
+この記録はテストの同期方法に関する観測です。修正後のHosted CI成功を示すものではありません。
+
 #### 再利用イメージの Python Reference と Local wheel
 
 既存イメージを使う場合も、Reference を実行する Python に現行 checkout のパッケージを
