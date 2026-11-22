@@ -142,8 +142,8 @@ feed取得やcache条件の違いを短縮効果に含めない。
 
 オフライン回帰は、CI欠落・cancel・通信障害下の配信保持と配信中SHAの天気更新、
 切替直前のCI失効、環境不一致による再実行、実際のbuild shellの省略／再実行分岐を対象とする。
-Hostedの新artifact取得と実更新の短縮時間は、統合後の運用観測が必要であり、
 合成証拠によるテストを本番受入や実測短縮率として扱わない。
+統合後のLocal観測は次節に記録し、Static本番の受入とは分ける。
 
 同日の隔離Local updater imageで、同じsourceとimage内のlock済み依存関係を使って各1回測定した。
 独立typecheckは0.363秒、配布物検査器の単体テストは0.795秒、再利用入力の照合はそれぞれ
@@ -153,7 +153,92 @@ Hostedの新artifact取得と実更新の短縮時間は、統合後の運用観
 
 同日に既存main SHA `5bdbb1e4` の[成功Run 44779930976](https://github.com/Yuto-24/NavMate/actions/runs/44779930976)
 を実APIで一度照合し、Run/attempt・必要job/stepの成功を確認した。この旧Runには新しいWeb inventoryが
-ないため再利用不可となり、ローカル検査へ戻る判定も確認した。新inventoryのHosted受渡しは未確認。
+ないため再利用不可となり、ローカル検査へ戻る判定も確認した。新inventoryのHosted受渡しは
+2026-11-21時点では未確認だった。
+
+
+### Local実運用受入と時間比較（2026-11-23 JST）
+
+Local Updater自身による実inventory取得、条件を満たす型検査の再利用、実配信への更新を確認した。
+Static本番の受入は未実施であり、[#460 source CI再利用](https://github.com/Yuto-24/NavMate/issues/460)はOpenを維持する。
+
+対象はアプリ・toolingとも `069d096aba2b994c58077176ae255da57fffac9d`、
+[push CI Run 45033033871](https://github.com/Yuto-24/NavMate/actions/runs/45033033871)のattempt 1。
+artifact `14758527958` のZIP digestは
+`7bc7262940a836144b3b48488351265abaafeedda591b6d512843aa690f47d24`だった。
+稼働していたUpdaterは再利用処理の導入前のイメージだったため、同じSHAから再buildした。
+既存の `compose.local.yaml`・`compose.local-shared.yaml` と両env file、配信・state volumeを維持した。
+利用者が承認した既存gh認証は、受入プロセスの標準入力から一時的に渡し、
+ファイル・イメージ・Compose設定へ保存せず、候補buildへも引き継がなかった。
+
+Node `v24.22.3`・npm `11.19.1`・Linux/x64・package/lock・検査定義が一致し、
+`source_checks.reused` に `typecheck` が記録された。
+GitはCIの `2.56.1` に対してLocalが `2.39.5` だったため、`test:static-artifact` は再実行した。
+一部の検査が再利用できることを、全検査の省略理由にはしていない。
+
+実配信への更新は、現在と同じSHAを既存の `Updater.attempt("main", ...)` で再buildしたもの。
+新SHAを自然検出する周期の観測ではない。全体240.239秒で、候補E2Eは11件成功した。
+取得時と切替直前にsource CIを確認し、feed・実成果物・identity/configurationの検査を通過して
+配信ポインタを切り替えた。HTTPで `release.json` の配信bytes一致、`index.html`・
+`local/manifest.json`・MSM catalogのhash一致を確認した。Runは `20261122090000`、
+MSMの失効時刻は2026-11-23 06:41 JST。全229ファイルのHTTP再取得や実端末の保存・同期受入は行っていない。
+
+#### 同じ入力からの比較
+
+比較は同じUpdaterイメージ、候補SHA、設定、気象Runと予報開始時刻
+`2026-11-22T15:00:00Z`を使い、両実行を始める前に同じpip/npm/MSM cacheと配信物をコピーした。
+既存の排他lockを保持し、比較用のstate・配信先で既存の更新処理を順番に実行した。
+気象producerには既存の `--start`・`--expected-run` を両側に追加し、Runが変化したら失敗させた。
+配信中の実候補は比較で切り替えない。コピーの準備時間は更新時間に含めない。
+
+再利用なし側でも実CI・inventoryの取得照合は同じように実行し、比較用の呼出し側でinventoryを
+`None`にして既存の再実行分岐を選んだ。再利用あり側は取得結果をそのまま使った。
+これは検査省略の効果を比較するための制御であり、CI取得自体を持たない旧版との比較ではない。
+
+両側とも候補E2E 11件、配布物検査器35件と残る全gateを通過した。
+初期MSM cacheは両側とも21,460,280,781 bytes。生成後の気象asset集合
+（Run・SHA-256・bytesのソート済みリスト）のdigestも両側で
+`7bef49da8abf02d1310682bab5cb855e4869fc83b51be028cd1bcbf325e3ae1d`と一致した。
+catalogの生成・失効時刻は各更新の実時刻であり、時刻を偽装した比較ではない。
+
+| 工程（秒） | 再利用あり | 再利用なし |
+| --- | ---: | ---: |
+| source CI取得・切替直前の再確認 | 5.680 | 5.469 |
+| 再利用入力の照合 | 0.328 | — |
+| 独立typecheck | 省略 | 0.415 |
+| Pythonのrelease・data・schema・version検査 | 1.239 | 1.091 |
+| 気象生成 | 18.437 | 16.841 |
+| 気象再検査（build前・切替前） | 19.238 | 19.288 |
+| fresh build（内蔵tscを含む） | 6.416 | 6.215 |
+| 配布物検査器の単体テスト | 1.367 | 2.516 |
+| 候補E2E | 132.977 | 133.078 |
+| 実候補のcheck:static | 0.515 | 0.515 |
+| その他（install・clone・copy・切替・cache整理等） | 11.889 | 10.066 |
+| 更新全体 | **198.086** | **195.494** |
+
+再利用あり→なしの順で各1回測定した結果、全体は再利用あり側が2.592秒長かった。
+独立typecheckの省略は成立したが、今回の観測から更新全体の短縮は確認できない。
+初期のアプリcacheは揃えた一方、OSのpage cache・外部通信時間・ホスト負荷は固定していない。
+気象生成、install、E2E等にも実行差があるため、全体差を検査再利用だけの因果効果や恒常的な
+性能差と解釈しない。実配信への240.239秒の更新は比較前のcache条件が異なり、この比較対には含めない。
+
+計測は既存の `source_ci`・`validation_phase` と、比較用呼出し側で測った `run`・`attempt` の経過時間を用いた。
+比較準備の最初の呼出しはコピー側の配信ポインタ形式が不正でbuild前に拒否された。
+ポインタを既存形式へ修正して未使用cacheから再開し、この失敗を表の成功更新時間には含めていない。
+
+#### 常設運用と次回正式リリースの残件
+
+受入用の認証は検証後に外し、元のCompose 2ファイルだけで通常Updaterを再起動した。
+設定hashは更新前と一致し、新イメージ `622627b9c7c0` でhealth成功・エラーなしを確認した。
+認証なしの自然なweather確認は `web_inventory: false`・`weather_unchanged` で終了した。
+これは新Runの生成を伴う更新成功の証拠ではない。常時再利用するには、運用手順どおりActions read専用の
+認証情報をUpdater専用env fileへ設定する必要がある。認証がない通常運転では、
+artifactを取得できない検査を再実行する。今回の一時認証を常設設定として扱わない。
+
+次回の正式リリースでは、Static側でそのアプリSHAのinventory受渡しと実際の再利用判定を確認する。
+同時にfresh build、候補E2E、実feed・成果物hash/identity、設定・Rules・停止制御・競合、
+公開前後の照合を維持し、prepare/publish全体と残る各工程の時間を記録する。
+今回Static本番のRelease・公開設定は変更しておらず、これらの受入が終わるまでIssueをCloseしない。
 
 ## build-onceの判断
 
