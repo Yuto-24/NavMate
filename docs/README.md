@@ -22,7 +22,7 @@
 | RJFM 帰路・延長案内 | [RJFM 帰路補完と西側延長参考案内](rjfm_inbound_guidance.md) | RJFM 帰路補完（UMK/ARITA）、KS4-3 回避境界・安全余裕、参考案内カードの扱い |
 | MAP 経路作成・KML/KMZ | [MAP での経路作成・再編集・KML/KMZ 取込](map_route_builder.md) | MAP 経路作成、確定済み経路の再編集、KML/KMZ 取込・連結規則 |
 | 背景地図・出典 | [MAP の背景画像](map_background.md) | 地理院タイルの配信元・表示範囲、欠損時処理、出典表示要件 |
-| 区間別SEA | [区間別SEA](sea.md) | 左右3 NM・前方端点、手動値、保存、未確定と算出限界 |
+| 区間別SEA | [区間別SEA](sea.md) | 左右3 NM・前方端点、自動参考値、巡航Caution、保存、未確定と算出限界 |
 | 地形入力（DEM / KML） | [地形入力と被覆の検証](terrain_inputs.md) | GSI DEM10B 復号・被覆判定、地形点 KML の標高基準・障害物除外境界 |
 
 ### 出典・参照データ来歴

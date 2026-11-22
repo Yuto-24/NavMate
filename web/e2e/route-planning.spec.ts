@@ -54,6 +54,23 @@ for (const width of [390, 820, 1100, 1240, 1241, 1440]) {
     await confirmImportedDraft(page);
     await expect(page.locator(".timeline-stop")).toHaveCount(5);
     await expect(page.locator(".timeline-leg")).toHaveCount(4);
+    const addCp = page.getByRole("button", {name:"チェックポイントを追加", exact:true});
+    const phaseEdit = page.getByRole("button", {name:"飛行段階を編集", exact:true});
+    await expect(addCp).toHaveCount(1);
+    await expect(page.locator(".timeline-leg .checkpoint-add-button")).toHaveCount(0);
+    await expect(addCp).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(addCp).toHaveCSS("color", "rgb(34, 92, 77)");
+    await expect(addCp).toHaveCSS("border-top-color", "rgb(34, 92, 77)");
+    for (const property of ["height", "border-radius", "font-size", "padding"]) {
+      const expected = await phaseEdit.evaluate((button, property) => getComputedStyle(button).getPropertyValue(property), property);
+      await expect(addCp).toHaveCSS(property, expected);
+    }
+    const cpBox = (await addCp.boundingBox())!, phaseBox = (await phaseEdit.boundingBox())!;
+    expect(cpBox.x + cpBox.width).toBeLessThanOrEqual(phaseBox.x);
+    expect(Math.abs(cpBox.y - phaseBox.y)).toBeLessThan(1);
+    await addCp.hover();
+    await expect(addCp).toHaveCSS("background-color", "rgb(237, 244, 242)");
+    await page.mouse.move(0,0);
     await expect(page.locator(".point-index").first()).toHaveText("");
     await expect(page.locator(".point-index").first()).toHaveCSS("width","8px");
     await expect(page.locator(".route-name-edit").first()).toHaveCSS("border-width","0px");
@@ -81,7 +98,7 @@ for (const width of [390, 820, 1100, 1240, 1241, 1440]) {
   });
 }
 
-test("per-Leg CPs retain distance order, reject a different Leg and preserve map on rename", async ({ page }, info) => {
+test("CP header restores automatic Leg selection, distance order and map-preserving rename", async ({ page }, info) => {
   await page.setViewportSize({width:1440,height:950});
   await page.goto("/");
   await expect(page.getByText("地図をクリックし、経路を作成してください",{exact:true})).toBeVisible({timeout:90_000});
@@ -95,13 +112,15 @@ test("per-Leg CPs retain distance order, reject a different Leg and preserve map
     await page.mouse.click(box.x+box.width/2+p[0]!-c[0]!,box.y+box.height/2+p[1]!-c[1]!);
   };
   const leg=page.locator(".timeline-leg").nth(1);
+  const form=page.locator(".checkpoint-form");
   for (const [label,lat,lon] of [["Far CP",32.9,131.61],["Near CP",32.6,131.54]] as const) {
-    await leg.getByRole("button",{name:"2番目のLegへ地図からチェックポイントを追加"}).click();
+    await page.getByRole("button",{name:"チェックポイントを追加",exact:true}).click();
     await pick(lat,lon);
-    await expect(leg.getByRole("textbox",{name:/^名称/})).toBeFocused();
+    await expect(form.getByRole("textbox",{name:/^名称/})).toBeFocused();
+    await expect(form.getByLabel("関連Leg")).toHaveCount(0);
     await expect(page.getByRole("button",{name:/地図上の地点をクリック|地図から座標を選択/})).toHaveCount(0);
-    await leg.getByRole("textbox",{name:/^名称/}).fill(label);
-    await leg.getByRole("textbox",{name:/^名称/}).press("Enter");
+    await form.getByRole("textbox",{name:/^名称/}).fill(label);
+    await form.getByRole("textbox",{name:/^名称/}).press("Enter");
     await expect(leg.getByText(label,{exact:true})).toBeVisible();
   }
   await expect(leg.locator(".checkpoint-item strong")).toHaveText(["Near CP","Far CP"]);
@@ -111,15 +130,30 @@ test("per-Leg CPs retain distance order, reject a different Leg and preserve map
   await leg.getByRole("textbox",{name:/^名称/}).press("Enter");
   await expect(leg.locator(".checkpoint-item strong")).toHaveText(["Near renamed","Far CP"]);
   expect(await view()).toEqual(before);
-  await page.locator(".timeline-leg").first().getByRole("button",{name:"1番目のLegへ地図からチェックポイントを追加"}).click();
+  await page.getByRole("button",{name:"チェックポイントを追加",exact:true}).click();
   await pick(33.25,131.68);
-  await expect(page.getByText("選択したLegの範囲外です。地図で選び直すか、関連Legを選択してください。",{exact:true})).toBeVisible();
-  await expect(page.locator(".checkpoint-form").getByRole("button",{name:"追加",exact:true})).toBeDisabled();
-  const relatedLeg = page.locator(".checkpoint-form select");
-  const option = await relatedLeg.locator('option').last().getAttribute('value');
-  await relatedLeg.selectOption(option!);
-  await expect(page.locator(".checkpoint-form").getByRole("textbox",{name:/^名称/})).toBeFocused();
-  await page.getByRole("button",{name:"編集を閉じる",exact:true}).click();
+  await expect(form.getByLabel("関連Leg")).toHaveCount(0);
+  await form.getByRole("textbox",{name:/^名称/}).fill("Other Leg CP");
+  await form.getByRole("button",{name:"追加",exact:true}).click();
+  await expect(page.locator(".timeline-leg").nth(2).getByText("Other Leg CP",{exact:true})).toBeVisible();
+
+  await page.getByRole("button",{name:"チェックポイントを追加",exact:true}).click();
+  await pick(32.389063,131.597572);
+  await form.getByRole("textbox",{name:/^名称/}).fill("Boundary CP");
+  const relatedLeg = form.getByLabel("関連Leg");
+  await expect(relatedLeg.locator("option")).toHaveCount(3);
+  await expect(form.getByRole("button",{name:"追加",exact:true})).toBeDisabled();
+  await relatedLeg.selectOption({index:1});
+  await expect(form.getByRole("textbox",{name:/^名称/})).toBeFocused();
+  await form.getByRole("textbox",{name:/^名称/}).press("Enter");
+  await expect(page.getByText("Boundary CP",{exact:true})).toBeVisible();
+
+  await page.getByRole("button",{name:"チェックポイントを追加",exact:true}).click();
+  await pick(32.7,131.0);
+  await form.getByRole("textbox",{name:/^名称/}).fill("Outside CP");
+  await expect(form.getByText("Leg線分内にabeam点があり、横ずれ10 NM以内となる関連Legがありません。",{exact:true})).toBeVisible();
+  await expect(form.getByRole("button",{name:"追加",exact:true})).toBeDisabled();
+  await form.getByRole("button",{name:"編集を閉じる",exact:true}).click();
   await page.screenshot({path:info.outputPath("planning-cps-1440.png"),fullPage:true});
 });
 
@@ -145,7 +179,7 @@ test("#416 UI copy preview covers Draft, sources and CP controls", async ({page}
     await expect(page.getByLabel("ETD JST",{exact:true})).toHaveAttribute("type","text");
   await page.getByLabel("気象モード").selectOption("FTD");
   await page.screenshot({path:info.outputPath("05-planning-inputs-desktop.png"),fullPage:true});
-  await page.locator(".timeline-leg").nth(1).getByRole("button",{name:"2番目のLegへ地図からチェックポイントを追加"}).click();
+  await page.getByRole("button",{name:"チェックポイントを追加"}).click();
   await expect(page.locator(".checkpoint-form")).toBeVisible();
   await page.screenshot({path:info.outputPath("06-checkpoint-add-desktop.png"),fullPage:true});
   await page.getByRole("button",{name:"編集を閉じる",exact:true}).click();
@@ -186,7 +220,7 @@ test("resumed unsaved CP accepts a direct new map pick without an activation but
   await expect(page.getByRole("heading", {name:"経路作成",exact:true})).toBeVisible({timeout:90_000});
   await page.locator('input[type="file"]').setInputFiles({name:"resume.kml",mimeType:"application/vnd.google-earth.kml+xml",buffer:Buffer.from(route)});
   await confirmImportedDraft(page);
-  await page.getByRole("button",{name:"2番目のLegへ地図からチェックポイントを追加",exact:true}).click();
+  await page.getByRole("button",{name:"チェックポイントを追加",exact:true}).click();
   await clickMapCoordinate(page,32.6,131.54);
   await page.locator(".checkpoint-form").getByRole("textbox",{name:/^名称/}).fill("Resume CP");
   const draft=()=>page.evaluate(()=>JSON.parse(sessionStorage.getItem("autonavlog.working-session.v1")!).checkPointDraft);

@@ -1,0 +1,76 @@
+{
+  "items": [
+    {
+      "id": "sea-app-1",
+      "text": "地形データを取得しています。NAV LOGの他の計算は引き続き利用できます。",
+      "reason": "既存の簡潔な表現を保持する。保存失敗は手入力の再入力ではなく地形再取得へ案内する。",
+      "response_quote": "### `sea-app-1`\n- **現行案**: 「地形データを取得しています。NAV LOGの他の計算は引き続き利用できます。」\n- **候補1（推奨）**: 「SEAの地形データを取得中です。NAV LOGの他の操作はそのまま続けられます。」\n- **候補2（現行寄り・簡潔）**: 「地形データを取得中です。NAV LOGの他の計算はそのまま利用できます。」\n- **理由**:\n  - 「SEAの地形データ」とすることで、表内のどの列（SEA）が自動更新待ちなのかが利用者にすぐ伝わります。\n  - 「取得中です」「そのまま続けられます」と短く言い換えることで、`role=status` の読み上げや視線移動の邪魔になりにくく、非阻害（作業を止めなくてよい安心感）が直感的に伝わります。\n  - 「他の計算」より「他の操作」の方が、入力や編集もブロックされないことが分かりやすくなります。\n- **懸念**:\n  - 「SEA」を入れるか「地形データ」のみにするかは、再取得ボタン（「地形を再取得」）や他メッセージとの用語統一との兼ね合いになります。\n  - 取得完了時に自動消去される仕様のため、短時間で消えた際に読めなくても問題ない長さ（1〜2文以内）に留める必要があります。\n\n---",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "  const updateSea = async (patch: SeaUpdate): Promise<void> => {",
+        "end": "  const run = (",
+        "expected": "  const updateSea = async (patch: SeaUpdate): Promise<void> => {\n    if (!application.updateSea) return;\n    const next = await runTask(() => application.updateSea!(patch), {\n      apply: result => applyState(result, { preserveMapDraft: true, preserveRouteViewport: true }),\n      errorKey: \"sea-save\",\n    });\n    if (!next) throw new Error(\"SEAの保存を確認できませんでした。表示値を確認してから再試行してください。\");\n  };\n  const acquireSeaForProject = async (): Promise<void> => {\n    if (seaControllerRef.current || !application.seaPlan || !application.updateSea || !state?.project) return;\n    const epoch = lifecycle.current;\n    const projectId = state.project.id;\n    const controller = new AbortController();\n    seaControllerRef.current = controller;\n    setSeaBusy(true);\n    setSeaMessage(\"地形データを取得しています。NAV LOGの他の計算は引き続き利用できます。\");\n    try {\n      const plan = await application.seaPlan();\n      const terrain = await acquireSea(plan, AbortSignal.any([controller.signal, AbortSignal.timeout(60_000)]));\n      if (controller.signal.aborted || epoch !== lifecycle.current || projectIdRef.current !== projectId) return;\n      const next = await application.updateSea({ project_id: projectId, geometry_key: plan.geometry_key, terrain });\n      if (controller.signal.aborted || epoch !== lifecycle.current || projectIdRef.current !== projectId) return;\n      applyState(next, { preserveMapDraft: true, preserveRouteViewport: true });\n      setSeaMessage(\"\");\n    } catch {\n      if (seaControllerRef.current === controller && !controller.signal.aborted\n        && epoch === lifecycle.current && projectIdRef.current === projectId)\n        setSeaMessage(\"地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。\");\n    } finally {\n      if (seaControllerRef.current === controller) {\n        seaControllerRef.current = null;\n        setSeaBusy(false);\n        if (controller.signal.aborted) setSeaMessage(\"\");\n      }\n    }\n  };\n\n  const run = ("
+      }
+    },
+    {
+      "id": "sea-app-2",
+      "text": "地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。",
+      "reason": "既存の簡潔な表現を保持する。保存失敗は手入力の再入力ではなく地形再取得へ案内する。",
+      "response_quote": "### `sea-app-2`\n- **現行案**: 「地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。」\n- **候補1（推奨）**: 「SEAの地形データを取得できませんでした。経路を確認のうえ「地形を再取得」を押してください。」\n- **候補2（取得・反映の双方を包括）**: 「地形データを反映できませんでした。経路を確認し、「地形を再取得」を押してください。」\n- **理由**:\n  - 利用者視点では「反映」よりも「取得できなかった」方が原因と次の行動（「地形を再取得」）が結びつきやすく、文言も短くなります（反映処理側の失敗も含める場合は候補2が正確です）。\n  - 「現在の経路」の「現在の」を省くことで、意味を変えずに簡潔にできます。\n- **懸念**:\n  - 通信エラーなど経路に問題がない一時障害でも「経路を確認し」と出ると、利用者が経路設定のミスを疑って探し回る恐れがあります。\n  - 失敗時にSEA列が「空欄（未表示）」になるのか「前回値のまま」残るのかで、誤認リスクが変わります。また、SEA未反映時に巡航部分（RCA/EOC）のCaution判定が未評価となる場合、安全確認上「SEA未反映＝Caution未評価」と誤解なく伝わるかも要確認です。\n  - 引用しているボタン名「地形を再取得」が実際のUIラベルと完全一致している必要があります。\n\n---",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "  const updateSea = async (patch: SeaUpdate): Promise<void> => {",
+        "end": "  const run = (",
+        "expected": "  const updateSea = async (patch: SeaUpdate): Promise<void> => {\n    if (!application.updateSea) return;\n    const next = await runTask(() => application.updateSea!(patch), {\n      apply: result => applyState(result, { preserveMapDraft: true, preserveRouteViewport: true }),\n      errorKey: \"sea-save\",\n    });\n    if (!next) throw new Error(\"SEAの保存を確認できませんでした。表示値を確認してから再試行してください。\");\n  };\n  const acquireSeaForProject = async (): Promise<void> => {\n    if (seaControllerRef.current || !application.seaPlan || !application.updateSea || !state?.project) return;\n    const epoch = lifecycle.current;\n    const projectId = state.project.id;\n    const controller = new AbortController();\n    seaControllerRef.current = controller;\n    setSeaBusy(true);\n    setSeaMessage(\"地形データを取得しています。NAV LOGの他の計算は引き続き利用できます。\");\n    try {\n      const plan = await application.seaPlan();\n      const terrain = await acquireSea(plan, AbortSignal.any([controller.signal, AbortSignal.timeout(60_000)]));\n      if (controller.signal.aborted || epoch !== lifecycle.current || projectIdRef.current !== projectId) return;\n      const next = await application.updateSea({ project_id: projectId, geometry_key: plan.geometry_key, terrain });\n      if (controller.signal.aborted || epoch !== lifecycle.current || projectIdRef.current !== projectId) return;\n      applyState(next, { preserveMapDraft: true, preserveRouteViewport: true });\n      setSeaMessage(\"\");\n    } catch {\n      if (seaControllerRef.current === controller && !controller.signal.aborted\n        && epoch === lifecycle.current && projectIdRef.current === projectId)\n        setSeaMessage(\"地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。\");\n    } finally {\n      if (seaControllerRef.current === controller) {\n        seaControllerRef.current = null;\n        setSeaBusy(false);\n        if (controller.signal.aborted) setSeaMessage(\"\");\n      }\n    }\n  };\n\n  const run = ("
+      }
+    },
+    {
+      "id": "sea-error-0",
+      "text": "先に経路を確定してください。",
+      "reason": "既存の簡潔な表現を保持する。保存失敗は手入力の再入力ではなく地形再取得へ案内する。",
+      "response_quote": "### `sea-error-0`\n- **現行案**: 「先に経路を確定してください。」\n- **候補1（推奨・現行維持）**: 「先に経路を確定してください。」\n- **候補2（対象操作を明示）**: 「SEAを取得するには、先に経路を確定してください。」\n- **理由**:\n  - 現行案は極めて簡潔で、前提条件の不足を端的に伝えられます。\n  - エラー通知の表示位置がSEA操作から離れている場合や汎用トースト等で出る場合は、候補2のように「SEAを取得するには」を添えると何のエラーか迷いません。\n- **懸念**:\n  - UI上に「確定」というボタンや用語が存在しない場合、「何を入力・操作すれば経路が確定扱いになるのか（出発地・目的地の入力か、計算実行か）」を利用者が判断しづらい懸念があります。UI上の実際の用語（例：経路設定・計算実行など）と揃っているか確認が必要です。\n\n---",
+      "source": {
+        "path": "src/autonavlog/web/facade.py",
+        "start": "    def update_sea(self, session: WebSession, request: SeaUpdate) -> dict[str, Any]:",
+        "end": "    def sea_plan(self, session: WebSession) -> dict[str, Any]:",
+        "expected": "    def update_sea(self, session: WebSession, request: SeaUpdate) -> dict[str, Any]:\n        with self.owner_operation(session.owner_id), session.lock:\n            if session.project is None:\n                raise WebApplicationError(\"PROJECT_REQUIRED\", \"先に経路を確定してください。\")\n            working = session.project.model_copy(deep=True)\n            try:\n                apply_sea(working, request)\n            except ValueError as error:\n                raise WebApplicationError(\n                    \"SEA_INPUT_INVALID\",\n                    \"地形データを保存できませんでした。現在の経路を確認し、「地形を再取得」を押してください。\"\n                ) from error\n            self._persist_draft(session, working)\n            session.project = working\n            return self.present(session)\n\n    def sea_plan(self, session: WebSession) -> dict[str, Any]:"
+      }
+    },
+    {
+      "id": "sea-error-1",
+      "text": "地形データを保存できませんでした。現在の経路を確認し、「地形を再取得」を押してください。",
+      "reason": "既存の簡潔な表現を保持する。保存失敗は手入力の再入力ではなく地形再取得へ案内する。",
+      "response_quote": "### `sea-error-1`\n- **現行案**: 「地形データを保存できませんでした。現在の経路を確認し、「地形を再取得」を押してください。」\n- **候補1（推奨・自動保存失敗前提）**: 「地形データを保存できませんでした。時間をおいて「地形を再取得」を押してください。」\n- **候補2（現行寄り・経路確認を維持）**: 「地形データを保存できませんでした。経路を確認し、「地形を再取得」を押してください。」\n- **候補3（`sea-app-2` との文言統一案）**: 「SEAの地形データを保存できませんでした。経路を確認のうえ「地形を再取得」を押してください。」\n- **理由**:\n  - Issue #315 の「手入力を廃止し自動SEAだけを表示・保存は地形取得時の自動保存」という前提に合わせ、手動入力を想起させない表現としています。\n  - 保存失敗は経路不備よりも通信・サーバー・永続化の一時エラーである可能性が高いため、候補1では「時間をおいて」と案内し、利用者が不要に経路を疑わないようにしています。\n- **懸念**:\n  - **仕様・発生箇所の不整合（要確認）**: `context` では「手入力廃止・地形取得時の自動保存」とある一方、`location` に「手動SEA入力のフォーカス離脱時の自動保存失敗通知。失敗時は入力値を元に戻す」と残っています。手入力廃止に伴いこのエラー経路自体を廃止するのか、地形取得時の自動保存失敗通知へ流用するのか、実装側で整理が必要です。\n  - 保存失敗時に画面上のSEA表示がどうなるか（表示は残るが未保存なのか、前回値に戻る／消えるのか）が文言からは分かりません。もし画面に表示だけ残る挙動なら、利用者が保存済みと誤認するリスクがあります。\n\n---",
+      "source": {
+        "path": "src/autonavlog/web/facade.py",
+        "start": "    def update_sea(self, session: WebSession, request: SeaUpdate) -> dict[str, Any]:",
+        "end": "    def sea_plan(self, session: WebSession) -> dict[str, Any]:",
+        "expected": "    def update_sea(self, session: WebSession, request: SeaUpdate) -> dict[str, Any]:\n        with self.owner_operation(session.owner_id), session.lock:\n            if session.project is None:\n                raise WebApplicationError(\"PROJECT_REQUIRED\", \"先に経路を確定してください。\")\n            working = session.project.model_copy(deep=True)\n            try:\n                apply_sea(working, request)\n            except ValueError as error:\n                raise WebApplicationError(\n                    \"SEA_INPUT_INVALID\",\n                    \"地形データを保存できませんでした。現在の経路を確認し、「地形を再取得」を押してください。\"\n                ) from error\n            self._persist_draft(session, working)\n            session.project = working\n            return self.present(session)\n\n    def sea_plan(self, session: WebSession) -> dict[str, Any]:"
+      }
+    },
+    {
+      "id": "sea-column",
+      "text": "SEA",
+      "reason": "既存の簡潔な表現を保持する。保存失敗は手入力の再入力ではなく地形再取得へ案内する。",
+      "response_quote": "### `sea-column`\n- **現行案**: 「SEA」\n- **候補1（推奨・現行維持）**: 「SEA」\n- **理由**:\n  - NAV LOGの `TO` と `PA` の間に配置される列見出し（PNG出力共通）として、これ以上ないほど簡潔で視認性・レイアウト効率に優れています。\n- **懸念**:\n  - 略称単体では、一般的な航空図の `MEA` / `MSA` / `MOCA` / `MEF` 等との違いや「自動取得された参考地形高度（SEA）」であることの定義が初見の利用者には伝わりにくいため、注記・凡例・ツールチップ等での補足が前提となります。\n  - 手入力廃止後は表示専用列となるため、隣接する入力可能な列と視覚的に区別できること（入力欄に見えないこと）が望ましいです。\n\n---",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>SEA<br />",
+        "end": "              <th>SEA<br /><small>ft MSL</small></th>",
+        "expected": "              <th>SEA<br /><small>ft MSL</small></th>"
+      }
+    },
+    {
+      "id": "sea-unit",
+      "text": "ft MSL",
+      "reason": "既存の簡潔な表現を保持する。保存失敗は手入力の再入力ではなく地形再取得へ案内する。",
+      "response_quote": "### `sea-unit`\n- **現行案**: 「ft MSL」\n- **候補1（推奨・現行維持）**: 「ft MSL」\n- **候補2（極端な幅制約がある場合のみ・非推奨）**: 「ft」\n- **理由**:\n  - 高度の基準が `MSL`（平均海面基準）であることを明示できるため、`AGL`（対地高度）や `PA`（気圧高度）との取り違え防止の観点で航空利用者に不可欠な情報です。現行維持を強く推奨します。\n- **懸念**:\n  - PNG出力時を含め、列幅に対して `ft MSL` が改行・文字切れせず収まるかの確認が必要です。\n  - 他列（`PA` 等）の単位表記（大文字/小文字、スペース、括弧の有無など）とトーンが統一されているか確認してください。\n\n---",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>SEA<br />",
+        "end": "              <th>SEA<br /><small>ft MSL</small></th>",
+        "expected": "              <th>SEA<br /><small>ft MSL</small></th>"
+      }
+    }
+  ]
+}

@@ -23,7 +23,7 @@ async function create(page: Page, name: string, calculate = false) {
     }
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
     await expect(page.locator(".nav-log-table")).toBeVisible();
-    // Automatic SEA updates the saved token; finish it before another client opens the Project.
+    // Finish the automatic SEA update before saving the cross-device snapshot.
     await expect(page.getByRole("button", { name: "地形を再取得", exact: true })).toBeEnabled();
   }
   await openProjectMenu(page);
@@ -53,6 +53,7 @@ async function remoteRows(page: Page) {
   return page.evaluate(() => (window as any).devSharedTest.records());
 }
 async function start(page: Page) {
+  // Terrain coverage is tested separately; live DEM timing must not race sync.
   await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
   await page.route(/https:\/\/.*googleapis\.com\//, route => {
     throw new Error("Unexpected real Firebase request: " + route.request().url());

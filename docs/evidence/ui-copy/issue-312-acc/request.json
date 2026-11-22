@@ -1,0 +1,21 @@
+{
+  "mode": "proposal",
+  "items": [
+    {
+      "id": "acc-11",
+      "text": "ACCセクター（FL335以上）",
+      "location": "Route作成・再編集・Planning共通の空域Layerメニュー",
+      "purpose": "表示カテゴリと出典・制約を説明する",
+      "context": "カテゴリ初期ON、端末Localにのみ表示設定保存。ポリゴンは操作しない。AIRAC日はmanifest由来。",
+      "constraints": "原本カテゴリの意味を保持。TCA・ACAを提供済みとしない。不要な補足を増やさない。"
+    },
+    {
+      "id": "acc-12",
+      "text": "ACCセクター（FL335未満）",
+      "location": "Route作成・再編集・Planning共通の空域Layerメニュー",
+      "purpose": "表示カテゴリと出典・制約を説明する",
+      "context": "カテゴリ初期ON、端末Localにのみ表示設定保存。ポリゴンは操作しない。AIRAC日はmanifest由来。",
+      "constraints": "原本カテゴリの意味を保持。TCA・ACAを提供済みとしない。不要な補足を増やさない。"
+    }
+  ]
+}

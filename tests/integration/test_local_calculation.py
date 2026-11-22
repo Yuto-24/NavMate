@@ -1121,13 +1121,16 @@ def test_sea_manual_saved_recovery_recalculation_and_weather_independence(local)
     plan = json.loads(local.dispatch("seaPlan"))
     assert all(item["regions"] for item in plan["intervals"])
     keys = [item["key"] for item in plan["intervals"]]
+    local.session.project.metadata["sea"] = {
+        "policy": "sea-3nm-forward-cap-v1", "records": {keys[0]: {"manual_ft": 3500}},
+    }
     state = json.loads(local.dispatch("updateSea", {
         "project_id": state["project"]["id"], "geometry_key": plan["geometry_key"],
-        "manual": {keys[0]: 3500},
         "terrain": {keys[0]: {"complete": True, "maximum_m": 304.8,
                                "required": 50, "valid": 50}},
     }))
     assert state["sea"]["intervals"][0]["automatic_ft"] == 2000
+    assert state["sea"]["intervals"][0]["value_ft"] == 2000
     assert state["sea"]["intervals"][0]["manual_ft"] == 3500
     assert state["outcome"] == before
     assert state["readiness"]["calculationIsCurrent"]

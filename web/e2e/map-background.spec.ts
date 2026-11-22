@@ -108,3 +108,74 @@ test("#243 invalid or blocked device preferences do not prevent switching; outsi
   expect(gsiRequests).toEqual([]);
   await zoomMapTo(page, 15);
 });
+
+for (const width of [390, 1100, 1440]) {
+  test(`#312 AIP layers survive route creation, Planning, re-edit and reload at ${width}px`, async ({ page }, info) => {
+    await mockTiles(page);
+    await page.setViewportSize({ width, height: 1100 });
+    const requests: string[] = [];
+    page.on("request", request => requests.push(request.url()));
+    await start(page);
+    const civil = page.locator(".aip-Civil_training_and_testing_areas");
+    await expect(civil.first()).toBeAttached();
+    expect(await civil.count()).toBe(132);
+    await expect(page.locator(".aip-airspace.leaflet-interactive")).toHaveCount(0);
+    await expect(page.locator(".rjfm-training-airspace")).toHaveCount(0);
+    await page.getByText("空域レイヤー", { exact: true }).click();
+    await expect(page.getByText("AIRAC有効日：2026-10-29", { exact: true })).toBeVisible();
+    await page.getByLabel("民間訓練・試験空域", { exact: true }).uncheck();
+    await expect(civil).toHaveCount(0);
+    await page.getByLabel("民間訓練・試験空域", { exact: true }).check();
+    await page.getByText("空域レイヤー", { exact: true }).click();
+    await selectAirport(page, "RJFM");
+    await selectAirport(page, "RJFK");
+    await page.getByRole("button", { name: "経路を確定", exact: true }).click();
+    await expect(page.locator(".route-workspace.is-route-building")).toHaveCount(0);
+    await expect(civil).toHaveCount(132);
+    await page.getByText("空域レイヤー", { exact: true }).click();
+    const menuBox = (await page.locator(".aip-layer-options").boundingBox())!;
+    const frameBox = (await page.locator(".map-frame").boundingBox())!;
+    expect(menuBox.x).toBeGreaterThanOrEqual(frameBox.x);
+    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(frameBox.x + frameBox.width);
+    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(frameBox.y + frameBox.height);
+    const lastCategory = page.getByLabel("回廊", { exact: true });
+    await lastCategory.scrollIntoViewIfNeeded();
+    await expect(lastCategory).toBeInViewport();
+    const source = page.getByRole("link", { name: "航空情報センター AIP", exact: true });
+    await source.scrollIntoViewIfNeeded();
+    expect(await source.evaluate(element => {
+      const box = element.getBoundingClientRect();
+      return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+    })).toBe(true);
+    await page.getByText("空域レイヤー", { exact: true }).click();
+    await page.getByRole("button", { name: "経路を編集", exact: true }).click();
+    await expect(page.locator(".route-workspace.is-route-building")).toBeVisible();
+    await expect(civil).toHaveCount(132);
+    await page.getByText("空域レイヤー", { exact: true }).click();
+    await page.getByLabel("民間訓練・試験空域", { exact: true }).uncheck();
+    await page.getByText("空域レイヤー", { exact: true }).click();
+    await page.getByRole("button", { name: "地図を全画面表示", exact: true }).click();
+    await page.getByText("空域レイヤー", { exact: true }).click();
+    const fullMenu = (await page.locator(".aip-layer-options").boundingBox())!;
+    expect(fullMenu.x).toBeGreaterThanOrEqual(0);
+    expect(fullMenu.x + fullMenu.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: info.outputPath(`aip-${width}.png`) });
+    await page.reload();
+    await start(page);
+    await page.getByText("空域レイヤー", { exact: true }).click();
+    await expect(page.getByLabel("民間訓練・試験空域", { exact: true })).not.toBeChecked();
+    await expect(civil).toHaveCount(0);
+    await expect(page.locator(".aip-Restricted_area_Airspace_restrictions").first()).toBeAttached();
+    const boxes = await page.evaluate(() => {
+      const map = document.querySelector('.map-frame')!.getBoundingClientRect();
+      const pane = document.querySelector('.planning-pane')!.getBoundingClientRect();
+      return { right: map.right, left: pane.left, delta: Math.abs(map.top - pane.top) };
+    });
+    if (width > 700) {
+      expect(boxes.right).toBeLessThanOrEqual(boxes.left + 2);
+      expect(boxes.delta).toBeLessThanOrEqual(2);
+    }
+    expect(requests.some(url => url.includes('/reference/aip/Civil_training_and_testing_areas-'))).toBe(true);
+    expect(requests.some(url => url.includes('kokuarea_minkankunren'))).toBe(false);
+  });
+}

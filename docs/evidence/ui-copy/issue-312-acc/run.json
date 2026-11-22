@@ -1,0 +1,27 @@
+{
+  "tool": "agy",
+  "requested_model": "gemini-3.8-flash-medium",
+  "model_identity_note": "Requested model only; backend identity is not independently verified.",
+  "started_at": "2026-11-22T15:10:17.524489+00:00",
+  "command": [
+    "agy",
+    "--model",
+    "gemini-3.8-flash-medium",
+    "--mode",
+    "plan",
+    "--sandbox",
+    "--output-format",
+    "json",
+    "--print",
+    "<prompt.txt>"
+  ],
+  "status": "response-received",
+  "returncode": 0,
+  "finished_at": "2026-11-22T15:10:47.735834+00:00",
+  "sha256": {
+    "request.json": "94569b6fd0c6d1145e47052e140c8e5606327bee1e6ee19f3a17a8ce50b4cef1",
+    "prompt.txt": "57e096b20d3636271b9662c58a0dbab3a2c92881ac68492b10c48dc601b62cfc",
+    "stdout.json": "c4cfe68a81fda5235b5634bbe2db77443e74191c98c77b6e91fcaf6e9df0e437",
+    "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
