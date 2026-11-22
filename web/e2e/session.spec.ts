@@ -328,7 +328,7 @@ test("restored Check Point and VOR input remains editable; workflow positions ar
   await calculated(page);
   await page.getByLabel("VOR基準局", { exact: true }).selectOption({ index: 2 });
   const vor = await page.getByLabel("VOR基準局", { exact: true }).inputValue();
-  await page.getByRole("button", { name: "1番目のLegへ地図からチェックポイントを追加", exact: true }).click();
+  await page.getByRole("button", { name: "チェックポイントを追加", exact: true }).click();
     await clickMapCoordinate(page, 32.0, 130.9);
   await page.locator(".checkpoint-form").getByLabel("名称", { exact: true }).fill("未確定地点");
   await expect.poll(async () => (await snapshot(page)).checkPointDraft.name).toBe("未確定地点");

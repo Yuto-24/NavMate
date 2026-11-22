@@ -14,7 +14,7 @@ const kml = `<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark>
 </coordinates></LineString></Placemark></Document></kml>`;
 
 async function openEditor(page: Page) {
-  await page.getByRole("button", { name: "2番目のLegへ地図からチェックポイントを追加", exact: true }).click();
+  await page.getByRole("button", { name: "チェックポイントを追加", exact: true }).click();
   await clickMapCoordinate(page, 32.482176, 131.517485);
   await expect(name(page)).toBeFocused();
 }
@@ -215,7 +215,7 @@ for (const width of [390, 1100, 1440]) {
   test(`checkpoint MAP pick focuses once, reveals name and saves with Enter at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
     await form(page).getByRole("button", { name: "編集を閉じる", exact: true }).click();
-    await page.getByRole("button", { name: "2番目のLegへ地図からチェックポイントを追加", exact: true }).click();
+    await page.getByRole("button", { name: "チェックポイントを追加", exact: true }).click();
     await expect(name(page)).not.toBeFocused();
     const route = page.getByRole("region", { name: "経路地図とLeg設定" });
     const map = route.locator(".route-map");
@@ -239,7 +239,7 @@ for (const width of [390, 1100, 1440]) {
     await form(page).getByRole("button", { name: "編集を閉じる", exact: true }).click();
     await expect(form(page)).toHaveCount(0);
     await expect(route.locator(".checkpoint-draft-marker")).toHaveCount(0);
-    await page.getByRole("button", { name: "2番目のLegへ地図からチェックポイントを追加", exact: true }).click();
+    await page.getByRole("button", { name: "チェックポイントを追加", exact: true }).click();
     // Find a point on rendered route geometry for a valid real MAP pick,
     // instead of invoking application handlers or manually replacing coordinates.
     const segment = map.locator('path[stroke="#173b5e"]').first();

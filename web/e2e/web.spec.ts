@@ -2593,7 +2593,7 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
 
   const routePanel = page.getByRole("region", { name: "経路地図とLeg設定" });
   const editor = routePanel.locator(".planning-pane");
-  await editor.getByRole("button", { name: "2番目のLegへ地図からチェックポイントを追加" }).click();
+  await editor.getByRole("button", { name: "チェックポイントを追加" }).click();
   await expect(editor.getByLabel("関連Leg")).toHaveCount(0);
   const mapFrame = routePanel.locator("#route-map-frame");
   await expect(editor.getByRole("button", { name: "地図上の地点をクリック" })).toHaveCount(0);
@@ -2705,7 +2705,7 @@ test("FTD route settings and checkpoint CRUD are available from the web UI", asy
   await editor.getByRole("button", { name: "訓練CP改を削除" }).click();
   await expect(editor.locator(".checkpoint-item")).toHaveCount(0);
   await expect(editor.getByText("まだチェックポイントはありません。")).toHaveCount(0);
-  await expect(editor.getByRole("button", { name: "2番目のLegへ地図からチェックポイントを追加" })).toBeEnabled();
+  await expect(editor.getByRole("button", { name: "チェックポイントを追加" })).toBeEnabled();
   expect(runtimeErrors).toEqual([]);
 });
 
