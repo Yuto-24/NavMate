@@ -1,0 +1,27 @@
+{
+  "tool": "agy",
+  "requested_model": "gemini-4-neon-high",
+  "model_identity_note": "Requested model only; backend identity is not independently verified.",
+  "started_at": "2026-11-22T17:29:08.748100+00:00",
+  "command": [
+    "agy",
+    "--model",
+    "gemini-4-neon-high",
+    "--mode",
+    "plan",
+    "--sandbox",
+    "--output-format",
+    "json",
+    "--print",
+    "<prompt.txt>"
+  ],
+  "status": "response-received",
+  "returncode": 0,
+  "finished_at": "2026-11-22T17:30:08.704956+00:00",
+  "sha256": {
+    "request.json": "3e84e94ecc6b7611ea42d58795f4e9e362f7f647f21f92e6ac1af3d3dc78f616",
+    "prompt.txt": "c3346eb8b12cb4b0536c08908c8d2f5bf4133a3793260da079f18e5fb0607c4e",
+    "stdout.json": "45c7c5d871fab3315affcfdf9ca67054e297db270d0e6fc366a1f38fd574eb6d",
+    "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

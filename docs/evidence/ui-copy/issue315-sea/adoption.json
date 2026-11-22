@@ -3,13 +3,13 @@
     {
       "id": "sea-value",
       "text": "未確定",
-      "reason": "Issueで指定された未確定・自動SEAの表現を維持する。計算前の暫定比較案は独立レビューで撤回し、有効な計算結果のRCA/EOC範囲だけを比較する。余分な補足や承認操作は追加しない。",
+      "reason": "Issueで指定された未確定・自動SEAの表現を維持する。計算前の暫定比較案は独立レビューで撤回し、有効な計算結果のRCA/EOC範囲だけを比較する。余分な補足や承認操作は追加しない。 #496でも評価不能時の未確定は同じ意味で維持。新しい参考値記号の提案・採用はissue496-seaで記録する。",
       "response_quote": "### `sea-value`（NAV LOGのSEAセル）\n現行案：`未確定`\n\n- **候補1（推奨）**\n  > 未算出\n- **候補2**\n  > —\n- **理由**\n  - 自動算出のみ（手動入力・上書き廃止）の仕様では、「未確定」は「計算実行や利用者の確定操作を待っている」印象を与えやすいです。「未算出」とすることで、自動計算による参考値が現時点で得られていない事実を中立かつ簡潔に伝えられます。\n  - セル幅や視認性を最優先する場合は `—` とし、補助情報（`title` や `aria-label` 等）で「未算出」を補う方法もあります。\n- **懸念**\n  - 「未算出」は `sea-unknown` と語彙を揃えないと、セルとパネルで状態が結び付きにくくなります。\n  - 候補2（`—`）は、通信中（読み込み中）や「該当なし」との区別がつきにくくなる懸念があります。\n",
       "source": {
         "path": "web/src/components/SeaCell.tsx",
-        "start": "  const value = interval ? interval.automatic_ft?.toString() ?? \"未確定\" : \"\";",
+        "start": "  const value = interval ? (interval.automatic_ft == null ? undefined : `${interval.automatic_ft}${interval.reference ? \"*\" : \"\"}`) ?? \"未確定\" : \"\";",
         "end": "  return <td className=\"nav-log-sea-cell\" data-display-text={value}>{value}</td>;",
-        "expected": "  const value = interval ? interval.automatic_ft?.toString() ?? \"未確定\" : \"\";\n  return <td className=\"nav-log-sea-cell\" data-display-text={value}>{value}</td>;"
+        "expected": "  const value = interval ? (interval.automatic_ft == null ? undefined : `${interval.automatic_ft}${interval.reference ? \"*\" : \"\"}`) ?? \"未確定\" : \"\";\n  return <td className=\"nav-log-sea-cell\" data-display-text={value}>{value}</td>;"
       }
     },
     {
@@ -27,49 +27,49 @@
     {
       "id": "sea-unknown",
       "text": "地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。",
-      "reason": "Issueで指定された未確定・自動SEAの表現を維持する。計算前の暫定比較案は独立レビューで撤回し、有効な計算結果のRCA/EOC範囲だけを比較する。余分な補足や承認操作は追加しない。",
+      "reason": "Issueで指定された未確定・自動SEAの表現を維持する。計算前の暫定比較案は独立レビューで撤回し、有効な計算結果のRCA/EOC範囲だけを比較する。余分な補足や承認操作は追加しない。 #496の参考値注記を別途追加したが、未確定の警告は評価不能な区間だけに表示する同じ文脈を保持。 #496の参考値注記を追加したが、この文言と操作・表示対象は維持する。",
       "response_quote": "### `sea-unknown`（地形パネル）\n現行案：`地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。`\n\n- **候補1（推奨）**\n  > 地形データの未取得・欠損、または評価対象外の範囲のため、SEAは未算出です。\n- **候補2**\n  > 地形データを取得できないか、評価対象外の範囲のため、SEAを算出できません。\n- **理由**\n  - 現行案の「不正」は開発者寄りの語彙で、利用者には自分の入力ミスかデータ側の問題か分かりにくいです。「未取得・欠損」や「取得できない」に言い換えることで理解しやすくなります。\n  - `sea-value` を「未算出」にする場合、末尾を「未算出です」に揃えると対応関係が明確になります。\n- **懸念**\n  - 候補1で「不正」を省くと、データ破損や形式エラー時に原因がやや曖昧になります（利用者が取れる行動はどちらも「再取得」のため実用上の支障は小さい想定です）。\n  - 未取得（再取得で解消しうる）と対象外範囲（再取得しても解消しない）が1文にまとまっているため、対象外範囲のときに利用者が何度も再取得を押してしまう懸念は残ります。\n",
       "source": {
         "path": "web/src/components/SeaPanel.tsx",
         "start": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">",
         "end": "  </section>;",
-        "expected": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">\n    <button className=\"secondary-button\" type=\"button\" disabled={disabled} onClick={() => void onAcquire()}>地形を再取得</button>\n    <a href=\"https://cyberjapandata.gsi.go.jp/development/ichiran.html\" target=\"_blank\" rel=\"noopener noreferrer\">地形標高データ出典：国土地理院 DEM10B</a>\n    {plan.intervals.filter(interval => interval.automatic_ft === null)\n      .map(interval => <p className=\"sea-warning\" key={interval.key}>\n        {interval.from_name} → {interval.to_name}：\n        地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。\n      </p>)}\n  </section>;"
+        "expected": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">\n    {plan.intervals.some(interval => interval.reference && interval.automatic_ft !== null) &&\n      <p className=\"sea-reference-note\">* 地形データに一部欠損がある参考値です。実際のSEAは表示値より高い可能性があります。</p>}\n    <button className=\"secondary-button\" type=\"button\" disabled={disabled} onClick={() => void onAcquire()}>地形を再取得</button>\n    <a href=\"https://cyberjapandata.gsi.go.jp/development/ichiran.html\" target=\"_blank\" rel=\"noopener noreferrer\">地形標高データ出典：国土地理院 DEM10B</a>\n    {plan.intervals.filter(interval => interval.automatic_ft === null)\n      .map(interval => <p className=\"sea-warning\" key={interval.key}>\n        {interval.from_name} → {interval.to_name}：\n        地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。\n      </p>)}\n  </section>;"
       }
     },
     {
       "id": "sea-title",
       "text": "区間別SEA",
-      "reason": "Issueで指定された未確定・自動SEAの表現を維持する。計算前の暫定比較案は独立レビューで撤回し、有効な計算結果のRCA/EOC範囲だけを比較する。余分な補足や承認操作は追加しない。",
+      "reason": "Issueで指定された未確定・自動SEAの表現を維持する。計算前の暫定比較案は独立レビューで撤回し、有効な計算結果のRCA/EOC範囲だけを比較する。余分な補足や承認操作は追加しない。 #496の参考値注記を追加したが、この文言と操作・表示対象は維持する。",
       "response_quote": "### `sea-title`（地形パネルの `aria-label`）\n現行案：`区間別SEA`\n\n- **候補1（推奨）**\n  > 区間別SEA（参考値）\n- **候補2**\n  > 地形データと区間別SEA\n- **理由**\n  - 候補1は簡潔さを維持しつつ、スクリーンリーダー利用者にもSEAが参考値であることを明確に伝えられます。\n  - 候補2は、パネル内に再取得ボタンや地形データ出典も含まれる構成と整合し、領域の役割を正確に示せます。\n- **懸念**\n  - 候補1は「地形パネル」であることがラベル名に含まれないため、出典や再取得ボタンを含む領域名としてはやや狭い印象があります。\n  - 候補2は逆に、SEAが参考値であるニュアンスがラベル単体からは伝わりません。\n",
       "source": {
         "path": "web/src/components/SeaPanel.tsx",
         "start": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">",
         "end": "  </section>;",
-        "expected": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">\n    <button className=\"secondary-button\" type=\"button\" disabled={disabled} onClick={() => void onAcquire()}>地形を再取得</button>\n    <a href=\"https://cyberjapandata.gsi.go.jp/development/ichiran.html\" target=\"_blank\" rel=\"noopener noreferrer\">地形標高データ出典：国土地理院 DEM10B</a>\n    {plan.intervals.filter(interval => interval.automatic_ft === null)\n      .map(interval => <p className=\"sea-warning\" key={interval.key}>\n        {interval.from_name} → {interval.to_name}：\n        地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。\n      </p>)}\n  </section>;"
+        "expected": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">\n    {plan.intervals.some(interval => interval.reference && interval.automatic_ft !== null) &&\n      <p className=\"sea-reference-note\">* 地形データに一部欠損がある参考値です。実際のSEAは表示値より高い可能性があります。</p>}\n    <button className=\"secondary-button\" type=\"button\" disabled={disabled} onClick={() => void onAcquire()}>地形を再取得</button>\n    <a href=\"https://cyberjapandata.gsi.go.jp/development/ichiran.html\" target=\"_blank\" rel=\"noopener noreferrer\">地形標高データ出典：国土地理院 DEM10B</a>\n    {plan.intervals.filter(interval => interval.automatic_ft === null)\n      .map(interval => <p className=\"sea-warning\" key={interval.key}>\n        {interval.from_name} → {interval.to_name}：\n        地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。\n      </p>)}\n  </section>;"
       }
     },
     {
       "id": "sea-fetch",
       "text": "地形を再取得",
-      "reason": "Issueで指定された未確定・自動SEAの表現を維持する。計算前の暫定比較案は独立レビューで撤回し、有効な計算結果のRCA/EOC範囲だけを比較する。余分な補足や承認操作は追加しない。",
+      "reason": "Issueで指定された未確定・自動SEAの表現を維持する。計算前の暫定比較案は独立レビューで撤回し、有効な計算結果のRCA/EOC範囲だけを比較する。余分な補足や承認操作は追加しない。 #496の参考値注記を追加したが、この文言と操作・表示対象は維持する。",
       "response_quote": "### `sea-fetch`（地形パネルのボタン）\n現行案：`地形を再取得`\n\n- **候補1（推奨）**\n  > 地形データを再取得\n- **候補2**\n  > 地形データを更新\n- **理由**\n  - 「地形」単体より「地形データ」とする方が、`sea-unknown` や `sea-source` と語彙が揃い、何を取得するボタンか明確になります。\n  - 初回未取得の状態でも同じボタンが表示されるなら、「再取得」より「更新」（または未取得時のみ「取得」）の方が文脈上の違和感が少なくなります。\n- **懸念**\n  - 候補1は、まだ一度も取得できていない状態で「再取得」と表示されるとわずかに違和感があります。\n  - 候補2（「更新」）は、データ取得失敗後のリトライ操作としては「再取得」より意図がやや弱く見える場合があります。\n",
       "source": {
         "path": "web/src/components/SeaPanel.tsx",
         "start": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">",
         "end": "  </section>;",
-        "expected": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">\n    <button className=\"secondary-button\" type=\"button\" disabled={disabled} onClick={() => void onAcquire()}>地形を再取得</button>\n    <a href=\"https://cyberjapandata.gsi.go.jp/development/ichiran.html\" target=\"_blank\" rel=\"noopener noreferrer\">地形標高データ出典：国土地理院 DEM10B</a>\n    {plan.intervals.filter(interval => interval.automatic_ft === null)\n      .map(interval => <p className=\"sea-warning\" key={interval.key}>\n        {interval.from_name} → {interval.to_name}：\n        地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。\n      </p>)}\n  </section>;"
+        "expected": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">\n    {plan.intervals.some(interval => interval.reference && interval.automatic_ft !== null) &&\n      <p className=\"sea-reference-note\">* 地形データに一部欠損がある参考値です。実際のSEAは表示値より高い可能性があります。</p>}\n    <button className=\"secondary-button\" type=\"button\" disabled={disabled} onClick={() => void onAcquire()}>地形を再取得</button>\n    <a href=\"https://cyberjapandata.gsi.go.jp/development/ichiran.html\" target=\"_blank\" rel=\"noopener noreferrer\">地形標高データ出典：国土地理院 DEM10B</a>\n    {plan.intervals.filter(interval => interval.automatic_ft === null)\n      .map(interval => <p className=\"sea-warning\" key={interval.key}>\n        {interval.from_name} → {interval.to_name}：\n        地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。\n      </p>)}\n  </section>;"
       }
     },
     {
       "id": "sea-source",
       "text": "地形標高データ出典：国土地理院 DEM10B",
-      "reason": "Issueで指定された未確定・自動SEAの表現を維持する。計算前の暫定比較案は独立レビューで撤回し、有効な計算結果のRCA/EOC範囲だけを比較する。余分な補足や承認操作は追加しない。",
+      "reason": "Issueで指定された未確定・自動SEAの表現を維持する。計算前の暫定比較案は独立レビューで撤回し、有効な計算結果のRCA/EOC範囲だけを比較する。余分な補足や承認操作は追加しない。 #496の参考値注記を追加したが、この文言と操作・表示対象は維持する。",
       "response_quote": "### `sea-source`（地形パネルの出典リンク）\n現行案：`地形標高データ出典：国土地理院 DEM10B`\n\n- **候補1（推奨）**\n  > 標高データ出典：国土地理院 DEM10B\n- **候補2**\n  > 出典：国土地理院 DEM10B\n- **理由**\n  - 現行案の「地形標高データ」はやや重複感があるため、「標高データ出典：」またはパネル文脈を前提にした「出典：」にすると簡潔で読みやすくなります。\n- **懸念**\n  - 国土地理院のコンテンツ利用規約上、出典記載の形式（例：「国土地理院」「基盤地図情報（数値標高モデル）」等の表記要否）を別途確認する必要があります。\n  - 外部サイトへ遷移するリンクの場合、テキストだけでは外部リンクであることが分かりにくいため、必要に応じてアイコンや補助ラベルの併用を検討してください。\n",
       "source": {
         "path": "web/src/components/SeaPanel.tsx",
         "start": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">",
         "end": "  </section>;",
-        "expected": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">\n    <button className=\"secondary-button\" type=\"button\" disabled={disabled} onClick={() => void onAcquire()}>地形を再取得</button>\n    <a href=\"https://cyberjapandata.gsi.go.jp/development/ichiran.html\" target=\"_blank\" rel=\"noopener noreferrer\">地形標高データ出典：国土地理院 DEM10B</a>\n    {plan.intervals.filter(interval => interval.automatic_ft === null)\n      .map(interval => <p className=\"sea-warning\" key={interval.key}>\n        {interval.from_name} → {interval.to_name}：\n        地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。\n      </p>)}\n  </section>;"
+        "expected": "  return <section className=\"sea-panel\" aria-label=\"区間別SEA\">\n    {plan.intervals.some(interval => interval.reference && interval.automatic_ft !== null) &&\n      <p className=\"sea-reference-note\">* 地形データに一部欠損がある参考値です。実際のSEAは表示値より高い可能性があります。</p>}\n    <button className=\"secondary-button\" type=\"button\" disabled={disabled} onClick={() => void onAcquire()}>地形を再取得</button>\n    <a href=\"https://cyberjapandata.gsi.go.jp/development/ichiran.html\" target=\"_blank\" rel=\"noopener noreferrer\">地形標高データ出典：国土地理院 DEM10B</a>\n    {plan.intervals.filter(interval => interval.automatic_ft === null)\n      .map(interval => <p className=\"sea-warning\" key={interval.key}>\n        {interval.from_name} → {interval.to_name}：\n        地形データの未取得・欠損・不正、または未対応の評価範囲によりSEAは未確定です。\n      </p>)}\n  </section>;"
       }
     }
   ]

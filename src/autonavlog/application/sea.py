@@ -26,6 +26,8 @@ class SeaModel(BaseModel):
 
 class SeaTerrain(SeaModel):
     complete: bool = False
+    # Old incomplete records stopped early; only new full evaluations qualify.
+    evaluated: bool = False
     maximum_m: float | None = Field(default=None, allow_inf_nan=False)
     required: int = Field(default=0, ge=0)
     valid: int = Field(default=0, ge=0)
@@ -188,10 +190,11 @@ def contains_point(coordinates: list[list[float]], point: list[float]) -> bool:
 def automatic_sea(record: SeaRecord) -> int | None:
     t = record.terrain
     if (
-        not t.complete
+        not (t.complete or t.evaluated)
         or t.required <= 0
-        or t.valid != t.required
-        or t.missing
+        or t.valid <= 0
+        or t.valid + t.missing != t.required
+        or (t.complete and t.missing > 0)
         or t.not_acquired
         or t.invalid
         or t.maximum_m is None
@@ -229,6 +232,7 @@ def sea_plan(project: Project, *, regions: bool = False) -> dict[str, Any]:
         item.update(
             {
                 "automatic_ft": auto,
+                "reference": auto is not None and record.terrain.missing > 0,
                 "manual_ft": record.manual_ft,
                 "value_ft": auto,
                 "status": "automatic" if auto is not None else "unknown",

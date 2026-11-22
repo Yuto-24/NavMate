@@ -62,6 +62,8 @@ export async function exportNavLogPng(section: HTMLElement, modeText: string): P
     paper.append(table);
   }
   document.body.append(paper);
+  const note = section.querySelector(".sea-reference-note");
+  if (note) paper.querySelector(".nav-log-table")!.after(note.cloneNode(true));
   const canvas = document.createElement("canvas");
   try {
     // CSS normal whitespace collapses ASCII runs; Canvas text does not. Normalize

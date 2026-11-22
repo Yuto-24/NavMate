@@ -142,8 +142,31 @@ test("SEA combines all strips, retains provenance, and any missing strip prevent
   const missing = await acquireSea(plan, new AbortController().signal, {
     tile: async (x): Promise<TileInput> => x === 14173 ? available() : { status: "missing", reason: "404" },
   });
-  expect(missing[interval.key]).toMatchObject({ complete: false, maximum_m: 100, missing: 2 });
+  expect(missing[interval.key]).toMatchObject({ complete: false, maximum_m: 100, missing: 4, evaluated: true });
   const cancelled = await acquireSea(plan, AbortSignal.abort(), source);
   expect(cancelled[interval.key]!.complete).toBe(false);
   expect(cancelled[interval.key]!.maximum_m).toBeNull();
+});
+
+test("#496 missing strips do not hide a later maximum; failures and cancellation stay distinct", async () => {
+  const { acquireSea } = await import("../src/sea");
+  const later = region.map(([lon, lat]) => [lon + 360 / 16384 * 3, lat] as LonLat);
+  const interval = { key: "coastal", geometry_valid: true, regions: [region, later] } as import("../src/sea").SeaInterval;
+  const plan = { geometry_key: "fixture", intervals: [interval] };
+  for (const failure of ["missing", "not-acquired", "invalid"] as const) {
+    const result = (await acquireSea(plan, new AbortController().signal, {
+      tile: async (tx): Promise<TileInput> => tx < 14175 ? { status: failure, reason: "fixture" }
+        : { status: "available", elevations: Array(65536).fill(900), provenance },
+    }))[interval.key]!;
+    expect(result).toMatchObject({ complete: false, evaluated: true, maximum_m: 900, required: 8, valid: 4 });
+    expect(result[failure === "not-acquired" ? "not_acquired" : failure]).toBe(4);
+  }
+  const invalid = { ...interval, regions: [region, []] };
+  expect((await acquireSea({ ...plan, intervals: [invalid] }, new AbortController().signal,
+    { tile: async () => available() }))[interval.key]).toMatchObject({ complete: false, evaluated: false });
+  const cancelled = new AbortController();
+  const result = await acquireSea(plan, cancelled.signal, {
+    tile: async () => { cancelled.abort(); return available(); },
+  });
+  expect(result[interval.key]!.evaluated).toBe(false);
 });

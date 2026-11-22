@@ -276,3 +276,37 @@ def test_retired_manual_update_is_rejected_without_mutation():
         apply_sea(project, SeaUpdate(project_id=project.id, geometry_key=plan["geometry_key"],
                                     manual={plan["intervals"][0]["key"]: 2000}))
     assert project.model_dump() == before
+
+
+@pytest.mark.parametrize("maximum, expected", [(0, 1000), (-30.48, 900), (304.8, 2000)])
+def test_fully_evaluated_missing_dem_is_reference(maximum, expected):
+    project = _project()
+    key = sea_plan(project)["intervals"][0]["key"]
+    terrain = SeaTerrain(evaluated=True, maximum_m=maximum, required=10, valid=6, missing=4)
+    apply_sea(project, patch(project, terrain={key: terrain}))
+    restored = Project.model_validate_json(project.model_dump_json())
+    for saved in (project, restored):
+        value = sea_plan(saved)["intervals"][0]
+        assert value["automatic_ft"] == expected
+        assert value["value_ft"] == expected
+        assert value["reference"] is True
+        assert value["terrain"]["evaluated"] is True
+    assert automatic_sea(SeaRecord(terrain=terrain, kml_maximum_m=609.6)) == 3000
+    apply_sea(project, patch(project, terrain={key: complete(30.48)}))
+    value = sea_plan(project)["intervals"][0]
+    assert value["automatic_ft"] == 1100
+    assert value["reference"] is False
+
+
+@pytest.mark.parametrize("changes", [
+    {"evaluated": False},
+    {"valid": 0, "missing": 10, "maximum_m": None},
+    {"valid": 5, "not_acquired": 1},
+    {"valid": 5, "invalid": 1},
+    {"required": 11},
+])
+def test_reference_rejects_old_partial_missing_only_and_failures(changes):
+    terrain = SeaTerrain(evaluated=True, maximum_m=304.8, required=10, valid=6, missing=4)
+    assert automatic_sea(SeaRecord(
+        terrain=terrain.model_copy(update=changes), kml_maximum_m=10000
+    )) is None

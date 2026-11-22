@@ -94,7 +94,9 @@ for (const width of [1100, 1440]) {
   });
 }
 
-test("#314 complete DEM, automatic values and retained diagnostics without detail UI", async ({ page }) => {
+for (const partial of [false, true]) {
+test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and retained diagnostics without detail UI`, async ({ page }) => {
+  const display = partial ? "1100*" : "1100";
   // Allow initial readiness, reload recovery, and explicit DEM reacquisition to complete.
   test.setTimeout(300_000);
   const { deflateSync } = await import("node:zlib");
@@ -112,6 +114,11 @@ test("#314 complete DEM, automatic values and retained diagnostics without detai
   const header = Buffer.alloc(13); header.writeUInt32BE(256); header.writeUInt32BE(256, 4); header[8] = 8; header[9] = 2;
   const raw = Buffer.alloc(256 * 769);
   for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) { raw[y * 769 + x * 3 + 2] = 11; raw[y * 769 + x * 3 + 3] = 232; }
+  if (partial) for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x += 2) {
+    raw[y * 769 + x * 3 + 1] = 128;
+    raw[y * 769 + x * 3 + 2] = 0;
+    raw[y * 769 + x * 3 + 3] = 0;
+  }
   const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", header), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
   await page.route("**/xyz/dem_png/**", route => route.fulfill({ contentType: "image/png", body: png }));
   await page.goto("/"); await enterImportWorkflow(page);
@@ -126,14 +133,15 @@ test("#314 complete DEM, automatic values and retained diagnostics without detai
   }
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   const first = page.locator(".nav-log-sea-cell").filter({ hasText: /未確定|[0-9]/ }).first();
-  await expect(first).toHaveAttribute("data-display-text", "1100", { timeout: 90_000 });
+  await expect(first).toHaveAttribute("data-display-text", display, { timeout: 90_000 });
   await expect(first.locator("input")).toHaveCount(0);
   const saved = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.metadata.sea, artifactSessionKey);
   const records = Object.values(saved.records) as { terrain: { complete: boolean; required: number; valid: number; provenance: { url: string; acquiredAt: string; sha256: string }[] } }[];
   const terrain = records[0]!.terrain;
-  expect(terrain.complete).toBe(true);
+  expect(terrain.complete).toBe(!partial);
   expect(terrain.required).toBeGreaterThan(0);
-  expect(terrain.valid).toBe(terrain.required);
+  if (partial) expect(terrain.valid).toBeLessThan(terrain.required);
+  else expect(terrain.valid).toBe(terrain.required);
   expect(terrain.provenance.length).toBeGreaterThan(0);
   const { createHash } = await import("node:crypto");
   for (const source of terrain.provenance) {
@@ -144,14 +152,54 @@ test("#314 complete DEM, automatic values and retained diagnostics without detai
   }
   await expect(page.locator(".sea-panel details, .sea-panel input, .sea-panel code")).toHaveCount(0);
   await page.reload();
-  await expect(first).toHaveAttribute("data-display-text", "1100");
+  await expect(first).toHaveAttribute("data-display-text", display);
   await expect(page.locator(".sea-caution")).toHaveCount(0);
   const restored = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.metadata.sea, artifactSessionKey);
   expect(restored).toEqual(saved);
   await page.getByRole("button", { name: "地形を再取得" }).click();
   await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
-  await expect(first).toHaveAttribute("data-display-text", "1100");
+  await expect(first).toHaveAttribute("data-display-text", display);
   await expect(page.locator(".sea-caution")).toHaveCount(0);
+  await expect(page.locator(".sea-reference-note")).toHaveCount(partial ? 1 : 0);
+  if (partial) {
+    for (const width of [1100, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const [map, pane, navlog, note] = await page.evaluate(() =>
+        [".map-frame", ".planning-pane", ".nav-log-scroll", ".sea-reference-note"].map(selector => {
+          const { x, y, width, height } = document.querySelector(selector)!.getBoundingClientRect();
+          return { x, y, width, height };
+        }));
+      expect(map!.x + map!.width).toBeLessThanOrEqual(pane!.x + 2);
+      expect(Math.abs(map!.y - pane!.y)).toBeLessThan(3);
+      expect(navlog!.y).toBeGreaterThan(map!.y + map!.height);
+      expect(note!.y).toBeGreaterThanOrEqual(navlog!.y + navlog!.height);
+      await page.locator(".nav-log-section").screenshot({ path: test.info().outputPath(`sea-reference-${width}.png`) });
+    }
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "NAV LOG JSONをダウンロード" }).click();
+    const file = await download;
+    const { readFileSync } = await import("node:fs");
+    const exported = JSON.parse(readFileSync((await file.path())!, "utf8"));
+    expect(exported.sea.intervals.every((item: any) => item.reference && item.automatic_ft === 1100
+      && item.terrain.evaluated && item.terrain.missing > 0)).toBe(true);
+    await page.evaluate(() => {
+      const texts: string[] = [];
+      (window as any).__seaPngTexts = texts;
+      const original = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function(text, x, y, maxWidth) {
+        texts.push(text);
+        return original.call(this, text, x, y, maxWidth!);
+      };
+    });
+    const pngDownload = page.waitForEvent("download");
+    await page.getByRole("button", { name: "PNG", exact: true }).click();
+    expect((await pngDownload).suggestedFilename()).toMatch(/\.png$/);
+    const texts = await page.evaluate(() => (window as any).__seaPngTexts as string[]);
+    expect(texts).toContain("1100*");
+    expect(texts.join("")).toContain("実際のSEAは表示値より高い可能性があります。");
+    await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+    await expect(first).toHaveAttribute("data-display-text", display);
+  }
   // Restore an old manual override alongside complete high terrain: only the
   // automatic reference participates, while saved navigation values stay intact.
   await page.evaluate(key => {
@@ -163,7 +211,7 @@ test("#314 complete DEM, automatic values and retained diagnostics without detai
     sessionStorage.setItem(key, JSON.stringify(session));
   }, artifactSessionKey);
   await page.reload();
-  await expect(first).toHaveAttribute("data-display-text", "11000");
+  await expect(first).toHaveAttribute("data-display-text", partial ? "11000*" : "11000");
   await expect(page.locator(".sea-caution").first()).toContainText("自動SEA（11000 ft）");
   const altitude = page.locator(".nav-log-table").getByRole("spinbutton", { name: /計画高度$/ }).first();
   await altitude.fill("8500");
@@ -172,9 +220,11 @@ test("#314 complete DEM, automatic values and retained diagnostics without detai
   // NAV LOG edits invoke the existing automatic recalculation.
   await expect(page.locator(".sea-caution").first()).toBeVisible();
   await page.getByRole("button", { name: "地形を再取得" }).click();
-  await expect(first).toHaveAttribute("data-display-text", "1100", { timeout: 90_000 });
+  await expect(first).toHaveAttribute("data-display-text", display, { timeout: 90_000 });
   await expect(page.locator(".sea-caution")).toHaveCount(0);
 });
+
+}
 
 test("#314 #485 final visual CP intervals retain SEA values without manual editors in NAV LOG", async ({ page }) => {
   await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));

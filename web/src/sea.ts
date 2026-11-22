@@ -4,6 +4,7 @@ import type { TerrainKmlInput } from "./terrainKml";
 
 export interface SeaTerrain {
   complete: boolean;
+  evaluated?: boolean;
   maximum_m: number | null;
   required: number;
   valid: number;
@@ -23,6 +24,7 @@ export interface SeaInterval {
   geometry_valid: boolean;
   regions?: LonLat[][];
   automatic_ft: number | null;
+  reference?: boolean;
   manual_ft: number | null;
   value_ft: number | null;
   status: "manual" | "automatic" | "unknown";
@@ -42,7 +44,7 @@ export interface SeaUpdate {
   kml?: TerrainKmlInput;
 }
 
-/** Aggregate every strip. A single invalid/missing strip invalidates the interval.
+/** Aggregate every strip, retaining missing coverage separately from evaluation completion.
  * Reuse the #313 decoder/coverage contract, with a bounded per-request tile cache.
  */
 export async function acquireSea(
@@ -63,10 +65,11 @@ export async function acquireSea(
   };
   for (const interval of plan.intervals) {
     const summary: SeaTerrain = { complete: Boolean(interval.geometry_valid && interval.regions?.length),
+      evaluated: Boolean(interval.geometry_valid && interval.regions?.length),
       maximum_m: null, required: 0, valid: 0, missing: 0, not_acquired: 0, invalid: 0, provenance: [] };
     const provenance = new Map<string, TerrainProvenance>();
     for (const region of interval.regions ?? []) {
-      if (signal.aborted) { summary.complete = false; break; }
+      if (signal.aborted) { summary.complete = false; summary.evaluated = false; break; }
       // Yield between synchronous raster plans so cancel and the rest of NAVLOG stay responsive.
       await new Promise<void>(resolve => setTimeout(resolve, 0));
       const coverage = await acquireTerrainCoverage(region, load, signal);
@@ -84,9 +87,7 @@ export async function acquireSea(
           if (elevation != null) summary.maximum_m = Math.max(summary.maximum_m ?? -Infinity, elevation);
         }
       }
-      // Once coverage fails, more samples cannot certify this interval. Keep the
-      // inspected partial evidence without spending the remaining route budget.
-      if (coverage.status !== "complete") break;
+      if (coverage.status === "invalid-input" || signal.aborted) summary.evaluated = false;
     }
     summary.provenance = [...provenance.values()];
     result[interval.key] = summary;
