@@ -491,7 +491,8 @@ class Operator:
             "Pages automatic Git deployments are enabled or unknown",
         )
         observation = pages_target.inspect(
-            client, variables["CLOUDFLARE_ACCOUNT_ID"], expected_project=project
+            client, variables["CLOUDFLARE_ACCOUNT_ID"], expected_project=project,
+            plan_requests=True,
         )
         require(
             all(

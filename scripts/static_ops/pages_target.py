@@ -12,8 +12,8 @@ except ImportError:
     from publication_gate import CONFIGURATION
 
 UNKNOWN = "UNKNOWN"
-# Keep the shared request/time/response limits while reading growing deployment
-# history in fewer requests. Every page and the final project reread are required.
+# 25 was accepted by the live API; larger undocumented sizes returned HTTP 400.
+# App Release plans a full observation; diagnostics keep their fixed probe budget.
 DEPLOYMENTS_PER_PAGE = 25
 BINDINGS = (
     "kv_namespaces", "durable_object_namespaces", "d1_databases", "r2_buckets",
@@ -173,7 +173,7 @@ def read_project(client, path):
     return response["result"]
 
 
-def inspect(client, account, *, expected_project=None):
+def inspect(client, account, *, expected_project=None, plan_requests=False):
     """Bind an optional prior project read to both inventory reads; reject observed drift."""
     path = f"/client/v4/accounts/{account}/pages/projects/navmate"
     project = read_project(client, path)
@@ -215,7 +215,7 @@ def inspect(client, account, *, expected_project=None):
         return result
     rows = inventory.paginated(client, path + "/deployments",
                                lambda row: deployment(row, project_id),
-                               per_page=DEPLOYMENTS_PER_PAGE)
+                               per_page=DEPLOYMENTS_PER_PAGE, plan_requests=plan_requests)
     result["pagination_complete"] = True
     result["inventory_count"] = len(rows)
     result["activity_counts"] = {name: sum(row["activity"] == name for row in rows)

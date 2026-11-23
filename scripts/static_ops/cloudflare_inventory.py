@@ -71,17 +71,19 @@ def envelope(response, page):
     return rows, info, counts
 
 
-def paginated(client, path, normalize, *, per_page=PAGE_SIZE):
+def paginated(client, path, normalize, *, per_page=PAGE_SIZE, plan_requests=False):
     """Read every declared Pages page; reject gaps, repeats and observed drift."""
     result = []
     ids = set()
     expected = None
-    for page in range(1, api.MAX_REQUESTS + 1):
+    page = 1
+    while True:
         response = client.get("cloudflare", path, {"page": page, "per_page": per_page})
         rows, info, counts = envelope(response, page)
         total_pages = integer(info.get("total_pages"))
         if (
-            not page <= total_pages <= api.MAX_REQUESTS
+            not page <= total_pages
+            or (not plan_requests and total_pages > api.MAX_REQUESTS)
             or counts["per_page"] != per_page
             or not total_pages <= counts["total_count"] <= total_pages * per_page
         ):
@@ -89,6 +91,15 @@ def paginated(client, path, normalize, *, per_page=PAGE_SIZE):
         snapshot = (counts["total_count"], total_pages, counts["per_page"])
         if expected is not None and snapshot != expected:
             fail("inventory_changed_during_pagination")
+        if plan_requests:
+            # Before trusting a larger request plan, require exact, full pages.
+            if total_pages != (counts["total_count"] + per_page - 1) // per_page:
+                fail("inconsistent_page_metadata")
+            if len(rows) != min(per_page, counts["total_count"] - (page - 1) * per_page):
+                fail("incomplete_inventory")
+            if expected is None:
+                # N - 1 unread pages plus the final Project reread. Never replan.
+                client.plan_inventory(total_pages)
         expected = snapshot
         for row in rows:
             item = normalize(row)
@@ -102,7 +113,7 @@ def paginated(client, path, normalize, *, per_page=PAGE_SIZE):
             if len(result) != counts["total_count"]:
                 fail("incomplete_inventory")
             return result
-    fail("request_budget_exhausted")
+        page += 1
 
 
 def project(row):
