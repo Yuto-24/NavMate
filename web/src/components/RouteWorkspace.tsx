@@ -1,5 +1,5 @@
 import { AipAirspaceControl, AipAirspaceLayers } from "./AipAirspace";
-import { aipCategories, aipPreferenceKey, loadAipAirspace, type AipAirspace } from "../aipAirspace";
+import { aipCategories, aipPreferenceKey, defaultHiddenAipCategories, pcaPreferenceKey, loadAipAirspace, type AipAirspace } from "../aipAirspace";
 import { Maximize, Minimize, Pencil } from "lucide-react";
 import { MapDraftLayers, RouteStrip, type MapRouteBuilderProps } from "./MapRouteBuilder";
 import { MapViewport } from "./MapViewport";
@@ -248,10 +248,20 @@ export function RouteWorkspace({
   const [aipFailed, setAipFailed] = useState(false);
   const [hiddenAip, setHiddenAip] = useState<string[]>(() => {
     try {
-      const value: unknown = JSON.parse(viewportStorage.getItem(aipPreferenceKey) ?? "[]");
-      return Array.isArray(value) ? value.filter((id): id is string => aipCategories.some(([known]) => known === id)) : [];
-    } catch { return []; }
+      const stored = viewportStorage.getItem(aipPreferenceKey);
+      if (stored === null) return defaultHiddenAipCategories;
+      const value: unknown = JSON.parse(stored);
+      return Array.isArray(value) ? value.filter((id): id is string => aipCategories.some(([known]) => known === id)) : defaultHiddenAipCategories;
+    } catch { return defaultHiddenAipCategories; }
   });
+  const [pcaVisible, setPcaVisible] = useState(() => {
+    try { return viewportStorage.getItem(pcaPreferenceKey) !== "false"; }
+    catch { return true; }
+  });
+  const togglePca = (visible: boolean) => {
+    setPcaVisible(visible);
+    try { viewportStorage.setItem(pcaPreferenceKey, String(visible)); } catch { /* Device storage may be blocked. */ }
+  };
   useEffect(() => {
     if (!localMode) return;
     let active = true;
@@ -630,7 +640,16 @@ export function RouteWorkspace({
   }, []);
 
   return (
-    <section className={`route-workspace${mapBuilder ? " is-route-building" : ""}`} aria-label="経路地図とLeg設定">
+    <section className={`route-workspace${mapBuilder ? " is-route-building" : ""}`} aria-label="経路地図とLeg設定"
+      onClickCapture={(event) => {
+        const link = event.target instanceof Element
+          ? event.target.closest<HTMLAnchorElement>("a[data-airspace-source]")
+          : null;
+        if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        onOpenExternalUrl(link.href);
+      }}
+    >
       {mapBuilder && <div className="draft-mobile-heading"><h2>経路</h2><p>地図で経路を作成</p></div>}
       <div
         ref={mapFrameRef}
@@ -639,17 +658,8 @@ export function RouteWorkspace({
         aria-modal={fullscreen || undefined}
         aria-label={fullscreen ? "全画面の経路地図" : undefined}
         className={`map-frame${fullscreen ? " is-fullscreen" : ""}${pickingCheckPoint ? " is-picking-checkpoint" : ""}${localMode && mapBackground === "imagery" ? " is-imagery" : ""}`}
-        onClickCapture={(event) => {
-          const link = event.target instanceof Element
-            ? event.target.closest<HTMLAnchorElement>("a[data-airspace-source]")
-            : null;
-          if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-          event.preventDefault();
-          onOpenExternalUrl(link.href);
-        }}
       >
         <div className="map-toolbar">
-          {localMode && <AipAirspaceControl data={aip} failed={aipFailed} hidden={hiddenAip} onChange={toggleAip} />}
       {localMode && <label className="map-background-picker">
         <span>背景地図</span>
         <select value={mapBackground} onChange={(event) => {
@@ -682,7 +692,7 @@ export function RouteWorkspace({
           <MapBackground imagery={localMode && mapBackground === "imagery"} />
           <MapAttributionLayout />
           {localMode && aip && <AipAirspaceLayers data={aip} hidden={hiddenAip} />}
-          {rjfmMapReference && pcaCoordinates.length >= 3 && (
+          {(!localMode || pcaVisible) && rjfmMapReference && pcaCoordinates.length >= 3 && (
             <>
               <Polygon
                 className="rjfm-pca-boundary"
@@ -1301,6 +1311,7 @@ export function RouteWorkspace({
             })}
       </ol>
       </>}
+      {localMode && <AipAirspaceControl data={aip} failed={aipFailed} hidden={hiddenAip} onChange={toggleAip} pcaVisible={pcaVisible} onPcaChange={togglePca} />}
       </div><div className="planning-pane-footer">{readinessPanel}</div></div>
     </section>
   );

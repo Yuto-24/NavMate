@@ -19,6 +19,14 @@ export const aipCategories = [
   ["Take_off_flight_path_area", "離陸飛行経路区域"],
   ["Corridors", "回廊"],
 ] as const;
+export const defaultHiddenAipCategories: string[] = aipCategories
+  .map(([id]) => id)
+  .filter(id => ![
+    "Civil_training_and_testing_areas",
+    "Approach_control_area_CIVIL",
+    "Restricted_area_Airspace_restrictions",
+  ].includes(id));
+export const pcaPreferenceKey = "autonavlog.pca-visible.v1";
 export const aipPreferenceKey = "autonavlog.aip-layers.v1";
 interface Asset { file: string; sha256: string; bytes: number }
 interface Manifest { schema_version: number; app_version: string; effective_date: string; layers: (Asset & { id: string; feature_count: number })[] }

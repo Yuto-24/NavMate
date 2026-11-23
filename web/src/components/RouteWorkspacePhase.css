@@ -178,15 +178,12 @@
   .route-table .altitude-input-row > .table-number-input { flex: 0 0 auto; }
 }
 
-.aip-layer-control { font-size: 0.8rem; }
-.aip-layer-control summary { cursor: pointer; padding: 0.45rem; }
-.aip-layer-options { position: absolute; top: 100%; right: 0; z-index: 1100; width: min(310px, 75vw); max-height: min(50vh, var(--aip-available-height, 50vh)); overflow: auto; padding: 0.7rem; background: white; color: #173b5e; box-shadow: 0 3px 12px #0003; }
+.aip-layer-control { font-size: 0.8rem; border-top: 1px solid var(--slate-200); margin-top: 0.5rem; }
+.aip-layer-control summary { cursor: pointer; padding: 0.65rem 0; font-weight: 600; }
+.aip-layer-options { padding: 0 0 0.7rem; }
 .aip-layer-options label { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.35rem; }
-.aip-layer-options input { width: auto; }
+.aip-layer-options input { width: auto; flex-shrink: 0; }
 
-@media (max-width: 700px) {
-  .is-route-building > .map-frame:not(.is-fullscreen) .aip-layer-options { right: auto; left: 0; }
-}
 @media (max-width: 700px) {
   .route-workspace:not(.is-route-building) .map-toolbar { top: 54px; }
 }

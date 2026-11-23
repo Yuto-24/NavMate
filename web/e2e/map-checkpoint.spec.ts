@@ -104,7 +104,7 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
     importLocalRoute(page),
     (async () => {
       try {
-        await page.getByText("空域レイヤー", { exact: true }).click({ timeout: 120_000 });
+        await page.getByText("空域表示", { exact: true }).click({ timeout: 120_000 });
         await expect(page.locator(".aip-layer-options")).toContainText("AIP空域を読み込み中…");
       } finally {
         release();
@@ -141,7 +141,7 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
   await page.route("**/reference/aip/Civil_training_and_testing_areas-*.geojson", route => route.abort());
   await page.reload();
   await expect(page.getByRole("button", { name: "RJFM空域凡例を表示", exact: true })).toHaveAttribute("aria-expanded", "false");
-  await page.getByText("空域レイヤー", { exact: true }).click();
+  await page.getByText("空域表示", { exact: true }).click();
   await expect(page.locator(".aip-layer-options")).toContainText("AIP空域を読み込めませんでした。");
   for (const width of [390, 1440]) {
     await page.setViewportSize({width,height:950});

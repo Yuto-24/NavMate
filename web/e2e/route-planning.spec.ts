@@ -170,7 +170,7 @@ test("#416 UI copy preview covers Draft, sources and CP controls", async ({page}
   await page.setViewportSize({width:1440,height:950});
   await page.getByRole("button",{name:/^その他/}).click();
   await page.getByText("地図の出典",{exact:true}).click();
-  await expect(page.getByText("必要な出典表示は地図上にも常時表示します。空域の出典は地図上の空域表示に付記します。",{exact:true})).toBeVisible();
+  await expect(page.getByText("必要な出典表示は地図上にも常時表示します。空域の出典は「空域表示」から確認できます。",{exact:true})).toBeVisible();
   await page.screenshot({path:info.outputPath("04-map-sources-menu.png"),fullPage:true});
   await page.keyboard.press("Escape");
   await confirmImportedDraft(page);
