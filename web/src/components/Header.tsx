@@ -31,8 +31,6 @@ interface HeaderProps {
   onDelete: () => void;
   onSave: (name: string) => void;
   onNew: () => void;
-  onExportProject?: () => void;
-  onImportProject?: (file: File) => void;
 }
 
 export function Header({
@@ -51,7 +49,7 @@ export function Header({
   onLoad,
   onDelete,
   onSave,
-  onNew, onExportProject, onImportProject,
+  onNew,
 }: HeaderProps) {
   const normalizedProjectName = projectName.trim();
   const personal = useSyncExternalStore(auth?.subscribe ?? noSubscribe, () => !!auth?.getState().account);
@@ -131,17 +129,7 @@ export function Header({
               <Trash2 aria-hidden="true" size={18} />
             </button>
           </div>
-          {onExportProject && <button className="header-button information-button" type="button" disabled={busy || revision === null}
-            onClick={onExportProject}>JSONファイルに書き出す</button>}
-          {onImportProject && panel === "project" && <label className="header-button information-button">
-            <span>JSONファイルから追加</span>
-            <input className="visually-hidden" type="file" accept=".json,application/json" disabled={busy}
-              onChange={event => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (file) onImportProject(file);
-              }} />
-          </label>}
+
         </div>
       </div>
       <div className="header-actions">

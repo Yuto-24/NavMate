@@ -24,7 +24,7 @@ test("Static Local workflow saves and restores a calculated Project across lifec
   await context.route("**/api/**", route => route.abort());
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await page.locator('#route-file').setInputFiles(fixture);
   await expectImportedDraft(page);
   await expect(page.locator(".route-workspace .leaflet-container")).toBeVisible();
   await confirmImportedDraft(page);

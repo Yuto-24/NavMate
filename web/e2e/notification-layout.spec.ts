@@ -262,7 +262,7 @@ test("#314 project switch clears cancelled SEA progress and an old request canno
   await page.goto("/e2e/notification-harness/index.html?pending-sea=1");
   const calculate = async () => {
     await enterImportWorkflow(page);
-    await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+    await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
     await confirmImportedDraft(page);
     await page.getByLabel("気象モード").selectOption("FTD");
     await page.getByLabel("地上風向 ° FROM").fill("360");

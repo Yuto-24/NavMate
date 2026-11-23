@@ -34,7 +34,7 @@ async function open(page: Page) {
 }
 async function imported(page: Page) {
   await open(page);
-  await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+  await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
   await expectImportedDraft(page);
 }
 async function confirmed(page: Page) {
@@ -309,8 +309,8 @@ test("KMZ document choice resumes after reload with modal closed", async ({ page
   const bytes = execFileSync("python3", ["-c",
     "import io,zipfile,sys; b=io.BytesIO(); z=zipfile.ZipFile(b,'w'); s=open('../tests/fixtures/issue_43_golden.kml').read(); z.writestr('a.kml',s); z.writestr('b.kml',s); z.close(); sys.stdout.buffer.write(b.getvalue())"]);
   await open(page);
-  await page.locator('input[type="file"]').setInputFiles({ name: "routes.kmz", mimeType: "application/vnd.google-earth.kmz", buffer: bytes });
-  await expect(page.locator('input[type="file"]')).toBeEnabled();
+  await page.locator('#route-file').setInputFiles({ name: "routes.kmz", mimeType: "application/vnd.google-earth.kmz", buffer: bytes });
+  await expect(page.locator('#route-file')).toBeEnabled();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByLabel("KML文書").selectOption("b.kml");
   await page.reload();
@@ -499,10 +499,10 @@ for (const draftKind of ["map", "import", "unmatched import", "multiple unmatche
       await selectAirport(page, "RJFM");
       await selectAirport(page, "RJFO");
     } else if (draftKind === "import") {
-      await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+      await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
       await expectImportedDraft(page);
     } else {
-      await page.locator('input[type="file"]').setInputFiles({
+      await page.locator('#route-file').setInputFiles({
         name: "unmatched.kml", mimeType: "application/vnd.google-earth.kml+xml",
         buffer: Buffer.from('<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><LineString><coordinates>140,40,0 131.2,32,0 130.7194,31.8034,0</coordinates></LineString></Placemark>'
           + (draftKind === "multiple unmatched import" ? '<Placemark><Polygon><outerBoundaryIs><LinearRing><coordinates>131.4486,31.8772,0 131.2,32,0 130.7194,31.8034,0 131.4486,31.8772,0</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>' : '')

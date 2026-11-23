@@ -33,7 +33,7 @@ for (const width of [390, 820, 1100, 1240, 1241, 1440]) {
     expect(Math.abs(imports[0]!.y - imports[1]!.y)).toBeLessThan(2);
     expect(imports[0]!.height).toBe(48);
     if(width>=1000) expect(b.pane.width).toBe(320);
-    await page.locator('input[type="file"]').setInputFiles({name:"416.kml",mimeType:"application/vnd.google-earth.kml+xml",buffer:Buffer.from(route)});
+    await page.locator('#route-file').setInputFiles({name:"416.kml",mimeType:"application/vnd.google-earth.kml+xml",buffer:Buffer.from(route)});
     await expect(page.getByRole("list",{name:"経路リスト"}).locator("li")).toHaveCount(5);
     const draft = await page.getByRole("list",{name:"経路リスト"}).innerText();
     const view = () => page.evaluate(() => JSON.parse(localStorage.getItem("autonavlog.map-viewport.v1.anonymous.last")!));
@@ -102,7 +102,7 @@ test("CP header restores automatic Leg selection, distance order and map-preserv
   await page.setViewportSize({width:1440,height:950});
   await page.goto("/");
   await expect(page.getByText("地図をクリックし、経路を作成してください",{exact:true})).toBeVisible({timeout:90_000});
-  await page.locator('input[type="file"]').setInputFiles({name:"416-cp.kml",mimeType:"application/vnd.google-earth.kml+xml",buffer:Buffer.from(route)});
+  await page.locator('#route-file').setInputFiles({name:"416-cp.kml",mimeType:"application/vnd.google-earth.kml+xml",buffer:Buffer.from(route)});
   await confirmImportedDraft(page);
   const view = () => page.evaluate(() => JSON.parse(localStorage.getItem("autonavlog.map-viewport.v1.anonymous.last")!));
   const pick = async (lat:number, lon:number) => {
@@ -162,7 +162,7 @@ test("#416 UI copy preview covers Draft, sources and CP controls", async ({page}
   await page.goto("/");
   await expect(page.getByText("地図をクリックし、経路を作成してください",{exact:true})).toBeVisible({timeout:90_000});
   await page.screenshot({path:info.outputPath("01-draft-empty-desktop.png"),fullPage:true});
-  await page.locator('input[type="file"]').setInputFiles({name:"review-route.kml",mimeType:"application/vnd.google-earth.kml+xml",buffer:Buffer.from(route)});
+  await page.locator('#route-file').setInputFiles({name:"review-route.kml",mimeType:"application/vnd.google-earth.kml+xml",buffer:Buffer.from(route)});
   await expect(page.getByRole("list",{name:"経路リスト"}).locator("li")).toHaveCount(5);
   await page.screenshot({path:info.outputPath("02-draft-route-desktop.png"),fullPage:true});
   await page.setViewportSize({width:390,height:950});
@@ -202,7 +202,7 @@ test("pending KMZ import cannot enter fullscreen and hide document selection", a
       return original.call(this);
     };
   });
-  await page.locator('input[type="file"]').setInputFiles({name:"delayed.kmz",mimeType:"application/vnd.google-earth.kmz",buffer:bytes});
+  await page.locator('#route-file').setInputFiles({name:"delayed.kmz",mimeType:"application/vnd.google-earth.kmz",buffer:bytes});
   await expect(full).toBeDisabled();
   await page.evaluate(() => (window as unknown as {releaseImportRead:()=>void}).releaseImportRead());
   const selection = page.getByLabel("KML文書");
@@ -218,7 +218,7 @@ test("pending KMZ import cannot enter fullscreen and hide document selection", a
 test("resumed unsaved CP accepts a direct new map pick without an activation button", async ({page}) => {
   await page.goto("/");
   await expect(page.getByRole("heading", {name:"経路作成",exact:true})).toBeVisible({timeout:90_000});
-  await page.locator('input[type="file"]').setInputFiles({name:"resume.kml",mimeType:"application/vnd.google-earth.kml+xml",buffer:Buffer.from(route)});
+  await page.locator('#route-file').setInputFiles({name:"resume.kml",mimeType:"application/vnd.google-earth.kml+xml",buffer:Buffer.from(route)});
   await confirmImportedDraft(page);
   await page.getByRole("button",{name:"チェックポイントを追加",exact:true}).click();
   await clickMapCoordinate(page,32.6,131.54);

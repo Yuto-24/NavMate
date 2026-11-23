@@ -32,7 +32,7 @@ test.beforeEach(async ({ page, context }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/NavMate/);
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles({ name: "checkpoint.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(kml) });
+  await page.locator('#route-file').setInputFiles({ name: "checkpoint.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(kml) });
   await confirmImportedDraft(page);
   await page.getByLabel("気象モード").selectOption("FTD");
   await openEditor(page);

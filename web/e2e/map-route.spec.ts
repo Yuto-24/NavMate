@@ -332,7 +332,7 @@ for (const manualVor of [false, true]) {
     const coordinates = golden.match(/<coordinates>([\s\S]*?)<\/coordinates>/)![1]!.trim().split(/\s+/);
     const points = manualVor ? coordinates : ["130.7194444444,31.8033333333,0", ...coordinates.slice(1)];
     const kml = `<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><LineString><coordinates>${points.join(" ")}</coordinates></LineString></Placemark></Document></kml>`;
-    await page.locator('input[type="file"]').setInputFiles({ name: "departure.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(kml) });
+    await page.locator('#route-file').setInputFiles({ name: "departure.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(kml) });
     await confirmImportedDraft(page);
     const vor = page.getByRole("checkbox", { name: "VOR Tracking Mode", exact: true });
     await expect(page.getByLabel("FROM", { exact: true })).toHaveValue(manualVor ? /^RJFM/ : /^RJFK/);

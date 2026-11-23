@@ -6,9 +6,8 @@ import { routeImportInput } from "../src/fileInput";
 import { clearSession, readSession, writeSession, SESSION_KEY, type ApplicationSession } from "../src/applicationSession";
 import { createInformationState } from "../src/releaseNotes";
 import { IndexedDbProjectRepository } from "../src/localProjectRepository";
-import { exportNavLog } from "../src/navLogExport";
 import { exportVerticalProfileKml, kmlCopy } from "../src/verticalProfileKml";
-import type { VerticalProfile, WebState } from "../src/types";
+import type { VerticalProfile } from "../src/types";
 
 const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
 test.afterEach(() => {
@@ -76,14 +75,6 @@ test("Session policy and Information state operate on injected storage, without 
   information.markInformationSeen(data);
   expect(information.hasUnreadInformation(data)).toBe(false);
   expect(values.get("unrelated")).toBe("keep");
-});
-
-test("result export retains the calculation and never labels it with a newer Project draft", () => {
-  const outcome = { summary: { label: "日本語" }, forecast_run: "original" };
-  const state = { outcome, project: { name: "edited since calculation" }, destinationWind: null } as unknown as WebState;
-  const result = exportNavLog(state);
-  expect(JSON.parse(new TextDecoder().decode(result.content))).toEqual({ format: "autonavlog.navlog", version: 1, outcome, destinationWind: null });
-  expect(() => exportNavLog({ ...state, outcome: null })).toThrow();
 });
 
 test("3D KML serializes only the shared projection, escapes names and separates ground references", () => {

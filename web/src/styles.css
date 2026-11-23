@@ -364,6 +364,7 @@ h1, h2, h3, p { margin-top: 0; }
 .primary-button:disabled, .secondary-button:disabled, .danger-button:disabled { color: #8e9aa5; background: #e8edf1; border-color: #c9d1d8; opacity: 1; }
 .full-width { width: 100%; }
 .drop-zone + .secondary-button { margin-top: 9px; }
+.project-file-control { margin-top: 9px; }
 
 .imported-file {
   margin-top: 12px;

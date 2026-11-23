@@ -19,9 +19,9 @@ NavMate の表示内容は非公式の地上準備資料です。運航資料、
 - **気象・計算結果の確認**：採用した気象モデルと Forecast Run、目的地 TAF の参考風、計算結果と警告を表示
 - **宮崎周辺の経路補助**：RJFM 発着の一部経路で UMK・有田・白浜などの規則や区間を補完し、MAP 上に関連する空域情報と西側延長参考案内を表示
 - **Project 保存・同期**：ブラウザ内の自動保存、明示保存、計算済み NAV LOG の復元。Google アカウントで別端末との同期およびアカウント削除に対応
-- **計算結果の持ち出し**：表示中の NAV LOG を JSON でダウンロード／クリップボードへコピー、および Google Earth 用 3D KML エクスポートに対応
+- **プロジェクトの持ち出し**：計算後、NAV LOG末尾から現在の入力をプロジェクトJSONとしてダウンロード／コピーできます。操作ペインの「JSONファイルから追加」で新しい保存済みプロジェクトとして取り込み、再計算できます。Google Earth 用 3D KML エクスポートにも対応
 
-機能の詳細と適用条件は [計算規則](docs/calculation_rules.md)、[MAP での経路作成・再編集・KML/KMZ 取込](docs/map_route_builder.md)、[気象モデル選択（MSM → GSM）](docs/forecast_selection.md) を参照してください。JSON や 3D KML の出力は Project のバックアップ形式ではありません。
+機能の詳細と適用条件は [計算規則](docs/calculation_rules.md)、[MAP での経路作成・再編集・KML/KMZ 取込](docs/map_route_builder.md)、[気象モデル選択（MSM → GSM）](docs/forecast_selection.md) を参照してください。プロジェクトJSONは入力の受け渡し用で、計算結果の復元やアカウント全体のバックアップには対応しません。3D KMLはGoogle Earthでの表示用です。
 
 NAV LOGでは、C'k Point間の地形から自動算出したSEA参考値を表示します（[区間別SEAの仕様・制約](docs/sea.md)、[地形入力と被覆の検証](docs/terrain_inputs.md)）。気象・地形・空域表示は飛行可否や経路の安全性を保証しません。
 

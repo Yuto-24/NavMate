@@ -39,7 +39,7 @@ async function start(page: Page) {
   await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
 }
 async function confirm(page: Page, weatherMode: "FORECAST" | "FTD" = "FORECAST") {
-  await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+  await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
   await confirmImportedDraft(page);
   await expect(page.getByLabel("気象モード")).toHaveValue("FORECAST");
   await page.getByLabel("DATE", { exact: true }).fill(weatherMode === "FORECAST" ? "2026-09-16" : "2026-09-11");
@@ -657,23 +657,26 @@ test("#280 #465 saved CUT seconds and legacy Last Calculation reopen without rec
   await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell").nth(1)).toHaveText("0");
 });
 
-test("#319 Project JSON transfers uncalculated inputs into independent saved Projects", async ({ page, browser }) => {
+test("#319 Project JSON transfers calculated Project inputs into independent saved Projects", async ({ page, browser, browserName }) => {
+  if (browserName === "chromium") await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await start(page);
   await confirm(page, "FTD");
   await expect.poll(async () => (await working(page)).project?.weather_mode).toBe("FTD");
-  await openProjectMenu(page);
-  await page.screenshot({ path: test.info().outputPath("project-menu.png") });
+  await expect(page.getByRole("button", { name: "プロジェクトJSONをダウンロード", exact: true })).toHaveCount(0);
+  await calculate(page);
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "JSONファイルに書き出す", exact: true }).click();
+  await page.getByRole("button", { name: "プロジェクトJSONをダウンロード", exact: true }).click();
   const download = await downloadPromise;
   const content = readFileSync((await download.path())!);
   const exported = JSON.parse(content.toString());
+  await page.getByRole("button", { name: "プロジェクトJSONをコピー", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "プロジェクトJSONをコピーしました。" })).toBeVisible();
   expect(exported.format).toBe("navmate.project");
   expect(exported.inputs.weather_mode).toBe("FTD");
   expect(exported.inputs.id).toBeUndefined();
   expect(exported.inputs.selected_forecast_run_id).toBeUndefined();
   const source = await working(page);
-  expect(source.outcome).toBeNull();
+  expect(source.outcome).not.toBeNull();
   const receiver = await browser.newContext({ baseURL: new URL(page.url()).origin });
   await blockApi(receiver);
   const target = await receiver.newPage();
@@ -683,7 +686,33 @@ test("#319 Project JSON transfers uncalculated inputs into independent saved Pro
     await target.locator("#route-file").setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
     await expect(target.getByRole("button", { name: "経路を確定", exact: true })).toBeEnabled();
     const before = await target.evaluate(key => JSON.parse(sessionStorage.getItem(key)!), sessionKey);
-    await openProjectMenu(target);
+    for (const width of [390, 1100, 1440]) {
+      await target.setViewportSize({ width, height: 1000 });
+      await expectPlanningLayout(target, width);
+      const control = target.getByRole("button", { name: "JSONファイルから追加", exact: true });
+      const style = await control.evaluate(button => {
+        const peer = document.querySelector<HTMLButtonElement>(".draft-import-controls>button")!;
+        const properties = ["height", "fontSize", "fontWeight", "borderRadius", "backgroundColor", "borderColor"] as const;
+        const values = (element: Element) => properties.map(key => getComputedStyle(element)[key]);
+        const row = document.querySelector(".draft-import-controls")!.getBoundingClientRect();
+        const input = document.querySelector<HTMLInputElement>(".project-file-control input")!;
+        return { actual: values(button), peer: values(peer), y: button.getBoundingClientRect().y,
+          rowBottom: row.bottom, inputWidth: input.getBoundingClientRect().width,
+          inputDisplay: getComputedStyle(input).display, overflow: document.documentElement.scrollWidth };
+      });
+      expect(style.actual).toEqual(style.peer);
+      expect(style.y).toBeGreaterThanOrEqual(style.rowBottom);
+      expect(style.inputWidth).toBe(0);
+      expect(style.inputDisplay).toBe("none");
+      expect(style.overflow).toBeLessThanOrEqual(width);
+      await control.scrollIntoViewIfNeeded();
+      await target.screenshot({ path: test.info().outputPath(`project-import-${width}.png`) });
+    }
+    await target.getByRole("button", { name: "JSONファイルから追加", exact: true }).focus();
+    const keyboardPicker = target.waitForEvent("filechooser");
+    await target.keyboard.press("Enter");
+    await (await keyboardPicker).setFiles([]);
+
     const picker = target.waitForEvent("filechooser");
     await target.getByText("JSONファイルから追加", { exact: true }).click();
     await (await picker).setFiles({ name: "project.json", mimeType: "application/json", buffer: content });
@@ -694,16 +723,16 @@ test("#319 Project JSON transfers uncalculated inputs into independent saved Pro
     expect(first[0].lastCalculation).toBeNull();
     expect((await working(target)).project).toBeNull();
     expect(await target.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).mapRouteDraft, sessionKey)).toEqual(before.mapRouteDraft);
-    await openProjectMenu(target);
     await target.getByLabel("JSONファイルから追加").setInputFiles([]);
     expect(await records(target)).toEqual(first);
-    await openProjectMenu(target);
     await target.getByLabel("JSONファイルから追加").setInputFiles({ name: "future.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ ...exported, version: 999 })) });
     await expect(target.locator("#app-notification-region").getByText(/unsupported Project JSON version/)).toBeVisible();
     expect(await records(target)).toEqual(first);
-    await openProjectMenu(target);
     await target.getByLabel("JSONファイルから追加").setInputFiles({ name: "same.json", mimeType: "application/json", buffer: content });
     await expect.poll(async () => (await records(target)).length).toBe(2);
+    await target.getByLabel("JSONファイルから追加").setInputFiles({ name: "old-navlog.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ format: "autonavlog.navlog", version: 1, outcome: source.outcome })) });
+    await expect(target.getByRole("alert")).toContainText("計算結果用のNAV LOG JSONは追加できません");
+    expect(await records(target)).toHaveLength(2);
     // getAll returns key order: calculate the later record while the first remains uncalculated.
     const targetId = (await records(target)).at(-1)!.id;
     target.once("dialog", dialog => dialog.accept());
@@ -719,9 +748,8 @@ test("#319 Project JSON transfers uncalculated inputs into independent saved Pro
     await target.clock.install({ time: clockTime });
     await target.clock.pauseAt(new Date(clockTime.getTime() + 1000));
     await target.locator('.nav-log-table input[aria-label$="手動気温"]').first().fill("-12");
-    await openProjectMenu(target);
     const editedDownload = target.waitForEvent("download");
-    await target.getByRole("button", { name: "JSONファイルに書き出す", exact: true }).click();
+    await target.getByRole("button", { name: "プロジェクトJSONをダウンロード", exact: true }).click();
     const edited = JSON.parse(readFileSync((await (await editedDownload).path())!, "utf8"));
     expect(edited.inputs.sections[0].manual_temperature_c).toBe(-12);
     expect((await records(target)).find(record => record.id === targetId)!.lastCalculation).toEqual(calculated);
@@ -736,9 +764,8 @@ test("#319 Project JSON transfers uncalculated inputs into independent saved Pro
     await target.getByRole("button", { name: "経路を編集", exact: true }).click();
     target.once("dialog", dialog => dialog.accept());
     await target.getByRole("button", { name: "経路をクリア", exact: true }).click();
-    await openProjectMenu(target);
     const staleDownload = target.waitForEvent("download");
-    await target.getByRole("button", { name: "JSONファイルに書き出す", exact: true }).click();
+    await target.getByRole("button", { name: "プロジェクトJSONをダウンロード", exact: true }).click();
     const changed = JSON.parse(readFileSync((await (await staleDownload).path())!, "utf8"));
     expect(changed.inputs.flight_date).toBe("2026-09-12");
     expect(changed.inputs.route_nodes).toEqual(exported.inputs.route_nodes);

@@ -22,7 +22,7 @@ for (const width of [1100, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto("/");
     await enterImportWorkflow(page);
-    await page.locator('input[type="file"]').setInputFiles(resolve("e2e/fixtures/terrain/sea-route.kml"));
+    await page.locator('#route-file').setInputFiles(resolve("e2e/fixtures/terrain/sea-route.kml"));
     await confirmImportedDraft(page);
     await page.getByLabel("気象モード").selectOption("FTD");
     await page.getByLabel("地上風向 ° FROM").fill("360");
@@ -141,7 +141,7 @@ test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and re
   const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", header), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
   await page.route("**/xyz/dem_png/**", route => route.fulfill({ contentType: "image/png", body: png }));
   await page.goto("/"); await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(resolve("e2e/fixtures/terrain/sea-route.kml"));
+  await page.locator('#route-file').setInputFiles(resolve("e2e/fixtures/terrain/sea-route.kml"));
   await confirmImportedDraft(page);
   await page.getByLabel("気象モード").selectOption("FTD");
   await page.getByLabel("地上風向 ° FROM").fill("360"); await page.getByLabel("地上風速 kt").fill("15");
@@ -209,12 +209,9 @@ test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and re
       expect(note!.y).toBeGreaterThanOrEqual(navlog!.y + navlog!.height);
       await page.locator(".nav-log-section").screenshot({ path: test.info().outputPath(`sea-reference-${width}.png`) });
     }
-    const download = page.waitForEvent("download");
-    await page.getByRole("button", { name: "NAV LOG JSONをダウンロード" }).click();
-    const file = await download;
-    const { readFileSync } = await import("node:fs");
-    const exported = JSON.parse(readFileSync((await file.path())!, "utf8"));
-    expect(exported.sea.intervals.every((item: any) => item.reference && item.automatic_ft === 1100
+    // Terrain provenance remains in the calculation state; Project JSON contains inputs only.
+    const sea = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.sea, artifactSessionKey);
+    expect(sea.intervals.every((item: any) => item.reference && item.automatic_ft === 1100
       && item.terrain.evaluated && item.terrain.missing > 0)).toBe(true);
     await page.evaluate(() => {
       const texts: string[] = [];
@@ -265,7 +262,7 @@ test("#314 #485 final visual CP intervals retain SEA values without manual edito
   await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(resolve("e2e/fixtures/terrain/sea-route.kml"));
+  await page.locator('#route-file').setInputFiles(resolve("e2e/fixtures/terrain/sea-route.kml"));
   await confirmImportedDraft(page);
   await page.getByLabel("気象モード").selectOption("FTD");
   await page.getByLabel("地上風向 ° FROM").fill("360");

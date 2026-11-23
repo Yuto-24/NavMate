@@ -37,7 +37,7 @@ test("production artifact rejects a different build manifest and recovers on rel
   await context.route("**/api/**", route => { throw new Error("Unexpected Legacy request: " + route.request().url()); });
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles("../tests/fixtures/issue_43_golden.kml");
+  await page.locator('#route-file').setInputFiles("../tests/fixtures/issue_43_golden.kml");
   await confirmImportedDraft(page);
   await page.getByLabel("FUEL gal", { exact: true }).fill("76");
   await expect.poll(() => page.evaluate(key => sessionStorage.getItem(key), artifactSessionKey)).toContain("76");
@@ -67,7 +67,7 @@ test("production artifact calculates with its served real MSM feed and retains N
     route => route.fulfill({ status: 503, body: "quota fixture" }));
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles("../tests/fixtures/issue_43_golden.kml");
+  await page.locator('#route-file').setInputFiles("../tests/fixtures/issue_43_golden.kml");
   await confirmImportedDraft(page);
   const departure = new Date(Date.now() + 10 * 3600_000).toISOString(); // JST, one hour ahead
   await page.getByLabel("DATE", { exact: true }).fill(departure.slice(0, 10));
