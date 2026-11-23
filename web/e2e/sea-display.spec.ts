@@ -35,7 +35,7 @@ test("#315 cruise cautions use positive overlap, automatic SEA and updated plann
     nodes: [{ id: "start", latitude_deg: 30, longitude_deg: 130 }],
   } as unknown as { sections: import("../src/types").NavSection[]; nodes: import("../src/types").RouteNode[] };
   const intervals = [31, 32, 33].map((end, i) => ({ ...interval(String(i), "leg", end),
-    coordinates: [[130, end - 1], [130, end]], automatic_ft: 2000, manual_ft: 9999, geometry_valid: true } as SeaInterval));
+    coordinates: [[130, end - 1], [130, end]], automatic_ft: 2000, reference: true, manual_ft: 9999, geometry_valid: true } as SeaInterval));
   const zone = (phase: string, start: number, end: number, altitude = 1500) => ({ section_id: "leg", phase,
     from_latitude_deg: start, from_longitude_deg: 130, to_latitude_deg: end, to_longitude_deg: 130,
     planned_altitude_ft_msl: { automatic_value: altitude, manual_override: null },
@@ -45,6 +45,7 @@ test("#315 cruise cautions use positive overlap, automatic SEA and updated plann
   expect(cautions()).toEqual(["1"]);
   expect(cautions([zone("CRUISE", 30.5, 32.5)])).toEqual(["0", "1", "2"]);
   expect(cautions([zone("CRUISE", 31, 32, 2000)])).toEqual([]);
+  expect(cautions([zone("CRUISE", 31, 32, 2500)])).toEqual([]);
   expect(cautions([zone("CLIMB", 30, 33), zone("DESCENT", 30, 33)])).toEqual([]);
   intervals[1]!.automatic_ft = null;
   expect(cautions()).toEqual([]);

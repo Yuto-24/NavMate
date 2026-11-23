@@ -1,0 +1,21 @@
+{
+  "mode": "proposal",
+  "items": [
+    {
+      "id": "sea-reference",
+      "text": "3500*",
+      "location": "NAV LOG主表のSEAセル（画面とPNG）",
+      "purpose": "欠損のある参考値を識別する",
+      "context": "全領域の処理を完了、有効DEMあり、欠損あり、通信失敗や形式不正なしの場合のみ数値に*。完全被覆は数値、評価不能は未確定。",
+      "constraints": "数値にASCII *を付ける指定を保持。区間ごとの説明を増やさない。"
+    },
+    {
+      "id": "sea-note",
+      "text": "* 地形データに欠損がある参考値です。実際のSEAは表示値より高い可能性があります。",
+      "location": "NAV LOG欄外とPNG欄外、該当値がある場合各一度",
+      "purpose": "参考値の限界を明示",
+      "context": "SEA*より計画高度が低いときは既存のCaution。以上でも安全を保証しない。",
+      "constraints": "短い注記一つ。安全確認や承認を求める操作を追加しない。"
+    }
+  ]
+}

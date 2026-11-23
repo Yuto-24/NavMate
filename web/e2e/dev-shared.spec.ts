@@ -23,8 +23,10 @@ async function create(page: Page, name: string, calculate = false) {
     }
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
     await expect(page.locator(".nav-log-table")).toBeVisible();
-    // Finish the automatic SEA update before saving the cross-device snapshot.
-    await expect(page.getByRole("button", { name: "地形を再取得", exact: true })).toBeEnabled();
+    // Allow the 60s full-range SEA budget and persistence before saving the cross-device snapshot.
+    const terrainStatus = page.locator(".nav-log-footer-details > [role=status]");
+    await expect(terrainStatus).toContainText("地形データを取得しています。");
+    await expect(terrainStatus).toHaveCount(0, { timeout: 90_000 });
   }
   await openProjectMenu(page);
   await page.getByLabel("プロジェクト", { exact: true }).fill(name);
@@ -157,6 +159,8 @@ async function logout(page: Page) {
 }
 
 test("Google accounts switch away from shared Projects, sync privately, and delete only dev personal data", async ({ page, browser, baseURL }) => {
+  // Full-range SEA acquisition plus repeated account restarts across two devices.
+  test.setTimeout(240_000);
   await start(page);
   await create(page, "shared-stays");
   const shared = (await localRows(page)).find(row => row.checkpoint);
