@@ -32,7 +32,7 @@
 | 出典公開方針 | [出典・provenance 方針](source_policy.md) | 内部運用資料の非公開境界と公開資料の出典管理方針 |
 | 一次資料の確認状況 | [一次資料の確認状況](primary_source_audit.md) | SR22 AFM/POH・公開航空資料・内部参照の確認粒度と確認状態の定義 |
 | データ来歴 | [データ来歴](data_provenance.md) | 同梱性能データ、空港・RJFM 参照、VOR/DME 局、気象、AIP データの来歴 |
-| VREP 登録カタログ | [登録 VREP カタログと地図選択仕様](reference/vrep.md) | 登録 VREP カタログ（16 空港 115 点）の選択・永続化と [承認済み原典表](reference/vrep-169-confirmed-source.md) |
+| VREP 登録カタログ | [登録 VREP カタログと地図選択仕様](reference/vrep.md) | 公表座標528点の選択・保存済み経路の更新と [旧カタログの原典表](reference/vrep-169-confirmed-source.md) |
 | AIP 地図表示用データ | [AIP 地図表示用データの出典・正規化](reference/aip_map_geodata_20261029.md) | SWIM 配布 ZIP（[ソース記録](../data/reference/aip/20261029/sources/README.md)）の採用範囲と正規化・形式間照合 |
 
 ### 気象・選択・予備経路
@@ -75,7 +75,7 @@
 | バージョンライン・Release 契約 | [バージョンライン・Release 契約](release_lines.md) | 開発・保守ブランチ運用、VERSION/CHANGELOG と PR Release 契約 |
 | Schema 4→5 手動移行 | [Forecast Schema 4→5 移行手順](forecast_schema_transition.md) | Schema 4→5 移行の互換条件、完了記録、再適用 helper 手順 |
 | Schema 4→5 Actions 手順 | [Schema 4→5 Actions 手順](schema431_actions_prepare.md) | Actions による暗号化受け渡し手順、期限境界、実公開知見 |
-| 1.x 一方通行ストレージ移行 | [1.x 一方通行ストレージ移行手順](schema_transition.md) | 1.x DB アクセス境界移行手順と [実装検証記録](schema_transition_validation.md) |
+| 一方通行ストレージ移行 | [Project schema 手動移行手順](schema_transition.md) | 初回スナップショット追加（DB 1→2）、AIP出典拡張（DB 2→3）と [初回の実装検証記録](schema_transition_validation.md) |
 | 旧サーバ廃止準備・救済 | [旧サーバ廃止準備・データ救済手順](server_retirement.md) | 旧環境停止の前提条件、移行 URL 除去、オフライン救済と Volume 整理 |
 | Local 版 Docker 自動更新 | [Local 版 Docker 起動・自動更新](local_static_docker.md) | ローカル Docker 自動更新、共有開発モード、MSM キャッシュ整理 |
 | Legacy Tunnel / Access | [Legacy Cloudflare Tunnel / Access 設定](cloudflare_tunnel.md) | Legacy Docker 版のローカルバインド・Cloudflare Tunnel / Access 設定 |

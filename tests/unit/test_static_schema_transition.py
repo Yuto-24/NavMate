@@ -24,7 +24,8 @@ def blob(source):
     return hashlib.sha1(source.encode(), usedforsecurity=False).hexdigest()
 
 
-@pytest.fixture(params=["reference-snapshot-writer-fence", "forecast-model-selection"])
+@pytest.fixture(params=["reference-snapshot-writer-fence", "forecast-model-selection",
+                        "aip-reference-source-writer-fence"])
 def reviewed(tmp_path, request):
     before = {"$defs": {"RouteNode": {"properties": {"name": {"type": "string"}}}}}
     after = copy.deepcopy(before)
@@ -34,10 +35,28 @@ def reviewed(tmp_path, request):
         "default": None,
     }
     forecast = request.param == "forecast-model-selection"
+    aip = request.param == "aip-reference-source-writer-fence"
     if forecast:
         root = Path(__file__).resolve().parents[2]
         before = json.loads((root / "tests/fixtures/schema4/project.schema.json").read_text())
+        # This evidence covers the historical forecast-only transition. Later
+        # schema additions must not silently become part of its reviewed fixture.
+        after = copy.deepcopy(before)
+        current = json.loads((root / SCHEMA).read_text())
+        after["properties"]["selected_forecast_model"] = current["properties"][
+            "selected_forecast_model"
+        ]
+        after["properties"]["schema_version"].update(const=5, default=5)
+    if aip:
+        root = Path(__file__).resolve().parents[2]
         after = json.loads((root / SCHEMA).read_text())
+        before = copy.deepcopy(after)
+        before["$defs"].pop("AipReferencePointSource")
+        before["$defs"]["ReferencePointSnapshot"]["description"] = (
+            "Selection-time reference data, never refreshed implicitly from a master.")
+        before["$defs"]["ReferencePointSnapshot"]["properties"]["source"] = {
+            "$ref": "#/$defs/ReferencePointSource",
+        }
     sources = {
         (OLD, SCHEMA): json.dumps(before),
         (NEW, SCHEMA): json.dumps(after),
@@ -51,8 +70,10 @@ def reviewed(tmp_path, request):
         (OLD, app.COMPATIBILITY[1]): "indexes",
         (NEW, app.COMPATIBILITY[1]): "indexes",
     }
-    if forecast:
+    if forecast or aip:
         sources[OLD, WRITER] = sources[NEW, WRITER]
+    if aip:
+        sources[NEW, WRITER] = sources[NEW, WRITER].replace("VERSION = 2;", "VERSION = 3;")
     path = tmp_path / "schema-transition.json"
     operator = app.Operator(tmp_path, schema_transition=path)
 
@@ -77,7 +98,7 @@ def reviewed(tmp_path, request):
         "configuration_digest": app.fingerprint(app.public_configuration(variables)),
         "direction": "old-to-new",
         "recovery": "forward-fix; preserve Project data",
-        "database_version": 2,
+        "database_version": 3 if aip else 2,
         "before_blob": blob(sources[OLD, SCHEMA]),
         "after_blob": blob(sources[NEW, SCHEMA]),
         "writer_blob": blob(sources[NEW, WRITER]),
@@ -96,7 +117,7 @@ def reviewed(tmp_path, request):
             "summary": role,
             "record": {"path": evidence.name, "sha256": app.digest(evidence.read_bytes())},
         }
-        if forecast:
+        if forecast or aip:
             app.write_json(evidence, {
                 "identity": {key: value for key, value in record.items() if key != "checks"},
                 "check": role,
@@ -308,7 +329,7 @@ def test_rules_transition_is_reused_alongside_schema_evidence(reviewed):
         return value
 
     operator.rules_get = named
-    if record["kind"] == "forecast-model-selection":
+    if record["kind"] != "reference-snapshot-writer-fence":
         with pytest.raises(app.Blocked, match="identical Rules/indexes"):
             operator.compatibility(NEW, OLD, variables)
         return
@@ -319,11 +340,12 @@ def test_rules_transition_is_reused_alongside_schema_evidence(reviewed):
 
 @pytest.mark.parametrize("reviewed", ["forecast-model-selection"], indirect=True)
 @pytest.mark.parametrize("change", ["model", "required", "version", "boolean-default",
+                                  "reference-source",
                                   "latest-policy", "rules", "report-identity", "report-boolean",
                                   "report-role", "report-review", "report-json"])
 def test_forecast_transition_rejects_unreviewed_contracts(reviewed, change):
     operator, path, record, sources, variables, calls = reviewed
-    if change in {"model", "required", "version", "boolean-default"}:
+    if change in {"model", "required", "version", "boolean-default", "reference-source"}:
         after = json.loads(sources[NEW, SCHEMA])
         if change == "model":
             after["properties"]["selected_forecast_model"]["anyOf"][0]["enum"].append("OTHER")
@@ -331,6 +353,11 @@ def test_forecast_transition_rejects_unreviewed_contracts(reviewed, change):
             after["required"].append("selected_forecast_model")
         elif change == "version":
             after["properties"]["schema_version"]["const"] = 6
+        elif change == "reference-source":
+            root = Path(__file__).resolve().parents[2]
+            current = json.loads((root / SCHEMA).read_text())
+            for definition in ("AipReferencePointSource", "ReferencePointSnapshot"):
+                after["$defs"][definition] = current["$defs"][definition]
         else:
             # Python True == 1 must not admit a different JSON schema default.
             after["properties"]["run_up_included"]["default"] = 1
@@ -366,10 +393,11 @@ def test_forecast_transition_rejects_unreviewed_contracts(reviewed, change):
     assert not calls
 
 
-@pytest.mark.parametrize("reviewed", ["forecast-model-selection"], indirect=True)
+@pytest.mark.parametrize("reviewed", ["forecast-model-selection",
+                                     "aip-reference-source-writer-fence"], indirect=True)
 @pytest.mark.parametrize("field", ["sha", "current_sha", "tooling_sha", "project",
                                    "configuration_digest"])
-def test_forecast_report_cannot_be_retargeted_with_edited_outer_record(reviewed, field):
+def test_report_cannot_be_retargeted_with_edited_outer_record(reviewed, field):
     operator, path, record, sources, variables, calls = reviewed
     candidate, current = NEW, OLD
     other = "e" * 40
@@ -393,4 +421,58 @@ def test_forecast_report_cannot_be_retargeted_with_edited_outer_record(reviewed,
     app.write_json(path, record)
     with pytest.raises(app.Blocked, match="report identity"):
         operator.compatibility(candidate, current, variables)
+    assert not calls
+
+
+@pytest.mark.parametrize("reviewed", ["aip-reference-source-writer-fence"], indirect=True)
+@pytest.mark.parametrize("change", ["source-constraint", "source-required", "union", "legacy",
+                                  "boolean-default", "schema-version", "description",
+                                  "rules", "database",
+                                  "report-identity", "report-role", "report-json"])
+def test_aip_transition_rejects_unreviewed_contracts(reviewed, change):
+    operator, path, record, sources, variables, calls = reviewed
+    if change in {"source-constraint", "source-required", "union", "legacy",
+                  "boolean-default", "schema-version", "description"}:
+        after = json.loads(sources[NEW, SCHEMA])
+        definitions = after["$defs"]
+        if change == "source-constraint":
+            definitions["AipReferencePointSource"]["properties"]["record_index"]["minimum"] = -1
+        elif change == "source-required":
+            definitions["AipReferencePointSource"]["required"].remove("sha256")
+        elif change == "union":
+            definitions["ReferencePointSnapshot"]["properties"]["source"]["anyOf"].append(
+                {"type": "null"})
+        elif change == "legacy":
+            definitions["ReferencePointSource"]["additionalProperties"] = True
+        elif change == "boolean-default":
+            after["properties"]["run_up_included"]["default"] = 1
+        elif change == "description":
+            definitions["ReferencePointSnapshot"]["description"] = "unreviewed description"
+        else:
+            after["properties"]["schema_version"]["const"] = 6
+        sources[NEW, SCHEMA] = json.dumps(after)
+        record["after_blob"] = blob(sources[NEW, SCHEMA])
+        for check in record["checks"].values():
+            evidence = path.parent / check["record"]["path"]
+            report = json.loads(evidence.read_text())
+            report["identity"]["after_blob"] = record["after_blob"]
+            app.write_json(evidence, report)
+            check["record"]["sha256"] = app.digest(evidence.read_bytes())
+    elif change == "rules":
+        sources[NEW, app.COMPATIBILITY[0]] = "changed rules"
+    elif change == "database":
+        record["database_version"] = 2
+    else:
+        reference = record["checks"]["old_writer_fenced"]["record"]
+        evidence = path.parent / reference["path"]
+        report = json.loads(evidence.read_text())
+        if change == "report-identity":
+            report["identity"]["database_version"] = 2
+        elif change == "report-role":
+            report["check"] = "old_writer_coexistence"
+        evidence.write_text("not json" if change == "report-json" else json.dumps(report))
+        reference["sha256"] = app.digest(evidence.read_bytes())
+    app.write_json(path, record)
+    with pytest.raises(app.Blocked):
+        operator.compatibility(NEW, OLD, variables)
     assert not calls

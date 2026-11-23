@@ -34,8 +34,8 @@ export type LocalProjectRepositoryFactory = (
 ) => LocalProjectRepository;
 export const LOCAL_DATABASE = "autonavlog.projects";
 // A one-way writer boundary, independent of the portable record's schemaVersion.
-// v1 clients open with an explicit version 1 and must stop after this upgrade.
-export const LOCAL_DATABASE_VERSION = 2;
+// v1/v2 clients must stop before reading or writing AIP reference snapshots.
+export const LOCAL_DATABASE_VERSION = 3;
 export const storageFailure = () => new ApplicationError(
   "端末への保存に失敗しました。空き容量やブラウザの保存設定を確認して再試行してください。", "LOCAL_STORAGE_FAILED");
 // Compare only transaction identity/version markers. Invalid structured-clone payloads

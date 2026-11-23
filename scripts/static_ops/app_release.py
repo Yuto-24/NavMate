@@ -649,10 +649,12 @@ class Operator:
             raise Blocked("Schema transition record unavailable or invalid") from None
         require(isinstance(record, dict), "Invalid schema transition record")
         forecast = record.get("kind") == "forecast-model-selection"
+        aip = record.get("kind") == "aip-reference-source-writer-fence"
         require(
             type(record.get("schema_version")) is int and record["schema_version"] == 1
             and record.get("kind") in (
-                "reference-snapshot-writer-fence", "forecast-model-selection")
+                "reference-snapshot-writer-fence", "forecast-model-selection",
+                "aip-reference-source-writer-fence")
             and record.get("sha") == sha and record.get("current_sha") == current
             and record.get("tooling_sha") == self.git("rev-parse", "HEAD")
             and record.get("project") == variables["VITE_FIREBASE_PROJECT_ID"]
@@ -660,7 +662,8 @@ class Operator:
             and record.get("configuration_digest") == fingerprint(public_configuration(variables))
             and record.get("direction") == "old-to-new"
             and record.get("recovery") == "forward-fix; preserve Project data"
-            and type(record.get("database_version")) is int and record["database_version"] == 2,
+            and type(record.get("database_version")) is int
+            and record["database_version"] == (3 if aip else 2),
             "Schema transition identity, configuration or one-way recovery mismatch",
         )
         schema = "data/schemas/project.schema.json"
@@ -689,6 +692,49 @@ class Operator:
                             "title": "Selected Forecast Model"})
                         and fingerprint(before) == fingerprint(after),
                         "Only the reviewed optional forecast model is supported")
+            elif aip:
+                definitions = after["$defs"]
+                addition = definitions.pop("AipReferencePointSource")
+                expected = {
+                    "additionalProperties": False,
+                    "properties": {
+                        "airport_designators": {"pattern": "^[A-Z]{4}( / [A-Z]{4})*$",
+                                                "title": "Airport Designators", "type": "string"},
+                        "dataset_id": {"maxLength": 100, "minLength": 1,
+                                       "title": "Dataset Id", "type": "string"},
+                        "effective_date": {"format": "date", "title": "Effective Date",
+                                           "type": "string"},
+                        "filename": {"maxLength": 100, "title": "Filename", "type": "string"},
+                        "format": {"const": "AIP_SHAPEFILE", "title": "Format", "type": "string"},
+                        "layer_id": {"const": "Visual_REP", "title": "Layer Id", "type": "string"},
+                        "record_index": {"minimum": 0, "title": "Record Index", "type": "integer"},
+                        "sha256": {"pattern": "^[0-9a-f]{64}$",
+                                   "title": "Sha256", "type": "string"},
+                        "url": {"maxLength": 500, "title": "Url", "type": "string"},
+                    },
+                    "required": ["format", "url", "filename", "sha256", "dataset_id", "layer_id",
+                                 "record_index", "effective_date", "airport_designators"],
+                    "title": "AipReferencePointSource", "type": "object",
+                }
+                snapshot = definitions["ReferencePointSnapshot"]
+                old_description = (
+                    "Selection-time reference data, never refreshed implicitly from a master.")
+                require(before["$defs"]["ReferencePointSnapshot"]["description"] == old_description
+                        and snapshot["description"] == (
+                            "Selection-time evidence; legacy conversion occurs "
+                            "only during explicit open."),
+                        "Only the reviewed reference snapshot description is supported")
+                snapshot["description"] = old_description
+                source_property = snapshot["properties"]
+                require(fingerprint(addition) == fingerprint(expected)
+                        and source_property["source"] == {
+                            "anyOf": [{"$ref": "#/$defs/ReferencePointSource"},
+                                      {"$ref": "#/$defs/AipReferencePointSource"}],
+                            "title": "Source"},
+                        "Only the reviewed AIP reference source is supported")
+                source_property["source"] = {"$ref": "#/$defs/ReferencePointSource"}
+                require(fingerprint(before) == fingerprint(after),
+                        "Only the reviewed AIP source union is supported")
             else:
                 definitions = after["$defs"]
                 require(isinstance(definitions.pop("ReferencePointSnapshot"), dict)
@@ -715,6 +761,15 @@ class Operator:
             require(all("export const LOCAL_DATABASE_VERSION = 2;" in text
                         and ", LOCAL_DATABASE_VERSION)" in text for text in (previous, source)),
                     "Forecast transition requires existing database version 2 on both clients")
+        elif aip:
+            require(self.rules_transition is None
+                    and all(self.source_digest(current, name) == self.source_digest(sha, name)
+                            for name in COMPATIBILITY[:2]),
+                    "AIP transition requires identical Rules/indexes")
+            require("export const LOCAL_DATABASE_VERSION = 2;" in previous
+                    and "export const LOCAL_DATABASE_VERSION = 3;" in source
+                    and all(", LOCAL_DATABASE_VERSION)" in text for text in (previous, source)),
+                    "Candidate must contain the version-2 to version-3 writer fence")
         else:
             require(
                 ", 1)" in previous
@@ -747,20 +802,20 @@ class Operator:
             require(0 < len(content) <= 8 * 1024 * 1024 and content.strip()
                     and digest(content) == reference["sha256"],
                     "Schema compatibility evidence changed or missing")
-            if forecast:
+            if forecast or aip:
                 # A hash alone cannot prevent retargeting an old report to another
                 # app/tooling/configuration. The reviewer pins these inside each report.
                 try:
                     report = json.loads(content)
                 except ValueError:
-                    raise Blocked("Forecast compatibility report must be JSON") from None
+                    raise Blocked("Schema compatibility report must be JSON") from None
                 identity = {key: value for key, value in record.items() if key != "checks"}
                 require(isinstance(report, dict)
                         and fingerprint(report.get("identity")) == fingerprint(identity)
                         and report.get("check") == role
                         and all(report.get(key) == check[key]
                                 for key in ("result", "reviewed_by", "summary")),
-                        "Forecast compatibility report identity or review mismatch")
+                        "Schema compatibility report identity or review mismatch")
             evidence[role] = {"path": str(source_path), "sha256": digest(content)}
         return {"path": str(path), "sha256": digest(raw), "record": record, "evidence": evidence}
 
@@ -1283,7 +1338,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--schema-transition", type=Path,
-        help="Reviewed one-way reference-snapshot/writer-fence record; manual publication only",
+        help="Reviewed one-way Project schema transition record; manual publication only",
     )
     args = parser.parse_args()
     store = args.store.resolve()

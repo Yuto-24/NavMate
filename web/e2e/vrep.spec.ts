@@ -1,12 +1,13 @@
 import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { expect, test, type Page } from "@playwright/test";
+import legacyHitotsuba from "../../tests/fixtures/vrep_legacy_hitotsuba.json" with { type: "json" };
 
 test.use({ actionTimeout: 15_000 });
 
 const strip = (page: Page) => page.getByRole("list", { name: "経路リスト" });
 const airport = (page: Page) => page.locator('.airport-draft-marker[title^="空港 RJFM "]');
-const vrep = (page: Page) => page.locator('.vrep-draft-marker[title^="VREP HITOTSUBA "]');
+const vrep = (page: Page) => page.locator('.vrep-draft-marker[title^="VREP Hitotsuba "]');
 const snapshot = (page: Page) => page.evaluate(() => JSON.parse(sessionStorage.getItem("autonavlog.working-session.v1")!));
 
 async function expectConcentricVrep(page: Page) {
@@ -108,7 +109,8 @@ for (const width of [1100, 1440]) {
     expect(selected).toHaveLength(3);
     expect(new Set(selected.map((node: any) => node.id)).size).toBe(3);
     expect(selected.every((node: any) => JSON.stringify(node.reference_snapshot) === JSON.stringify(selected[0].reference_snapshot))).toBe(true);
-    expect(selected[0].reference_snapshot.source.url).toContain("6415872164");
+    expect(selected[0].reference_snapshot.source.format).toBe("AIP_SHAPEFILE");
+    expect(selected[0].reference_snapshot.source.url).toBe("https://top.swim.mlit.go.jp/swim/");
     expect(selected[0].reference_snapshot.derivation).toContain("WGS84");
     const savedId = project.id;
     await page.reload();
@@ -118,12 +120,47 @@ for (const width of [1100, 1440]) {
     await page.getByRole("button", { name: "新規", exact: true }).click();
     await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
     await expect(page.locator(".airport-draft-marker.is-selected, .vrep-draft-marker.is-selected")).toHaveCount(0);
+    // An old saved Project keeps its original occurrence IDs and user names during upgrade.
+    await page.evaluate(async ({ savedId, legacy }) => {
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("autonavlog.projects");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result, tx = db.transaction("projects", "readwrite");
+          const store = tx.objectStore("projects"), read = store.get(savedId);
+          read.onsuccess = () => {
+            const record = read.result;
+            for (const project of [record.draft, record.checkpoint]) {
+              for (const node of project.route_nodes) if (node.reference_snapshot?.reference_id === legacy.reference_id) {
+                node.latitude_deg = legacy.latitude_deg; node.longitude_deg = legacy.longitude_deg;
+                node.reference_snapshot = legacy;
+              }
+            }
+            record.token = crypto.randomUUID(); store.put(record);
+          };
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onabort = () => { db.close(); reject(tx.error); };
+        };
+      });
+    }, { savedId, legacy: legacyHitotsuba });
     await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(savedId);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
     await expect(page.locator(".candidate-cluster, .vrep-draft-marker")).toHaveCount(0);
     expect((await snapshot(page)).working.project.route_nodes).toEqual(project.route_nodes);
+    const durable: any = await page.evaluate(savedId => new Promise((resolve, reject) => {
+      const request = indexedDB.open("autonavlog.projects");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result, tx = db.transaction("projects", "readonly");
+        const read = tx.objectStore("projects").get(savedId);
+        tx.oncomplete = () => { db.close(); resolve(read.result); };
+        tx.onabort = () => { db.close(); reject(tx.error); };
+      };
+    }), savedId);
+    expect(durable.draft.route_nodes).toEqual(project.route_nodes);
+    expect(durable.checkpoint.route_nodes).toEqual(project.route_nodes);
     await page.screenshot({ path: info.outputPath(`vrep-${width}.png`), fullPage: true });
   });
 }

@@ -133,6 +133,74 @@ async function expectAirspacePane(page: Page, width: number) {
   } else expect(boxes.pane.top).toBeGreaterThanOrEqual(boxes.map.bottom - 1);
 }
 
+for (const width of [1100, 1440]) {
+  test(`#312 restricted airspace hover preserves raw limits and map editing at ${width}px`, async ({ page }, info) => {
+    await mockTiles(page);
+    await page.setViewportSize({ width, height: 1000 });
+    const reference = page.waitForResponse(response => /Restricted_area_Airspace_restrictions-.*\.geojson$/.test(response.url()));
+    await start(page);
+    const source = await (await reference).json();
+    await selectAirport(page, "RJFM");
+    await selectAirport(page, "RJFK");
+    await zoomMapTo(page, 7);
+    const paths = page.locator(".aip-Restricted_area_Airspace_restrictions");
+    await expect(paths).toHaveCount(89);
+    const map = page.locator(".route-map");
+    await map.scrollIntoViewIfNeeded();
+    // A real hit inside the published geometry proves the pane passes pointer events correctly.
+    const point = await map.evaluate(element => {
+      const bounds = element.getBoundingClientRect();
+      const paths = [...element.querySelectorAll(".aip-Restricted_area_Airspace_restrictions")];
+      for (let x = bounds.left + 60; x < bounds.right - 60; x += 4) {
+        for (let y = bounds.top + 70; y < bounds.bottom - 60; y += 4) {
+          const hit = document.elementFromPoint(x, y);
+          const index = paths.indexOf(hit!);
+          if (index >= 0) return { x, y, index };
+        }
+      }
+      return null;
+    });
+    expect(point).not.toBeNull();
+    const attributes = source.features[point!.index].properties.source_attributes;
+    await page.mouse.move(point!.x, point!.y);
+    const tooltip = page.getByRole("tooltip").filter({ hasText: attributes.ID_NAME });
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toContainText(`区分: ${attributes.AREA}`);
+    await expect(tooltip).toContainText(`下限: ${attributes.ALT_LOWER}`);
+    await expect(tooltip).toContainText(`上限: ${attributes.ALT_UPPER}`);
+    await expect(tooltip).toContainText("使用状況・NOTAMは別途確認");
+    const box = (await tooltip.boundingBox())!;
+    expect(box.width).toBeGreaterThan(150);
+    expect(box.width).toBeLessThanOrEqual(280);
+    expect(box.height).toBeLessThan(180);
+    await page.screenshot({ path: info.outputPath(`restricted-hover-${width}.png`) });
+    const strip = page.getByRole("list", { name: "経路リスト" });
+    const count = await strip.getByRole("listitem").count();
+    await page.mouse.click(point!.x, point!.y);
+    await expect(strip.getByRole("listitem")).toHaveCount(count + 1);
+    // Drag beginning on the airspace still pans and must not add another waypoint.
+    const before = await page.evaluate(key => localStorage.getItem(key), viewport);
+    await page.mouse.move(point!.x, point!.y);
+    await page.mouse.down();
+    await page.mouse.move(point!.x + 35, point!.y + 25, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(key => localStorage.getItem(key), viewport)).not.toBe(before);
+    await expect(strip.getByRole("listitem")).toHaveCount(count + 1);
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toHaveCount(0);
+    await page.getByText("空域表示", { exact: true }).click();
+    await page.getByLabel("飛行制限空域", { exact: true }).uncheck();
+    await expect(paths).toHaveCount(0);
+    await page.getByLabel("飛行制限空域", { exact: true }).check();
+    // The same details remain bound after toggling and background changes.
+    await page.getByLabel("背景地図").selectOption("imagery");
+    await paths.nth(point!.index).dispatchEvent("mouseover");
+    await expect(tooltip).toContainText(`上限: ${attributes.ALT_UPPER}`);
+    await page.getByLabel("飛行制限空域", { exact: true }).uncheck();
+    await expect(tooltip).toHaveCount(0);
+  });
+}
+
 for (const width of [390, 1100, 1440]) {
   test(`#312 #502 airspace pane preserves creation, Planning, re-edit and reload at ${width}px`, async ({ page }, info) => {
     await mockTiles(page);
@@ -146,7 +214,7 @@ for (const width of [390, 1100, 1440]) {
     const control = page.locator(".aip-layer-control");
     await expect(control).not.toHaveAttribute("open");
     await expect(civil).toHaveCount(132);
-    await expect(page.locator(".aip-airspace.leaflet-interactive")).toHaveCount(0);
+    await expect(page.locator(".aip-airspace.leaflet-interactive:not(.aip-Restricted_area_Airspace_restrictions)")).toHaveCount(0);
     await expect(page.locator(".rjfm-training-airspace")).toHaveCount(0);
     await expectAirspacePane(page, width);
     await summary.click();
@@ -166,8 +234,8 @@ for (const width of [390, 1100, 1440]) {
       expect(style.select).toBe("none");
       expect(style.checkbox).toBe(17);
     }
-    // Fresh devices show exactly the three requested AIP categories plus PCA.
-    const defaults = ["Civil_training_and_testing_areas", "Approach_control_area_CIVIL", "Restricted_area_Airspace_restrictions"];
+    // Fresh devices show exactly the five requested AIP categories plus PCA.
+    const defaults = ["Civil_training_and_testing_areas", "Approach_control_area_CIVIL", "Approach_control_area_MIL", "Restricted_area_Airspace_restrictions", "Take_off_flight_path_area"];
     for (const [id, label] of aipCategories) {
       await expect(page.getByLabel(label, { exact: true })).toBeChecked({ checked: defaults.includes(id) });
       if (defaults.includes(id)) await expect(page.locator(`.aip-${id}`).first()).toBeAttached();
@@ -250,7 +318,7 @@ for (const width of [390, 1100, 1440]) {
   });
 }
 
-for (const hidden of [[], ["Civil_training_and_testing_areas", "FIR"]]) {
+for (const hidden of [[], ["Civil_training_and_testing_areas", "Approach_control_area_MIL", "Take_off_flight_path_area", "FIR"]]) {
   test(`#312 #502 existing AIP preference ${JSON.stringify(hidden)} survives reload and Project switches`, async ({ page }) => {
     await mockTiles(page);
     await start(page);

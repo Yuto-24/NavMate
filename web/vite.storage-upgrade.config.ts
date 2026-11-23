@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 export default defineConfig({
   define: { __LOCAL_MANIFEST_SHA256__: '""', __PYODIDE_VERSION__: '"0.27.7"' },
   plugins: [{ name: "historical-repository-dependencies", enforce: "pre", resolveId(source, importer) {
-    if ((importer?.includes("/e2e/fixtures/v1.20.1/") || importer?.includes("/e2e/fixtures/v2.2.2/")) && source.startsWith("./") && source !== "./localProjectRepository") {
+    if ((importer?.includes("/e2e/fixtures/v1.20.1/") || importer?.includes("/e2e/fixtures/v2.2.2/") || importer?.includes("/e2e/fixtures/pre-aip/")) && source.startsWith("./") && source !== "./localProjectRepository") {
       return resolve("src", source + ".ts");
     }
   } }, { name: "schema5-domain-validation", configureServer(server) {
