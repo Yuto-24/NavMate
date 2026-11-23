@@ -1,3 +1,4 @@
+import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { test, artifactSessionKey, artifactDatabase, blockDevCloud } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
@@ -51,7 +52,8 @@ async function confirm(page: Page, weatherMode: "FORECAST" | "FTD" = "FORECAST")
     await altitudeInput.fill(altitude);
   }
 }
-async function calculate(page: Page) {
+async function calculate(page: Page, projectId?: string) {
+  const targetId = projectId ?? (await working(page)).project.id;
   for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     const altitudeInput = page.getByLabel(`${name}出発Legの計画高度`, { exact: true });
     if (!await altitudeInput.count()) await page.getByLabel(new RegExp(`^${name}出発Leg.*候補$`)).selectOption("custom");
@@ -59,7 +61,9 @@ async function calculate(page: Page) {
   }
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
-  await expect.poll(async () => (await records(page))[0]?.lastCalculation?.outcome).not.toBeNull();
+  await expect.poll(async () => Boolean(
+    (await records(page)).find(record => record.id === targetId)?.lastCalculation,
+  )).toBe(true);
 }
 async function save(page: Page, name: string) {
   await openProjectMenu(page);
@@ -383,7 +387,7 @@ local_application.app._calculate_outcome = _fail_recalculation
   const value = edit === "navlog" ? "120" : "1400";
   await field().fill(value);
   const failureNotice = edit === "navlog"
-    ? page.locator(".nav-log-section").getByRole("status")
+    ? page.locator(".nav-log-edit-status")
     : page.locator("#app-notification-region").getByRole("alert");
   await expect(failureNotice).toContainText("Injected calculation failure");
   const failed = (await records(page))[0];
@@ -651,4 +655,95 @@ test("#280 #465 saved CUT seconds and legacy Last Calculation reopen without rec
   await load(page, saved.id);
   await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell").nth(0)).toHaveText("—");
   await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell").nth(1)).toHaveText("0");
+});
+
+test("#319 Project JSON transfers uncalculated inputs into independent saved Projects", async ({ page, browser }) => {
+  await start(page);
+  await confirm(page, "FTD");
+  await expect.poll(async () => (await working(page)).project?.weather_mode).toBe("FTD");
+  await openProjectMenu(page);
+  await page.screenshot({ path: test.info().outputPath("project-menu.png") });
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "JSONファイルに書き出す", exact: true }).click();
+  const download = await downloadPromise;
+  const content = readFileSync((await download.path())!);
+  const exported = JSON.parse(content.toString());
+  expect(exported.format).toBe("navmate.project");
+  expect(exported.inputs.weather_mode).toBe("FTD");
+  expect(exported.inputs.id).toBeUndefined();
+  expect(exported.inputs.selected_forecast_run_id).toBeUndefined();
+  const source = await working(page);
+  expect(source.outcome).toBeNull();
+  const receiver = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  await blockApi(receiver);
+  const target = await receiver.newPage();
+  try {
+    await start(target);
+    // A pending map route is kept across success, cancellation, and rejection.
+    await target.locator("#route-file").setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+    await expect(target.getByRole("button", { name: "経路を確定", exact: true })).toBeEnabled();
+    const before = await target.evaluate(key => JSON.parse(sessionStorage.getItem(key)!), sessionKey);
+    await openProjectMenu(target);
+    const picker = target.waitForEvent("filechooser");
+    await target.getByText("JSONファイルから追加", { exact: true }).click();
+    await (await picker).setFiles({ name: "project.json", mimeType: "application/json", buffer: content });
+    await expect(target.getByRole("status").filter({ hasText: "Projectを追加しました" })).toBeVisible();
+    const first = await records(target);
+    expect(first).toHaveLength(1);
+    expect(first[0].id).not.toBe(source.project.id);
+    expect(first[0].lastCalculation).toBeNull();
+    expect((await working(target)).project).toBeNull();
+    expect(await target.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).mapRouteDraft, sessionKey)).toEqual(before.mapRouteDraft);
+    await openProjectMenu(target);
+    await target.getByLabel("JSONファイルから追加").setInputFiles([]);
+    expect(await records(target)).toEqual(first);
+    await openProjectMenu(target);
+    await target.getByLabel("JSONファイルから追加").setInputFiles({ name: "future.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ ...exported, version: 999 })) });
+    await expect(target.locator("#app-notification-region").getByText(/unsupported Project JSON version/)).toBeVisible();
+    expect(await records(target)).toEqual(first);
+    await openProjectMenu(target);
+    await target.getByLabel("JSONファイルから追加").setInputFiles({ name: "same.json", mimeType: "application/json", buffer: content });
+    await expect.poll(async () => (await records(target)).length).toBe(2);
+    // getAll returns key order: calculate the later record while the first remains uncalculated.
+    const targetId = (await records(target)).at(-1)!.id;
+    target.once("dialog", dialog => dialog.accept());
+    await load(target, targetId);
+    await expect(target.getByLabel("気象モード")).toHaveValue("FTD");
+    await target.reload();
+    await expect(target.getByRole("button", { name: "プロジェクトメニュー", exact: true })).toBeVisible({ timeout: 120_000 });
+    expect((await working(target)).project.id).toBe(targetId);
+    await calculate(target, targetId);
+    expect((await records(target))[0].lastCalculation).toBeNull();
+    const calculated = (await records(target)).find(record => record.id === targetId)!.lastCalculation;
+    const clockTime = new Date("2026-09-11T03:00:00Z");
+    await target.clock.install({ time: clockTime });
+    await target.clock.pauseAt(new Date(clockTime.getTime() + 1000));
+    await target.locator('.nav-log-table input[aria-label$="手動気温"]').first().fill("-12");
+    await openProjectMenu(target);
+    const editedDownload = target.waitForEvent("download");
+    await target.getByRole("button", { name: "JSONファイルに書き出す", exact: true }).click();
+    const edited = JSON.parse(readFileSync((await (await editedDownload).path())!, "utf8"));
+    expect(edited.inputs.sections[0].manual_temperature_c).toBe(-12);
+    expect((await records(target)).find(record => record.id === targetId)!.lastCalculation).toEqual(calculated);
+    const projectMenu = target.getByRole("button", { name: "プロジェクトメニュー", exact: true });
+    if (await projectMenu.getAttribute("aria-expanded") === "true") await projectMenu.click();
+    await target.clock.resume();
+    for (const width of [1100, 1440]) {
+      await target.setViewportSize({ width, height: 1000 });
+      await expectPlanningLayout(target, width);
+    }
+    await target.getByLabel("DATE", { exact: true }).fill("2026-09-12");
+    await target.getByRole("button", { name: "経路を編集", exact: true }).click();
+    target.once("dialog", dialog => dialog.accept());
+    await target.getByRole("button", { name: "経路をクリア", exact: true }).click();
+    await openProjectMenu(target);
+    const staleDownload = target.waitForEvent("download");
+    await target.getByRole("button", { name: "JSONファイルに書き出す", exact: true }).click();
+    const changed = JSON.parse(readFileSync((await (await staleDownload).path())!, "utf8"));
+    expect(changed.inputs.flight_date).toBe("2026-09-12");
+    expect(changed.inputs.route_nodes).toEqual(exported.inputs.route_nodes);
+    expect(changed.planning.calculated_against_fingerprint).toBeUndefined();
+    expect(Object.keys(changed).sort()).toEqual(["format", "inputs", "manual_sea", "planning", "version"]);
+  } finally { await receiver.close(); }
+  expect((await working(page)).project.id).toBe(source.project.id);
 });

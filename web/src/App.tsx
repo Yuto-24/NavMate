@@ -1615,6 +1615,44 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     calculationInFlight.current = false;
   };
 
+  const handleProjectExport = async () => {
+    if (busy || !application.exportProject || !state?.project) return;
+    await runTask(async () => {
+      if (!await flushDraftAutosave(true)) throw new Error(DRAFT_AUTOSAVE_FAILURE);
+      const project = canonicalProjectRef.current ?? state.project!;
+      const drafts = navLogDraftsRef.current;
+      const errors = validateNavLogDrafts(project.sections, drafts);
+      const editedSections = project.sections.map(section =>
+        errors[section.id] ? section : applyDraftToSection(section, drafts[section.id]),
+      );
+      if (Object.keys(drafts).length > 0) {
+        const next = await application.updateProject(
+          updatePayloadRef.current(editedSections, undefined, project),
+        );
+        applyState(next, { syncCalculationInputs: false });
+      }
+      const text = await application.exportProject!();
+      await platform.files.save({ name: "navmate-project.json", mediaType: "application/json",
+        content: new TextEncoder().encode(text) });
+    }, { errorKey: "project-export" });
+  };
+  const handleProjectImport = async (file: FileContentSource) => {
+    if (busy || !application.importProject) return;
+    const epoch = lifecycle.current;
+    await runTask(async () => {
+      if (file.size > 2 * 1024 * 1024) throw new Error("Project JSONは2 MiB以下にしてください。");
+      const input = await platform.files.read(file);
+      if (input.content.byteLength > 2 * 1024 * 1024) throw new Error("Project JSONは2 MiB以下にしてください。");
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(input.content);
+      if (epoch !== lifecycle.current) return;
+      const next = await application.importProject!(text);
+      if (epoch !== lifecycle.current) return;
+      // Refresh only the list; raw planning values and MAP drafts stay on screen.
+      setState(current => current ? { ...current, savedProjects: next.savedProjects,
+        storageWarning: next.storageWarning } : current);
+    }, { errorKey: "project-import", success: "Projectを追加しました。保存済み一覧から開けます。" });
+  };
+
   const handleSave = async (name: string) => {
     if (!state?.project) return;
     const followsAutomaticName = state.project.metadata.project_name_auto === true
@@ -1941,6 +1979,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         onLoad={handleLoad}
         onDelete={handleDelete}
         onSave={handleSave}
+        onExportProject={application.exportProject ? handleProjectExport : undefined}
+        onImportProject={application.importProject ? handleProjectImport : undefined}
         onNew={handleNew}
       />
 

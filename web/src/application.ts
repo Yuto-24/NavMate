@@ -60,6 +60,8 @@ export interface AutoNavLogApplication {
   readonly sync?: import("./accountSync").AccountSyncControl;
   seaPlan?(): Promise<import("./sea").SeaPlan>;
   updateSea?(input: import("./sea").SeaUpdate): Promise<WebState>;
+  exportProject?(): Promise<string>;
+  importProject?(text: string): Promise<ApplicationSnapshot>;
   refreshProjects?(): Promise<ApplicationSnapshot>;
   bootstrap(recovery?: WorkingRecovery): Promise<ApplicationSnapshot>;
   importRoute(input: ImportRouteInput): Promise<ApplicationSnapshot>;

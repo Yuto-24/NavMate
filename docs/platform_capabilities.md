@@ -28,6 +28,19 @@
 - NAV LOG の JSON ダウンロードおよびクリップボードコピーは、現在表示中の計算結果と目的地風のみを出力します。
 - 計算後に編集された未計算の Project 入力は含めません。本 JSON は計算結果の持ち出し用であり、Project のバックアップや復元の正本ではありません。出力操作は計算・チェックポイント更新・永続保存を発生させません。
 
+### Project のJSONファイル交換
+
+Static Web / Localモードでは、Projectメニューの「JSONファイルに書き出す」で現在の確定済みProject入力を渡し、「JSONファイルから追加」で独立したProjectとして取り込めます。形式は `navmate.project` version 1です。未計算・再計算前でも書き出せます。
+
+- **含める入力**：Route、Check Point、Planning入力、選択時点の参照データ、手動SEA。
+- **含めない情報**：未確定のMAP Route Draft、Last Calculation・計算結果、気象raw cache、認証・所有者情報、内部revision・同期情報。自動SEAは取込先で再取得が必要です。
+
+取込は新しいIDの保存済みProjectを追加し、現在の作業画面を維持します。保存済み一覧から開き、通常の確認・計算を行ってください。同名のProjectも上書きしません。ログイン中は受信側Account、未ログイン時はLocal-onlyの通常Projectとして保存します。取消・検証失敗・保存失敗でも既存データと現在の作業を保持します。
+
+ファイルは2 MiB以下、Route node・section・Check Pointは各500件以下です。形式・対応version・必須項目・型・有限数・参照整合・重複IDを検証し、不正ファイルは理由を表示して拒否します。NAV LOG JSON v1は結果文書のため取込非対応です。旧版や将来versionを推測で移行しません。
+
+FORECASTは再計算時に利用できるWeather model / Runを通常の規則で選び、元と同じ結果を保証しません。URL共有とは別の機能で、配布済みファイルや受信側のProjectを遠隔回収することはできません。
+
 ### 3D KML エクスポート（「Google Earth 用にエクスポート」）
 
 - 最後に正常完了した計算の Project と結果のみから導出し、保存ファイル名には計算時の Project 名（ファイル名に使えない文字は置換）を付けた `.kml` を使用します。
