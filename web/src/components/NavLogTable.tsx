@@ -682,6 +682,7 @@ export function NavLogTable({
       if (seaKey) setSeaAcquiredKey(seaKey);
     }
   };
+  const [exporting, setExporting] = useState(false);
   const exportPng = async () => {
     if (!sectionRef.current || !savePng || exporting || exportDisabled) return;
     setExporting(true);
