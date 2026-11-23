@@ -6,6 +6,7 @@ import gzip
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import zipfile
@@ -20,6 +21,48 @@ from scripts.static_ops import app_release as app
 from scripts.static_ops import schema260_bundle as bundle
 from scripts.static_ops import schema260_prepare as driver
 from scripts.static_ops import schema260_publish as publisher
+
+
+@pytest.mark.parametrize("already_expired", [False, True])
+def test_command_gate_rejects_notification_at_admission(monkeypatch, already_expired):
+    deadline = {"expired": already_expired, "command_active": False}
+    previous = signal.signal(signal.SIGALRM, lambda *_: deadline.update(expired=True))
+    original = signal.pthread_sigmask
+    calls = []
+    def mask(how, signals):
+        result = original(how, signals)
+        if how == signal.SIG_BLOCK:
+            signal.raise_signal(signal.SIGALRM)
+        return result
+    monkeypatch.setattr(signal, "pthread_sigmask", mask)
+    try:
+        with pytest.raises(TimeoutError):
+            with driver.command_gate(deadline):
+                calls.append("launched")
+        assert not calls and not deadline["command_active"]
+        assert signal.SIGALRM not in signal.sigpending()
+    finally:
+        signal.signal(signal.SIGALRM, previous)
+
+
+@pytest.mark.parametrize("factory", [driver.manual_operator, publisher.publication_operator])
+def test_each_rules_read_refreshes_readonly_token(tmp_path, monkeypatch, context, factory):
+    env, _, _ = context
+    env["STATIC_GOOGLE_CREDENTIALS_FILE"] = "synthetic-wif.json"
+    operator = factory(app, tmp_path, env)
+    initial = operator.env.get("STATIC_GOOGLE_ACCESS_TOKEN")
+    tokens = iter(["first", "after-long-build", "after-upload"])
+    def refresh(path):
+        assert path == "synthetic-wif.json"
+        return next(tokens)
+    monkeypatch.setattr(driver, "refreshed_rules_token", refresh)
+    monkeypatch.setattr(app.Operator, "rules_get", lambda self, path: {
+        "token": self.env["STATIC_GOOGLE_ACCESS_TOKEN"], "path": path})
+    for expected in ("first", "after-long-build", "after-upload"):
+        assert operator.rules_get("resource") == {"token": expected, "path": "resource"}
+        assert operator.env.get("STATIC_GOOGLE_ACCESS_TOKEN") == initial
+    with pytest.raises(app.Blocked, match="authentication refresh failed"):
+        operator.rules_get("resource")
 
 
 @pytest.fixture
@@ -637,7 +680,9 @@ def test_workflow_manual_prepare_is_disjoint_and_only_uploads_ciphertext():
     assert "retention-days: 1" in manual and "if-no-files-found: error" in manual
     assert ".aesgcm" in manual and "plan.json" not in manual
     assert "steps.prepare.outputs.archive_ready == 'true'" in manual
-    assert "create_credentials_file: false" in manual
+    assert "create_credentials_file: true" in manual
+    assert "steps.rules-manual.outputs.credentials_file_path" in manual
+    assert "google-auth[requests]==2.63.1" in manual
     assert "https://www.googleapis.com/auth/firebase.readonly" in manual
     assert (
         "    concurrency:\n"
@@ -658,7 +703,8 @@ def runner_environment(transport, simulated, context, tmp_path, monkeypatch):
     env.update(RUNNER_TEMP=str(tmp_path), GITHUB_EVENT_PATH=str(event_path),
                GITHUB_OUTPUT=str(outputs), GH_TOKEN="SECRET-TOKEN-SENTINEL",
                CLOUDFLARE_API_TOKEN="SECRET-TOKEN-SENTINEL",
-               STATIC_GOOGLE_ACCESS_TOKEN="SECRET-TOKEN-SENTINEL")
+               STATIC_GOOGLE_ACCESS_TOKEN="SECRET-TOKEN-SENTINEL",
+               STATIC_GOOGLE_CREDENTIALS_FILE="synthetic-wif.json")
     for name, value in env.items():
         monkeypatch.setenv(name, value)
     monkeypatch.setenv("SCHEMA260_EVIDENCE", secret)

@@ -154,6 +154,7 @@ def publication_operator(app, root: Path, env: dict):
             app.require(self.publication_allowed and sha == bundle.CANDIDATE,
                         "Explicit fixed publication required")
             self.idle()
+            self.refresh_rules_token()
             return app.Operator.upload(self, destination, sha, upload_env)
 
         def snapshot(self, sha, current, *, paused=False):
@@ -345,22 +346,15 @@ def _run_private(root: Path) -> int:
         inputs = scope(env, json.loads(Path(env["GITHUB_EVENT_PATH"]).read_text()))
         prepare.checked_checkout(Path(__file__).resolve().parents[2], env["GITHUB_SHA"])
         bundle.require(all(env.get(name) for name in (
-            "GH_TOKEN", "CLOUDFLARE_API_TOKEN", "STATIC_GOOGLE_ACCESS_TOKEN")), "credentials")
+            "GH_TOKEN", "CLOUDFLARE_API_TOKEN", "STATIC_GOOGLE_CREDENTIALS_FILE")), "credentials")
         bundle.require(all(shutil.which(name) for name in ("gh", "git", "docker", "node")),
                        "runner-tools")
         key = bundle.key_bytes(encoded_key)
         app = prepare.load_tooling(root)
         original_command = app.command
         def bounded_command(*args, **kwargs):
-            if deadline["expired"]:
-                raise TimeoutError("publish deadline expired")
-            deadline["command_active"] = True
-            try:
+            with prepare.command_gate(deadline):
                 result = original_command(*args, **kwargs)
-            finally:
-                deadline["command_active"] = False
-            if deadline["expired"]:
-                raise TimeoutError("publish deadline expired")
             return result
         app.command = bounded_command
         operator = publication_operator(app, root.resolve(), env)
@@ -456,12 +450,12 @@ def _run_private(root: Path) -> int:
                         success = False
             finally:
                 cleanup_ok = True
-                if reserved_evidence and bundle.EVIDENCE_ROOT.exists():
+                if archive_ready and reserved_evidence and bundle.EVIDENCE_ROOT.exists():
                     try:
                         shutil.rmtree(bundle.EVIDENCE_ROOT)
                     except Exception:
                         cleanup_ok = False
-                if created_store:
+                if archive_ready and created_store:
                     try:
                         prepare.cleanup_store(store, env)
                     except Exception:
@@ -469,7 +463,8 @@ def _run_private(root: Path) -> int:
                 status = json.loads(status_path.read_text())
                 status.update(archive_errors)
                 status.update(archive_ready=archive_ready,
-                              cleanup="COMPLETE" if cleanup_ok else "FAILED")
+                              cleanup=("RETAINED" if not archive_ready and created_store
+                                       else "COMPLETE" if cleanup_ok else "FAILED"))
                 if not success or not archive_ready or not cleanup_ok:
                     status["status"] = "BLOCKED"
                 prepare.public_status(status_path, status)
@@ -487,7 +482,9 @@ def report() -> None:
                                                or status["archive_upload"] != "success"
                                                or status["review_upload"] != "success"):
         status.update(status="BLOCKED", stage=("publish-step" if status["publish_step"] != "success"
-                                                else "archive-upload"))
+                                                else "archive-upload"
+                                                if status["archive_upload"] != "success"
+                                                else "review-upload"))
     status["workflow_measurement"] = prepare.release_timing.workflow_report(dict(os.environ))
     print(json.dumps(status, sort_keys=True))
 

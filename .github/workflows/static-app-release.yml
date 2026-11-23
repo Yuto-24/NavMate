@@ -418,7 +418,7 @@ jobs:
           node-version: '24'
       - name: Install the fixed reviewed tooling dependencies
         working-directory: tooling
-        run: python -m pip install 'setuptools>=69' wheel vendor/jma_gpv_weather-0.6.0-py3-none-any.whl '.[test]'
+        run: python -m pip install 'setuptools>=69' wheel vendor/jma_gpv_weather-0.6.0-py3-none-any.whl '.[test]' 'google-auth[requests]==2.63.1'
       - name: Reserve the original private evidence parent on the ephemeral runner
         run: |
           test ! -e /home/yuto
@@ -431,7 +431,7 @@ jobs:
           service_account: ${{ vars.STATIC_GOOGLE_SERVICE_ACCOUNT }}
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/firebase.readonly
-          create_credentials_file: false
+          create_credentials_file: true
           export_environment_variables: false
       - name: Validate, pause and prepare the fixed schema transition
         id: prepare
@@ -439,7 +439,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.STATIC_APP_RELEASE_GH_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.STATIC_CLOUDFLARE_READ_TOKEN }}
-          STATIC_GOOGLE_ACCESS_TOKEN: ${{ steps.rules-manual.outputs.access_token }}
+          STATIC_GOOGLE_CREDENTIALS_FILE: ${{ steps.rules-manual.outputs.credentials_file_path }}
           SCHEMA260_EVIDENCE: ${{ secrets.STATIC_SCHEMA260_EVIDENCE }}
           SCHEMA260_ARCHIVE_KEY: ${{ secrets.STATIC_SCHEMA260_ARCHIVE_KEY }}
         run: python driver/scripts/static_ops/schema260_prepare.py run --tooling "$GITHUB_WORKSPACE/tooling"
@@ -508,7 +508,7 @@ jobs:
           node-version: '24'
       - name: Install the fixed reviewed tooling dependencies
         working-directory: tooling
-        run: python -m pip install 'setuptools>=69' wheel vendor/jma_gpv_weather-0.6.0-py3-none-any.whl '.[test]'
+        run: python -m pip install 'setuptools>=69' wheel vendor/jma_gpv_weather-0.6.0-py3-none-any.whl '.[test]' 'google-auth[requests]==2.63.1'
       - name: Reserve the original private evidence parent on the ephemeral runner
         run: |
           test ! -e /home/yuto
@@ -521,7 +521,7 @@ jobs:
           service_account: ${{ vars.STATIC_GOOGLE_SERVICE_ACCOUNT }}
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/firebase.readonly
-          create_credentials_file: false
+          create_credentials_file: true
           export_environment_variables: false
       - name: Restore the approved plan and publish with the fixed reviewed gates
         id: publish-plan
@@ -529,7 +529,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.STATIC_APP_RELEASE_GH_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
-          STATIC_GOOGLE_ACCESS_TOKEN: ${{ steps.rules-manual-publish-v260.outputs.access_token }}
+          STATIC_GOOGLE_CREDENTIALS_FILE: ${{ steps.rules-manual-publish-v260.outputs.credentials_file_path }}
           SCHEMA260_ARCHIVE_KEY: ${{ secrets.STATIC_SCHEMA260_ARCHIVE_KEY }}
         run: python driver/scripts/static_ops/schema260_publish.py run --tooling "$GITHUB_WORKSPACE/tooling"
       - name: Retain the small publication observation first

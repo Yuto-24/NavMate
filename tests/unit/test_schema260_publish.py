@@ -406,7 +406,8 @@ def runner(approved_plan, publication_context, tmp_path, monkeypatch):
     env.update(RUNNER_TEMP=str(tmp_path), GITHUB_EVENT_PATH=str(event_path),
                GITHUB_OUTPUT=str(outputs), GH_TOKEN="SECRET-TOKEN-SENTINEL",
                CLOUDFLARE_API_TOKEN="SECRET-TOKEN-SENTINEL",
-               STATIC_GOOGLE_ACCESS_TOKEN="SECRET-TOKEN-SENTINEL")
+               STATIC_GOOGLE_ACCESS_TOKEN="SECRET-TOKEN-SENTINEL",
+               STATIC_GOOGLE_CREDENTIALS_FILE="synthetic-wif.json")
     for name, value in env.items():
         monkeypatch.setenv(name, value)
     monkeypatch.setenv("SCHEMA260_ARCHIVE_KEY", key_path.read_text())
@@ -569,7 +570,8 @@ def test_finalization_always_attempts_cleanup_and_restores_umask(
         assert failure in ("initial-status", "handoff", "output", "final-status")
     else:
         assert result == 1
-    assert not private.exists() and not bundle.EVIDENCE_ROOT.exists()
+    assert private.exists() is (failure in ("seal", "journal-status"))
+    assert bundle.EVIDENCE_ROOT.exists() is (failure in ("seal", "journal-status"))
     ordinary = tmp_path / "subsequent-coverage"
     ordinary.touch()
     assert ordinary.stat().st_mode & 0o777 == 0o644
@@ -612,9 +614,10 @@ def test_manual_publish_workflow_keeps_wif_and_explicit_inputs():
     assert "environment: static-production" in manual
     assert "ref: " + bundle.TOOLING in manual and "ref: ${{ github.sha }}" in manual
     wif = manual.split("id: rules-manual-publish-v260", 1)[1].split("      - name:", 1)[0]
-    assert "create_credentials_file: false" in wif
+    assert "create_credentials_file: true" in wif
+    assert "google-auth[requests]==2.63.1" in manual
     assert "https://www.googleapis.com/auth/firebase.readonly" in wif
-    assert "steps.rules-manual-publish-v260.outputs.access_token" in manual
+    assert "steps.rules-manual-publish-v260.outputs.credentials_file_path" in manual
     assert "PUBLISH_STEP_OUTCOME: ${{ steps.publish-plan.outcome }}" in manual
     assert "secrets.CLOUDFLARE_PAGES_TOKEN" in manual and "release_automation.py" not in manual
     assert "SCHEMA260_EVIDENCE" not in manual
@@ -657,7 +660,7 @@ def test_publication_archive_timing_write_failure_preserves_actual_result(
     assert driver.run(tmp_path) == 1
     private, output, status_path = prepare.locations(env)
     status = json.loads(status_path.read_text())
-    assert status['status'] == 'BLOCKED' and not private.exists()
+    assert status['status'] == 'BLOCKED' and private.exists() is (when == 'start')
     assert status['changes']['production'] == 'CONFIRMED'
     assert status['archive_ready'] is (when == 'finish')
     assert 'archive_ready=' + str(when == 'finish').lower() + '\n' in outputs.read_text()
@@ -674,14 +677,14 @@ def test_publication_archive_timing_write_failure_preserves_actual_result(
     assert 'PRIVATE' not in status_path.read_text()
 
 
-@pytest.mark.parametrize("step,review,archive,expected", [
-    ("success", "success", "success", "PUBLISHED"),
-    ("failure", "success", "success", "BLOCKED"),
-    ("success", "failure", "success", "BLOCKED"),
-    ("success", "success", "failure", "BLOCKED"),
+@pytest.mark.parametrize("step,review,archive,expected,stage", [
+    ("success", "success", "success", "PUBLISHED", None),
+    ("failure", "success", "success", "BLOCKED", "publish-step"),
+    ("success", "failure", "success", "BLOCKED", "review-upload"),
+    ("success", "success", "failure", "BLOCKED", "archive-upload"),
 ])
 def test_summary_reports_step_and_both_transfers(tmp_path, monkeypatch, capsys,
-                                                 step, review, archive, expected):
+                                                 step, review, archive, expected, stage):
     for name, value in {"RUNNER_TEMP": str(tmp_path), "GITHUB_RUN_ID": "345",
                         "GITHUB_RUN_ATTEMPT": "1", "PUBLISH_STEP_OUTCOME": step,
                         "REVIEW_UPLOAD_OUTCOME": review, "ARCHIVE_UPLOAD_OUTCOME": archive}.items():
@@ -692,6 +695,7 @@ def test_summary_reports_step_and_both_transfers(tmp_path, monkeypatch, capsys,
     driver.report()
     status = json.loads(capsys.readouterr().out)
     assert status["status"] == expected and status["changes"]["production"] == "CONFIRMED"
+    assert status.get("stage") == stage
 
 
 def test_handoff_write_failure_seals_publish_journal(runner, approved_plan, tmp_path, monkeypatch):
@@ -722,6 +726,61 @@ def test_queued_run_blocks_before_upload(provenance, monkeypatch, tmp_path):
     monkeypatch.setattr(app.Operator, "upload", lambda *args: pytest.fail("unexpected upload"))
     with pytest.raises(app.Blocked, match="busy"):
         operator.upload(tmp_path, bundle.CANDIDATE, {})
+
+
+@pytest.mark.parametrize("refresh_fails", [False, True])
+def test_upload_rechecks_refresh_after_idle(provenance, monkeypatch, tmp_path, refresh_fails):
+    operator, _, _, _, _, _ = provenance
+    operator.publication_allowed = True
+    calls = []
+    monkeypatch.setattr(type(operator), "idle", lambda self: calls.append("idle"))
+    def refresh(self):
+        calls.append("refresh")
+        if refresh_fails:
+            raise app.Blocked("refresh failed")
+    monkeypatch.setattr(type(operator), "refresh_rules_token", refresh)
+    monkeypatch.setattr(app.Operator, "upload", lambda *args: calls.append("upload"))
+    if refresh_fails:
+        with pytest.raises(app.Blocked):
+            operator.upload(tmp_path, bundle.CANDIDATE, {})
+        assert calls == ["idle", "refresh"]
+    else:
+        operator.upload(tmp_path, bundle.CANDIDATE, {})
+        assert calls == ["idle", "refresh", "upload"]
+
+
+@pytest.mark.parametrize("damage", ["empty", "symlink", "oversize"])
+def test_unreadable_fresh_manifest_keeps_encrypted_journal(
+        runner, approved_plan, tmp_path, monkeypatch, damage):
+    env, operator, outputs, _ = runner
+    original = operator.build
+    def build(sha, snapshot, destination):
+        original(sha, snapshot, destination)
+        manifest = destination / "upload/dist-static/release.json"
+        if damage == "empty":
+            manifest.write_bytes(b"")
+        elif damage == "symlink":
+            manifest.unlink()
+            manifest.symlink_to(tmp_path / "missing")
+        else:
+            with manifest.open("wb") as stream:
+                stream.truncate(bundle.MAX_REPORT + 1)
+        raise OSError("interrupted copy")
+    monkeypatch.setattr(operator, "build", build)
+    assert driver.run(tmp_path) == 1
+    private, encrypted, status_path = prepare.locations(env)
+    assert encrypted.exists() and not private.exists()
+    assert "archive_ready=true" in outputs.read_text()
+    restored = tmp_path / "recovered"
+    handoff = bundle.unseal(encrypted, approved_plan[5], restored)
+    assert not handoff["prepared"]
+    assert not (restored / "fresh/upload/dist-static/release.json").exists()
+    assert json.loads((restored / "fresh-inventory-status.json").read_text()) == {
+        "reason": "fresh-inventory-unreadable"}
+    saved = json.loads((restored / "publish-status.json").read_text())
+    assert saved["changes"]["production"] == "UNCHANGED"
+    assert saved["archive_failure"]["exception_type"] == "InvalidBundle"
+    assert json.loads(status_path.read_text())["status"] == "BLOCKED"
 
 
 def test_publish_deadline_waits_for_active_command(runner, tmp_path, monkeypatch):

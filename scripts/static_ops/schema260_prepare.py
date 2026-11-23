@@ -7,6 +7,7 @@ separately checked-out, reviewed tooling commit. No reviewed file is patched.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib
 import json
 import os
@@ -35,6 +36,45 @@ REPO_ID, OWNER_ID = 1314030412, 65487096
 CANDIDATE_CI = 45144029154
 OPERATION = "prepare-schema260"
 PREPARE_DEADLINE_SECONDS = 80 * 60
+
+
+@contextlib.contextmanager
+def command_gate(deadline):
+    """Admit a command with SIGALRM blocked; drain admitted work before recovery."""
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGALRM})
+    try:
+        if deadline["expired"] or signal.SIGALRM in signal.sigpending():
+            raise TimeoutError("operation deadline expired")
+        deadline["command_active"] = True
+        yield
+    finally:
+        try:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+        finally:
+            deadline["command_active"] = False
+    if deadline["expired"]:
+        raise TimeoutError("operation deadline expired")
+
+
+def refreshed_rules_token(path: str) -> str:
+    """Refresh only the action's WIF service-account identity with read-only scope."""
+    from google.auth.identity_pool import Credentials
+    from google.auth.transport.requests import Request
+
+    info = json.loads(Path(path).read_text())
+    bundle.require(info.get("type") == "external_account"
+                   and info.get("service_account_impersonation_url"), "rules-identity")
+    credentials = Credentials.from_info(
+        info, scopes=["https://www.googleapis.com/auth/firebase.readonly"])
+    request = Request()
+    try:
+        def bounded_request(**kwargs):
+            return request(**{**kwargs, "timeout": 30})
+        credentials.refresh(bounded_request)
+        bundle.require(credentials.token and credentials.valid, "rules-token")
+        return credentials.token
+    finally:
+        request.session.close()
 
 
 def scope(env: dict, event: dict, *, operation: str = OPERATION,
@@ -92,6 +132,24 @@ def manual_operator(app, root: Path, env: dict):
     class ManualOperator(app.Operator):
         pause_allowed = False
         allow_readback_waiters = False
+
+        def refresh_rules_token(self):
+            try:
+                return refreshed_rules_token(env["STATIC_GOOGLE_CREDENTIALS_FILE"])
+            except Exception:
+                raise app.Blocked("Read-only Rules authentication refresh failed") from None
+
+        def rules_get(self, path):
+            token = self.refresh_rules_token()
+            previous = self.env.get("STATIC_GOOGLE_ACCESS_TOKEN")
+            self.env["STATIC_GOOGLE_ACCESS_TOKEN"] = token
+            try:
+                return super().rules_get(path)
+            finally:
+                if previous is None:
+                    self.env.pop("STATIC_GOOGLE_ACCESS_TOKEN", None)
+                else:
+                    self.env["STATIC_GOOGLE_ACCESS_TOKEN"] = previous
 
         def gh(self, endpoint, method="GET", body=None):
             app.require(method == "GET" or (
@@ -389,7 +447,7 @@ def _run_private(root: Path) -> int:
         scope(env, json.loads(Path(env["GITHUB_EVENT_PATH"]).read_text()))
         checked_checkout(Path(__file__).resolve().parents[2], env["GITHUB_SHA"])
         bundle.require(all(env.get(name) for name in (
-            "GH_TOKEN", "CLOUDFLARE_API_TOKEN", "STATIC_GOOGLE_ACCESS_TOKEN")), "credentials")
+            "GH_TOKEN", "CLOUDFLARE_API_TOKEN", "STATIC_GOOGLE_CREDENTIALS_FILE")), "credentials")
         bundle.require(all(shutil.which(name) for name in ("gh", "git", "docker", "node")),
                        "runner-tools")
         key = bundle.key_bytes(encoded_key)
@@ -403,15 +461,8 @@ def _run_private(root: Path) -> int:
         app = load_tooling(root)
         original_command = app.command
         def bounded_command(*args, **kwargs):
-            if deadline["expired"]:
-                raise TimeoutError("prepare deadline expired")
-            deadline["command_active"] = True
-            try:
+            with command_gate(deadline):
                 result = original_command(*args, **kwargs)
-            finally:
-                deadline["command_active"] = False
-            if deadline["expired"]:
-                raise TimeoutError("prepare deadline expired")
             return result
         app.command = bounded_command
         store.mkdir(mode=0o700, exist_ok=False)

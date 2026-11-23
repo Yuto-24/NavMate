@@ -210,9 +210,17 @@ def archive_files(store: Path, evidence: dict[str, bytes], success: bool,
     if publication:
         fresh = store / "fresh/upload/dist-static/release.json"
         if fresh.exists() or fresh.is_symlink():
-            for parent in (fresh, *list(fresh.parents)[:3]):
-                require(not parent.is_symlink(), "fresh-inventory-symlink")
-            yield "store/fresh/upload/dist-static/release.json", read_file(fresh, MAX_REPORT)
+            try:
+                for parent in (fresh, *list(fresh.parents)[:3]):
+                    require(not parent.is_symlink(), "fresh-inventory-symlink")
+                raw = read_file(fresh, MAX_REPORT)
+            except (OSError, InvalidBundle):
+                if success:
+                    raise
+                yield ("store/fresh-inventory-status.json",
+                       b'{"reason":"fresh-inventory-unreadable"}')
+            else:
+                yield "store/fresh/upload/dist-static/release.json", raw
     if success:
         for name in ("plan.json", "prepared/feed-report.json"):
             yield "store/" + name, read_file(store / name, MAX_REPORT)
@@ -279,6 +287,7 @@ def unseal(archive_path: Path, key_path: Path, destination: Path) -> dict:
             require(name.startswith("evidence/") or name in (
                 "store/plan.json", "store/prepare-status.json", "store/publish-status.json",
                 "store/handoff.json", "store/fresh/upload/dist-static/release.json",
+                "store/fresh-inventory-status.json",
                 "store/prepared/feed-report.json")
                 or name.startswith("store/prepared/upload/"), "archive-file")
             files[name] = archive.read(member)

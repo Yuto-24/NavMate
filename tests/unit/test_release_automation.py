@@ -224,7 +224,8 @@ def test_automation_workflow_contract():
     assert "ref: main" in workflow and "persist-credentials: false" in workflow
     assert "github.repository == 'Yuto-24/NavMate' &&" in workflow
     # Each readback and manual schema operation retains the shared lock and WIF scope.
-    assert workflow.count("create_credentials_file: false") == 8
+    assert workflow.count("create_credentials_file: false") == 6
+    assert workflow.count("create_credentials_file: true") == 2
     assert workflow.count("https://www.googleapis.com/auth/firebase.readonly") == 8
     source = (auto.ROOT / ".github/workflows/static-production.yml").read_text()
     assert "group: static-production\n  cancel-in-progress: false\n  queue: max" in source
