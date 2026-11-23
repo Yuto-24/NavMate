@@ -8,7 +8,17 @@ for (const width of [1100, 1440]) {
     test.setTimeout(180_000);
     const errors: string[] = [];
     page.on("pageerror", e => errors.push(e.message));
-    await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
+    // Keep the first terrain request in flight to verify the pending state before it settles.
+    let releaseTerrain!: () => void;
+    const terrainGate = new Promise<void>(resolve => { releaseTerrain = resolve; });
+    let heldFirstTile = false;
+    await page.route("**/xyz/dem_png/**", async route => {
+      if (!heldFirstTile) {
+        heldFirstTile = true;
+        await terrainGate;
+      }
+      await route.fulfill({ status: 404, body: "fixture missing" });
+    });
     await page.setViewportSize({ width, height: 1000 });
     await page.goto("/");
     await enterImportWorkflow(page);
@@ -33,8 +43,14 @@ for (const width of [1100, 1440]) {
     await expect(page.getByRole("button", { name: "地形を再取得" })).toHaveClass(/secondary-button/);
     await expect(page.locator(".sea-panel details, .sea-panel input, .sea-panel code")).toHaveCount(0);
     await expect(page.getByText("地形点KML・DEMの取得状況と出典", { exact: true })).toHaveCount(0);
+    const pending = table.locator(".nav-log-sea-cell").filter({ hasText: "取得中" }).first();
+    await expect(pending).toBeVisible();
+    await expect(pending.locator(".sea-loading-icon")).toBeVisible();
+    await expect(page.locator(".sea-warning")).toHaveCount(0);
+    releaseTerrain();
     const first = table.locator(".nav-log-sea-cell").filter({ hasText: /未確定|[0-9]/ }).first();
     await expect(first).toHaveAttribute("data-display-text", "未確定");
+    await expect(table.locator(".sea-loading-icon")).toHaveCount(0);
     await expect(first.locator("input")).toHaveCount(0);
     await expect(page.locator(".sea-warning").first()).toContainText("SEAは未確定です");
     const result = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.outcome, artifactSessionKey);
