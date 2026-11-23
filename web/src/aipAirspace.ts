@@ -24,6 +24,7 @@ export const defaultHiddenAipCategories: string[] = aipCategories
   .filter(id => ![
     "Civil_training_and_testing_areas",
     "Approach_control_area_CIVIL",
+    "Approach_control_area_MIL",
     "Restricted_area_Airspace_restrictions",
   ].includes(id));
 export const pcaColors = { standard: "#a45b13", imagery: "#ffd38a" } as const;

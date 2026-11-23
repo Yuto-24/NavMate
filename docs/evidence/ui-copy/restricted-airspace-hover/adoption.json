@@ -1,0 +1,76 @@
+{
+  "items": [
+    {
+      "id": "title",
+      "text": "飛行制限空域",
+      "reason": "原表記を保持し、欠損は制限なしと誤解させない表現を採用。簡潔さを優先し注記の装飾記号は加えない。",
+      "response_quote": "`id: \"title\"`（名称欠損時のフォールバック見出し）\n\n* **指定文言**: `飛行制限空域`\n* **用途/文脈**: 原本データの `ID_NAME` をツールチップの見出しとして表示する際、名称データが欠損している場合に代替表示する見出し。\n\n| 候補 | 文言案 | 理由 | 懸念 |\n| :--- | :--- | :--- | :--- |\n| **候補1 (推奨)** | **飛行制限空域** | 他の要素と統一感があり、ポリゴンが何を示しているか最も直感的に把握できる。短く視認性が高い。 | 他の「名称が存在する空域」と並んだ際、これが固有名称なのか一般名称なのかが一瞬判別しづらい可能性がある。 |\n| **候補2** | **飛行制限空域（名称なし）** | 本来あるべき名称がデータ上存在しない状態であることが明確になり、利用者が名称の欠落であることを即座に理解できる。 | ツールチップの幅を取り、視線移動の負荷がわずかに増える。 |\n| **候補3** | **（名称なし）** | 欠損状態のみを端的に示すため、最も文字数が少ない。 | ツールチップを見た瞬間に何のポリゴンか（飛行制限空域であること）が見出し単体から読み取れなくなる。 |",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {",
+        "end": "  layer.bindTooltip(content, { sticky: true });",
+        "expected": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {\n  const attributes = feature.properties?.source_attributes ?? {};\n  const value = (key: string) => typeof attributes[key] === \"string\" && attributes[key].trim()\n    ? attributes[key] : \"記載なし\";\n  const content = document.createElement(\"div\");\n  content.style.whiteSpace = \"pre-line\";\n  content.style.width = \"max-content\";\n  content.style.maxWidth = \"260px\";\n  content.style.overflowWrap = \"anywhere\";\n  const title = document.createElement(\"strong\");\n  title.textContent = typeof attributes.ID_NAME === \"string\" && attributes.ID_NAME.trim()\n    ? attributes.ID_NAME : \"飛行制限空域\";\n  content.append(title, document.createTextNode([\n    \"\",\n    `区分: ${value(\"AREA\")}`,\n    `下限: ${value(\"ALT_LOWER\")}`,\n    `上限: ${value(\"ALT_UPPER\")}`,\n    \"使用状況・NOTAMは別途確認\",\n  ].join(\"\\n\")));\n  layer.bindTooltip(content, { sticky: true });"
+      }
+    },
+    {
+      "id": "category",
+      "text": "区分",
+      "reason": "原表記を保持し、欠損は制限なしと誤解させない表現を採用。簡潔さを優先し注記の装飾記号は加えない。",
+      "response_quote": "`id: \"category\"`（空域区分ラベル）\n\n* **指定文言**: `区分`\n* **用途/文脈**: `AREA`（原本値）の項目ラベル。\n\n| 候補 | 文言案 | 理由 | 懸念 |\n| :--- | :--- | :--- | :--- |\n| **候補1 (推奨)** | **区分** | 2文字で最もコンパクト。航空分野の「空域区分」としても違和感がなく、狭いツールチップ内での横幅を圧迫しない。 | 「エリア区分」などと比べると、初学者や不慣れな利用者には何の区分かやや抽象的に感じられる可能性がある。 |\n| **候補2** | **種別** | 制限空域の種類（Danger Area / Restricted Area等）を示す言葉として日本語として自然。 | 原本データがエリア記号や番号等の場合、「種別」という言葉とニュアンスのズレが生じる可能性がある。 |\n| **候補3** | **エリア** | 原本カラム名（AREA）に対応しており、原表記重視の観点からブレが少ない。 | カタカナ3文字となり、漢字2文字に比べてツールチップ内の配置バランスでやや冗長に見える場合がある。 |",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {",
+        "end": "  layer.bindTooltip(content, { sticky: true });",
+        "expected": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {\n  const attributes = feature.properties?.source_attributes ?? {};\n  const value = (key: string) => typeof attributes[key] === \"string\" && attributes[key].trim()\n    ? attributes[key] : \"記載なし\";\n  const content = document.createElement(\"div\");\n  content.style.whiteSpace = \"pre-line\";\n  content.style.width = \"max-content\";\n  content.style.maxWidth = \"260px\";\n  content.style.overflowWrap = \"anywhere\";\n  const title = document.createElement(\"strong\");\n  title.textContent = typeof attributes.ID_NAME === \"string\" && attributes.ID_NAME.trim()\n    ? attributes.ID_NAME : \"飛行制限空域\";\n  content.append(title, document.createTextNode([\n    \"\",\n    `区分: ${value(\"AREA\")}`,\n    `下限: ${value(\"ALT_LOWER\")}`,\n    `上限: ${value(\"ALT_UPPER\")}`,\n    \"使用状況・NOTAMは別途確認\",\n  ].join(\"\\n\")));\n  layer.bindTooltip(content, { sticky: true });"
+      }
+    },
+    {
+      "id": "lower",
+      "text": "下限",
+      "reason": "原表記を保持し、欠損は制限なしと誤解させない表現を採用。簡潔さを優先し注記の装飾記号は加えない。",
+      "response_quote": "`id: \"lower\"`（下限高度ラベル）\n\n* **指定文言**: `下限`\n* **用途/文脈**: `ALT_LOWER`（原本値）の項目ラベル。\n\n| 候補 | 文言案 | 理由 | 懸念 |\n| :--- | :--- | :--- | :--- |\n| **候補1 (推奨)** | **下限** | 2文字で極めて簡潔。後続する原表記（例: `SFC`, `3000FT` など）と並んだ際に最もスッキリ収まる。 | 高度の文脈であることが自明でないレイアウトの場合、何の「下限」か一瞬迷う可能性がある（ただし上限と対であれば通常は問題ない）。 |\n| **候補2** | **下限高度** | 高度の制限値であることが明確で、誤解の余地が一切生じない。 | 文字数が4文字に増えるため、ツールチップが肥大化しやすい。 |\n| **候補3** | **下限 (ALT)** | 原表記（ALT）との対応関係がわかりやすい。 | 英語表記が混ざることで雑然とした印象を与え、簡潔さを損なう。 |",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {",
+        "end": "  layer.bindTooltip(content, { sticky: true });",
+        "expected": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {\n  const attributes = feature.properties?.source_attributes ?? {};\n  const value = (key: string) => typeof attributes[key] === \"string\" && attributes[key].trim()\n    ? attributes[key] : \"記載なし\";\n  const content = document.createElement(\"div\");\n  content.style.whiteSpace = \"pre-line\";\n  content.style.width = \"max-content\";\n  content.style.maxWidth = \"260px\";\n  content.style.overflowWrap = \"anywhere\";\n  const title = document.createElement(\"strong\");\n  title.textContent = typeof attributes.ID_NAME === \"string\" && attributes.ID_NAME.trim()\n    ? attributes.ID_NAME : \"飛行制限空域\";\n  content.append(title, document.createTextNode([\n    \"\",\n    `区分: ${value(\"AREA\")}`,\n    `下限: ${value(\"ALT_LOWER\")}`,\n    `上限: ${value(\"ALT_UPPER\")}`,\n    \"使用状況・NOTAMは別途確認\",\n  ].join(\"\\n\")));\n  layer.bindTooltip(content, { sticky: true });"
+      }
+    },
+    {
+      "id": "upper",
+      "text": "上限",
+      "reason": "原表記を保持し、欠損は制限なしと誤解させない表現を採用。簡潔さを優先し注記の装飾記号は加えない。",
+      "response_quote": "`id: \"upper\"`（上限高度ラベル）\n\n* **指定文言**: `上限`\n* **用途/文脈**: `ALT_UPPER`（原本値）の項目ラベル。\n\n| 候補 | 文言案 | 理由 | 懸念 |\n| :--- | :--- | :--- | :--- |\n| **候補1 (推奨)** | **上限** | 「下限」と文字数・体裁が揃い、視認性が最も高い。 | 「下限」と同様、単独で見た場合に高度情報であることの明示性はやや下がる。 |\n| **候補2** | **上限高度** | 高度の制限値であることが一目で伝わる。 | 文字数が4文字となり、行全体の長さに影響する。 |\n| **候補3** | **上限 (ALT)** | 原本データとの対応が把握しやすい。 | 視覚的なノイズが増え、スマートさに欠ける。 |",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {",
+        "end": "  layer.bindTooltip(content, { sticky: true });",
+        "expected": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {\n  const attributes = feature.properties?.source_attributes ?? {};\n  const value = (key: string) => typeof attributes[key] === \"string\" && attributes[key].trim()\n    ? attributes[key] : \"記載なし\";\n  const content = document.createElement(\"div\");\n  content.style.whiteSpace = \"pre-line\";\n  content.style.width = \"max-content\";\n  content.style.maxWidth = \"260px\";\n  content.style.overflowWrap = \"anywhere\";\n  const title = document.createElement(\"strong\");\n  title.textContent = typeof attributes.ID_NAME === \"string\" && attributes.ID_NAME.trim()\n    ? attributes.ID_NAME : \"飛行制限空域\";\n  content.append(title, document.createTextNode([\n    \"\",\n    `区分: ${value(\"AREA\")}`,\n    `下限: ${value(\"ALT_LOWER\")}`,\n    `上限: ${value(\"ALT_UPPER\")}`,\n    \"使用状況・NOTAMは別途確認\",\n  ].join(\"\\n\")));\n  layer.bindTooltip(content, { sticky: true });"
+      }
+    },
+    {
+      "id": "missing",
+      "text": "記載なし",
+      "reason": "原表記を保持し、欠損は制限なしと誤解させない表現を採用。簡潔さを優先し注記の装飾記号は加えない。",
+      "response_quote": "`id: \"missing\"`（データ欠損時のプレースホルダー）\n\n* **指定文言**: `記載なし`\n* **用途/文脈**: `AREA`、`ALT_LOWER`、`ALT_UPPER` の値が存在しない場合の代替表示。\n\n| 候補 | 文言案 | 理由 | 懸念 |\n| :--- | :--- | :--- | :--- |\n| **候補1 (推奨)** | **記載なし** | 「原本に記載がない」という客観的事実のみを正確に示し、システム障害や読み込みエラーではなくデータ仕様であることが利用者に伝わる。 | 4文字あるため、原本値が短い英数字の場合にプレースホルダーの方が目立ってしまう可能性がある。 |\n| **候補2** | **-**（ハイフン） | テーブルやツールチップの欠損値表現として最も一般的で視覚的ノイズが最小。原表記（英数字）の邪魔をしない。 | 「設定されていない（無制限・地上など）」のか「原本のデータ欠損」なのかが記号だけでは区別しにくい。 |\n| **候補3** | **未設定** | 状態を3文字で簡潔に表現できる。 | システム側で意図的に設定していない（設定漏れ）かのような誤解を招く恐れがある。 |",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {",
+        "end": "  layer.bindTooltip(content, { sticky: true });",
+        "expected": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {\n  const attributes = feature.properties?.source_attributes ?? {};\n  const value = (key: string) => typeof attributes[key] === \"string\" && attributes[key].trim()\n    ? attributes[key] : \"記載なし\";\n  const content = document.createElement(\"div\");\n  content.style.whiteSpace = \"pre-line\";\n  content.style.width = \"max-content\";\n  content.style.maxWidth = \"260px\";\n  content.style.overflowWrap = \"anywhere\";\n  const title = document.createElement(\"strong\");\n  title.textContent = typeof attributes.ID_NAME === \"string\" && attributes.ID_NAME.trim()\n    ? attributes.ID_NAME : \"飛行制限空域\";\n  content.append(title, document.createTextNode([\n    \"\",\n    `区分: ${value(\"AREA\")}`,\n    `下限: ${value(\"ALT_LOWER\")}`,\n    `上限: ${value(\"ALT_UPPER\")}`,\n    \"使用状況・NOTAMは別途確認\",\n  ].join(\"\\n\")));\n  layer.bindTooltip(content, { sticky: true });"
+      }
+    },
+    {
+      "id": "notice",
+      "text": "使用状況・NOTAMは別途確認",
+      "reason": "原表記を保持し、欠損は制限なしと誤解させない表現を採用。簡潔さを優先し注記の装飾記号は加えない。",
+      "response_quote": "`id: \"notice\"`（免責・補足注記）\n\n* **指定文言**: `使用状況・NOTAMは別途確認`\n* **用途/文脈**: 原本データに現在の運用時間、発効状況、NOTAMが含まれていないことを示す注記（hover時のフッター等）。\n\n| 候補 | 文言案 | 理由 | 懸念 |\n| :--- | :--- | :--- | :--- |\n| **候補1 (推奨)** | **※使用状況・NOTAMは別途確認** | 「原本データに含まれない＝別途確認が必要」という利用者の取るべきアクションが明確。先頭に「※」を付けることで注記であることが即座に識別可能。 | ツールチップの横幅によっては改行が発生し、縦長になる可能性がある。 |\n| **候補2** | **※NOTAM・運用状況は未反映** | 静的データであることを客観的事実として短く伝えており、システム側の責務境界が明瞭。 | 「別途確認が必要」という直接的な行動喚起に比べると、利用者が自分で判断しなければならない。 |\n| **候補3** | **※最新状況・NOTAMは含みません** | 簡潔で平易な日本語。「含まれていない」事実が直接的で分かりやすい。 | 「含まない」という否定表現にとどまり、外部での確認が必要である旨の示唆がやや弱い。 |",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {",
+        "end": "  layer.bindTooltip(content, { sticky: true });",
+        "expected": "function bindRestrictedTooltip(feature: Feature, layer: Layer) {\n  const attributes = feature.properties?.source_attributes ?? {};\n  const value = (key: string) => typeof attributes[key] === \"string\" && attributes[key].trim()\n    ? attributes[key] : \"記載なし\";\n  const content = document.createElement(\"div\");\n  content.style.whiteSpace = \"pre-line\";\n  content.style.width = \"max-content\";\n  content.style.maxWidth = \"260px\";\n  content.style.overflowWrap = \"anywhere\";\n  const title = document.createElement(\"strong\");\n  title.textContent = typeof attributes.ID_NAME === \"string\" && attributes.ID_NAME.trim()\n    ? attributes.ID_NAME : \"飛行制限空域\";\n  content.append(title, document.createTextNode([\n    \"\",\n    `区分: ${value(\"AREA\")}`,\n    `下限: ${value(\"ALT_LOWER\")}`,\n    `上限: ${value(\"ALT_UPPER\")}`,\n    \"使用状況・NOTAMは別途確認\",\n  ].join(\"\\n\")));\n  layer.bindTooltip(content, { sticky: true });"
+      }
+    }
+  ]
+}

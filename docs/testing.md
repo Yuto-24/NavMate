@@ -785,6 +785,11 @@ KMLの全点やProject全体のバックアップにもなりません。
 `npm --prefix web run test:static-artifact` は欠落・改変・アプリとの版数差・件数差を拒否する。
 Python suiteを選択する提出前検証は通常どおりDocker test stageの全検査を実行する。
 
+飛行制限空域のhover検証は `map-background.spec.ts` で実形状へのマウス操作、原本属性の表示、
+クリックによる地点追加・ドラッグによる地図移動を確認する。2026-11-23には、Leaflet Tooltipの
+絶対配置と `overflow-wrap: anywhere` により内容が1文字幅に縮み、文字列と可視性の検証だけでは
+検出できなかった。`width: max-content` と最大幅を併用し、回帰検証では表示寸法も確認する。
+
 EFF20261029の注意点は[正規化・照合記録](reference/aip_map_geodata_20261029.md#形式間照合eff20261029原本2026-11-21確認)
 を参照する。特にKMLの件数差は一律の重複除去では解消できず、Hiroshima・Sapporoには
 水平形状差もある。照合記録の原本内indexは0始まりで、緯度経度の一致比較許容値は1e-9度。
