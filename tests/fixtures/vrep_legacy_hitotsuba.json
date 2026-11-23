@@ -1,0 +1,27 @@
+{
+  "reference_id": "RJFM-VREP-HITOTSUBA",
+  "name": "HITOTSUBA",
+  "name_ja": "一ツ葉",
+  "kind": "VISUAL_REPORTING_POINT",
+  "airport_icao": "RJFM",
+  "latitude_deg": 31.931228,
+  "longitude_deg": 131.469188,
+  "bearing_true_deg": 18.0,
+  "distance_nm": 3.4,
+  "note": "",
+  "derivation": "Geodesic.WGS84.Direct(arp_latitude_deg, arp_longitude_deg, bearing_true_deg, distance_nm * 1852); lat2/lon2 rounded to 6 decimals; no magnetic variation",
+  "source": {
+    "url": "https://github.com/Yuto-24/AutoNavLog/issues/169#issuecomment-6415872164",
+    "filename": "RJFM__20260301.pdf",
+    "sha256": "f0c586193c699bf208b5ed1b3476e3b01fd4c134236a0bf6aaef2134fcedfc9c",
+    "table_pdf_page": 39,
+    "table_page": "RJFM AD2.24-OTHER-1",
+    "table_effective_date": "2022-07-14",
+    "arp_pdf_page": 1,
+    "arp_effective_date": "2026-03-01",
+    "arp_latitude_dms": "315238N",
+    "arp_longitude_dms": "1312655E",
+    "arp_latitude_deg": 31.877222222222223,
+    "arp_longitude_deg": 131.44861111111112
+  }
+}

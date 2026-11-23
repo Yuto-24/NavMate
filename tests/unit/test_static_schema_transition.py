@@ -37,7 +37,14 @@ def reviewed(tmp_path, request):
     if forecast:
         root = Path(__file__).resolve().parents[2]
         before = json.loads((root / "tests/fixtures/schema4/project.schema.json").read_text())
-        after = json.loads((root / SCHEMA).read_text())
+        # This evidence covers the historical forecast-only transition. Later
+        # schema additions must not silently become part of its reviewed fixture.
+        after = copy.deepcopy(before)
+        current = json.loads((root / SCHEMA).read_text())
+        after["properties"]["selected_forecast_model"] = current["properties"][
+            "selected_forecast_model"
+        ]
+        after["properties"]["schema_version"].update(const=5, default=5)
     sources = {
         (OLD, SCHEMA): json.dumps(before),
         (NEW, SCHEMA): json.dumps(after),
@@ -319,11 +326,12 @@ def test_rules_transition_is_reused_alongside_schema_evidence(reviewed):
 
 @pytest.mark.parametrize("reviewed", ["forecast-model-selection"], indirect=True)
 @pytest.mark.parametrize("change", ["model", "required", "version", "boolean-default",
+                                  "reference-source",
                                   "latest-policy", "rules", "report-identity", "report-boolean",
                                   "report-role", "report-review", "report-json"])
 def test_forecast_transition_rejects_unreviewed_contracts(reviewed, change):
     operator, path, record, sources, variables, calls = reviewed
-    if change in {"model", "required", "version", "boolean-default"}:
+    if change in {"model", "required", "version", "boolean-default", "reference-source"}:
         after = json.loads(sources[NEW, SCHEMA])
         if change == "model":
             after["properties"]["selected_forecast_model"]["anyOf"][0]["enum"].append("OTHER")
@@ -331,6 +339,11 @@ def test_forecast_transition_rejects_unreviewed_contracts(reviewed, change):
             after["required"].append("selected_forecast_model")
         elif change == "version":
             after["properties"]["schema_version"]["const"] = 6
+        elif change == "reference-source":
+            root = Path(__file__).resolve().parents[2]
+            current = json.loads((root / SCHEMA).read_text())
+            for definition in ("AipReferencePointSource", "ReferencePointSnapshot"):
+                after["$defs"][definition] = current["$defs"][definition]
         else:
             # Python True == 1 must not admit a different JSON schema default.
             after["properties"]["run_up_included"]["default"] = 1

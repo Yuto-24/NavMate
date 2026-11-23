@@ -41,6 +41,7 @@ from autonavlog.importers.kml import (
 from autonavlog.local_persistence import migrate_record
 from autonavlog.performance.repository import PerformanceRepository
 from autonavlog.project_exchange import export_project, import_project
+from autonavlog.reference_points import refresh_legacy_references
 from autonavlog.storage.airports import AirportRepository
 from autonavlog.storage.local import LocalProjectRepository
 from autonavlog.storage.reference_data import ReferenceDataCatalogRepository
@@ -438,6 +439,10 @@ class LocalApplication:
                 ) from error
         if path == "validateRecord":
             return migrate_record(payload).model_dump_json()
+        if path == "prepareReferenceUpdate":
+            return refresh_legacy_references(
+                migrate_record(payload), self._data_root / "reference"
+            ).model_dump_json()
         if path == "state":
             state = self.app.present(self.session)
         elif path == "resolveProjectName":
