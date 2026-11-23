@@ -62,7 +62,12 @@ test("Static Local workflow saves and restores a calculated Project across lifec
   // WebKit can otherwise remain at runtime initialization with both tabs live.
   // Keep an origin document alive while releasing its Pyodide worker, so the
   // second-tab check does not drop every same-origin document in WebKit.
-  await page.goto("/local/manifest.json");
+  // Use an HTML document: navigating WebKit to a JSON document can fail internally.
+  await page.route("**/browser-acceptance-idle.html", route => route.fulfill({
+    contentType: "text/html", body: "<!doctype html><title>Acceptance idle</title>",
+  }));
+  await page.goto("/browser-acceptance-idle.html");
+  await expect(page).toHaveTitle("Acceptance idle");
   const other = await context.newPage();
   await other.goto("/");
   await enterImportWorkflow(other);

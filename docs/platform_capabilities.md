@@ -29,6 +29,8 @@ Static Web / Localモードでは、操作ペインの「ファイルを選択�
 
 書き出しは計算後にNAV LOG末尾から行います。「プロジェクトJSONをダウンロード」「プロジェクトJSONをコピー」は、どちらも `navmate.project` version 1形式で現在の確定済みProject入力を出力します。再計算前の変更も対象です。
 
+JSON・PNGのダウンロード名は、出力時刻の日本時間（JST）を使った `プロジェクト名_yyyymmdd-hhmm.json` / `.png` です。飛行日付ではありません。プロジェクト名にファイル名として使えない記号や制御文字があれば `_` に置き換えます。
+
 - **含める入力**：Route、Check Point、Planning入力、選択時点の参照データ、手動SEA。
 - **含めない情報**：未確定のMAP Route Draft、Last Calculation・計算結果、気象raw cache、認証・所有者情報、内部revision・同期情報。自動SEAは取込先で再取得が必要です。
 

@@ -309,7 +309,8 @@ test("download and Clipboard export Project inputs, survive denial, and retain w
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "プロジェクトJSONをダウンロード" }).click();
   const file = await download;
-  expect(file.suggestedFilename()).toBe("navmate-project.json");
+  expect(file.suggestedFilename().startsWith(`${original.project.name}_`)).toBe(true);
+  expect(file.suggestedFilename()).toMatch(/_\d{8}-\d{4}\.json$/);
   const text = readFileSync((await file.path())!, "utf8");
   const result = JSON.parse(text);
   expect(result.format).toBe("navmate.project");

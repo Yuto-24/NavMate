@@ -20,6 +20,7 @@ import { routeImportInput } from "./fileInput";
 import { PlatformError, type PlatformCapabilities, type FileContentSource } from "./platform";
 import type { FileInputProps } from "./BrowserFileInput";
 import { ProjectFileInput } from "./components/ProjectFileInput";
+import { projectExportFilename } from "./projectExportFilename";
 import { exportVerticalProfileKml, kmlCopy } from "./verticalProfileKml";
 import {
   candidateFromKey,
@@ -1635,7 +1636,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       if (destination === "clipboard") {
         await platform.clipboard.writeText(text);
       } else {
-        await platform.files.save({ name: "navmate-project.json", mediaType: "application/json",
+        await platform.files.save({ name: projectExportFilename(project.name, "json"), mediaType: "application/json",
           content: new TextEncoder().encode(text) });
       }
     }, { errorKey: "project-export",
@@ -2169,7 +2170,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             radReciprocal={radReciprocal}
             onRadReciprocalChange={setRadReciprocal}
             exportDisabled={busy || !calculationInputsAreLocallyCurrent || !state.readiness.calculationIsCurrent || hasNavLogEditErrors(navLogEditErrors) || ["pending", "saving", "error"].includes(navLogEditStatus.kind)}
-            savePng={platform.files.save}
+            savePng={file => platform.files.save({ ...file, name: projectExportFilename(state.project!.name, "png") })}
             onExportMessage={(message, kind) => {
               if (kind === "error") {
                 recordOperationError("export-png", message);

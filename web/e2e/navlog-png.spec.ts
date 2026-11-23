@@ -198,6 +198,9 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   const downloadPromise = page.waitForEvent("download");
   await output.click();
   const download = await downloadPromise;
+  const projectName = await page.getByRole("button", { name: "プロジェクトメニュー", exact: true }).getAttribute("title");
+  expect(download.suggestedFilename().startsWith(`${projectName}_`)).toBe(true);
+  expect(download.suggestedFilename()).toMatch(/_\d{8}-\d{4}\.png$/);
   const path = info.outputPath("NAVLOG.png");
   await download.saveAs(path);
   const pngToast = page.locator("#app-notification-region .app-notification").filter({ hasText: "PNGのダウンロードを開始しました。" });
