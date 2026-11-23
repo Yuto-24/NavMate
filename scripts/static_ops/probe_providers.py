@@ -106,12 +106,29 @@ def strict_json(raw: bytes) -> dict:
 
 
 class Client:
-    def __init__(self, env, *, opener=None, clock=time.monotonic):
+    def __init__(self, env, *, opener=None, clock=time.monotonic, sleep=time.sleep):
         self.env = env
         self.opener = opener or build_opener(NoRedirect)
         self.clock = clock
+        self.sleep = sleep
         self.deadline = clock() + 180
         self.requests = 0
+        self.request_limit = MAX_REQUESTS
+        self.inventory_planned = False
+        self.next_request_at = None
+
+    def plan_inventory(self, remaining_requests):
+        """Reserve one validated inventory's remaining pages and final project read."""
+        if (self.inventory_planned or type(remaining_requests) is not int
+                or not 1 <= remaining_requests <= 2**63 - 1
+                or self.requests > self.request_limit or self.clock() >= self.deadline):
+            raise ProbeError("invalid_inventory_budget")
+        self.inventory_planned = True
+        self.request_limit = self.requests + remaining_requests
+        # No fixed history ceiling: one 15-second response plus pacing per GET.
+        # The first page fixes this finite plan; later metadata cannot extend it.
+        self.deadline = self.clock() + remaining_requests * 15.5
+        self.next_request_at = self.clock() + 0.5
 
     def get(self, service, path, query=None, *, graphql=None):
         token = self.env.get(TOKEN_ENV[service], "")
@@ -126,7 +143,14 @@ class Client:
         ):
             raise ProbeError("invalid_path")
         self.requests += 1
-        if self.requests > MAX_REQUESTS or self.clock() >= self.deadline:
+        if self.requests > self.request_limit or self.clock() >= self.deadline:
+            raise ProbeError("request_budget_exhausted")
+        if self.next_request_at is not None:
+            self.sleep(max(0, self.next_request_at - self.clock()))
+            self.next_request_at = self.clock() + 0.5
+        deadline = (min(self.deadline, self.clock() + 15)
+                    if self.inventory_planned else self.deadline)
+        if self.clock() >= deadline:
             raise ProbeError("request_budget_exhausted")
         url = f"https://{HOSTS[service]}{path}"
         if query:
@@ -152,21 +176,25 @@ class Client:
         try:
             with self.opener.open(
                 Request(url, data=body, headers=headers),
-                timeout=min(15, self.deadline - self.clock()),
+                timeout=min(15, deadline - self.clock()),
             ) as response:
                 if response.status != 200:
                     raise ProbeError("unexpected_http_status")
                 raw = bytearray()
                 while True:
-                    if self.clock() >= self.deadline:
+                    if self.clock() >= deadline:
                         raise ProbeError("request_budget_exhausted")
                     chunk = response.read1(min(64 * 1024, MAX_BYTES + 1 - len(raw)))
+                    if self.clock() >= deadline:
+                        raise ProbeError("request_budget_exhausted")
                     if not chunk:
                         break
                     raw.extend(chunk)
                     if len(raw) > MAX_BYTES:
                         raise ProbeError("response_too_large")
             result = strict_json(raw)
+            if self.clock() >= deadline:
+                raise ProbeError("request_budget_exhausted")
         except HTTPError as error:
             # Never print the URL, reason, body or headers; these can contain secrets.
             raise ProbeError(f"http_{error.code}") from None

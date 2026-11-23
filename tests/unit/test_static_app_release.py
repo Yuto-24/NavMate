@@ -6,6 +6,7 @@ import json
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -402,6 +403,9 @@ def pages_operator(monkeypatch, tmp_path):
     rows = [copy.deepcopy(project["canonical_deployment"])]
     requests = []
     operator.project_reads = []
+    operator.pages_response_hook = lambda payload: None
+    operator.pages_clock = 0.0
+    operator.pages_clients = []
 
     class Response(io.BytesIO):
         status = 200
@@ -424,12 +428,20 @@ def pages_operator(monkeypatch, tmp_path):
                 page = int(query["page"][0])
                 payload = pages_page(rows[(page - 1) * per_page:page * per_page], page,
                                      len(rows), per_page=per_page)
+                operator.pages_response_hook(payload)
             return Response(json.dumps(payload).encode())
 
     client = app.probe_providers.Client
-    monkeypatch.setattr(
-        app.probe_providers, "Client", lambda env: client(env, opener=Opener())
-    )
+
+    def sleep(seconds):
+        operator.pages_clock += seconds
+
+    def make_client(env):
+        result = client(env, opener=Opener(), clock=lambda: operator.pages_clock, sleep=sleep)
+        operator.pages_clients.append(result)
+        return result
+
+    monkeypatch.setattr(app.probe_providers, "Client", make_client)
     snapshot = operator.snapshot
 
     def real_target_snapshot(*args, **kwargs):
@@ -448,31 +460,133 @@ def disabled_github_source():
     }
 
 
-@pytest.mark.parametrize("per_page,total,complete", [(20, 773, False), (25, 773, True),
-                                                     (25, 926, False)])
-def test_growing_history_prepare_preserves_request_budget_and_full_inventory(
-    pages_operator, monkeypatch, tmp_path, per_page, total, complete
-):
+@pytest.mark.parametrize("total", [1, 25, 26, 773, 925, 926, 1000, 1001, 10001])
+def test_growing_history_prepare_plans_complete_inventory(pages_operator, tmp_path, total):
     operator, _, rows, requests = pages_operator
     rows.extend(pages_deployment(i) for i in range(2, total + 1))
-    monkeypatch.setattr(app.pages_target, "DEPLOYMENTS_PER_PAGE", per_page)
     store = tmp_path / "store"
     store.mkdir()
     journal = app.Journal(store / "prepare-status.json", "prepare", NEW)
-    if not complete:
-        # The complete operation includes three project reads in the 40 GET cap.
+    app.prepare(operator, NEW, OLD, store, journal)
+    pages = (total + 24) // 25
+    assert len(requests) == 2 * (pages + 3)
+    assert (store / "plan.json").is_file()
+    assert all(c.requests == c.request_limit == pages + 3 for c in operator.pages_clients)
+    # Both scans are paced; the largest also exceeds the former 180-second deadline.
+    assert operator.pages_clock == 2 * pages * 0.5
+    assert journal.value["events"] == []
+    assert set(journal.value["changes"].values()) == {"UNCHANGED"}
+
+
+@pytest.mark.parametrize("total,complete", [(925, True), (926, False)])
+def test_fixed_probe_budget_reproduces_original_release_boundary(
+    pages_operator, monkeypatch, tmp_path, total, complete
+):
+    operator, _, rows, requests = pages_operator
+    rows.extend(pages_deployment(i) for i in range(2, total + 1))
+    inspect = app.pages_target.inspect
+
+    def fixed_inspect(*args, **kwargs):
+        kwargs["plan_requests"] = False
+        return inspect(*args, **kwargs)
+
+    monkeypatch.setattr(app.pages_target, "inspect", fixed_inspect)
+    store = tmp_path / "store"
+    store.mkdir()
+    journal = app.Journal(store / "prepare-status.json", "prepare", NEW)
+    if complete:
+        app.prepare(operator, NEW, OLD, store, journal)
+        assert len(requests) == 80
+    else:
         with pytest.raises(app.Blocked, match="Pages inventory request budget exhausted"):
             app.prepare(operator, NEW, OLD, store, journal)
         assert len(requests) == 40
         assert not (store / "plan.json").exists()
         assert "prepare-build" not in operator.calls
-    else:
+    assert journal.value["events"] == []
+
+
+@pytest.mark.parametrize("at_page", [1, 38, 41])
+@pytest.mark.parametrize("damage", [
+    "missing-metadata", "total", "short", "duplicate", "scope", "per-page",
+    "provider-error", "403", "429", "timeout",
+])
+def test_large_inventory_failure_never_reaches_build_or_plan(
+    pages_operator, tmp_path, at_page, damage
+):
+    operator, _, rows, requests = pages_operator
+    rows.extend(pages_deployment(i) for i in range(2, 1002))
+
+    def damage_response(response):
+        if response["result_info"]["page"] != at_page:
+            return
+        if damage == "missing-metadata":
+            response.pop("result_info")
+        elif damage == "total":
+            response["result_info"]["total_count"] += 25
+        elif damage == "short":
+            response["result"].pop()
+            response["result_info"]["count"] -= 1
+        elif damage == "duplicate":
+            response["result"][-1]["id"] = rows[0]["id"]
+        elif damage == "scope":
+            response["result"][0]["project_id"] = "PRIVATE_OTHER_PROJECT"
+        elif damage == "per-page":
+            response["result_info"]["per_page"] = 50
+        elif damage == "provider-error":
+            response["errors"] = [{"message": "PRIVATE_RESPONSE"}]
+        elif damage == "timeout":
+            raise TimeoutError("PRIVATE_RESPONSE")
+        else:
+            raise HTTPError("https://PRIVATE_URL", int(damage), "PRIVATE", {}, None)
+
+    operator.pages_response_hook = damage_response
+    store = tmp_path / "store"
+    store.mkdir()
+    journal = app.Journal(store / "prepare-status.json", "prepare", NEW)
+    with pytest.raises(app.Blocked, match="Pages target observation failed"):
         app.prepare(operator, NEW, OLD, store, journal)
-        # Each snapshot includes 31 list pages and all three project reads.
-        assert len(requests) == 68
-        assert (store / "plan.json").is_file()
+    assert len(requests) == at_page + 2  # No retry, final Project read, or partial success.
+    assert not (store / "plan.json").exists()
+    assert "prepare-build" not in operator.calls
     assert journal.value["events"] == []
     assert set(journal.value["changes"].values()) == {"UNCHANGED"}
+    assert "PRIVATE" not in json.dumps(journal.value)
+
+
+@pytest.mark.parametrize("change", ["new-preview", "production", "settings"])
+def test_project_change_at_end_of_large_inventory_is_rejected(pages_operator, change):
+    operator, project, rows, requests = pages_operator
+    rows.extend(pages_deployment(i) for i in range(2, 1002))
+
+    def change_project(response):
+        if response["result_info"]["page"] != 41:
+            return
+        if change == "new-preview":
+            project["latest_deployment"] = pages_deployment(1002, "build", "active", "preview")
+        elif change == "production":
+            project["canonical_deployment"] = pages_deployment(1002)
+        else:
+            project["source"] = disabled_github_source()
+
+    operator.pages_response_hook = change_project
+    with pytest.raises(app.Blocked, match="Pages target unknown or changed"):
+        operator.target(operator.variables())
+    assert len(requests) == 44
+
+
+def test_new_deployment_during_large_scan_changes_pinned_total(pages_operator):
+    operator, _, rows, requests = pages_operator
+    rows.extend(pages_deployment(i) for i in range(2, 1002))
+
+    def insert_after_read(response):
+        if response["result_info"]["page"] == 38:
+            rows.insert(0, pages_deployment(1002, "queued", "idle", "preview"))
+
+    operator.pages_response_hook = insert_after_read
+    with pytest.raises(app.Blocked, match="Pages target observation failed"):
+        operator.target(operator.variables())
+    assert len(requests) == 41  # Page 39 observes the change and cannot extend the plan.
 
 
 @pytest.mark.parametrize("code", ["request_budget_exhausted", "PRIVATE_URL_TOKEN_BODY"])
@@ -609,16 +723,17 @@ def test_real_target_rejects_missing_git_controls(pages_operator, key):
 @pytest.mark.parametrize(
     "stage,state", [("build", "active"), ("queued", "idle"), ("new", "unknown")]
 )
+@pytest.mark.parametrize("total", [26, 926, 1001])
 def test_real_target_disabled_git_still_rejects_busy_or_unknown_last_page(
-    pages_operator, stage, state
+    pages_operator, stage, state, total
 ):
     operator, project, rows, requests = pages_operator
     project["source"] = disabled_github_source()
-    rows.extend(pages_deployment(i) for i in range(2, 26))
-    rows.append(pages_deployment(26, stage, state, "preview"))
+    rows.extend(pages_deployment(i) for i in range(2, total))
+    rows.append(pages_deployment(total, stage, state, "preview"))
     with pytest.raises(app.Blocked, match="in flight"):
         operator.target(operator.variables())
-    assert len([url for url in requests if "/deployments?" in url]) == 2
+    assert len([url for url in requests if "/deployments?" in url]) == (total + 24) // 25
 
 
 def test_source_drift_during_prepare_has_no_plan_or_provider_writes(pages_operator, tmp_path):

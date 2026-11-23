@@ -116,6 +116,124 @@ def test_oversize_and_deadline_fail_closed(monkeypatch):
         c.get("github", "/repos/owner/repo")
 
 
+@pytest.fixture
+def planned_inventory_client():
+    now, sent, waits = [0.0], [], []
+
+    def sleep(seconds):
+        waits.append(seconds)
+        now[0] += seconds
+
+    def open_request(request, timeout):
+        sent.append(now[0])
+        assert request.get_method() == "GET" and 0 < timeout <= 15
+        response = io.BytesIO(b'{}')
+        response.status = 200
+        return response
+
+    c = p.Client(ENV, opener=SimpleNamespace(open=open_request), clock=lambda: now[0], sleep=sleep)
+    c.get("cloudflare", "/project")
+    return c, now, sent, waits
+
+
+def test_inventory_plan_has_exact_request_bound_and_paces_beyond_old_deadline(
+    planned_inventory_client,
+):
+    c, now, sent, waits = planned_inventory_client
+    c.plan_inventory(401)
+    for _ in range(401):
+        c.get("cloudflare", "/project")
+    assert now[0] == 200.5 > 180
+    assert c.requests == c.request_limit == 402
+    assert all(later - earlier >= 0.5 for earlier, later in zip(sent, sent[1:], strict=False))
+    assert len(waits) == 401
+    with pytest.raises(p.ProbeError, match="request_budget_exhausted"):
+        c.get("cloudflare", "/project")
+    assert len(sent) == 402
+
+
+@pytest.mark.parametrize("count", [0, -1, True, "1", 1.0, 2**63])
+def test_inventory_budget_rejects_invalid_reservation(planned_inventory_client, count):
+    c, _, sent, _ = planned_inventory_client
+    with pytest.raises(p.ProbeError, match="invalid_inventory_budget"):
+        c.plan_inventory(count)
+    assert c.request_limit == p.MAX_REQUESTS and len(sent) == 1
+
+
+@pytest.mark.parametrize("condition", ["replan", "expired", "exhausted"])
+def test_inventory_budget_cannot_restart_or_extend_failed_observation(
+    planned_inventory_client, condition,
+):
+    c, now, sent, _ = planned_inventory_client
+    if condition == "replan":
+        c.plan_inventory(10)
+    elif condition == "expired":
+        now[0] = c.deadline
+    else:
+        c.requests = p.MAX_REQUESTS + 1
+    with pytest.raises(p.ProbeError, match="invalid_inventory_budget"):
+        c.plan_inventory(100)
+    assert len(sent) == 1
+
+
+def test_planned_inventory_enforces_per_response_wall_time(planned_inventory_client):
+    c, now, _, _ = planned_inventory_client
+    c.plan_inventory(100)
+
+    class SlowResponse(io.BytesIO):
+        status = 200
+
+        def read1(self, size):
+            now[0] += 8  # Keep each read below the socket timeout, exceed total response time.
+            return b' '
+
+    c.opener = SimpleNamespace(open=lambda *args, **kwargs: SlowResponse())
+    with pytest.raises(p.ProbeError, match="request_budget_exhausted"):
+        c.get("cloudflare", "/project")
+    assert now[0] < c.deadline
+
+
+def test_planned_inventory_preserves_size_and_total_deadline_limits(
+    planned_inventory_client, monkeypatch,
+):
+    c, now, sent, _ = planned_inventory_client
+    c.plan_inventory(2)
+    monkeypatch.setattr(p, "MAX_BYTES", 1)
+    with pytest.raises(p.ProbeError, match="response_too_large"):
+        c.get("cloudflare", "/project")
+    now[0] = c.deadline
+    with pytest.raises(p.ProbeError, match="request_budget_exhausted"):
+        c.get("cloudflare", "/project")
+    assert len(sent) == 2
+
+
+@pytest.mark.parametrize("phase", ["eof", "decode"])
+def test_planned_inventory_cannot_accept_response_after_deadline(
+    planned_inventory_client, monkeypatch, phase,
+):
+    c, now, _, _ = planned_inventory_client
+
+    class Response(io.BytesIO):
+        status = 200
+
+        def read1(self, size):
+            now[0] += 8 if phase == "eof" else 0
+            return super().read1(size)
+
+    if phase == "decode":
+        decode = p.strict_json
+
+        def slow_decode(raw):
+            now[0] += 16
+            return decode(raw)
+
+        monkeypatch.setattr(p, "strict_json", slow_decode)
+    c.opener = SimpleNamespace(open=lambda *a, **kw: Response(b'{}'))
+    c.plan_inventory(100)
+    with pytest.raises(p.ProbeError, match="request_budget_exhausted"):
+        c.get("cloudflare", "/project")
+
+
 def test_missing_credentials_does_not_attempt_network():
     def fail(*args, **kwargs):
         pytest.fail("network called without credentials")
