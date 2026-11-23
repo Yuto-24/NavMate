@@ -2,22 +2,22 @@ import type { FeatureCollection } from "geojson";
 
 // Only published airspace categories; point and route reference layers are not airspace.
 export const aipCategories = [
-  ["Civil_training_and_testing_areas", "民間訓練・試験空域"],
-  ["JSDF_training_and_testing_areas_HIGH", "自衛隊訓練・試験空域（高高度）"],
-  ["JSDF_training_and_testing_areas_LOW", "自衛隊訓練・試験空域（低高度）"],
-  ["Restricted_area_Airspace_restrictions", "飛行制限空域"],
-  ["Approach_control_area_CIVIL", "進入管制空域（民間）"],
-  ["Approach_control_area_MIL", "進入管制空域（軍用）"],
-  ["Control_zone_and_Information_zone", "管制圏・情報圏"],
-  ["ACC_Sector_at_or_above_FL335", "ACCセクター（FL335以上）"],
-  ["ACC_Sector_below_FL335", "ACCセクター（FL335未満）"],
-  ["ADIZ_INNER", "防空識別圏（内側）"],
-  ["ADIZ_OUTER", "防空識別圏（外側）"],
-  ["FIR", "飛行情報区"],
-  ["QNH_Application_Area", "QNH適用区域"],
-  ["Supersonic_flight_area", "超音速飛行空域"],
-  ["Take_off_flight_path_area", "離陸飛行経路区域"],
-  ["Corridors", "回廊"],
+  ["Civil_training_and_testing_areas", "民間訓練・試験空域", "#b82d83", "#ff85d1"],
+  ["JSDF_training_and_testing_areas_HIGH", "自衛隊訓練・試験空域（高高度）", "#8455a7", "#d4a6ff"],
+  ["JSDF_training_and_testing_areas_LOW", "自衛隊訓練・試験空域（低高度）", "#ae4965", "#ff9bb3"],
+  ["Restricted_area_Airspace_restrictions", "飛行制限空域", "#bd382d", "#ff8674"],
+  ["Approach_control_area_CIVIL", "進入管制空域（民間）", "#087b78", "#62e3cf"],
+  ["Approach_control_area_MIL", "進入管制空域（軍用）", "#417b32", "#a7e576"],
+  ["Control_zone_and_Information_zone", "管制圏・情報圏", "#967100", "#ffe06a"],
+  ["ACC_Sector_at_or_above_FL335", "ACCセクター（FL335以上）", "#74578b", "#c9a6e5"],
+  ["ACC_Sector_below_FL335", "ACCセクター（FL335未満）", "#6f791f", "#d6e97e"],
+  ["ADIZ_INNER", "防空識別圏（内側）", "#925d3e", "#efb58a"],
+  ["ADIZ_OUTER", "防空識別圏（外側）", "#b45c25", "#ffb479"],
+  ["FIR", "飛行情報区", "#5d666f", "#e0e5e9"],
+  ["QNH_Application_Area", "QNH適用区域", "#a12f59", "#ff8db4"],
+  ["Supersonic_flight_area", "超音速飛行空域", "#825f6e", "#dcb6c7"],
+  ["Take_off_flight_path_area", "離陸飛行経路区域", "#477e60", "#97e5b5"],
+  ["Corridors", "回廊", "#887247", "#e4d29c"],
 ] as const;
 export const defaultHiddenAipCategories: string[] = aipCategories
   .map(([id]) => id)
@@ -26,6 +26,7 @@ export const defaultHiddenAipCategories: string[] = aipCategories
     "Approach_control_area_CIVIL",
     "Restricted_area_Airspace_restrictions",
   ].includes(id));
+export const pcaColors = { standard: "#a45b13", imagery: "#ffd38a" } as const;
 export const pcaPreferenceKey = "autonavlog.pca-visible.v1";
 export const aipPreferenceKey = "autonavlog.aip-layers.v1";
 interface Asset { file: string; sha256: string; bytes: number }

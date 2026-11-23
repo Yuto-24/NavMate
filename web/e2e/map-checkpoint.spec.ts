@@ -31,7 +31,7 @@ for (const [geometry, selector] of [
     await page.setViewportSize({ width: 1440, height: 1000 });
     await importLocalRoute(page);
     await expect(page.locator(".aip-Civil_training_and_testing_areas")).toHaveCount(132);
-    await expect(page.locator(".aip-Civil_training_and_testing_areas").first()).toHaveAttribute("stroke", "#315caa");
+    await expect(page.locator(".aip-Civil_training_and_testing_areas").first()).toHaveAttribute("stroke", "#b82d83");
     const trainingPaths = page.locator(".aip-Civil_training_and_testing_areas");
     expect(await trainingPaths.evaluateAll(paths => paths.every(path =>
       !path.classList.contains("leaflet-interactive") && getComputedStyle(path).pointerEvents === "none",
@@ -127,7 +127,7 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
     await expect(page).toHaveTitle(/NavMate/);
     await expect(page.locator("vite-error-overlay")).toHaveCount(0);
     await expect(page.locator(".brand-subtitle")).not.toContainText(" / Local");
-    await expect(page.locator(".aip-layer-options")).toContainText("航空情報センター AIP");
+    await expect(page.locator(".aip-layer-options")).not.toContainText("Shapefile");
     const boxes = await page.evaluate(() => [".map-frame", ".planning-pane"].map(selector => {
       const r = document.querySelector(selector)!.getBoundingClientRect();
       return { x:r.x,y:r.y,width:r.width,height:r.height };
@@ -230,6 +230,6 @@ test("green theme keeps readable controls, keyboard selection and aviation color
   await primary.click();
   await expect(page.getByRole("button", { name: "チェックポイントを追加" })).toBeEnabled();
   await expect(page.locator(".rjfm-pca-boundary")).toHaveAttribute("stroke", "#a45b13");
-  await expect(page.locator(".aip-Civil_training_and_testing_areas").first()).toHaveAttribute("stroke", "#315caa");
+  await expect(page.locator(".aip-Civil_training_and_testing_areas").first()).toHaveAttribute("stroke", "#b82d83");
 
 });

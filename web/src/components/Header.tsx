@@ -178,7 +178,8 @@ export function Header({
               <p>標準地図・写真背景の下地：© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></p>
               <p>衛星・空中写真：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener noreferrer">地理院タイル</a>。表示倍率に応じて全国最新写真と衛星画像を重ねています。</p>
               <p>衛星画像：Landsat8画像（GSI,TSIC,GEO Grid/AIST）、Landsat8画像（courtesy of the U.S. Geological Survey）、海底地形（GEBCO）。全国最新写真：GRUS画像（© Axelspace）を含みます。</p>
-              <p>必要な出典表示は地図上にも常時表示します。空域の出典は「空域表示」から確認できます。</p>
+              {localMode && <p><a href="https://top.swim.mlit.go.jp/swim/" target="_blank" rel="noopener noreferrer">航空情報センター AIP</a></p>}
+              <p>必要な出典表示は地図上にも常時表示します。</p>
             </details>
             <p className="brand-subtitle">NAV2 地上準備 / v{appVersion}</p>
             <div className="storage-state" aria-label={devSharedMode ? (personal ? "Googleアカウントでログイン中の個人プロジェクト保存領域" : "端末内に保存し、開発用の共通スペースへ同期する方式") : localMode ? "保存先はこの端末のブラウザです" : "保存先はサーバーです"}>
