@@ -269,8 +269,8 @@ test("download and Clipboard export the displayed result, survive denial, and re
     await actions.scrollIntoViewIfNeeded();
     await page.screenshot({ path: test.info().outputPath(`navlog-export-${width}.png`) });
   }
-  const seaCells = page.locator(".nav-log-table .nav-log-sea-cell")
-    .filter({ hasText: /未確定|[0-9]/ });
+  // SEA can show "取得中" while the stored/exportable value remains unchanged.
+  const seaCells = page.locator('.nav-log-table .nav-log-sea-cell[data-display-text]:not([data-display-text=""])');
   await expect(seaCells.first()).toBeVisible();
   await expect(seaCells.locator("input")).toHaveCount(0);
   const displayedSea = await seaCells.evaluateAll(cells => cells.map(cell => ({
