@@ -71,7 +71,7 @@ def lock_waiters(value: dict, own_id: int) -> set[int]:
     for member in members:
         run_id = member.get("run_id")
         if (type(run_id) is not int or run_id <= 0 or run_id in seen
-                or member.get("job_id") is not None):
+                or (member.get("job_id") is not None and member.get("status") != "pending")):
             raise GateRejection(Reason.UNKNOWN_LEASE, "Unknown publication lease")
         seen.add(run_id)
         if run_id == own_id:

@@ -106,13 +106,16 @@ def test_bounded_history_rejects_truncation_and_duplicates(monkeypatch):
 
 @pytest.mark.parametrize("status", ["waiting", "pending", "queued", "requested", "in_progress"])
 @pytest.mark.parametrize("age", [-1, 120])
-def test_confirmed_lock_waiter_does_not_abort_current_publication(status, age):
+@pytest.mark.parametrize("job_id", [None, 123])
+def test_confirmed_lock_waiter_does_not_abort_current_publication(status, age, job_id):
     """Live lock waiting, not creation order, distinguishes a harmless competitor."""
     from scripts.static_ops.external_trigger_gate import conflicting_active, lock_waiters
     other = {**run(101, age, "20261025000000"), "status": status}
     waiters = lock_waiters({"group_name": "static-production", "total_count": 2,
                             "group_members": [{"run_id": 100, "status": "in_progress"},
-                                              {"run_id": 101, "status": "pending"}]}, 100)
+                                              {"run_id": 101, "status": "pending",
+                                               "job_id": job_id}]}, 100)
+    assert waiters == {101}
     # Exempt only the active check. Actual external requests retain their cooldown.
     other["display_title"] = "static-production"
     validate(EVENT, ENV, [run(), other], NOW, waiters)
@@ -127,10 +130,16 @@ def test_confirmed_lock_waiter_does_not_abort_current_publication(status, age):
     {"group_members": [{"run_id": 100, "status": "pending"}]},
     {"group_members": [{"run_id": 100, "status": "waiting"}]},
     {"group_members": [{"run_id": 100, "status": "in_progress", "job_id": 123}]},
+    {"group_members": [{"run_id": 100, "status": "pending", "job_id": 123}]},
     {"group_members": [{"run_id": "100", "status": "in_progress"}]},
     {"total_count": 2, "group_members": [{"run_id": 100, "status": "in_progress"}] * 2},
     {"total_count": 2, "group_members": [{"run_id": 100, "status": "in_progress"},
                                          {"run_id": 99, "status": "in_progress"}]},
+    {"total_count": 2, "group_members": [{"run_id": 100, "status": "in_progress"},
+                                         {"run_id": 99, "status": "in_progress", "job_id": 123}]},
+    *[{"total_count": 2, "group_members": [{"run_id": 100, "status": "in_progress"},
+                                          {"run_id": run_id, "status": "pending", "job_id": 123}]}
+      for run_id in (None, True, 0, "99")],
 ])
 def test_missing_ambiguous_or_unowned_lock_never_grants_admission(change):
     """Malformed, incomplete or non-owning live evidence must stop the gate."""

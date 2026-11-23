@@ -58,11 +58,11 @@ def select_release(operator: app.Operator, event: dict, name: str) -> dict:
         app.require(
             event.get("action") == "completed" and run.get("status") == "completed"
             and run.get("conclusion") == "success" and run.get("event") == "push"
-            and run.get("path") in (PUBLISHER, source_ci.WORKFLOW)
+            and run.get("path") == PUBLISHER
             and run.get("head_repository", {}).get("full_name") == app.REPO
             and run.get("head_branch") in ("main", "release/1.x", "release/2.x")
             and re.fullmatch(r"[0-9a-f]{40}", run.get("head_sha", "")),
-            "Successful trusted release publisher or source CI run required",
+            "Successful trusted release publisher run required",
         )
         branch, head = run["head_branch"], run["head_sha"]
         operator.git("fetch", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}")

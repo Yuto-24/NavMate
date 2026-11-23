@@ -188,13 +188,16 @@ def test_wif_pinned_dispatch_never_runs_publisher_for_readback():
     assert "default: readback" in workflow
     assert "options:\n          - readback\n          - replay-release" in workflow
     publish, readback = workflow.split("\n  readback:\n", maxsplit=1)
+    publish = publish.split("\n  publish:\n", maxsplit=1)[1]
     readback = readback.split("\n  manual-prepare:\n", maxsplit=1)[0]
     publish_condition = " ".join(
         publish.split("\n    if: >-\n", 1)[1].split("\n    runs-on:", 1)[0].split()
     )
     assert publish_condition == (
+        "always() && "
         "github.repository == 'Yuto-24/NavMate' && "
         "vars.STATIC_APP_RELEASE_ENABLED == 'true' && "
+        "(github.event_name == 'workflow_dispatch' || needs.source-ci.result == 'success') && "
         "(github.event_name != 'workflow_dispatch' || "
         "(github.ref == 'refs/heads/main' && "
         "inputs.operation == 'replay-release' && inputs.release_id != '')) && "

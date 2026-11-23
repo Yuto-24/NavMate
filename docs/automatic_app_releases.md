@@ -20,15 +20,16 @@ Release from replacing 2.x. No legacy server stop is part of this mechanism.
   `main` / `release/1.x` / `release/2.x`. This is the default bridge for Releases created with
   `GITHUB_TOKEN`; those Releases do not themselves trigger `release` workflows.
   No PAT, dispatch step or deployment tool backport is needed in the v1 publisher.
-- `test` のpush CI成功も同じcompletion bridgeに入ります。ReleaseがCIより先に作られた場合の
-  再判定であり、GitHub Release publisher自身に待機処理は追加しません。
+- 通常の`test` push CI完了は起動条件にしません。Releaseイベントで起動したread-onlyの
+  `source-ci` jobがタグのpush CI成功を待ち、成功後にだけ本番公開jobへ進みます。
+  ReleaseがCIより先に作られた場合も自動的に待機します。GitHub Release publisherには待機処理を追加しません。
 - `release: published` for Releases created through the UI or another authorized
   publisher. Drafts and prereleases are rejected. This entrance needs the workflow
   present in the released ref and environment permission for its tag (see setup).
 - Manual `workflow_dispatch` **on main**, with an existing numeric `release_id`,
   for a missed event, first selected Release or a safe retry. It is not a rollback.
 
-The bridge re-reads the publisher or source CI run (path, push event, success, same repository,
+The bridge re-reads the publisher run (path, push event, success, same repository,
 supported branch, full SHA), obtains VERSION from that commit, and requires the
 actual stable Release and immutable tag ancestor. Every entrance peels annotated
 tags, compares API resolution with the fetched tag, checks exact VERSION and
@@ -43,9 +44,9 @@ build. No publisher-run artifacts or caches are downloaded or executed.
 
 通常の新アプリ昇格は、**ReleaseタグのアプリSHA**と同じpush CIの成功を待ちます。
 toolingのSHAやPRの影響選択CIの成功では代用しません。必要なsuite・実行stepが欠ける、
-未完了・失敗・cancel・取得不能の場合はfeedを停止する前に終了し、現行配信と配信中SHAの
-天気更新を維持します。CI成功イベントで再判定し、イベントを取り逃した場合は既存のreplayを使います。
-実行中のworkflowでCIを待ち続けて公開用の排他を占有しません。
+未完了・失敗・cancel・取得不能の場合はfeedを停止せず、現行配信と配信中SHAの
+天気更新を維持します。Release専用の事前確認は最大40分待機し、成功後だけ公開jobを開始します。
+期限切れ・失敗時には既存のreplayで再試行します。待機中に本番公開の排他は占有しません。
 
 成功Runの小さなWeb検査inventoryだけを取得し、SHA・Run/attempt・GitHubのartifact digest・
 toolingと同じ検査定義を照合します。Node・npm・依存lock等が一致する検査だけ省略します。
@@ -55,10 +56,12 @@ toolingと同じ検査定義を照合します。Node・npm・依存lock等が�
 
 ## Publication and failure behavior
 
-Both feed and app workflows hold **workflow-level** `static-production` concurrency,
-`cancel-in-progress: false`, `queue: max`. This retains up to 100 pending runs;
-GitHub does not promise ordering. If capacity is exceeded, inspect cancellations
-and replay the required Release. At the time each run acquires the lease:
+The feed retains **workflow-level** `static-production` concurrency; the app
+publication and manual operations hold the same lease at **job-level**, after any
+source-CI wait. Every holder uses `cancel-in-progress: false`, `queue: max`.
+This retains up to 100 pending jobs/runs; GitHub does not promise ordering.
+If capacity is exceeded, inspect cancellations and replay the required Release.
+After the publishing job acquires the lease:
 
 1. Canonical clean `release.json.commit` must equal `STATIC_APPROVED_SHA`. Compare
    numeric X.Y.Z tuples to the canonical version: older Releases skip, the same
