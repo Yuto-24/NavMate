@@ -638,7 +638,12 @@ def test_workflow_manual_prepare_is_disjoint_and_only_uploads_ciphertext():
     assert "steps.prepare.outputs.archive_ready == 'true'" in manual
     assert "create_credentials_file: false" in manual
     assert "https://www.googleapis.com/auth/firebase.readonly" in manual
-    assert "group: static-production\n  cancel-in-progress: false\n  queue: max" in workflow
+    assert (
+        "    concurrency:\n"
+        "      group: static-production\n"
+        "      cancel-in-progress: false\n"
+        "      queue: max\n"
+    ) in manual
 
 
 @pytest.fixture
