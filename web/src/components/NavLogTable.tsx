@@ -619,7 +619,7 @@ function NavLogSummary({
 }
 
 export function NavLogTable({
-  sea, seaDisabled = true, seaMessage, onSeaUpdate, onSeaAcquire,
+  sea, seaDisabled = true, seaBusy = false, seaMessage, onSeaUpdate, onSeaAcquire,
   roundingMode = true, roundingDisabled = true, onRoundingChange,
   radReciprocal = true, onRadReciprocalChange, exportDisabled = true, savePng, onExportMessage, kmlExport, jsonExport,
   vorColumns, setVorColumns,
@@ -635,6 +635,7 @@ export function NavLogTable({
 }: {
   sea?: SeaPlan | null;
   seaDisabled?: boolean;
+  seaBusy?: boolean;
   seaMessage?: string;
   onSeaUpdate?: (patch: SeaUpdate) => Promise<void>;
   onSeaAcquire?: () => Promise<void>;
@@ -668,7 +669,19 @@ export function NavLogTable({
   const sectionRef = useRef<HTMLElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const [nameWidths, setNameWidths] = useState({ from: 110, to: 110 });
-  const [exporting, setExporting] = useState(false);
+  const [seaAcquiredKey, setSeaAcquiredKey] = useState<string | null>(null);
+  const seaKey = sea ? `${project.id}/${sea.geometry_key}` : null;
+  // SeaPanel starts automatic acquisition in an effect. Show loading on the first render too.
+  const seaAutoPending = Boolean(seaKey && seaAcquiredKey !== seaKey && !seaDisabled
+    && onSeaAcquire && sea?.intervals.some(interval => interval.geometry_valid && interval.terrain.required === 0));
+  const seaLoading = seaBusy || seaAutoPending;
+  const runSeaAcquire = async () => {
+    try {
+      await onSeaAcquire?.();
+    } finally {
+      if (seaKey) setSeaAcquiredKey(seaKey);
+    }
+  };
   const exportPng = async () => {
     if (!sectionRef.current || !savePng || exporting || exportDisabled) return;
     setExporting(true);
@@ -1028,7 +1041,7 @@ export function NavLogTable({
                   >
                     {row.to_name}
                   </td>
-                  <SeaCell interval={seaInterval} />
+                  <SeaCell interval={seaInterval} loading={seaLoading} />
                   <DisplayResultCells
                     roundingMode={roundingMode}
                     row={row}
@@ -1050,7 +1063,7 @@ export function NavLogTable({
                     {vorColumns.map(column => <td key={column.id} />)}
                     <td className="route-name-cell route-from-cell" />
                     <td className="route-name-cell route-to-cell" data-display-text={interval.to_name}>{interval.to_name}</td>
-                    <SeaCell interval={interval} />
+                    <SeaCell interval={interval} loading={seaLoading} />
                     {Array.from({ length: navLogColumnCount - vorColumns.length - 3 }, (_, index) => <td key={index} />)}
                   </tr>
                 ))}
@@ -1065,7 +1078,7 @@ export function NavLogTable({
         <FuelPlanTable outcome={outcome} />
         <div className="nav-log-footer-details">
           {sea && onSeaUpdate && onSeaAcquire && <SeaPanel projectId={project.id} plan={sea}
-            disabled={seaDisabled} onAcquire={onSeaAcquire} />}
+            disabled={seaDisabled} loading={seaLoading} onAcquire={runSeaAcquire} />}
           {seaMessage && <p role="status">{seaMessage}</p>}
           {outcome.issues.filter(issue => issue.code === "FORECAST_STALE_RUN").map(issue => (
             <aside className="forecast-advisory" key={issue.code} aria-label="Advisory">
