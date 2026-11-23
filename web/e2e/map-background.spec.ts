@@ -234,8 +234,8 @@ for (const width of [390, 1100, 1440]) {
       expect(style.select).toBe("none");
       expect(style.checkbox).toBe(17);
     }
-    // Fresh devices show exactly the four requested AIP categories plus PCA.
-    const defaults = ["Civil_training_and_testing_areas", "Approach_control_area_CIVIL", "Approach_control_area_MIL", "Restricted_area_Airspace_restrictions"];
+    // Fresh devices show exactly the five requested AIP categories plus PCA.
+    const defaults = ["Civil_training_and_testing_areas", "Approach_control_area_CIVIL", "Approach_control_area_MIL", "Restricted_area_Airspace_restrictions", "Take_off_flight_path_area"];
     for (const [id, label] of aipCategories) {
       await expect(page.getByLabel(label, { exact: true })).toBeChecked({ checked: defaults.includes(id) });
       if (defaults.includes(id)) await expect(page.locator(`.aip-${id}`).first()).toBeAttached();
@@ -318,7 +318,7 @@ for (const width of [390, 1100, 1440]) {
   });
 }
 
-for (const hidden of [[], ["Civil_training_and_testing_areas", "Approach_control_area_MIL", "FIR"]]) {
+for (const hidden of [[], ["Civil_training_and_testing_areas", "Approach_control_area_MIL", "Take_off_flight_path_area", "FIR"]]) {
   test(`#312 #502 existing AIP preference ${JSON.stringify(hidden)} survives reload and Project switches`, async ({ page }) => {
     await mockTiles(page);
     await start(page);

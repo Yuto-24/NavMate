@@ -26,6 +26,7 @@ export const defaultHiddenAipCategories: string[] = aipCategories
     "Approach_control_area_CIVIL",
     "Approach_control_area_MIL",
     "Restricted_area_Airspace_restrictions",
+    "Take_off_flight_path_area",
   ].includes(id));
 export const pcaColors = { standard: "#a45b13", imagery: "#ffd38a" } as const;
 export const pcaPreferenceKey = "autonavlog.pca-visible.v1";
