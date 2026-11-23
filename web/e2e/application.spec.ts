@@ -1,4 +1,5 @@
 import { IDBFactory } from "fake-indexeddb";
+import { AccountProjectRepository } from "../src/accountProjectRepository";
 import { IndexedDbProjectRepository } from "../src/localProjectRepository";
 import { browserPlatform } from "../src/browserPlatform";
 import { expect, test } from "@playwright/test";
@@ -268,7 +269,7 @@ test("failed durable hydration restores the previous runtime working copy", asyn
   let opened = false;
   const repository = {
     list: async () => ({ projects: [], unavailable: [] }),
-    read: async () => ({ id: "next", draft: { id: "next" }, lastCalculation: null }),
+    read: async () => ({ id: "next", draft: { id: "next", route_nodes: [] }, lastCalculation: null }),
     open: async () => { opened = true; },
   } as unknown as LocalProjectRepository;
   const app = new LocalApplication(() => repository, () => ({
@@ -427,7 +428,7 @@ test("failed Local open rolls back the previous ON result and live mode", async 
   let runtime = { ...state, project: previous.project, outcome: previous.outcome, workingRecovery: previous, roundingMode: true } as unknown as WebState;
   const repository = {
     list: async () => ({ projects: [], unavailable: [] }),
-    read: async () => ({ id: "next", draft: { id: "next" }, lastCalculation: null }),
+    read: async () => ({ id: "next", draft: { id: "next", route_nodes: [] }, lastCalculation: null }),
     open: async () => { throw new ApplicationError("open failed", "LOCAL_PROJECT_UNAVAILABLE"); },
   } as unknown as LocalProjectRepository;
   const app = new LocalApplication(() => repository, () => ({
@@ -471,7 +472,7 @@ test("explicit Local Save adopts the same working Project without a recovery boo
 for (const latest of [false, true]) test(`#358 ${latest ? "Latest retains draft" : "load restores checkpoint"}, cancellation and CAS`, async () => {
   const factory = new IDBFactory();
   const repository = new IndexedDbProjectRepository(async raw => structuredClone(raw) as any, async () => {}, () => factory);
-  const project: any = { id: "saved", name: "Saved", revision: 1, metadata: {}, total_usable_fuel_gal: 90 };
+  const project: any = { id: "saved", name: "Saved", revision: 1, metadata: {}, route_nodes: [], total_usable_fuel_gal: 90 };
   const record: any = { schemaVersion: 2, id: project.id, token: "before", checkpoint: latest ? null : project,
     draft: { ...project, total_usable_fuel_gal: 76 }, lastCalculation: { outcome: { provenance: "retained" } }, updatedAt: "before" };
   await repository.write(record, null, latest);
@@ -609,3 +610,67 @@ test("#319 imported Project belongs to the receiving Account repository and its 
   expect((await anonymous.list()).projects).toEqual([]);
   app.dispose();
 });
+
+for (const account of [false, true]) for (const failure of [null, "PROJECT_REVISION_CONFLICT", "LOCAL_STORAGE_FAILED"] as const) {
+  test(`VREP explicit open commits the prepared record atomically (${account ? "account" : "anonymous"}, ${failure ?? "success"})`, async () => {
+    const factory = new IDBFactory();
+    const validate = async (raw: unknown) => structuredClone(raw) as any;
+    const repository = account ? new AccountProjectRepository(validate, {
+      account_id: "vrep-test", assertActive() {}, onClose() { return () => {}; },
+    }, "device", async record => record, () => factory)
+      : new IndexedDbProjectRepository(validate, async () => {}, () => factory);
+    const project: any = { id: "legacy-vrep", name: "Saved", revision: 1, metadata: {},
+      route_nodes: [{ id: "point", latitude_deg: 31, reference_snapshot: { source: { filename: "legacy.pdf" } } }] };
+    const original: any = { schemaVersion: 2, id: project.id, token: "original", draft: project,
+      checkpoint: structuredClone(project), lastCalculation: { outcome: { original: true } }, updatedAt: "old" };
+    await repository.write(original, null, false);
+    let working: any = { version: 1, project: { id: "previous" }, outcome: { retained: true } };
+    const previous = structuredClone(working);
+    const prepared = structuredClone(original);
+    prepared.token = "upgraded";
+    for (const key of ["draft", "checkpoint"] as const) prepared[key].route_nodes[0] = {
+      ...prepared[key].route_nodes[0], latitude_deg: 31.001,
+      reference_snapshot: { source: { format: "AIP_SHAPEFILE" } },
+    };
+    const operations: string[] = [];
+    const app = new LocalApplication(() => repository, () => ({
+      request: async <T>(operation: string, input?: any) => {
+        operations.push(operation);
+        if (operation === "prepareReferenceUpdate") return structuredClone(prepared) as T;
+        if (operation === "bootstrap") working = structuredClone(input);
+        if (operation === "refreshSavedWork") working = input.working;
+        return { ...state, project: working.project, workingRecovery: structuredClone(working), roundingMode: true } as T;
+      }, dispose() {},
+    }));
+    expect(await app.loadProject(project.id, { confirmDiscard: () => false })).toBeNull();
+    expect(operations).not.toContain("prepareReferenceUpdate");
+    expect(await repository.read(project.id)).toEqual(original);
+    const open = repository.open.bind(repository);
+    repository.open = async (record, expected) => {
+      expect(record).toEqual(prepared);
+      expect(expected).toBe("original");
+      if (failure) throw new ApplicationError("write rejected", failure);
+      await open(record, expected);
+    };
+    if (failure) {
+      await expect(app.loadProject(project.id)).rejects.toMatchObject({ code: failure });
+      expect(await repository.read(project.id)).toEqual(original);
+      expect(working).toEqual(previous);
+    } else {
+      const opened = await app.loadProject(project.id);
+      expect(opened?.project).toEqual(prepared.draft);
+      expect(opened?.workingRecovery?.durableToken).toBe("upgraded");
+      expect(await repository.read(project.id)).toEqual(prepared);
+      expect(prepared.lastCalculation).toEqual(original.lastCalculation);
+      if (repository instanceof AccountProjectRepository) {
+        const pending = (await repository.pending()).flat();
+        expect(pending).toHaveLength(1);
+        expect(pending[0]!.value.record).toEqual(prepared);
+      }
+      operations.length = 0;
+      repository.open = open;
+      await app.loadProject(project.id);
+      expect(operations).not.toContain("prepareReferenceUpdate");
+    }
+  });
+}

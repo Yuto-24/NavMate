@@ -242,13 +242,13 @@ def test_reference_occurrences_snapshots_save_reload_and_master_independence(loc
     recovery = state["workingRecovery"]
     for node in recovery["project"]["route_nodes"]:
         if node["reference_snapshot"]:
-            node["reference_snapshot"]["source"]["table_effective_date"] = "2000-01-01"
+            node["reference_snapshot"]["source"]["effective_date"] = "2000-01-01"
     restored = json.loads(local.dispatch("bootstrap", recovery))
     restored_nodes = restored["project"]["route_nodes"]
     assert [node["id"] for node in restored_nodes] == [node["id"] for node in nodes]
     for node in restored_nodes:
         if node["reference_snapshot"]:
-            assert node["reference_snapshot"]["source"]["table_effective_date"] == "2000-01-01"
+            assert node["reference_snapshot"]["source"]["effective_date"] == "2000-01-01"
             assert node["latitude_deg"] == selected["latitude_deg"]
             assert node["longitude_deg"] == selected["longitude_deg"]
 

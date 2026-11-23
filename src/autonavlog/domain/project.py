@@ -58,8 +58,20 @@ class ReferencePointSource(DomainModel):
     arp_longitude_deg: float = Field(ge=-180, le=180, allow_inf_nan=False)
 
 
+class AipReferencePointSource(DomainModel):
+    format: Literal["AIP_SHAPEFILE"]
+    url: str = Field(max_length=500)
+    filename: str = Field(max_length=100)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    dataset_id: str = Field(min_length=1, max_length=100)
+    layer_id: Literal["Visual_REP"]
+    record_index: int = Field(ge=0)
+    effective_date: date
+    airport_designators: str = Field(pattern=r"^[A-Z]{4}( / [A-Z]{4})*$")
+
+
 class ReferencePointSnapshot(DomainModel):
-    """Selection-time reference data, never refreshed implicitly from a master."""
+    """Selection-time evidence; legacy conversion occurs only during explicit open."""
 
     reference_id: str = Field(min_length=1, max_length=100)
     name: str = Field(min_length=1, max_length=100)
@@ -72,7 +84,7 @@ class ReferencePointSnapshot(DomainModel):
     distance_nm: float = Field(gt=0, allow_inf_nan=False)
     note: str = Field(max_length=1000)
     derivation: str = Field(min_length=1, max_length=500)
-    source: ReferencePointSource
+    source: ReferencePointSource | AipReferencePointSource
 
 
 class RouteNode(DomainModel):

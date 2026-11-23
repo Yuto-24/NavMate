@@ -262,11 +262,16 @@ export class LocalApplication implements AutoNavLogApplication {
       this.assertResolved();
       const record = await this.repository.read(projectId, false);
       const previous = await this.request<WebState>("state");
-      const project = options.restoreDraft ? record.draft : record.checkpoint ?? record.draft;
-      const storedChanges = !sameProjectDraft(record.draft, project);
-      if (options.confirmDiscard && !options.confirmDiscard(project, storedChanges)) return null;
-      const opened = !sameProjectContent(record.draft, project) ? { ...record, draft: structuredClone(project),
-        token: crypto.randomUUID(), updatedAt: new Date().toISOString() } : record;
+      const selected = options.restoreDraft ? record.draft : record.checkpoint ?? record.draft;
+      const storedChanges = !sameProjectDraft(record.draft, selected);
+      if (options.confirmDiscard && !options.confirmDiscard(selected, storedChanges)) return null;
+      const hasLegacyReferences = [record.draft, record.checkpoint].some(project =>
+        project?.route_nodes.some(node => node.reference_snapshot && !("format" in node.reference_snapshot.source)));
+      const prepared = hasLegacyReferences
+        ? await this.request<LocalProjectRecord>("prepareReferenceUpdate", record) : record;
+      const project = options.restoreDraft ? prepared.draft : prepared.checkpoint ?? prepared.draft;
+      const opened = !sameProjectContent(prepared.draft, project) ? { ...prepared, draft: structuredClone(project),
+        token: crypto.randomUUID(), updatedAt: new Date().toISOString() } : prepared;
       const last = record.lastCalculation as { outcome: WorkingRecovery["outcome"]; destination_wind: WorkingRecovery["destination_wind"] } | null;
       const recovery: WorkingRecovery = { version: 1, project,
         outcome: last?.outcome ?? null, destination_wind: last?.destination_wind ?? null,

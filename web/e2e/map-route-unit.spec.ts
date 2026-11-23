@@ -54,7 +54,7 @@ test("airports and references cluster together by screen distance", () => {
 
 test("reference snapshot survives draft recovery without consulting a changed master", () => {
   const snapshot = structuredClone(referencePoints[0]!);
-  snapshot.source.table_effective_date = "2000-01-01";
+  if ("format" in snapshot.source) snapshot.source.effective_date = "2000-01-01";
   const selected = { id: "visit1", name: snapshot.name, airport_id: null,
     latitude_deg: snapshot.latitude_deg, longitude_deg: snapshot.longitude_deg, reference_snapshot: snapshot };
   expect(validMapDraft([airport, selected, { ...selected, id: "visit2" }])).toBe(true);
@@ -64,7 +64,7 @@ test("reference snapshot survives draft recovery without consulting a changed ma
   expect(validReferenceSnapshot({ ...snapshot, source: null })).toBe(false);
   expect(validReferenceSnapshot({ ...snapshot, source: { ...snapshot.source, sha256: "bad" } })).toBe(false);
   expect(validReferenceSnapshot({ ...snapshot, bearing_true_deg: 360 })).toBe(true);
-  expect(referencePoints).toHaveLength(115);
+  expect(referencePoints).toHaveLength(528);
   expect(referencePoints.every(validReferenceSnapshot)).toBe(true);
 });
 

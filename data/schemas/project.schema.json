@@ -1,5 +1,69 @@
 {
   "$defs": {
+    "AipReferencePointSource": {
+      "additionalProperties": false,
+      "properties": {
+        "airport_designators": {
+          "pattern": "^[A-Z]{4}( / [A-Z]{4})*$",
+          "title": "Airport Designators",
+          "type": "string"
+        },
+        "dataset_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Dataset Id",
+          "type": "string"
+        },
+        "effective_date": {
+          "format": "date",
+          "title": "Effective Date",
+          "type": "string"
+        },
+        "filename": {
+          "maxLength": 100,
+          "title": "Filename",
+          "type": "string"
+        },
+        "format": {
+          "const": "AIP_SHAPEFILE",
+          "title": "Format",
+          "type": "string"
+        },
+        "layer_id": {
+          "const": "Visual_REP",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "record_index": {
+          "minimum": 0,
+          "title": "Record Index",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "url": {
+          "maxLength": 500,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "url",
+        "filename",
+        "sha256",
+        "dataset_id",
+        "layer_id",
+        "record_index",
+        "effective_date",
+        "airport_designators"
+      ],
+      "title": "AipReferencePointSource",
+      "type": "object"
+    },
     "FlightPhase": {
       "enum": [
         "CLIMB",
@@ -194,7 +258,7 @@
     },
     "ReferencePointSnapshot": {
       "additionalProperties": false,
-      "description": "Selection-time reference data, never refreshed implicitly from a master.",
+      "description": "Selection-time evidence; legacy conversion occurs only during explicit open.",
       "properties": {
         "airport_icao": {
           "pattern": "^[A-Z]{4}$",
@@ -261,7 +325,15 @@
           "type": "string"
         },
         "source": {
-          "$ref": "#/$defs/ReferencePointSource"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReferencePointSource"
+            },
+            {
+              "$ref": "#/$defs/AipReferencePointSource"
+            }
+          ],
+          "title": "Source"
         }
       },
       "required": [
