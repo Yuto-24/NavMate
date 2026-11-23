@@ -1,0 +1,1143 @@
+"""No real provider calls: dispatch, evidence, pause ordering and private handoff."""
+
+import base64
+import copy
+import gzip
+import io
+import json
+import os
+import signal
+import subprocess
+import sys
+import zipfile
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import pytest
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+from scripts.static_ops import app_release as app
+from scripts.static_ops import schema260_bundle as bundle
+from scripts.static_ops import schema260_prepare as driver
+from scripts.static_ops import schema260_publish as publisher
+
+
+@pytest.mark.parametrize("already_expired", [False, True])
+def test_command_gate_rejects_notification_at_admission(monkeypatch, already_expired):
+    deadline = {"expired": already_expired, "command_active": False}
+    previous = signal.signal(signal.SIGALRM, lambda *_: deadline.update(expired=True))
+    original = signal.pthread_sigmask
+    calls = []
+    def mask(how, signals):
+        result = original(how, signals)
+        if how == signal.SIG_BLOCK:
+            signal.raise_signal(signal.SIGALRM)
+        return result
+    monkeypatch.setattr(signal, "pthread_sigmask", mask)
+    try:
+        with pytest.raises(TimeoutError):
+            with driver.command_gate(deadline):
+                calls.append("launched")
+        assert not calls and not deadline["command_active"]
+        assert signal.SIGALRM not in signal.sigpending()
+    finally:
+        signal.signal(signal.SIGALRM, previous)
+
+
+@pytest.mark.parametrize("factory", [driver.manual_operator, publisher.publication_operator])
+def test_each_rules_read_refreshes_readonly_token(tmp_path, monkeypatch, context, factory):
+    env, _, _ = context
+    env["STATIC_GOOGLE_CREDENTIALS_FILE"] = "synthetic-wif.json"
+    operator = factory(app, tmp_path, env)
+    initial = operator.env.get("STATIC_GOOGLE_ACCESS_TOKEN")
+    tokens = iter(["first", "after-long-build", "after-upload"])
+    def refresh(path):
+        assert path == "synthetic-wif.json"
+        return next(tokens)
+    monkeypatch.setattr(driver, "refreshed_rules_token", refresh)
+    monkeypatch.setattr(app.Operator, "rules_get", lambda self, path: {
+        "token": self.env["STATIC_GOOGLE_ACCESS_TOKEN"], "path": path})
+    for expected in ("first", "after-long-build", "after-upload"):
+        assert operator.rules_get("resource") == {"token": expected, "path": "resource"}
+        assert operator.env.get("STATIC_GOOGLE_ACCESS_TOKEN") == initial
+    with pytest.raises(app.Blocked, match="authentication refresh failed"):
+        operator.rules_get("resource")
+
+
+@pytest.fixture
+def context():
+    env = {
+        "GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted",
+        "GITHUB_REPOSITORY": driver.REPO, "GITHUB_REPOSITORY_ID": str(driver.REPO_ID),
+        "GITHUB_REPOSITORY_OWNER_ID": str(driver.OWNER_ID),
+        "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF": "refs/heads/main",
+        "GITHUB_WORKFLOW_REF": driver.REPO + "/" + driver.WORKFLOW + "@refs/heads/main",
+        "GITHUB_SHA": "e" * 40, "GITHUB_WORKFLOW_SHA": "e" * 40,
+        "GITHUB_JOB": "manual-prepare-v260", "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2",
+    }
+    repository = {"id": driver.REPO_ID, "full_name": driver.REPO,
+                  "owner": {"id": driver.OWNER_ID}, "private": False}
+    event = {"repository": repository,
+             "inputs": {"operation": driver.OPERATION, "release_id": ""}}
+    run = {"id": 123, "run_attempt": 2, "workflow_id": 456, "path": driver.WORKFLOW,
+           "event": "workflow_dispatch", "status": "in_progress", "head_branch": "main",
+           "head_sha": env["GITHUB_SHA"], "repository": repository,
+           "head_repository": repository}
+    return env, event, run
+
+
+def test_scope_accepts_only_the_explicit_main_operation(context):
+    env, event, _ = context
+    driver.scope(env, event)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("GITHUB_EVENT_NAME", "release"), ("GITHUB_EVENT_NAME", "workflow_run"),
+    ("GITHUB_EVENT_NAME", "pull_request"), ("GITHUB_REF", "refs/heads/feature"),
+    ("GITHUB_WORKFLOW_REF", "Yuto-24/NavMate/other.yml@refs/heads/main"),
+    ("GITHUB_WORKFLOW_SHA", "f" * 40), ("GITHUB_REPOSITORY_ID", "1"),
+    ("GITHUB_REPOSITORY_OWNER_ID", "1"), ("GITHUB_JOB", "publish"),
+    ("RUNNER_ENVIRONMENT", "self-hosted"), ("GITHUB_RUN_ATTEMPT", "../2"),
+])
+def test_wrong_dispatch_context_is_rejected(context, field, value):
+    env, event, _ = context
+    env[field] = value
+    with pytest.raises(bundle.InvalidBundle):
+        driver.scope(env, event)
+
+
+@pytest.mark.parametrize("inputs", [None, {}, {"operation": "readback"},
+    {"operation": "replay-release"}, {"operation": "prepare-schema260", "release_id": "1"}])
+def test_modes_cannot_overlap(context, inputs):
+    env, event, _ = context
+    event["inputs"] = inputs or {}
+    with pytest.raises(bundle.InvalidBundle):
+        driver.scope(env, event)
+
+
+@pytest.fixture
+def idle_operator(tmp_path, monkeypatch, context):
+    env, _, own = context
+    op = driver.manual_operator(app, tmp_path, env)
+    responses = {
+        "actions/workflows/static-app-release.yml": {
+            "path": driver.WORKFLOW, "state": "active", "id": 456},
+        "actions/runs/123": own,
+        "actions/workflows/static-production.yml/runs?per_page=100&page=1": {
+            "total_count": 1, "workflow_runs": [{"id": 1, "status": "completed"}]},
+        "actions/workflows/static-app-release.yml/runs?per_page=100&page=1": {
+            "total_count": 1, "workflow_runs": [own]},
+    }
+    def gh(self, endpoint, method="GET", body=None):
+        assert method == "GET"
+        return copy.deepcopy(responses[endpoint])
+    monkeypatch.setattr(app.Operator, "gh", gh)
+    return op, responses
+
+
+def test_own_in_progress_run_is_the_only_exception(idle_operator):
+    op, _ = idle_operator
+    op.idle()
+
+
+@pytest.mark.parametrize("workflow", ["static-production", "static-app-release"])
+@pytest.mark.parametrize("status", ["queued", "waiting", "pending", "requested",
+                                    "in_progress", "unknown"])
+def test_every_other_inflight_run_blocks(idle_operator, workflow, status):
+    op, responses = idle_operator
+    page = responses[f"actions/workflows/{workflow}.yml/runs?per_page=100&page=1"]
+    page["workflow_runs"].append({"id": 999, "status": status})
+    page["total_count"] += 1
+    with pytest.raises(app.Blocked):
+        op.idle()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("run_attempt", 1), ("workflow_id", 789), ("path", ".github/workflows/other.yml"),
+    ("head_sha", "f" * 40), ("head_branch", "feature"), ("event", "release"),
+    ("status", "queued"), ("status", "completed"), ("repository", {"id": 1}),
+    ("head_repository", {"id": 1}),
+])
+def test_own_run_exception_requires_exact_live_identity(idle_operator, field, value):
+    op, responses = idle_operator
+    responses["actions/runs/123"][field] = value
+    with pytest.raises(app.Blocked):
+        op.idle()
+
+
+@pytest.mark.parametrize("failure", ["missing", "duplicate", "incomplete", "changed-total"])
+def test_incomplete_or_unstable_app_inventory_blocks(idle_operator, failure):
+    op, responses = idle_operator
+    page = responses["actions/workflows/static-app-release.yml/runs?per_page=100&page=1"]
+    if failure == "missing":
+        page.update(total_count=0, workflow_runs=[])
+    elif failure == "duplicate":
+        page["workflow_runs"] *= 2
+        page["total_count"] = 2
+    elif failure == "incomplete":
+        page["total_count"] = 2
+    else:
+        page["workflow_runs"] += [{"id": 1000 + i, "status": "completed"} for i in range(99)]
+        page["total_count"] = 101
+        responses["actions/workflows/static-app-release.yml/runs?per_page=100&page=2"] = {
+            "total_count": 102, "workflow_runs": [{"id": 2000, "status": "completed"}]}
+    with pytest.raises(app.Blocked):
+        op.idle()
+
+
+def test_other_run_on_later_page_is_not_lost(idle_operator):
+    op, responses = idle_operator
+    page = responses["actions/workflows/static-app-release.yml/runs?per_page=100&page=1"]
+    page["workflow_runs"] += [{"id": 1000 + i, "status": "completed"} for i in range(99)]
+    page["total_count"] = 101
+    responses["actions/workflows/static-app-release.yml/runs?per_page=100&page=2"] = {
+        "total_count": 101, "workflow_runs": [{"id": 2000, "status": "waiting"}]}
+    with pytest.raises(app.Blocked):
+        op.idle()
+
+
+@pytest.mark.parametrize("endpoint,method,body", [
+    ("actions/variables/STATIC_APPROVED_SHA", "PATCH", {"value": bundle.CANDIDATE}),
+    ("actions/workflows/static-production.yml/disable", "PUT", None),
+    ("actions/variables/STATIC_AUTOMATION_ENABLED", "PATCH",
+     {"name": "STATIC_AUTOMATION_ENABLED", "value": "true"}),
+])
+def test_no_other_mutation_even_when_pause_is_authorized(idle_operator, endpoint, method, body):
+    op, _ = idle_operator
+    op.pause_allowed = True
+    with pytest.raises(app.Blocked):
+        op.gh(endpoint, method, body)
+    with pytest.raises(app.Blocked):
+        op.upload(None)
+    with pytest.raises(app.Blocked):
+        op.set_workflow(True)
+
+
+@pytest.mark.parametrize("factory", [driver.manual_operator, publisher.publication_operator])
+@pytest.mark.parametrize("failure", [False, True])
+def test_build_handoff_permissions_preserve_private_store_and_restore_umask(
+        tmp_path, monkeypatch, factory, failure):
+    store = tmp_path / "private"
+    store.mkdir(mode=0o700)
+    destination = store / "prepared"
+    expected = {"commit": bundle.CANDIDATE}
+    calls = []
+
+    def build(self, sha, snapshot, target):
+        calls.append((sha, snapshot, target))
+        target.mkdir(mode=0o700)
+        public_asset = target / "asset"
+        public_asset.write_bytes(b"public artifact")
+        assert public_asset.stat().st_mode & 0o777 == 0o644
+        app.write_json(target / "feed-report.json", {"private": "receipt"})
+        assert (target / "feed-report.json").stat().st_mode & 0o777 == 0o600
+        if failure:
+            raise app.Blocked("Synthetic build failure")
+        return expected
+
+    monkeypatch.setattr(app.Operator, "build", build)
+    operator = factory(app, tmp_path, {})
+    previous = os.umask(0o077)
+    try:
+        if failure:
+            with pytest.raises(app.Blocked, match="Synthetic build failure"):
+                operator.build(bundle.CANDIDATE, expected, destination)
+        else:
+            assert operator.build(bundle.CANDIDATE, expected, destination) is expected
+        private_file = store / "after-build"
+        private_file.touch()
+        assert private_file.stat().st_mode & 0o777 == 0o600
+    finally:
+        os.umask(previous)
+    assert calls == [(bundle.CANDIDATE, expected, destination)]
+    assert store.stat().st_mode & 0o777 == 0o700
+    assert destination.stat().st_mode & 0o777 == 0o700
+
+
+@pytest.mark.parametrize("failure", ["shared", "symlink", "file"])
+def test_build_rejects_a_nonprivate_parent_before_delegating(tmp_path, monkeypatch, failure):
+    parent = tmp_path / "private"
+    parent.mkdir(mode=0o700)
+    if failure == "shared":
+        parent.chmod(0o755)
+    elif failure == "symlink":
+        link = tmp_path / "link"
+        link.symlink_to(parent, target_is_directory=True)
+        parent = link
+    else:
+        parent = tmp_path / "file"
+        parent.touch()
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Build started without a private parent")
+
+    monkeypatch.setattr(app.Operator, "build", forbidden)
+    operator = driver.manual_operator(app, tmp_path, {})
+    with pytest.raises(app.Blocked, match="Private build parent required"):
+        operator.build(bundle.CANDIDATE, {}, parent / "prepared")
+
+
+@pytest.fixture
+def transport(tmp_path, monkeypatch):
+    source = tmp_path / "source"
+    source.mkdir(mode=0o700)
+    monkeypatch.setattr(bundle, "EVIDENCE_ROOT", tmp_path / "restored-evidence")
+    record = {"schema_version": 1, "kind": "aip-reference-source-writer-fence",
+              "sha": bundle.CANDIDATE, "current_sha": bundle.CURRENT,
+              "tooling_sha": bundle.TOOLING, "project": "PRIVATE-CONFIG-SENTINEL", "checks": {}}
+    identity = {key: value for key, value in record.items() if key != "checks"}
+    for role in bundle.ROLES:
+        report = json.dumps({"identity": identity, "check": role, "result": "PASS",
+                             "reviewed_by": "synthetic-reviewer", "summary": "synthetic only"},
+                            indent=2).encode() + b"\r\n"
+        name = role + ".json"
+        bundle.write_private(source / name, report)
+        record["checks"][role] = {"result": "PASS", "reviewed_by": "synthetic-reviewer",
+            "summary": "synthetic only", "record": {"path": name, "sha256": bundle.sha256(report)}}
+    raw = json.dumps(record, indent=3).encode() + b"\n"
+    bundle.write_private(source / bundle.RECORD_NAME, raw)
+    monkeypatch.setattr(bundle, "RECORD_SHA256", bundle.sha256(raw))
+    destination = tmp_path / "transport"
+    bundle.pack(source / bundle.RECORD_NAME, destination)
+    secret = (destination / "evidence.secret").read_text()
+    key = bundle.key_bytes((destination / "archive.key").read_text())
+    files = bundle.open_secret(secret, key, datetime.now(UTC))
+    return source, destination, secret, key, files
+
+
+def test_secret_roundtrip_preserves_every_original_byte_and_private_modes(transport):
+    source, destination, secret, _, files = transport
+    assert len(secret) <= bundle.MAX_SECRET
+    for name, raw in files.items():
+        assert raw == (source / name).read_bytes()
+    assert destination.stat().st_mode & 0o777 == 0o700
+    for path in destination.iterdir():
+        assert path.stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize("change", ["missing-report", "report-bytes", "record-bytes",
+                                    "key", "expired", "size", "bomb"])
+def test_transport_failures_before_any_provider_work(transport, change, monkeypatch):
+    _, _, secret, key, _ = transport
+    envelope = json.loads(gzip.decompress(base64.b64decode(secret)))
+    if change == "missing-report":
+        del envelope["reports"][bundle.ROLES[0]]
+    elif change == "report-bytes":
+        envelope["reports"][bundle.ROLES[0]] = base64.b64encode(b"changed").decode()
+    elif change == "record-bytes":
+        envelope["record"] += "YQ=="
+    elif change == "key":
+        key = os.urandom(32)
+    elif change == "expired":
+        before = datetime.now(UTC) - timedelta(days=2)
+        envelope.update(created_at=before.isoformat(),
+                        expires_at=(before + timedelta(hours=24)).isoformat())
+    elif change == "size":
+        monkeypatch.setattr(bundle, "MAX_SECRET", 5)
+    else:
+        monkeypatch.setattr(bundle, "MAX_ENVELOPE", 100)
+    secret = base64.b64encode(gzip.compress(json.dumps(envelope).encode())).decode()
+    with pytest.raises((bundle.InvalidBundle, ValueError)):
+        bundle.open_secret(secret, key, datetime.now(UTC))
+
+
+@pytest.mark.parametrize("path", ["../outside.json", "/tmp/outside.json",
+    "/home/yuto/autonavlog-releases/schema4-5-v2.3.1-20261111/old_to_new.json",
+    "SCHEMA_RECORD.json", "a/../b.json", "a\\b.json"])
+def test_evidence_cannot_escape_known_directory(transport, path):
+    _, _, _, _, files = transport
+    record = json.loads(files[bundle.RECORD_NAME])
+    record["checks"][bundle.ROLES[0]]["record"]["path"] = path
+    with pytest.raises((bundle.InvalidBundle, ValueError)):
+        bundle.report_names(record)
+
+
+def test_original_absolute_report_paths_are_supported(transport):
+    _, _, _, _, files = transport
+    record = json.loads(files[bundle.RECORD_NAME])
+    for check in record["checks"].values():
+        check["record"]["path"] = str(bundle.EVIDENCE_ROOT / check["record"]["path"])
+    assert set(bundle.report_names(record).values()) == {role + ".json" for role in bundle.ROLES}
+
+
+@pytest.fixture
+def simulated(tmp_path, monkeypatch, context):
+    env, _, _ = context
+    op = driver.manual_operator(app, tmp_path, env)
+    state = {"automation": "true", "fail": None, "calls": [], "snapshots": 0}
+    def gh(self, endpoint, method="GET", body=None):
+        if endpoint == "releases/tags/v2.6.0":
+            return {"tag_name": "v2.6.0", "draft": False, "prerelease": False,
+                    "published_at": "2026-11-13T07:09:12Z"}
+        if endpoint.startswith("actions/runs/"):
+            assert endpoint == "actions/runs/45144029154"
+            return {"head_sha": bundle.CANDIDATE, "status": "completed", "conclusion": "success",
+                    "path": ".github/workflows/test.yml", "repository": {"id": driver.REPO_ID}}
+        assert endpoint == "actions/variables/STATIC_AUTOMATION_ENABLED"
+        state["calls"].append(method)
+        if method == "PATCH":
+            state["automation"] = body["value"]
+            if state["fail"] == "pause-response":
+                raise app.Blocked("Private provider response must never be logged")
+        if method == "GET" and state["fail"] == "pause-readback":
+            raise app.Blocked("Private readback error")
+        return {"value": state["automation"]}
+    def git(self, *args):
+        if args == ("rev-parse", "HEAD"):
+            return bundle.TOOLING
+        if args == ("rev-parse", "FETCH_HEAD^{commit}"):
+            return "f" * 40 if state["fail"] == "candidate" else bundle.CANDIDATE
+        if args[0] == "show":
+            return "2.6.0"
+        assert args == ("fetch", "origin", "refs/tags/v2.6.0")
+        return ""
+    def compatibility(self, *args):
+        state["calls"].append("reviewed-schema-and-live-rules")
+        self.schema_receipt = {"path": str(bundle.EVIDENCE_ROOT / bundle.RECORD_NAME),
+                               "record": {"private": "PRIVATE-CONFIG-SENTINEL"}}
+        self.rules_receipt = {"release": "PRIVATE-RULES-SENTINEL"}
+        return "private-rules-digest"
+    def snapshot(self, sha, current, *, paused=False):
+        state["snapshots"] += 1
+        state["calls"].append("snapshot")
+        if state["fail"] == "preflight" or (
+                state["fail"] == "post-pause" and state["automation"] == "false"):
+            raise app.Blocked("Private snapshot error")
+        if self.schema_transition:
+            app.require(state["automation"] == "false", "Pause required")
+        rules = self.compatibility(sha, current, {})
+        return {"variables": {"STATIC_AUTOMATION_ENABLED": state["automation"]},
+                "schema_receipt": self.schema_receipt, "rules_receipt": self.rules_receipt,
+                "rules_digest": rules, "target": {"id": "synthetic-pages"},
+                "tooling_sha": bundle.TOOLING}
+    def build(self, sha, snapshot, destination):
+        state["calls"].append("build")
+        if state["fail"] == "build":
+            raise app.Blocked("Private build error")
+        catalog = json.dumps({"generated_at": datetime.now(UTC).isoformat()}).encode()
+        bundle.write_private(destination / "upload/dist-static/weather/msm/catalog.json", catalog)
+        release = {"files": {"weather/msm/catalog.json": {
+            "bytes": len(catalog), "sha256": bundle.sha256(catalog)}}}
+        bundle.write_private(destination / "upload/dist-static/release.json",
+                             json.dumps(release).encode())
+        bundle.write_private(destination / "feed-report.json", b'{"test":true}')
+    monkeypatch.setattr(app.Operator, "gh", gh)
+    monkeypatch.setattr(app.Operator, "git", git)
+    monkeypatch.setattr(app.Operator, "snapshot", snapshot)
+    monkeypatch.setattr(app.Operator, "compatibility", compatibility)
+    monkeypatch.setattr(app.Operator, "build", build)
+    store = tmp_path / "store"
+    store.mkdir(mode=0o700)
+    status = tmp_path / "status.json"
+    journal = driver.quiet_journal(app, store, status)
+    return op, state, store, journal, status
+
+
+def test_prepare_pauses_after_full_prechecks_and_keeps_automation_paused(simulated, capsys):
+    op, state, store, journal, status = simulated
+    plan = driver.execute(app, op, store, journal)
+    assert state["automation"] == "false"
+    assert state["calls"].count("PATCH") == 1
+    assert state["calls"].index("reviewed-schema-and-live-rules") < state["calls"].index("PATCH")
+    positions = [state["calls"].index(name) for name in ("PATCH", "GET", "build")]
+    assert positions == sorted(positions)
+    assert plan["snapshot"]["schema_receipt"] and plan["snapshot"]["rules_receipt"]
+    assert json.loads(status.read_text())["automation"] == "CONFIRMED"
+    assert "PRIVATE" not in status.read_text()
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("failure,mutation,build", [
+    ("candidate", "UNCHANGED", False), ("preflight", "UNCHANGED", False),
+    ("pause-response", "UNKNOWN", False), ("pause-readback", "UNKNOWN", False),
+    ("post-pause", "CONFIRMED", False), ("build", "CONFIRMED", True),
+])
+def test_failure_boundaries_never_resume_or_publish(simulated, failure, mutation, build, capsys):
+    op, state, store, journal, status = simulated
+    state["fail"] = failure
+    with pytest.raises(app.Blocked):
+        driver.execute(app, op, store, journal)
+    journal.finish(False)
+    assert journal.value["changes"]["automation"] == mutation
+    assert ("build" in state["calls"]) == build
+    assert state["automation"] == ("true" if mutation == "UNCHANGED" else "false")
+    assert not op.pause_allowed and not (store / "plan.json").exists()
+    assert "PRIVATE" not in status.read_text()
+    assert capsys.readouterr() == ("", "")
+
+
+def test_explicit_retry_when_already_paused_does_not_write_again(simulated):
+    op, state, store, journal, _ = simulated
+    state["automation"] = "false"
+    driver.execute(app, op, store, journal)
+    assert "PATCH" not in state["calls"] and state["automation"] == "false"
+
+
+@pytest.fixture
+def archive(transport, simulated, tmp_path):
+    _, destination, _, key, files = transport
+    op, state, store, journal, _ = simulated
+    driver.execute(app, op, store, journal)
+    raw = (store / "plan.json").read_bytes()
+    handoff = {"sha": bundle.CANDIDATE, "current_sha": bundle.CURRENT,
+               "tooling_sha": bundle.TOOLING, "prepared": True, "plan_sha256": bundle.sha256(raw)}
+    bundle.write_private(store / "handoff.json", json.dumps(handoff).encode())
+    bundle.write_private(store / "prepared/app/.git/config", b"MUST-NOT-BE-ARCHIVED")
+    bundle.write_private(store / "prepared/cache/secret", b"MUST-NOT-BE-ARCHIVED")
+    output = tmp_path / "result.aesgcm"
+    bundle.seal(store, files, key, output, success=True)
+    return output, destination / "archive.key", files, raw
+
+
+def test_encrypted_handoff_is_reusable_without_rewriting_plan_or_evidence(archive, tmp_path):
+    output, key, files, plan = archive
+    ciphertext = output.read_bytes()
+    assert b"PRIVATE" not in ciphertext and b"plan.json" not in ciphertext
+    assert not zipfile.is_zipfile(output)
+    destination = tmp_path / "restored-store"
+    result = bundle.unseal(output, key, destination)
+    assert result["within_plan_window"]
+    assert (destination / "plan.json").read_bytes() == plan
+    assert (destination / "prepared/feed-report.json").exists()
+    assert not (destination / "prepared/app").exists()
+    assert not (destination / "prepared/cache").exists()
+    for name, raw in files.items():
+        assert (bundle.EVIDENCE_ROOT / name).read_bytes() == raw
+        assert (bundle.EVIDENCE_ROOT / name).stat().st_mode & 0o077 == 0
+    assert destination.stat().st_mode & 0o077 == 0
+
+
+def test_production_sized_archive_roundtrip(transport, simulated, tmp_path):
+    _, packed, _, key, files = transport
+    op, _, store, journal, _ = simulated
+    driver.execute(app, op, store, journal)
+    plan = (store / "plan.json").read_bytes()
+    app.write_json(store / "handoff.json", {
+        "sha": bundle.CANDIDATE, "current_sha": bundle.CURRENT,
+        "tooling_sha": bundle.TOOLING, "prepared": True,
+        "plan_sha256": bundle.sha256(plan),
+    })
+    # The real retained feed already exceeds 240 MiB. Incompressible synthetic
+    # files also cross the old 256 MiB ciphertext limit without provider data.
+    block = os.urandom(1024 * 1024)
+    for index in range(14):
+        with (store / "prepared/upload" / f"asset-{index}").open("wb") as stream:
+            for _ in range(24):
+                stream.write(block)
+    output = tmp_path / "large.aesgcm"
+    bundle.seal(store, files, key, output, success=True)
+    assert 256 * 1024 * 1024 < output.stat().st_size <= bundle.MAX_ARCHIVE
+    restored = tmp_path / "large-restored"
+    assert bundle.unseal(output, packed / "archive.key", restored)["prepared"]
+    assert (restored / "plan.json").read_bytes() == plan
+    for index in range(14):
+        with (restored / "prepared/upload" / f"asset-{index}").open("rb") as stream:
+            for _ in range(24):
+                assert stream.read(len(block)) == block
+            assert stream.read(1) == b""
+
+
+@pytest.mark.parametrize("change", ["ciphertext", "key"])
+def test_failed_authentication_writes_no_plaintext(archive, tmp_path, change):
+    output, key, _, _ = archive
+    if change == "ciphertext":
+        value = bytearray(output.read_bytes())
+        value[-1] ^= 1
+        output.write_bytes(value)
+    else:
+        key.write_text(base64.b64encode(os.urandom(32)).decode())
+    destination = tmp_path / "blocked-store"
+    with pytest.raises(InvalidTag):
+        bundle.unseal(output, key, destination)
+    assert not destination.exists() and not bundle.EVIDENCE_ROOT.exists()
+
+
+def test_restore_refuses_conflicting_original_evidence(archive, tmp_path):
+    output, key, files, _ = archive
+    bundle.restore_evidence(files)
+    (bundle.EVIDENCE_ROOT / bundle.RECORD_NAME).write_bytes(b"unrelated existing record")
+    with pytest.raises(bundle.InvalidBundle):
+        bundle.unseal(output, key, tmp_path / "blocked-store")
+    assert (bundle.EVIDENCE_ROOT / bundle.RECORD_NAME).read_bytes() == b"unrelated existing record"
+
+
+def test_archive_capacity_and_symlink_boundaries(transport, simulated, tmp_path, monkeypatch):
+    _, _, _, key, files = transport
+    op, _, store, journal, _ = simulated
+    driver.execute(app, op, store, journal)
+    bundle.write_private(store / "handoff.json", b"{}")
+    output = tmp_path / "limited.aesgcm"
+    payload_limit = bundle.MAX_PAYLOAD
+    monkeypatch.setattr(bundle, "MAX_PAYLOAD", 100)
+    with pytest.raises(bundle.InvalidBundle, match="archive-capacity"):
+        bundle.seal(store, files, key, output, success=True)
+    assert not output.exists()
+    monkeypatch.setattr(bundle, "MAX_PAYLOAD", payload_limit)
+    (store / "prepared/upload/escape").symlink_to(tmp_path)
+    with pytest.raises(bundle.InvalidBundle, match="symlink"):
+        bundle.seal(store, files, key, output, success=True)
+    assert not output.exists()
+
+
+def test_archive_commit_is_atomic_and_preserves_existing_results(
+        transport, simulated, tmp_path, monkeypatch):
+    _, _, _, key, files = transport
+    op, _, store, journal, _ = simulated
+    driver.execute(app, op, store, journal)
+    app.write_json(store / "handoff.json", {})
+    output = tmp_path / "atomic.aesgcm"
+    original_link = os.link
+    def fail_commit(*args):
+        raise OSError("PRIVATE output failure")
+    monkeypatch.setattr(bundle.os, "link", fail_commit)
+    with pytest.raises(OSError, match="PRIVATE"):
+        bundle.seal(store, files, key, output, success=True)
+    assert not output.exists() and not list(tmp_path.glob("atomic.aesgcm.*"))
+    monkeypatch.setattr(bundle.os, "link", original_link)
+    bundle.seal(store, files, key, output, success=True)
+    original = output.read_bytes()
+    with pytest.raises(FileExistsError):
+        bundle.seal(store, files, key, output, success=True)
+    assert output.read_bytes() == original
+    assert not list(tmp_path.glob("atomic.aesgcm.*"))
+
+
+@pytest.mark.parametrize("commit_fails", [False, True])
+def test_archive_temp_cleanup_does_not_change_commit_result(
+        transport, simulated, tmp_path, monkeypatch, commit_fails):
+    _, _, _, key, files = transport
+    op, _, store, journal, _ = simulated
+    driver.execute(app, op, store, journal)
+    app.write_json(store / "handoff.json", {})
+    output = tmp_path / "cleanup.aesgcm"
+    original_unlink = Path.unlink
+    def unlink(path, *args, **kwargs):
+        if path.name.startswith(output.name + "."):
+            raise OSError("PRIVATE cleanup error")
+        return original_unlink(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "unlink", unlink)
+    if commit_fails:
+        def fail_commit(*args):
+            raise OSError("PRIVATE commit error")
+        monkeypatch.setattr(bundle.os, "link", fail_commit)
+        with pytest.raises(OSError, match="PRIVATE commit error"):
+            bundle.seal(store, files, key, output, success=True)
+        assert not output.exists()
+    else:
+        digest = bundle.seal(store, files, key, output, success=True)
+        assert digest == bundle.sha256(output.read_bytes())
+        assert output.stat().st_mode & 0o777 == 0o600
+    temporary, = tmp_path.glob("cleanup.aesgcm.*")
+    assert temporary.read_bytes().startswith(bundle.MAGIC)
+    assert temporary.stat().st_mode & 0o777 == 0o600
+    if not commit_fails:
+        assert temporary.samefile(output)
+
+
+def test_authenticated_archive_still_rejects_traversal(archive, tmp_path):
+    output, key_path, _, _ = archive
+    key = bundle.key_bytes(key_path.read_text())
+    content = io.BytesIO()
+    with zipfile.ZipFile(content, "w") as zipped:
+        zipped.writestr("store/../../escape", b"bad")
+    nonce = os.urandom(12)
+    output.write_bytes(bundle.MAGIC + nonce + AESGCM(key).encrypt(
+        nonce, content.getvalue(), bundle.MAGIC))
+    with pytest.raises(bundle.InvalidBundle):
+        bundle.unseal(output, key_path, tmp_path / "blocked-store")
+    assert not (tmp_path / "escape").exists()
+
+
+def test_cli_has_no_publish_mode_and_errors_do_not_expose_inputs(tmp_path):
+    source = Path(driver.__file__)
+    result = subprocess.run([sys.executable, str(source), "publish"],
+                            capture_output=True, text=True)
+    assert result.returncode != 0
+    result = subprocess.run([sys.executable, str(bundle.__file__), "unpack",
+                             "--archive", str(tmp_path / "missing"),
+                             "--key", str(tmp_path / "secret-key"),
+                             "--store", str(tmp_path / "store")], capture_output=True, text=True)
+    assert result.returncode != 0 and result.stdout == ""
+    assert "secret-key" not in result.stderr and "Traceback" not in result.stderr
+
+
+def test_workflow_manual_prepare_is_disjoint_and_only_uploads_ciphertext():
+    workflow = (Path(__file__).resolve().parents[2]
+                / ".github/workflows/static-app-release.yml").read_text()
+    manual = (workflow.split("\n  manual-prepare-v260:\n", 1)[1]
+              .split("\n  manual-publish-v260:\n", 1)[0])
+    condition = " ".join(manual.split("    if: >-\n", 1)[1]
+                         .split("\n    runs-on:", 1)[0].split())
+    assert condition == (
+        "github.repository == 'Yuto-24/NavMate' && github.event_name == 'workflow_dispatch' && "
+        "github.ref == 'refs/heads/main' && inputs.operation == 'prepare-schema260' && "
+        "inputs.release_id == ''")
+    assert "environment: static-production" in manual
+    assert "ref: " + bundle.TOOLING in manual and "ref: ${{ github.sha }}" in manual
+    assert "secrets.STATIC_CLOUDFLARE_READ_TOKEN" in manual
+    assert "secrets.CLOUDFLARE_PAGES_TOKEN" not in manual and "release_automation.py" not in manual
+    assert "retention-days: 1" in manual and "if-no-files-found: error" in manual
+    assert ".aesgcm" in manual and "plan.json" not in manual
+    assert "steps.prepare.outputs.archive_ready == 'true'" in manual
+    assert "create_credentials_file: true" in manual
+    assert "steps.rules-manual.outputs.credentials_file_path" in manual
+    assert "google-auth[requests]==2.63.1" in manual
+    assert "https://www.googleapis.com/auth/firebase.readonly" in manual
+    assert (
+        "    concurrency:\n"
+        "      group: static-production\n"
+        "      cancel-in-progress: false\n"
+        "      queue: max\n"
+    ) in manual
+
+
+@pytest.fixture
+def runner_environment(transport, simulated, context, tmp_path, monkeypatch):
+    _, _, secret, key, _ = transport
+    _, state, _, _, _ = simulated
+    env, event, _ = context
+    event_path, outputs = tmp_path / "event.json", tmp_path / "outputs"
+    event_path.write_text(json.dumps(event))
+    outputs.touch()
+    env.update(RUNNER_TEMP=str(tmp_path), GITHUB_EVENT_PATH=str(event_path),
+               GITHUB_OUTPUT=str(outputs), GH_TOKEN="SECRET-TOKEN-SENTINEL",
+               CLOUDFLARE_API_TOKEN="SECRET-TOKEN-SENTINEL",
+               STATIC_GOOGLE_ACCESS_TOKEN="SECRET-TOKEN-SENTINEL",
+               STATIC_GOOGLE_CREDENTIALS_FILE="synthetic-wif.json")
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("SCHEMA260_EVIDENCE", secret)
+    monkeypatch.setenv("SCHEMA260_ARCHIVE_KEY", base64.b64encode(key).decode())
+    monkeypatch.setattr(driver.shutil, "which", lambda name: "/bin/" + name)
+    monkeypatch.setattr(driver, "checked_checkout", lambda root, sha: None)
+    def load(root):
+        assert "SCHEMA260_EVIDENCE" not in os.environ
+        assert "SCHEMA260_ARCHIVE_KEY" not in os.environ
+        return app
+    monkeypatch.setattr(driver, "load_tooling", load)
+    previous_umask = os.umask(0o022)
+    try:
+        yield env, state, outputs
+    finally:
+        os.umask(previous_umask)
+
+
+@pytest.mark.parametrize("failure", [None, "preflight", "pause-response", "build"])
+def test_runner_retains_encrypted_recovery_and_removes_plaintext(
+        runner_environment, tmp_path, capsys, failure):
+    env, state, outputs = runner_environment
+    state["fail"] = failure
+    result = driver.run(tmp_path)
+    store, output, status_path = driver.locations(env)
+    assert result == (0 if failure is None else 1)
+    assert output.is_file() and not store.exists() and not bundle.EVIDENCE_ROOT.exists()
+    status = json.loads(status_path.read_text())
+    assert status["archive_ready"] and "PRIVATE" not in status_path.read_text()
+    assert "SECRET-TOKEN" not in output.read_bytes().decode("latin-1")
+    assert "archive_ready=true\n" in outputs.read_text()
+    assert output.stat().st_mode & 0o777 == 0o600
+    ordinary_file = tmp_path / "subsequent-coverage"
+    ordinary_file.touch()
+    assert ordinary_file.stat().st_mode & 0o777 == 0o644
+    if failure in ("pause-response", "build"):
+        assert state["automation"] == "false"
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("status_failure", [None, "stage", "finish", "public-status"])
+def test_full_archive_capacity_failure_retains_only_encrypted_diagnostics(
+        runner_environment, transport, tmp_path, monkeypatch, capsys, status_failure):
+    env, state, outputs = runner_environment
+    _, packed, _, _, _ = transport
+    original_build = app.Operator.build
+    def build(self, sha, snapshot, destination):
+        original_build(self, sha, snapshot, destination)
+        for name in ("first", "second"):
+            bundle.write_private(destination / "upload" / name, b"x" * (40 * 1024))
+    monkeypatch.setattr(app.Operator, "build", build)
+    monkeypatch.setattr(bundle, "MAX_PAYLOAD", 64 * 1024)
+    original_json, original_status = app.write_json, driver.public_status
+    archive_writes = 0
+    def write_json(path, value):
+        nonlocal archive_writes
+        if path.name == "prepare-status.json" and value.get("stage") == "archive":
+            archive_writes += 1
+            if ((status_failure == "stage" and archive_writes == 1)
+                    or (status_failure == "finish" and archive_writes == 2)):
+                raise OSError("PRIVATE journal error")
+        original_json(path, value)
+    def public_status(path, value):
+        if (status_failure == "public-status" and value.get("stage") == "archive"
+                and "cleanup" not in value):
+            raise OSError("PRIVATE public status error")
+        original_status(path, value)
+    monkeypatch.setattr(app, "write_json", write_json)
+    monkeypatch.setattr(driver, "public_status", public_status)
+    assert driver.run(tmp_path) == 1
+    store, output, status_path = driver.locations(env)
+    status = json.loads(status_path.read_text())
+    assert status["status"] == "BLOCKED" and status["stage"] == "archive"
+    assert status["archive_error"] == "archive-capacity"
+    assert status["archive_ready"] and status["plan_sha256"] is None
+    assert "archive_ready=true\n" in outputs.read_text()
+    assert not store.exists() and not bundle.EVIDENCE_ROOT.exists()
+    assert state["automation"] == "false"
+    restored = tmp_path / "recovery"
+    handoff = bundle.unseal(output, packed / "archive.key", restored)
+    assert not handoff["prepared"] and handoff["plan_sha256"] is None
+    assert not (restored / "plan.json").exists() and not (restored / "prepared").exists()
+    saved = json.loads((restored / "prepare-status.json").read_text())
+    assert saved["archive_failure"]["exception_type"] == "InvalidBundle"
+    if status_failure:
+        assert saved["archive_status_failure"]["exception_type"] == "OSError"
+    assert saved["status"] == "BLOCKED"
+    assert "PRIVATE" not in status_path.read_text() and b"PRIVATE" not in output.read_bytes()
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("build_failed", [False, True])
+def test_unrecoverable_archive_failure_stays_blocked_and_cleans(
+        runner_environment, tmp_path, monkeypatch, build_failed):
+    env, state, outputs = runner_environment
+    state["fail"] = "build" if build_failed else None
+    calls = []
+    def seal(*args, **kwargs):
+        calls.append(kwargs["success"])
+        raise OSError("PRIVATE archive failure")
+    monkeypatch.setattr(bundle, "seal", seal)
+    assert driver.run(tmp_path) == 1
+    store, output, status_path = driver.locations(env)
+    status = json.loads(status_path.read_text())
+    assert calls == ([False] if build_failed else [True, False])
+    assert status["status"] == "BLOCKED" and status["stage"] == "archive"
+    assert status["archive_error"] == "archive-failed"
+    if not build_failed:
+        assert status["archive_recovery_error"] == "archive-failed"
+    assert not status["archive_ready"] and status["plan_sha256"] is None
+    assert status["cleanup"] == "COMPLETE" and "PRIVATE" not in status_path.read_text()
+    assert not store.exists() and not output.exists() and not bundle.EVIDENCE_ROOT.exists()
+    assert "archive_ready=false\n" in outputs.read_text()
+
+
+@pytest.mark.parametrize("diagnostic_fault", [None, "extraction", "write"])
+def test_command_failure_details_survive_only_in_encrypted_recovery(
+        runner_environment, transport, tmp_path, monkeypatch, capsys, diagnostic_fault):
+    env, state, _ = runner_environment
+    _, packed, _, _, _ = transport
+    calls = []
+    args = ["docker", "build", "-f", "scripts/static_ops/Dockerfile.build", "-t",
+            "autonavlog-static-release:" + bundle.TOOLING, "."]
+    def build(self, sha, snapshot, destination):
+        app.command(args, cwd=tmp_path)
+    def run(actual, **kwargs):
+        calls.append(actual)
+        return subprocess.CompletedProcess(actual, 9, "PRIVATE-BUILD-DETAIL",
+                                           "PRIVATE-ERROR SECRET-TOKEN-SENTINEL")
+    monkeypatch.setattr(app.Operator, "build", build)
+    monkeypatch.setattr(app.subprocess, "run", run)
+    if diagnostic_fault == "extraction":
+        monkeypatch.setattr(driver.diagnostics, "private_tail", lambda *a, **kw: 1 / 0)
+    elif diagnostic_fault == "write":
+        original_save = app.Journal.save
+        def save(journal):
+            if "failure" in journal.value:
+                raise OSError("Synthetic diagnostic write failure")
+            original_save(journal)
+        monkeypatch.setattr(app.Journal, "save", save)
+    assert driver.run(tmp_path) == 1
+    store, output, status = driver.locations(env)
+    assert calls == [args] and state["automation"] == "false"
+    assert not store.exists() and not bundle.EVIDENCE_ROOT.exists()
+    assert "PRIVATE" not in status.read_text() and b"PRIVATE" not in output.read_bytes()
+    restored = tmp_path / "recovery"
+    result = bundle.unseal(output, packed / "archive.key", restored)
+    assert not result["prepared"] and result["plan_sha256"] is None
+    recovered = json.loads((restored / "prepare-status.json").read_text())
+    assert recovered["status"] == "BLOCKED" and recovered["stage"] == "build-test"
+    if diagnostic_fault is None:
+        assert recovered["failure"]["command"]["returncode"] == 9
+        assert recovered["failure"]["command"]["stdout"]["tail"] == "PRIVATE-BUILD-DETAIL"
+        assert recovered["failure"]["command"]["stderr"]["tail"] == "PRIVATE-ERROR [REDACTED]"
+    else:
+        assert "failure" not in recovered
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("failure", ["locations", "initial-status"])
+def test_run_restores_creation_permissions_after_initialization_exception(
+        runner_environment, tmp_path, monkeypatch, failure):
+    if failure == "locations":
+        monkeypatch.delenv("GITHUB_RUN_ID")
+    else:
+        def fail_status(*args):
+            raise OSError("Synthetic status write failure")
+        monkeypatch.setattr(driver, "public_status", fail_status)
+    with pytest.raises((bundle.InvalidBundle, OSError)):
+        driver.run(tmp_path)
+    ordinary_file = tmp_path / "subsequent-coverage"
+    ordinary_file.touch()
+    assert ordinary_file.stat().st_mode & 0o777 == 0o644
+
+
+@pytest.mark.parametrize("failure", ["journal-status", "handoff", "sealed-status"])
+def test_finalization_faults_preserve_output_and_cleanup(
+        runner_environment, tmp_path, monkeypatch, failure):
+    env, _, outputs = runner_environment
+    store, output, status_path = driver.locations(env)
+    write_status, write_json = driver.public_status, app.write_json
+
+    def status(path, value):
+        if (failure == "journal-status" and value["status"] == "RUNNING") or (
+                failure == "sealed-status" and output.exists()):
+            raise OSError("Synthetic status write failure")
+        write_status(path, value)
+
+    def handoff(path, value):
+        if failure == "handoff" and path.name == "handoff.json":
+            raise OSError("Synthetic handoff write failure")
+        write_json(path, value)
+
+    monkeypatch.setattr(driver, "public_status", status)
+    monkeypatch.setattr(app, "write_json", handoff)
+    if failure == "journal-status":
+        assert driver.run(tmp_path) == 1
+    else:
+        with pytest.raises(OSError):
+            driver.run(tmp_path)
+    assert not store.exists() and not bundle.EVIDENCE_ROOT.exists()
+    assert output.exists() == (failure == "sealed-status")
+    expected = "archive_ready=true\n" if failure == "sealed-status" else "archive_ready=false\n"
+    assert expected in outputs.read_text()
+    if failure != "sealed-status":
+        assert json.loads(status_path.read_text())["status"] == "BLOCKED"
+    ordinary_file = tmp_path / "subsequent-coverage"
+    ordinary_file.touch()
+    assert ordinary_file.stat().st_mode & 0o777 == 0o644
+
+
+def test_release_identity_and_record_hash_are_pinned():
+    assert bundle.CURRENT == "ab26080419f1a375db786b045c43aca828b02d7c"
+    assert bundle.CANDIDATE == "6b94850507c381b5645a26d914fdc6e8fe597f81"
+    assert driver.CANDIDATE_CI == 45144029154
+    assert bundle.RECORD_SHA256 == (
+        "167a7eac6682a04a1e07c03aed54b05f9946ca0333edc249ae60ac722982dbe7")
+    assert bundle.EVIDENCE_ROOT == Path(
+        "/home/yuto/autonavlog-releases/aip-v2.6.0-reviewed")
+    assert bundle.TOOLING == "d6f116920709ae1a624d81ee6954b586d93d99ab"
+
+
+def test_previous_candidate_identity_is_rejected_even_with_matching_hash(transport, monkeypatch):
+    _, _, _, _, files = transport
+    record = json.loads(files[bundle.RECORD_NAME])
+    record["sha"] = "c717ac6baaa3d7556120d2a7f6c9435f165f132b"
+    raw = json.dumps(record).encode()
+    monkeypatch.setattr(bundle, "RECORD_SHA256", bundle.sha256(raw))
+    reports = {role: files[role + ".json"] for role in bundle.ROLES}
+    with pytest.raises(bundle.InvalidBundle, match="record-identity"):
+        bundle.evidence_files(raw, reports)
+
+
+def test_root_owned_build_cleanup_preserves_a_fixed_scope(tmp_path, monkeypatch):
+    if os.getuid() == 0:
+        pytest.skip("The DAC regression requires the same nonroot role as the Actions runner")
+    env = {"RUNNER_TEMP": str(tmp_path), "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2"}
+    store, _, _ = driver.locations(env)
+    locked = store / "prepared/app/node_modules"
+    locked.mkdir(parents=True, mode=0o700)
+    store.chmod(0o700)
+    (locked / "file").write_text("synthetic root-owned-equivalent directory")
+    locked.chmod(0o555)
+    calls = []
+    def privileged(args, **kwargs):
+        calls.append((args, kwargs))
+        assert args == ["sudo", "-n", "rm", "-rf", "--", str(store)]
+        assert kwargs["env"] == {"PATH": os.defpath}
+        assert kwargs["capture_output"] and kwargs["timeout"] == 120
+        locked.chmod(0o700)
+        driver.shutil.rmtree(store)
+    monkeypatch.setattr(driver.subprocess, "run", privileged)
+    try:
+        driver.cleanup_store(store, env)
+        assert len(calls) == 1 and not store.exists()
+    finally:
+        if locked.exists():
+            locked.chmod(0o700)
+
+
+def test_cleanup_rejects_unowned_path_or_symlink(tmp_path):
+    env = {"RUNNER_TEMP": str(tmp_path), "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2"}
+    other = tmp_path / "unrelated"
+    other.mkdir(mode=0o700)
+    with pytest.raises(bundle.InvalidBundle):
+        driver.cleanup_store(other, env)
+    expected, _, _ = driver.locations(env)
+    expected.symlink_to(other)
+    with pytest.raises(bundle.InvalidBundle):
+        driver.cleanup_store(expected, env)
+    assert other.exists()
+
+
+@pytest.mark.parametrize("cleanup_failure", [False, True])
+def test_archive_output_is_recorded_before_cleanup_even_when_cleanup_fails(
+        runner_environment, tmp_path, monkeypatch, cleanup_failure):
+    env, _, outputs = runner_environment
+    def cleanup(store, actual_env):
+        assert "archive_ready=true\n" in outputs.read_text()
+        if cleanup_failure:
+            raise PermissionError("Synthetic ordinary and privileged cleanup failure")
+        driver.shutil.rmtree(store)
+    monkeypatch.setattr(driver, "cleanup_store", cleanup)
+    assert driver.run(tmp_path) == int(cleanup_failure)
+    _, output, status_path = driver.locations(env)
+    assert output.exists() and "archive_ready=true\n" in outputs.read_text()
+    status = json.loads(status_path.read_text())
+    assert status["cleanup"] == ("FAILED" if cleanup_failure else "COMPLETE")
+    assert status["archive_ready"] is True
+
+
+@pytest.mark.parametrize("failure", ["sha", "dirty", "remote"])
+def test_tooling_checkout_is_rejected_before_import(tmp_path, monkeypatch, failure):
+    def git(args, **kwargs):
+        if args[1] == "rev-parse":
+            result = "a" * 40 if failure == "sha" else bundle.TOOLING
+        elif args[1] == "status":
+            result = " M scripts/static_ops/app_release.py" if failure == "dirty" else ""
+        else:
+            result = "https://example.invalid/repo" if failure == "remote" else (
+                "https://github.com/" + driver.REPO + ".git")
+        return subprocess.CompletedProcess(args, 0, result)
+    monkeypatch.setattr(driver.subprocess, "run", git)
+    monkeypatch.setattr(driver.importlib, "import_module", lambda *args: pytest.fail(
+        "Unverified code must not be imported"))
+    with pytest.raises(bundle.InvalidBundle):
+        driver.load_tooling(tmp_path)
+
+
+def test_small_review_save_failure_keeps_encrypted_handoff_and_blocks(
+        runner_environment, tmp_path, monkeypatch):
+    env, _, outputs = runner_environment
+    def fail(*args):
+        raise OSError('PRIVATE review storage failure')
+    monkeypatch.setattr(driver.release_review, 'save', fail)
+    assert driver.run(tmp_path) == 1
+    private, encrypted, status_path = driver.locations(env)
+    assert encrypted.exists() and not private.exists()
+    assert 'archive_ready=true\n' in outputs.read_text()
+    assert 'review_ready=false\n' in outputs.read_text()
+    status = json.loads(status_path.read_text())
+    assert status['status'] == 'BLOCKED' and status['review_status'] == 'FAILED'
+    assert 'PRIVATE' not in status_path.read_text()
+
+
+def test_small_review_is_available_even_when_archive_cannot_be_saved(
+        runner_environment, tmp_path, monkeypatch):
+    env, _, outputs = runner_environment
+    def fail(*args, **kwargs):
+        raise OSError('PRIVATE archive failure')
+    monkeypatch.setattr(bundle, 'seal', fail)
+    assert driver.run(tmp_path) == 1
+    _, archive, status_path = driver.locations(env)
+    status = json.loads(status_path.read_text())
+    path = archive.with_suffix('.review.json')
+    value = driver.release_review.load(path, status['review_sha256'],
+                                       env['GITHUB_RUN_ID'], env['GITHUB_RUN_ATTEMPT'])
+    assert value['status'] == 'BLOCKED' and value['archive_sha256'] is None
+    assert value['publication_authorized'] is False
+    assert 'PRIVATE' not in path.read_text()
+    assert 'review_ready=true\n' in outputs.read_text()
+
+
+@pytest.mark.parametrize('outcome', ['failure', 'cancelled', 'skipped', ''])
+def test_missing_or_failed_small_review_upload_is_not_prepared(
+        runner_environment, tmp_path, monkeypatch, capsys, outcome):
+    env, _, _ = runner_environment
+    assert driver.run(tmp_path) == 0
+    monkeypatch.setenv('ARCHIVE_UPLOAD_OUTCOME', 'success')
+    monkeypatch.setenv('REVIEW_UPLOAD_OUTCOME', outcome)
+    monkeypatch.setattr(driver.release_timing, 'workflow_report',
+                        lambda _: {'status': 'UNAVAILABLE'})
+    driver.report()
+    assert json.loads(capsys.readouterr().out)['status'] == 'BLOCKED'
+
+
+@pytest.mark.parametrize('when', ['start', 'finish'])
+def test_archive_timing_write_failure_preserves_completed_ciphertext(
+        runner_environment, transport, tmp_path, monkeypatch, when):
+    env, _, outputs = runner_environment
+    write, seal = driver.release_timing.write, bundle.seal
+    sealed = []
+    def record_seal(*args, **kwargs):
+        digest = seal(*args, **kwargs)
+        sealed.append(digest)
+        return digest
+    def fail_timing(path, value):
+        if path.name == 'archive-timings.json' and (
+                when == 'start' or value[-1]['status'] != 'RUNNING'):
+            raise OSError('PRIVATE timing save failure')
+        write(path, value)
+    monkeypatch.setattr(bundle, 'seal', record_seal)
+    monkeypatch.setattr(driver.release_timing, 'write', fail_timing)
+    assert driver.run(tmp_path) == 1
+    private, output, status_path = driver.locations(env)
+    status = json.loads(status_path.read_text())
+    assert status['status'] == 'BLOCKED' and not private.exists()
+    assert status['archive_ready'] is (when == 'finish')
+    assert 'archive_ready=' + str(when == 'finish').lower() + '\n' in outputs.read_text()
+    assert len(sealed) == (1 if when == 'finish' else 0)
+    if when == 'finish':
+        assert bundle.sha256(output.read_bytes()) == sealed[0]
+        assert status['archive_error'] == 'archive-timing-save'
+        handoff = bundle.unseal(output, transport[1] / 'archive.key', tmp_path / 'recovery')
+        assert handoff['prepared']  # Original authenticated bytes are preserved for recovery.
+        review = json.loads(output.with_suffix('.review.json').read_text())
+        assert review['status'] == 'BLOCKED' and review['archive_sha256'] == sealed[0]
+        assert not review['publication_authorized']
+    assert 'PRIVATE' not in status_path.read_text()
+
+
+def test_unseal_write_failure_cleans_staging_and_allows_retry(archive, tmp_path, monkeypatch):
+    output, key_path, _, _ = archive
+    target = tmp_path / "retry-store"
+    original = bundle.write_private
+    def broken(path, raw):
+        if path.name == "handoff.json":
+            raise OSError("simulated write failure")
+        original(path, raw)
+    monkeypatch.setattr(bundle, "write_private", broken)
+    with pytest.raises(OSError):
+        bundle.unseal(output, key_path, target)
+    assert not target.exists() and not list(tmp_path.glob(".retry-store.*"))
+    monkeypatch.setattr(bundle, "write_private", original)
+    assert bundle.unseal(output, key_path, target)["prepared"]
+
+
+def test_prepare_deadline_saves_recovery(runner_environment, tmp_path, monkeypatch):
+    import time
+    env, state, outputs = runner_environment
+    monkeypatch.setattr(driver, "PREPARE_DEADLINE_SECONDS", 1)
+    def slow(*args):
+        time.sleep(3)
+    monkeypatch.setattr(driver, "execute", slow)
+    assert driver.run(tmp_path) == 1
+    _, archive_path, status_path = driver.locations(env)
+    assert archive_path.exists() and "archive_ready=true" in outputs.read_text()
+    assert json.loads(status_path.read_text())["status"] == "BLOCKED"
+    assert state["automation"] == "true"
+
+
+def test_deadline_waits_for_active_subprocess_before_sealing(
+        runner_environment, tmp_path, monkeypatch):
+    env, _, outputs = runner_environment
+    marker = tmp_path / "child-completed"
+    monkeypatch.setattr(driver, "PREPARE_DEADLINE_SECONDS", 1)
+    def execute(app_module, *_args):
+        script = "import pathlib,time; time.sleep(2); pathlib.Path(" + repr(str(marker))
+        app_module.command([sys.executable, "-c", script + ").write_text('done')"], timeout=5)
+        pytest.fail("deadline must stop prepare after subprocess completes")
+    monkeypatch.setattr(driver, "execute", execute)
+    assert driver.run(tmp_path) == 1
+    _, encrypted, status_path = driver.locations(env)
+    assert marker.read_text() == "done"
+    assert encrypted.exists() and "archive_ready=true" in outputs.read_text()
+    assert json.loads(status_path.read_text())["status"] == "BLOCKED"
