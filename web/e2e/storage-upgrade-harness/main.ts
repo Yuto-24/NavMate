@@ -12,6 +12,10 @@ import { FirestoreSyncRepository as Schema4Remote } from "../fixtures/v2.2.2/fir
 import { AccountProjectRepository as Schema4Account } from "../fixtures/v2.2.2/accountProjectRepository";
 import { IndexedDbProjectRepository as Schema4Local } from "../fixtures/v2.2.2/localProjectRepository";
 
+import { AccountProjectRepository as PreAipAccount } from "../fixtures/pre-aip/accountProjectRepository";
+import { IndexedDbProjectRepository as PreAipLocal } from "../fixtures/pre-aip/localProjectRepository";
+import { FirestoreSyncRepository as PreAipRemote } from "../fixtures/pre-aip/firestoreSyncRepository";
+
 setLogLevel("silent"); // Expected stale-write Rules denials must not print full synthetic records.
 
 let repository: any, remote: any, firebase: any, db: any, databaseName: string;
@@ -57,22 +61,31 @@ async function snapshot() {
 (window as any).upgrade = {
   status,
   async init({ old = false, account = null, subject = "", device = "same-device", schema4 = false,
-    schema5 = false }: any) {
+    schema5 = false, preAip = false }: any) {
     databaseName = account ? `autonavlog.projects.${account}` : "autonavlog.projects";
     const context = { account_id: account, assertActive() {}, onClose() { return () => {}; } };
-    const validator = schema4 ? schema4Validate : schema5 ? (record: any) => domain("validateRecord", record) : validate(old);
+    const validator = preAip && !schema5 ? async (record: any) => {
+      // The unchanged legacy Python ReferencePointSource rejects AIP_SHAPEFILE;
+      // the integration test proves that boundary independently of this predicate.
+      if ([record.draft, record.checkpoint, record.lastCalculation?.project].some(project =>
+        project?.route_nodes.some((node: any) => node.reference_snapshot?.source.format))) {
+        throw Error("pre-AIP domain reader");
+      }
+      return copy(record);
+    } : schema4 ? schema4Validate : schema5 ? (record: any) => domain("validateRecord", record) : validate(old);
     const clean = schema5 ? (record: any, copy_id?: string) => domain("prepareSyncResolution", { record, copy_id }) : async (value: any) => value;
-    repository = account ? new (schema4 ? Schema4Account : old ? OldAccount : AccountProjectRepository)(validator, context, device, clean)
-      : new (schema4 ? Schema4Local : old ? OldLocal : IndexedDbProjectRepository)(validator);
+    repository = account ? new (preAip ? PreAipAccount : schema4 ? Schema4Account : old ? OldAccount : AccountProjectRepository)(validator, context, device, clean)
+      : new (preAip ? PreAipLocal : schema4 ? Schema4Local : old ? OldLocal : IndexedDbProjectRepository)(validator);
     if (subject) {
       firebase = initializeApp({ projectId: "demo-autonavlog-sync", apiKey: "test" }, crypto.randomUUID());
       // Emulator-only finite long polling avoids open streaming requests during tab teardown.
       db = initializeFirestore(firebase, { experimentalForceLongPolling: true });
       connectFirestoreEmulator(db, "127.0.0.1", 8088, { mockUserToken: { sub: `firebase-${subject}`,
         firebase: { sign_in_provider: "google.com", identities: { "google.com": [subject] } } } });
-      remote = new (schema4 ? Schema4Remote : old ? OldRemote : FirestoreSyncRepository)(db, subject, () => {});
+      remote = new (preAip ? PreAipRemote : schema4 ? Schema4Remote : old ? OldRemote : FirestoreSyncRepository)(db, subject, () => {});
     }
   },
+  prepareReferenceUpdate: (record: any) => domain("prepareReferenceUpdate", record),
   list: () => repository.list(), read: (id: string) => repository.read(id),
   write: (record: any, token: string | null, latest = false) => repository.write(record, token, latest),
   open: (record: any) => repository.open(record), delete: (id: string, token: string) => repository.delete(id, token),
@@ -113,9 +126,9 @@ async function snapshot() {
     else await repository.receive(result.conflicts);
   },
   startUpgrade() { void repository.list().then(() => { status.upgraded = true; }, (error: any) => { status.error = error.code; }); },
-  hold(blockUpgrade: boolean) {
+  hold(blockUpgrade: boolean, version = 1) {
     return new Promise<void>((resolve, reject) => {
-      const open = indexedDB.open(databaseName, 1);
+      const open = indexedDB.open(databaseName, version);
       open.onerror = () => reject(open.error);
       open.onsuccess = () => {
         heldDb = open.result;

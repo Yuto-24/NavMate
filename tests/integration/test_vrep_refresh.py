@@ -5,8 +5,10 @@ import runpy
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 from test_local_calculation import ROOT, LocalApplication, calculate
 
+from autonavlog.domain.project import ReferencePointSource
 from autonavlog.local_persistence import migrate_record
 
 GENERATOR = runpy.run_path(str(ROOT / "scripts/reference/build_vrep_catalog.py"))
@@ -112,3 +114,12 @@ def test_legacy_open_update_requires_recalculation_and_keeps_last_good_evidence(
     new_calculation = recalculated["workingRecovery"]["last_calculation"]["project"]
     assert (new_calculation["route_nodes"][1]["reference_snapshot"]
             == CURRENT[snapshot["reference_id"]])
+
+
+def test_retained_legacy_source_model_cannot_read_aip_source():
+    # ReferencePointSource is unchanged from c95e30a0, before the AIP union.
+    # DB2 clients use only this type for ReferencePointSnapshot.source.
+    for legacy in LEGACY:
+        ReferencePointSource.model_validate(legacy["source"])
+        with pytest.raises(ValidationError):
+            ReferencePointSource.model_validate(CURRENT[legacy["reference_id"]]["source"])

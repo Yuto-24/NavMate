@@ -203,9 +203,9 @@ for (const existingVersion of [1, 2]) for (const account of [null, "compat-accou
     const reopened = new IndexedDbProjectRepository(validate, async () => {}, () => factory, context);
     expect(await reopened.read(saved.id)).toEqual(changed);
     expect(await reopened.read(latest.id)).toEqual(latest);
-    expect(LOCAL_DATABASE_VERSION).toBe(2);
+    expect(LOCAL_DATABASE_VERSION).toBe(3);
     await new Promise<void>((resolve, reject) => {
-      const open = factory.open(name, 1);
+      const open = factory.open(name, existingVersion);
       open.onerror = () => { expect(open.error?.name).toBe("VersionError"); resolve(); };
       open.onsuccess = () => { open.result.close(); reject(Error("old writer must remain fenced")); };
     });

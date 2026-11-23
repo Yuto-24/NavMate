@@ -19,6 +19,7 @@ const call = (page: Page, operation: string, ...args: any[]): Promise<any> =>
   page.evaluate(({ operation, args }) => (window as any).upgrade[operation](...args), { operation, args });
 const row = async (page: Page, id: string) => (await call(page, "snapshot")).find((value: any) => value.id === id);
 
+// Pin the historical DB2 candidate adapters: the current app has a later AIP DB3 fence.
 // See docs/forecast_schema_transition.md for the accepted own-device Latest policy.
 test("schema4 adapters retain exact v2.2.2 source", () => {
   const provenance = JSON.parse(readFileSync(resolve("e2e/fixtures/v2.2.2/provenance.json"), "utf8"));
@@ -32,7 +33,7 @@ test("schema4 anonymous Saved/Draft and Latest retain calculations across migrat
   await start(old, { schema4: true });
   const saved = fixture(), latest = fixture("msm"); latest.checkpoint = null;
   await call(old, "write", saved, null); await call(old, "write", latest, null, true);
-  const next = await context.newPage(); await start(next, { schema5: true });
+  const next = await context.newPage(); await start(next, { schema5: true, preAip: true });
   const expectedSaved = normalized(saved), expectedLatest = normalized(latest);
   expect(await call(next, "read", saved.id)).toEqual(expectedSaved);
   expect(await call(next, "read", latest.id)).toEqual(expectedLatest);
@@ -44,7 +45,7 @@ test("schema4 anonymous Saved/Draft and Latest retain calculations across migrat
   expect(await call(old, "attempt", "write", [{ ...saved, token: randomUUID() }, saved.token])).toBe("PROJECT_REVISION_CONFLICT");
   expect(await call(next, "attempt", "write", [{ ...edited, draft: { id: edited.id } }, edited.token, true])).toBe("domain validation failed");
   expect(await call(next, "snapshot")).toEqual(before);
-  await next.reload(); await next.evaluate(() => (window as any).upgrade.init({ schema5: true }));
+  await next.reload(); await next.evaluate(() => (window as any).upgrade.init({ schema5: true, preAip: true }));
   expect(await call(next, "read", saved.id)).toEqual(edited);
   expect(await call(next, "read", latest.id)).toEqual(expectedLatest);
   // Schema4 cannot read a migrated record, but must leave the original intact.
@@ -59,7 +60,7 @@ test("schema4 old open replaces own Latest only; Saved and another device Latest
   await call(old, "write", saved, null); await call(old, "flush");
   const loaded = await call(old, "read", saved.id);
   await old.evaluate(record => sessionStorage.setItem("old-session", JSON.stringify(record)), loaded);
-  const next = await context.newPage(); await start(next, { schema5: true, account, subject });
+  const next = await context.newPage(); await start(next, { schema5: true, preAip: true, account, subject });
   await call(next, "write", latest, null, true); await call(next, "flush");
   const newLatest = normalized(latest);
   expect((await row(next, latest.id)).sync.value.deletion).toBe("ACTIVE");
@@ -67,7 +68,7 @@ test("schema4 old open replaces own Latest only; Saved and another device Latest
   other.id = otherId; other.draft.id = otherId; other.lastCalculation = null;
   const foreign = await browser.newContext(), device = await foreign.newPage();
   try {
-    await start(device, { schema5: true, account, subject, device: "other-device" });
+    await start(device, { schema5: true, preAip: true, account, subject, device: "other-device" });
     await call(device, "flush"); await call(device, "write", other, null, true); await call(device, "flush");
     await call(next, "flush");
     const cloudBefore = await call(next, "remoteList");
@@ -94,7 +95,7 @@ for (const sameProfile of [true, false]) test(`schema4 stale writer preserves Sa
   const loaded = await call(old, "read", saved.id);
   const target = sameProfile ? context : await browser.newContext(), next = await target.newPage();
   try {
-    await start(next, { schema5: true, account, subject, device: "new-device" }); await call(next, "flush");
+    await start(next, { schema5: true, preAip: true, account, subject, device: "new-device" }); await call(next, "flush");
     const base = await call(next, "read", saved.id);
     const updated = { ...base, token: randomUUID(), draft: { ...base.draft, pilot_name: "newer saved work" } };
     await call(next, "write", updated, base.token); await call(next, "flush");
@@ -111,7 +112,7 @@ for (const sameProfile of [true, false]) test(`schema4 stale writer preserves Sa
       expect(await call(old, "attempt", "finishPending", [])).toBe("schema4 domain reader");
       expect((await row(old, saved.id)).sync.sent.value.record).toEqual(edited);
       // Reload the old device into the candidate, receive the conflict, then explicitly retain both.
-      await call(old, "dispose"); await start(old, { schema5: true, account, subject, device: "old-device" });
+      await call(old, "dispose"); await start(old, { schema5: true, preAip: true, account, subject, device: "old-device" });
       await call(old, "receive", before);
       expect((await row(old, saved.id)).draft.pilot_name).toBe("old unsent work");
     }
@@ -142,7 +143,7 @@ for (const sameProfile of [true, false]) test(`schema4 already-started SDK commi
   await call(old, "startPending"); await seen;
   const target = sameProfile ? context : await browser.newContext(), next = await target.newPage();
   try {
-    await start(next, { schema5: true, account, subject, device: "new-device" }); await call(next, "flush");
+    await start(next, { schema5: true, preAip: true, account, subject, device: "new-device" }); await call(next, "flush");
     const base = await call(next, "read", saved.id);
     const updated = { ...base, token: randomUUID(), draft: { ...base.draft, pilot_name: "new committed work" } };
     await call(next, "write", updated, base.token); await call(next, "flush");
@@ -167,11 +168,11 @@ test("schema4 lost acknowledgement and later offline edit recover through candid
   await call(old, "startPending");
   const fresh = await browser.newContext(), device = await fresh.newPage();
   try {
-    await start(device, { schema5: true, account, subject, device: "fresh-device" });
+    await start(device, { schema5: true, preAip: true, account, subject, device: "fresh-device" });
     await expect.poll(async () => (await call(device, "remoteList")).find((value: any) => value.id === saved.id)?.record.draft.pilot_name).toBe("sent but unacknowledged");
     const offline = { ...edit, token: randomUUID(), draft: { ...edit.draft, pilot_name: "later offline work" } };
     await call(old, "write", offline, edit.token);
-    const next = await context.newPage(); await start(next, { schema5: true, account, subject });
+    const next = await context.newPage(); await start(next, { schema5: true, preAip: true, account, subject });
     await call(next, "flush"); await call(next, "flush"); await call(device, "flush");
     expect((await call(device, "read", saved.id)).draft.pilot_name).toBe("later offline work");
     expect((await call(device, "read", saved.id)).lastCalculation).toEqual(normalized(saved).lastCalculation);
