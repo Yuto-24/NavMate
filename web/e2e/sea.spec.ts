@@ -172,8 +172,23 @@ test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and re
   await expect(page.locator(".sea-caution")).toHaveCount(0);
   const restored = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.metadata.sea, artifactSessionKey);
   expect(restored).toEqual(saved);
+  // A saved number remains readable while an explicit reacquisition is in flight.
+  let releaseRetry!: () => void;
+  const retryGate = new Promise<void>(resolve => { releaseRetry = resolve; });
+  let heldRetryTile = false;
+  await page.route("**/xyz/dem_png/**", async route => {
+    if (!heldRetryTile) {
+      heldRetryTile = true;
+      await retryGate;
+    }
+    await route.fallback();
+  });
   await page.getByRole("button", { name: "地形を再取得" }).click();
+  await expect(first.locator(".sea-loading-icon")).toBeVisible();
+  await expect(first).toContainText(display);
+  releaseRetry();
   await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
+  await expect(first.locator(".sea-loading-icon")).toHaveCount(0);
   await expect(first).toHaveAttribute("data-display-text", display);
   await expect(page.locator(".sea-caution")).toHaveCount(0);
   await expect(page.locator(".sea-reference-note")).toHaveCount(partial ? 1 : 0);
