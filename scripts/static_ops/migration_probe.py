@@ -16,6 +16,19 @@ ROOT = Path("/opt/autonavlog")
 sys.path.insert(0, str(ROOT / "tests/integration"))
 
 
+def recovery_for(record):
+    last = record["lastCalculation"]
+    return {
+        "version": 1,
+        "project": record["draft"],
+        "last_calculation": last,
+        "outcome": last["outcome"],
+        "destination_wind": last["destination_wind"],
+        "import_result": None,
+        "import_filename": None,
+    }
+
+
 def generate():
     from test_local_calculation import calculate
 
@@ -35,6 +48,17 @@ def generate():
             )
         ).model_dump(mode="json")
         record["draft"]["pilot_name"] = "synthetic unsaved draft"
+        record["draft"]["total_usable_fuel_gal"] -= 1
+        # Capture the distinct draft through the OLD application. Hand-editing the
+        # inputs above leaves a stale derived status until that application restores it.
+        state = json.loads(application.dispatch(
+            "refreshSavedWork", {"working": recovery_for(record), "rounding_mode": False}
+        ))
+        record = migrate_record({
+            **record,
+            "draft": state["workingRecovery"]["project"],
+            "lastCalculation": state["workingRecovery"]["last_calculation"],
+        }).model_dump(mode="json")
         latest = copy.deepcopy(record)
         latest["checkpoint"] = None
         print(
@@ -59,16 +83,7 @@ def verify(path):
             # Schema 5 and the portable record version do not change in this migration.
             assert migrate_record(original).model_dump(mode="json") == original
             assert json.loads(application.dispatch("validateRecord", original)) == original
-            last = original["lastCalculation"]
-            recovery = {
-                "version": 1,
-                "project": original["draft"],
-                "last_calculation": last,
-                "outcome": last["outcome"],
-                "destination_wind": last["destination_wind"],
-                "import_result": None,
-                "import_filename": None,
-            }
+            recovery = recovery_for(original)
             application.dispatch("bootstrap", recovery)
             restored = json.loads(
                 application.dispatch(
@@ -79,6 +94,7 @@ def verify(path):
             # Compare the full durable record through that existing serializer.
             hydrated = {
                 **original,
+                "draft": restored["workingRecovery"]["project"],
                 "lastCalculation": restored["workingRecovery"]["last_calculation"],
             }
             assert migrate_record(hydrated).model_dump(mode="json") == original

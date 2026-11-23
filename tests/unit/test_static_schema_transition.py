@@ -24,6 +24,24 @@ def blob(source):
     return hashlib.sha1(source.encode(), usedforsecurity=False).hexdigest()
 
 
+def writer_source(version):
+    declaration = "" if version == 1 else f"export const LOCAL_DATABASE_VERSION = {version};"
+    argument = "1" if version == 1 else "LOCAL_DATABASE_VERSION"
+    return declaration + """
+export class IndexedDbProjectRepository {
+  constructor(private readonly factory: () => IDBFactory = () => indexedDB,) {}
+  private database(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const scope = this.context?.storage_id ?? this.context?.account_id;
+      const request = this.factory().open(NAME_ARG, VERSION_ARG);
+    });
+  }
+}
+""".replace("VERSION_ARG", argument).replace(
+        "NAME_ARG", "scope ? `${LOCAL_DATABASE}.${scope}` : LOCAL_DATABASE"
+    )
+
+
 @pytest.fixture(params=["reference-snapshot-writer-fence", "forecast-model-selection",
                         "aip-reference-source-writer-fence"])
 def reviewed(tmp_path, request):
@@ -60,11 +78,11 @@ def reviewed(tmp_path, request):
     sources = {
         (OLD, SCHEMA): json.dumps(before),
         (NEW, SCHEMA): json.dumps(after),
-        (OLD, WRITER): "factory.open(name, 1)",
+        (OLD, WRITER): writer_source(1),
         (
             NEW,
             WRITER,
-        ): "export const LOCAL_DATABASE_VERSION = 2; factory.open(name, LOCAL_DATABASE_VERSION)",
+        ): writer_source(2),
         (OLD, app.COMPATIBILITY[0]): "rules",
         (NEW, app.COMPATIBILITY[0]): "rules",
         (OLD, app.COMPATIBILITY[1]): "indexes",

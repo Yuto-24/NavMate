@@ -566,3 +566,22 @@ production migration approval. The operational entry remains
   including GitHub Release creation and weather resume. A digest verified only when
   dispatch starts does not establish continuing approval. Tests preserve failure state
   rather than replaying uncertain Release creation or resuming weather.
+
+### PR #517 review corrections (2026-11-24)
+
+The release routing audit also applies to `release: published` and `replay-release`:
+compare the selected tag's database version in the shared automatic snapshot gate.
+A version-like argument in an unrelated call is not evidence of the IndexedDB version.
+The recognizer accepts only the existing writer forms; new forms require review.
+
+The actual-version probe must compare the candidate-restored Draft in full. Generate
+the distinct synthetic draft through the old application's restore path before saving
+its baseline: hand-editing planning inputs leaves a derived status that the old
+application itself changes. Do not discard fields from the candidate comparison to
+hide that fixture inconsistency. Browser dependency checks also reject alternative
+extension siblings in both pinned trees, and Docker probes override image ENTRYPOINT.
+
+Evidence: PR #517 review regression tests in `test_release_preflight.py`,
+`test_release_automation.py`, `test_migration_release.py`, and
+`check_migration_browser.test.mjs`. These local checks do not establish production
+migration acceptance or hosted CI completion.

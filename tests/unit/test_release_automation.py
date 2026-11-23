@@ -384,3 +384,46 @@ def test_snapshot_requires_current_public_repository_before_publication(
     with pytest.raises(KeyError if accepted else app.Blocked,
                        match="STATIC_ORIGIN" if accepted else "Expected public repository"):
         op.snapshot(NEW, OLD)
+
+
+@pytest.mark.parametrize("trigger", ["release", "workflow_dispatch", "workflow_run"])
+@pytest.mark.parametrize("version", [2, 3])
+def test_every_normal_entry_checks_selected_tag_database_version(monkeypatch, trigger, version):
+    source = Source()
+    event = {"repository": REPO,
+             "action": "completed" if trigger == "workflow_run" else "published",
+             "workflow_run": {"id": 42}, "release": source.selected,
+             "inputs": {"release_id": "123"}}
+    selected = auto.select_release(source, event, trigger)
+    op = auto.ActionsOperator(selected)
+    original_git = source.git
+
+    def git(*args):
+        if args[0] == "show" and args[1].endswith(":" + auto.release_preflight.WRITER):
+            db = version if args[1].startswith(NEW) else 2
+            from tests.unit.test_static_schema_transition import writer_source
+
+            return writer_source(db)
+        return original_git(*args)
+
+    op.git = git
+    op.gh = lambda path: ({"value": "true"} if path.startswith("actions/variables/")
+                          else source.gh(path))
+    monkeypatch.setattr(auto.source_ci, "require_success", lambda *_: {})
+    reached = []
+
+    def snapshot(*args, **kwargs):
+        reached.append(True)
+        return {"version": "1.23.0"}
+
+    monkeypatch.setattr(app.Operator, "snapshot", snapshot)
+    monkeypatch.setattr(app, "release", lambda *_: {
+        "commit": OLD, "dirty": False, "version": "1.22.0",
+    })
+    if version == 3:
+        with pytest.raises(app.Blocked, match="Database version changed"):
+            op.snapshot(NEW, OLD)
+        assert not reached
+    else:
+        assert op.snapshot(NEW, OLD)["github_release"] == selected
+        assert reached == [True]

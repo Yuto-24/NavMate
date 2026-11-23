@@ -58,7 +58,7 @@ def test_database_upgrade_without_supported_schema_change_fails(reviewed):
     operator, _, _, sources, _, _ = reviewed
     sources[OLD, SCHEMA] = sources[NEW, SCHEMA]
     sources[NEW, WRITER] = (
-        "export const LOCAL_DATABASE_VERSION = 99; factory.open(name, LOCAL_DATABASE_VERSION)"
+        schema_cases.writer_source(99)
     )
     assert preflight.classify(operator, NEW, OLD)["route"] == "BLOCKED"
 
@@ -107,3 +107,35 @@ def test_preflight_rechecks_configuration_and_canonical(reviewed, monkeypatch):
     monkeypatch.setattr(app, "release", drift)
     with pytest.raises(app.Blocked, match="Production changed"):
         preflight.inspect(operator, NEW, OLD)
+
+
+@pytest.mark.parametrize("version", [1, 2, 3])
+def test_database_version_is_bound_to_the_actual_open_argument(version):
+    from types import SimpleNamespace
+
+    operator = SimpleNamespace(git=lambda *_: schema_cases.writer_source(version))
+    assert preflight.database_version(operator, NEW) == version
+
+
+OPEN = "this.factory().open(scope ? `${LOCAL_DATABASE}.${scope}` : LOCAL_DATABASE, "
+
+
+@pytest.mark.parametrize("changed", [
+    OPEN + "2); records.slice(0, 1)",
+    OPEN + "version); records.slice(0, 1)",
+    OPEN + "1 + 1)",
+    'this.factory()["open"](LOCAL_DATABASE, 3); factory.open(other, 1)',
+    'this.factory()["open"](LOCAL_DATABASE, 3); this.factory().open(other, 1)',
+    OPEN + '2); /* factory.open(other, 1) */',
+    OPEN + '2); const text = "factory.open(other, 1)"',
+    OPEN + '2); const text = `factory.open(other, 1)`',
+    OPEN + '1); factory.open(other, 2)',
+])
+def test_unknown_actual_writer_cannot_borrow_an_unrelated_version_one(changed):
+    from types import SimpleNamespace
+
+    source = schema_cases.writer_source(1).replace(
+        OPEN + "1)", changed
+    )
+    with pytest.raises(app.Blocked):
+        preflight.database_version(SimpleNamespace(git=lambda *_: source), NEW)

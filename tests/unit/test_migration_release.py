@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+import yaml
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from scripts.static_ops import app_release as app
@@ -331,12 +332,17 @@ def test_publish_never_resumes_weather_after_release_creation_failure(monkeypatc
 
 def test_workflow_routing_cannot_publish_without_manual_selection():
     workflow = (app.ROOT / ".github/workflows/static-app-release.yml").read_text()
+    jobs = yaml.safe_load(workflow)["jobs"]
     for phase in ("prepare", "publish"):
-        job = workflow.split("\n  migration-" + phase + ":", 1)[1].split("\n  migration-", 1)[0]
-        assert "inputs.operation == '" + phase + "-migration'" in job
-        assert "github.ref == 'refs/heads/main'" in job
-        assert "group: static-production" in job
-        assert "queue: max" in job
+        job = jobs["migration-" + phase]
+        assert " ".join(job["if"].split()) == (
+            "github.repository == 'Yuto-24/NavMate' && "
+            "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && "
+            f"inputs.operation == '{phase}-migration'"
+        )
+        assert job["concurrency"] == {
+            "group": "static-production", "cancel-in-progress": False, "queue": "max",
+        }
     publisher = (app.ROOT / ".github/workflows/publish-github-release.yml").read_text()
     assert "needs.preflight.outputs.route == 'AUTOMATIC'" in publisher
     preflight = (app.ROOT / ".github/workflows/release-preflight.yml").read_text()
@@ -428,3 +434,92 @@ def test_migration_reuses_real_state_machine_and_retains_pause_on_failure(
             assert operator.calls.index("release") < operator.calls.index("resume")
     assert operator.calls.count("upload") <= 1
     assert "rollback" not in operator.calls
+
+
+@pytest.mark.parametrize("failure", [None, "build", "timeout", "first-remove", "probe-and-remove"])
+def test_probe_entrypoint_and_all_image_cleanup_attempts(monkeypatch, tmp_path, failure):
+    import subprocess
+
+    monkeypatch.setenv("GITHUB_RUN_ID", "123")
+    calls, present, removals = [], set(), []
+    original_error = subprocess.TimeoutExpired("docker build", 1800) if failure == "timeout" else (
+        app.Blocked("original build or probe failure")
+    )
+
+    def command(argv, **kwargs):
+        calls.append(argv)
+        if argv[:2] == ["docker", "build"]:
+            tag = argv[argv.index("--tag") + 1]
+            if failure == "build":
+                raise original_error
+            present.add(tag)
+            if failure == "timeout":
+                raise original_error
+        elif argv[:2] == ["docker", "run"]:
+            assert argv[argv.index("--entrypoint") + 1] == "python"
+            assert argv.count("python") == 1
+            if argv[-1] == "generate":
+                return '{"synthetic":true}'
+            if failure == "probe-and-remove":
+                raise original_error
+            return '{"result":"PASS"}'
+        elif argv[:3] == ["docker", "image", "ls"]:
+            return "image-id" if argv[-1].removeprefix("reference=") in present else ""
+        elif argv[:3] == ["docker", "image", "rm"]:
+            removals.append(argv[-1])
+            if len(removals) == 1 and failure in ("first-remove", "probe-and-remove"):
+                raise app.Blocked("remove failed")
+        return ""
+
+    monkeypatch.setattr(app, "command", command)
+    operator = SimpleNamespace(root=tmp_path)
+    if failure:
+        with pytest.raises((app.Blocked, subprocess.TimeoutExpired)) as error:
+            evidence_tools.actual_versions(operator, SHA, OLD, tmp_path)
+        if failure != "first-remove":
+            assert error.value is original_error
+    else:
+        assert evidence_tools.actual_versions(operator, SHA, OLD, tmp_path)["result"] == "PASS"
+    assert len(removals) == (0 if failure == "build" else 1 if failure == "timeout" else 2)
+
+
+@pytest.mark.parametrize("change", [None, "wind", "altitude", "selected_forecast_model"])
+def test_actual_version_probe_compares_every_restored_draft_field(monkeypatch, tmp_path, change):
+    from scripts.static_ops import migration_probe as probe
+
+    project = {"id": "synthetic", "pilot_name": "synthetic unsaved draft", "route_nodes": [],
+               "wind": {"speed": 10}, "altitude": 5000, "selected_forecast_model": "MSM"}
+    record = {"id": "synthetic", "draft": project,
+              "lastCalculation": {"outcome": {}, "destination_wind": {}}}
+    path = tmp_path / "records.json"
+    path.write_text(json.dumps({"app_version": "2.5.2", "saved": record, "latest": record}))
+    (tmp_path / "VERSION").write_text("2.6.0")
+
+    class Application:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def close(self):
+            pass
+
+        def dispatch(self, action, value):
+            if action == "validateRecord":
+                return json.dumps(value)
+            if action == "bootstrap":
+                return "{}"
+            recovery = copy.deepcopy(value["working"])
+            if change:
+                recovery["project"][change] = "silently changed"
+            return json.dumps({"workingRecovery": recovery, "project": recovery["project"],
+                               "readiness": {"calculationIsCurrent": False}})
+
+    monkeypatch.setattr(probe, "ROOT", tmp_path)
+    monkeypatch.setattr(probe, "LocalApplication", Application)
+    monkeypatch.setattr(probe, "migrate_record", lambda value: SimpleNamespace(
+        model_dump=lambda **_: value
+    ))
+    if change:
+        with pytest.raises(AssertionError):
+            probe.verify(path)
+    else:
+        probe.verify(path)

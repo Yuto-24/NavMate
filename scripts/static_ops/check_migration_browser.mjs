@@ -18,12 +18,26 @@ const emit = text => {
   return result.code;
 };
 const seen = new Set(), results = {};
+// Read complete inventories: a failed git read must not mean a missing sibling.
+const files = new Map([current, candidate].map(sha => [sha, new Set(
+  execFileSync('git', ['ls-tree', '-r', '--name-only', '-z', sha, '--', 'web/src'],
+    { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }).split('\0'),
+)]));
+function unambiguous(name) {
+  const stem = 'web/src/' + name.slice(0, -3);
+  for (const paths of files.values()) {
+    if (['', '.mjs', '.js', '.mts', '.jsx', '.tsx', '.json'].some(ext => paths.has(stem + ext))) {
+      throw Error('Ambiguous browser dependency resolution');
+    }
+  }
+}
 function inspect(name) {
   if (seen.has(name)) return;
   seen.add(name);
   if (seen.size > 100 || !/^[A-Za-z0-9_./-]+\.ts$/.test(name) || name.includes('..')) {
     throw Error('Unsupported browser dependency graph');
   }
+  unambiguous(name);
   const before = emit(source(current, name));
   if (!roots.has(name)) {
     if (before !== emit(source(candidate, name))) {

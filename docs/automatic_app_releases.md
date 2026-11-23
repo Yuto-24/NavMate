@@ -1,6 +1,6 @@
 # Stable Releases to Serverless production
 
-安定版 GitHub Release（`vX.Y.Z`）が公開された際、Rules・indexes・Project schema が不変の通常更新に限り `static-app-release.yml` が `https://navmate.yuto24.com` へ自動公開する契約の正本です（`STATIC_APP_RELEASE_ENABLED == true` で有効化）。
+安定版 GitHub Release（`vX.Y.Z`）が公開された際、Rules・indexes・Project schema・IndexedDB版が不変の通常更新に限り `static-app-release.yml` が `https://navmate.yuto24.com` へ自動公開する契約の正本です（`STATIC_APP_RELEASE_ENABLED == true` で有効化）。
 
 After explicit activation, a published stable `vX.Y.Z` GitHub Release is the app
 publication authorization for unchanged access/data contracts. Ordinary PR merges
@@ -32,6 +32,9 @@ PRでの表示には公開権限がありません。VERSION更新後のRelease 
 再確認し、MANUALなら移行証跡を自動生成します。非公開の保管先などの初回設定が
 未完了なら停止します。GitHub UIから直接Releaseを作成した場合も本番gateは残りますが、
 Release作成前の誘導を受けるにはリリース準備PRを使ってください。
+通常公開の全入口（`release: published`・`replay-release`・`workflow_run`）で、実際のタグSHAの
+IndexedDB版を現行版と再比較します。版変更や、既存のDB open呼出しとして認識できない版指定は
+通常公開を停止し、移行手順で扱います。
 本番がすでに移行済みで契約が不変なら、過去の移行証跡を再使用せず通常経路になります。
 
 この変更をmainに導入しただけでは、既存の`release/1.x`・`release/2.x`上の古いpublisherは

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import sys
 import zlib
 from datetime import UTC, datetime
 from pathlib import Path
@@ -149,11 +150,13 @@ def actual_versions(operator, sha, current, directory: Path):
             "--rm",
             "--network",
             "none",
+            "--entrypoint",
+            "python",
             "--mount",
             f"type=bind,source={probe},target=/migration_probe.py,readonly",
         ]
         raw = app.command(
-            [*common, images[0], "python", "/migration_probe.py", "generate"],
+            [*common, images[0], "/migration_probe.py", "generate"],
             env=clean_env,
             timeout=300,
         )
@@ -165,7 +168,6 @@ def actual_versions(operator, sha, current, directory: Path):
                 "--mount",
                 f"type=bind,source={sample},target=/old-records.json,readonly",
                 images[1],
-                "python",
                 "/migration_probe.py",
                 "verify",
                 "/old-records.json",
@@ -181,9 +183,24 @@ def actual_versions(operator, sha, current, directory: Path):
             "sample_zlib_base64": base64.b64encode(zlib.compress(raw.encode())).decode("ascii"),
         }
     finally:
+        original_failure = sys.exc_info()[0] is not None
+        cleanup_failed = False
         for image in images:
-            # Only images named for this invocation. No global prune or forced deletion.
-            app.command(["docker", "image", "rm", image], env=clean_env, timeout=60)
+            # A timeout may have created a tag. Register before building, then use
+            # Docker's successful inventory (not an inspect error) to prove absence.
+            try:
+                present = app.command(
+                    ["docker", "image", "ls", "--quiet", "--filter", "reference=" + image],
+                    env=clean_env, timeout=60,
+                ).strip()
+                if present:
+                    app.command(["docker", "image", "rm", image], env=clean_env, timeout=60)
+            except Exception:
+                cleanup_failed = True
+        if cleanup_failed:
+            if not original_failure:
+                raise app.Blocked("Migration image cleanup failed")
+            print("Migration image cleanup incomplete; reconcile invocation tags", file=sys.stderr)
 
 
 def collect(operator, sha, directory):

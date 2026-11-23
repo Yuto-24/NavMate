@@ -17,7 +17,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 from scripts.release_content import parse_version_source, version_tuple  # noqa: E402
 from scripts.static_ops import app_release as app  # noqa: E402
-from scripts.static_ops import source_ci  # noqa: E402
+from scripts.static_ops import release_preflight, source_ci  # noqa: E402
 
 PUBLISHER = ".github/workflows/publish-github-release.yml"
 DEPLOYER = ".github/workflows/" + app.APP_WORKFLOW
@@ -148,6 +148,11 @@ class ActionsOperator(app.Operator):
         app.require(self.gh("actions/variables/STATIC_APP_RELEASE_ENABLED").get("value") == "true",
                     "Unattended app release opt-in missing or withdrawn")
         app.require(candidate(self, self.selected) == sha, "Selected release SHA changed")
+        app.require(
+            release_preflight.database_version(self, sha)
+            == release_preflight.database_version(self, current),
+            "Database version changed; reviewed migration required",
+        )
         value = super().snapshot(sha, current, paused=paused)
         canonical = app.release(app.gate.ORIGIN, current)
         app.require(disposition(value["version"], sha, canonical, current) == "PUBLISH",

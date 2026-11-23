@@ -29,11 +29,56 @@ WRITER = "web/src/localProjectRepository.ts"
 
 def database_version(operator, sha: str) -> int:
     source = operator.git("show", f"{sha}:{WRITER}")
-    matches = re.findall(r"export const LOCAL_DATABASE_VERSION = ([1-9][0-9]*);", source)
-    if len(matches) == 1 and ", LOCAL_DATABASE_VERSION)" in source:
-        return int(matches[0])
-    app.require(not matches and ", 1)" in source, "Unknown database writer contract")
-    return 1
+    # Recognize the existing writer syntax, not arbitrary TypeScript expressions.
+    # Mask comments/literals so examples cannot supply an open call or a version.
+    literal = re.compile(
+        r"//[^\n]*|/\*.*?\*/|'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|`(?:\\.|[^`\\])*`",
+        re.S,
+    )
+
+    def mask(match):
+        text = match.group()
+        if text.startswith("`"):
+            app.require(text in (
+                "`${LOCAL_DATABASE}.${scope}`",
+                "`${LOCAL_DATABASE}.${this.context.account_id}`",
+            ), "Unknown database writer template")
+        return " " if text.startswith(("//", "/*")) else " LITERAL "
+
+    source = literal.sub(mask, source)
+    calls = list(re.finditer(r"this\.factory\(\)\.open\(", source))
+    app.require(
+        len(calls) == 1 and len(re.findall(r"\.open\s*\(", source)) == 1
+        and len(re.findall(r"\bfactory\b", source)) == 2
+        and len(re.findall(r"\bindexedDB\b", source)) == 1
+        and "private readonly factory: () => IDBFactory = () => indexedDB," in source,
+        "Unknown database writer contract",
+    )
+    # Bind the call to the existing database() implementation. A second helper's
+    # open cannot stand in for a computed/aliased call in the actual writer.
+    prefix = re.compile(
+        r"private database\(\): Promise<IDBDatabase> \{\s*"
+        r"return new Promise\(\(resolve, reject\) => \{\s*"
+        r"(?:const scope = this\.context\?\.storage_id \?\? this\.context\?\.account_id;\s*)?"
+        r"const request = this\.factory\(\)\.open\("
+    )
+    writer = prefix.search(source)
+    app.require(writer is not None and writer.end() == calls[0].end(),
+                "Unknown database writer implementation")
+    args = re.match(
+        r"(?:scope|this\.context\?\.account_id) \?\s+LITERAL\s+: LOCAL_DATABASE,\s*"
+        r"(1|LOCAL_DATABASE_VERSION)\s*\)", source[writer.end():]
+    )
+    app.require(args is not None, "Unknown database writer version argument")
+    versions = re.findall(r"export const LOCAL_DATABASE_VERSION = ([1-9][0-9]*);", source)
+    if args[1] == "1":
+        app.require(not re.search(r"\bLOCAL_DATABASE_VERSION\b", source),
+                    "Ambiguous database writer version")
+        return 1
+    app.require(len(versions) == 1
+                and len(re.findall(r"\bLOCAL_DATABASE_VERSION\b", source)) == 2,
+                "Unknown database writer version declaration")
+    return int(versions[0])
 
 
 def classify(operator, sha: str, current: str) -> dict:
