@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <!-- Compact loop retains four SEA intervals without rasterizing a 125 NM route. -->
+  <Placemark><name>SEA fixture</name><LineString><coordinates>
+    131.4486111111,31.8772222222,0
+    131.35,31.8772222222,0
+    131.4,31.95,0
+    131.5,31.95,0
+    131.4486111111,31.8772222222,0
+  </coordinates></LineString></Placemark>
+</Document></kml>

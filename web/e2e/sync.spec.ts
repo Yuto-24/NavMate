@@ -106,6 +106,8 @@ test("real SDK: fresh device Last Calculation, offline edit, blocking conflict b
 });
 
 test("account deletion drains Remote and Local, closes an offline device, and re-registers with a new owner", async ({ browser, page, context }) => {
+  // CI trace reaches the last re-registration reload at the old 180 s limit.
+  test.setTimeout(240_000);
   await backend(context);
   const subject = `delete-${crypto.randomUUID()}`;
   await start(page, subject); await create(page, "Old route");
