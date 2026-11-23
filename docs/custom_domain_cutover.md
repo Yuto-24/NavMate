@@ -40,7 +40,8 @@ variables with stale GitHub environment values. Historical evidence under
 2. Before closing the old entry, confirm each affected user's required Project / Last
    Calculation is synced and restorable on the new origin. IndexedDB, Local storage and
    pending outbox do **not** transfer between origins. Anonymous or unsynced data needs
-   resolution on the old origin first; NAV LOG JSON is not a Project backup. Do not erase
+   resolution on the old origin first; Project JSON transfers inputs only and does not
+   restore Last Calculation or sync state. Do not erase
    either site's storage. A single operator account's restore is not proof for all users.
 3. Verify the Pages custom domain is Active and Firebase authorizes the new hostname.
    Keep the same Firebase project, Rules and public Web configuration. Do not select

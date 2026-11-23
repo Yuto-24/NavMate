@@ -217,7 +217,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     if (request.expectedError && request.expectedError !== error) return;
     planningFocusRequestRef.current = null;
     panel.scrollIntoView({ block: "start" });
-    panel.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+    panel.querySelector<HTMLInputElement>('input[type="date"]')?.focus({ preventScroll: true });
   };
   const focusPlanning = (expectedError?: string) => {
     const projectId = projectIdRef.current;

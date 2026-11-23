@@ -335,6 +335,7 @@ test("download and Clipboard export Project inputs, survive denial, and retain w
   await copy.click();
   await expect(copy).toBeDisabled();
   await expect(save).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => typeof (window as any).interruptExport)).toBe("function");
   await page.evaluate(() => (window as any).interruptExport());
   await expect(page.getByRole("alert").filter({ hasText: "コピーできませんでした" })).toBeVisible();
   await expect(copy).toBeEnabled();
@@ -372,6 +373,7 @@ test("download and Clipboard export Project inputs, survive denial, and retain w
   await expect.poll(async () => (await snapshot(page)).working.project.tgl_count).toBe(2);
   await expect(seaCells).toHaveCount(0);
   await copy.click();
+  await expect.poll(() => page.evaluate(() => JSON.parse((window as any).retriedExport).inputs.tgl_count)).toBe(2);
   const staleExport = JSON.parse(await page.evaluate(() => (window as any).retriedExport));
   expect(staleExport).not.toHaveProperty("sea");
   expect(staleExport.inputs.tgl_count).toBe(2);

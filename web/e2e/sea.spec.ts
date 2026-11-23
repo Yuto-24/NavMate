@@ -209,10 +209,13 @@ test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and re
       expect(note!.y).toBeGreaterThanOrEqual(navlog!.y + navlog!.height);
       await page.locator(".nav-log-section").screenshot({ path: test.info().outputPath(`sea-reference-${width}.png`) });
     }
-    // Terrain provenance remains in the calculation state; Project JSON contains inputs only.
-    const sea = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.sea, artifactSessionKey);
-    expect(sea.intervals.every((item: any) => item.reference && item.automatic_ft === 1100
-      && item.terrain.evaluated && item.terrain.missing > 0)).toBe(true);
+    // Project JSON excludes diagnostics; verify retained terrain and the rendered reference values.
+    const retained = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.metadata.sea.records, artifactSessionKey);
+    expect(Object.values(retained).every((item: any) => item.terrain.evaluated && item.terrain.missing > 0)).toBe(true);
+    const values = await page.locator('.nav-log-sea-cell[data-display-text]:not([data-display-text=""])')
+      .evaluateAll(cells => cells.map(cell => cell.getAttribute("data-display-text")));
+    expect(values.length).toBeGreaterThan(0);
+    expect(values.every(value => value === "1100*")).toBe(true);
     await page.evaluate(() => {
       const texts: string[] = [];
       (window as any).__seaPngTexts = texts;

@@ -242,7 +242,7 @@ for (const width of [390, 1440]) test(`24h ETD dial confirms, cancels and preser
   await page.setViewportSize({width,height:950});
   await page.goto('/');
   await expect(page.getByRole('heading',{name:'経路作成',exact:true})).toBeVisible({timeout:120000});
-  await page.locator('input[type=file]').setInputFiles({name:'dial.kml',mimeType:'application/vnd.google-earth.kml+xml',buffer:Buffer.from(route)});
+  await page.locator('#route-file').setInputFiles({name:'dial.kml',mimeType:'application/vnd.google-earth.kml+xml',buffer:Buffer.from(route)});
   await confirmImportedDraft(page);
   const input=page.getByLabel('ETD JST',{exact:true});
   const trigger=input;
@@ -304,7 +304,7 @@ for (const width of [1100, 1440]) test(`ETD clock actions fit a short ${width}px
   await page.setViewportSize({ width, height: 600 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '経路作成', exact: true })).toBeVisible({ timeout: 120000 });
-  await page.locator('input[type=file]').setInputFiles({ name: 'dial.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(route) });
+  await page.locator('#route-file').setInputFiles({ name: 'dial.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(route) });
   await confirmImportedDraft(page);
   const input = page.getByLabel('ETD JST', { exact: true });
   await input.scrollIntoViewIfNeeded();
@@ -330,7 +330,7 @@ test('ETD dial drag from blank space preserves focus and commits hour and minute
   await page.setViewportSize({ width: 1440, height: 950 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '経路作成', exact: true })).toBeVisible({ timeout: 120000 });
-  await page.locator('input[type=file]').setInputFiles({ name: 'dial.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(route) });
+  await page.locator('#route-file').setInputFiles({ name: 'dial.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(route) });
   await confirmImportedDraft(page);
   const input = page.getByLabel('ETD JST', { exact: true });
   await input.fill('09:17');
