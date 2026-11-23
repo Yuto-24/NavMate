@@ -1,5 +1,5 @@
 import { AipAirspaceControl, AipAirspaceLayers } from "./AipAirspace";
-import { aipCategories, aipPreferenceKey, defaultHiddenAipCategories, pcaPreferenceKey, loadAipAirspace, type AipAirspace } from "../aipAirspace";
+import { aipCategories, aipPreferenceKey, defaultHiddenAipCategories, pcaPreferenceKey, pcaColors, loadAipAirspace, type AipAirspace } from "../aipAirspace";
 import { Maximize, Minimize, Pencil } from "lucide-react";
 import { MapDraftLayers, RouteStrip, type MapRouteBuilderProps } from "./MapRouteBuilder";
 import { MapViewport } from "./MapViewport";
@@ -244,6 +244,8 @@ export function RouteWorkspace({
     try { return viewportStorage.getItem("autonavlog.map-background.v1") === "imagery" ? "imagery" : "map"; }
     catch { return "map"; }
   });
+  const imageryAirspace = localMode && mapBackground === "imagery";
+  const pcaColor = imageryAirspace ? pcaColors.imagery : pcaColors.standard;
   const [aip, setAip] = useState<AipAirspace | null>(null);
   const [aipFailed, setAipFailed] = useState(false);
   const [hiddenAip, setHiddenAip] = useState<string[]>(() => {
@@ -691,14 +693,14 @@ export function RouteWorkspace({
         >
           <MapBackground imagery={localMode && mapBackground === "imagery"} />
           <MapAttributionLayout />
-          {localMode && aip && <AipAirspaceLayers data={aip} hidden={hiddenAip} />}
+          {localMode && aip && <AipAirspaceLayers data={aip} hidden={hiddenAip} imagery={imageryAirspace} />}
           {(!localMode || pcaVisible) && rjfmMapReference && pcaCoordinates.length >= 3 && (
             <>
               <Polygon
                 className="rjfm-pca-boundary"
                 positions={pcaCoordinates}
                 pathOptions={{
-                  color: "#a45b13",
+                  color: pcaColor,
                   fillColor: "#f2a43a",
                   fillOpacity: 0.12,
                   opacity: 0.95,
@@ -725,7 +727,7 @@ export function RouteWorkspace({
                 ]}
                 radius={rjfmMapReference.pca.exclusionRadiusKm * 1000}
                 pathOptions={{
-                  color: "#087b78",
+                  color: localMode ? pcaColor : "#087b78",
                   dashArray: "7 6",
                   fillColor: "#ffffff",
                   fillOpacity: 0.68,
@@ -951,12 +953,12 @@ export function RouteWorkspace({
             {rjfmMapReference && (
               <>
                 <span>
-                  <i className="is-pca" aria-hidden="true" />
+                  <i className="is-pca" aria-hidden="true" style={{ borderColor: pcaColor }} />
                   PCA：約{Math.round(rjfmMapReference.pca.sourceAltitudeLowerM / 0.3048).toLocaleString("ja-JP")}
                   –{Math.round(rjfmMapReference.pca.sourceAltitudeUpperM / 0.3048).toLocaleString("ja-JP")} ft（{rjfmMapReference.pca.sourceAltitudeLowerM.toLocaleString("ja-JP")}
                   –{rjfmMapReference.pca.sourceAltitudeUpperM.toLocaleString("ja-JP")} m）
                 </span>
-                <span><i className="is-pca-exclusion" aria-hidden="true" />中心除外 {rjfmMapReference.pca.exclusionRadiusKm.toLocaleString("ja-JP")} km</span>
+                <span><i className="is-pca-exclusion" aria-hidden="true" style={localMode ? { borderColor: pcaColor } : undefined} />中心除外 {rjfmMapReference.pca.exclusionRadiusKm.toLocaleString("ja-JP")} km</span>
               </>
             )}
             {rjfmGuidance && (
@@ -1311,7 +1313,7 @@ export function RouteWorkspace({
             })}
       </ol>
       </>}
-      {localMode && <AipAirspaceControl data={aip} failed={aipFailed} hidden={hiddenAip} onChange={toggleAip} pcaVisible={pcaVisible} onPcaChange={togglePca} />}
+      {localMode && <AipAirspaceControl key={mapBuilder ? "draft" : "planning"} data={aip} failed={aipFailed} hidden={hiddenAip} onChange={toggleAip} pcaVisible={pcaVisible} onPcaChange={togglePca} pcaColor={pcaColor} imagery={imageryAirspace} />}
       </div><div className="planning-pane-footer">{readinessPanel}</div></div>
     </section>
   );

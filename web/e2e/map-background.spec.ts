@@ -151,7 +151,21 @@ for (const width of [390, 1100, 1440]) {
     await expectAirspacePane(page, width);
     await summary.click();
     await expectAirspacePane(page, width);
-    await expect(page.getByText("AIRAC有効日：2026-10-29", { exact: true })).toBeVisible();
+    await expect(control).not.toContainText("AIRAC");
+    await expect(control).not.toContainText("Shapefile");
+    const styles = await control.locator("label").evaluateAll(labels => labels.map(label => {
+      const style = getComputedStyle(label);
+      const input = label.querySelector("input")!;
+      return { height: label.getBoundingClientRect().height, font: style.fontFamily,
+        weight: style.fontWeight, select: style.getPropertyValue("user-select") || style.getPropertyValue("-webkit-user-select"), checkbox: input.getBoundingClientRect().height };
+    }));
+    for (const style of styles) {
+      expect(style.height).toBeLessThanOrEqual(36);
+      expect(style.font).toContain("Noto Sans JP");
+      expect(style.weight).toBe("500");
+      expect(style.select).toBe("none");
+      expect(style.checkbox).toBe(17);
+    }
     // Fresh devices show exactly the three requested AIP categories plus PCA.
     const defaults = ["Civil_training_and_testing_areas", "Approach_control_area_CIVIL", "Restricted_area_Airspace_restrictions"];
     for (const [id, label] of aipCategories) {
@@ -160,14 +174,19 @@ for (const width of [390, 1100, 1440]) {
       else await expect(page.locator(`.aip-${id}`)).toHaveCount(0);
     }
     await expect(pca).toBeChecked();
-    await pca.uncheck();
-    await expect(page.locator(".rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(0);
-    await pca.check();
+    await pca.focus();
+    await page.keyboard.press("Space");
+    await expect(pca).not.toBeChecked();
+    await page.keyboard.press("Space");
+    await expect(pca).toBeChecked();
     await summary.click();
     await selectAirport(page, "RJFM");
     await selectAirport(page, "RJFK");
+    await summary.click();
+    await expect(control).toHaveAttribute("open");
     await page.getByRole("button", { name: "経路を確定", exact: true }).click();
     await expect(page.locator(".route-workspace.is-route-building")).toHaveCount(0);
+    await expect(control).not.toHaveAttribute("open");
     await expectAirspacePane(page, width);
     await summary.click();
     await expectAirspacePane(page, width);
@@ -177,24 +196,30 @@ for (const width of [390, 1100, 1440]) {
     await expect(page.locator(".rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(0);
     await pca.check();
     await expect(page.locator(".rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(2);
-    // Every category can be enabled/disabled independently, including initial OFF layers.
-    for (const [id, label] of aipCategories) {
-      await test.step(label, async () => {
-        const checkbox = page.getByLabel(label, { exact: true });
-        await checkbox.check();
-        await expect(page.locator(`.aip-${id}`).first()).toBeAttached();
-        await checkbox.uncheck();
-        await expect(page.locator(`.aip-${id}`)).toHaveCount(0);
-      });
+    for (const background of ["map", "imagery"]) {
+      await page.getByLabel("背景地図").selectOption(background);
+      for (const [id, label] of aipCategories) {
+        await test.step(`${background}: ${label}`, async () => {
+          const checkbox = page.getByLabel(label, { exact: true });
+          await checkbox.check();
+          const shape = page.locator(`.aip-${id}`).first();
+          await expect(shape).toBeAttached();
+          const stroke = await shape.evaluate(el => getComputedStyle(el).stroke);
+          await expect(checkbox).toHaveCSS("border-top-color", stroke);
+          await expect(shape).not.toHaveAttribute("stroke", "#315caa");
+          await expect(shape).toHaveAttribute("stroke-width", background === "imagery" ? "2.5" : "1.5");
+          await checkbox.uncheck();
+          await expect(page.locator(`.aip-${id}`)).toHaveCount(0);
+        });
+      }
+      for (const selector of [".rjfm-pca-boundary", ".rjfm-pca-exclusion"]) {
+        const stroke = await page.locator(selector).evaluate(el => getComputedStyle(el).stroke);
+        await expect(pca).toHaveCSS("border-top-color", stroke);
+      }
     }
+    await page.getByLabel("背景地図").selectOption("map");
     await pca.uncheck();
-    const source = page.getByRole("link", { name: "航空情報センター AIP", exact: true });
-    await source.scrollIntoViewIfNeeded();
-    expect(await source.evaluate(element => {
-      const box = element.getBoundingClientRect();
-      return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
-    })).toBe(true);
-    await expect(control).toContainText("NOTAM・現在の使用状況は未反映");
+    await page.getByLabel("回廊", { exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: info.outputPath(`airspace-planning-${width}.png`), fullPage: true });
     await summary.click();
     await page.getByRole("button", { name: "経路を編集", exact: true }).click();
@@ -206,7 +231,10 @@ for (const width of [390, 1100, 1440]) {
     await pca.check();
     await expect(page.locator(".rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(2);
     await pca.uncheck();
-    await summary.click();
+    await page.getByRole("button", { name: "経路を確定", exact: true }).click();
+    await expect(page.locator(".route-workspace.is-route-building")).toHaveCount(0);
+    await expect(control).not.toHaveAttribute("open");
+    await page.getByRole("button", { name: "経路を編集", exact: true }).click();
     await page.getByRole("button", { name: "地図を全画面表示", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "全画面の経路地図" })).toBeVisible();
     await expect(page.locator(".map-frame .aip-layer-control")).toHaveCount(0);

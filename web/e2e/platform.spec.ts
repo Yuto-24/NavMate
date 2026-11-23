@@ -394,8 +394,7 @@ test("source links open without an opener and cannot unlock a pending save", asy
   await confirmImportedDraft(page);
   await page.getByLabel("気象モード").selectOption("FTD");
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
-  await page.getByText("空域表示", { exact: true }).click();
-  const link = page.getByRole("link", { name: "航空情報センター AIP", exact: true });
+  const link = page.getByRole("link", { name: "航空情報センター AIP", exact: true, includeHidden: true });
   const href = (await link.getAttribute("href"))!;
   await context.route(href, route => route.fulfill({ contentType: "text/html", body: "<title>Reference</title>" }));
   for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
@@ -433,6 +432,8 @@ test("source links open without an opener and cannot unlock a pending save", asy
   if (isLocal()) await page.waitForFunction(() => (window as any).resumePlatformSave);
   else await expect.poll(() => held).toBe(true);
   try {
+    await page.getByRole("button", { name: /^その他/ }).click();
+    await page.getByText("地図の出典", { exact: true }).click();
     const popup = page.waitForEvent("popup");
     await link.click();
     const reference = await popup;
