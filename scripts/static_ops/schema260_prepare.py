@@ -91,6 +91,7 @@ def load_tooling(root: Path):
 def manual_operator(app, root: Path, env: dict):
     class ManualOperator(app.Operator):
         pause_allowed = False
+        allow_readback_waiters = False
 
         def gh(self, endpoint, method="GET", body=None):
             app.require(method == "GET" or (
@@ -132,6 +133,7 @@ def manual_operator(app, root: Path, env: dict):
             # Preserve the pinned complete inventory check for every feed run.
             self.workflow_idle(app.WORKFLOW)
             page, count, seen, own_seen = 1, None, set(), False
+            active = []
             while True:
                 value = self.gh(
                     f"actions/workflows/{app.APP_WORKFLOW}/runs?per_page=100&page={page}")
@@ -148,14 +150,20 @@ def manual_operator(app, root: Path, env: dict):
                         self.own_run(row, identity)
                         own_seen = True
                     else:
-                        app.require(row.get("status") == "completed",
-                                    "Another publication run is not idle")
+                        app.require(row.get("status") in ("completed", "queued", "pending",
+                                                           "waiting", "requested", "in_progress"),
+                                    "Unknown workflow run status")
+                        if row["status"] != "completed":
+                            active.append(row)
                 app.require(len(seen) <= total, "Invalid workflow inventory")
                 if len(seen) == total:
                     break
                 app.require(len(rows) == 100, "Incomplete workflow inventory")
                 page += 1
             app.require(own_seen, "Own run missing from complete inventory")
+            if active:
+                app.require(self.allow_readback_waiters, "Another publication run is not idle")
+                self.validate_readback_waiters(active, identity)
             self.own_run(self.gh("actions/runs/" + env["GITHUB_RUN_ID"]), identity)
 
         def reviewed_schema(self, sha, current, variables):

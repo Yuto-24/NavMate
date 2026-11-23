@@ -761,3 +761,96 @@ def test_publish_deadline_retains_unknown_mutation(runner, approved_plan, tmp_pa
     status = json.loads((tmp_path / "recovered/publish-status.json").read_text())
     assert status["changes"]["production"] == "UNKNOWN"
     assert status["events"][-1]["state"] == "ATTEMPTED"
+
+
+@pytest.fixture
+def readback_waiter(provenance, monkeypatch):
+    operator, _, responses, source, _, _ = provenance
+    own = {**source, "id": 345, "run_attempt": 1, "status": "in_progress"}
+    responses["actions/runs/345"] = own
+    waiter = {**own, "id": 999, "run_attempt": 1, "status": "in_progress",
+              "event": "workflow_dispatch", "display_title": "schema260-readback"}
+    own_job = {"id": 400, "run_id": 345, "name": "manual-publish-v260", "status": "in_progress"}
+    read_job = {"id": 401, "run_id": 999, "name": "readback-v260", "status": "pending"}
+    responses["actions/workflows/static-production.yml/runs?per_page=100&page=1"] = {
+        "total_count": 0, "workflow_runs": []}
+    responses["actions/workflows/static-app-release.yml/runs?per_page=100&page=1"] = {
+        "total_count": 2, "workflow_runs": [own, waiter]}
+    responses["actions/runs/999"] = waiter
+    responses["actions/runs/345/attempts/1/jobs?per_page=100&page=1"] = {
+        "total_count": 1, "jobs": [own_job]}
+    responses["actions/runs/999/attempts/1/jobs?per_page=100&page=1"] = {
+        "total_count": 1, "jobs": [read_job]}
+    lease = {"group_name": "static-production", "total_count": 2, "group_members": [
+        {"run_id": 345, "job_id": 400, "status": "in_progress"},
+        {"run_id": 999, "job_id": 401, "status": "pending"}]}
+    monkeypatch.setattr(type(operator), "read_lease", lambda self: copy.deepcopy(lease))
+    return operator, responses, lease, waiter, read_job
+
+
+def test_proven_readback_waiter_does_not_block_publisher(readback_waiter):
+    operator, _, _, _, _ = readback_waiter
+    operator.idle()
+
+
+@pytest.mark.parametrize("change", ["lease_missing", "owner_id", "owner_status", "waiter_status",
+                                    "waiter_job", "workflow_sha", "waiter_title", "extra_job",
+                                    "jobs_incomplete", "wrong_run", "unknown_status", "job_sha"])
+def test_ambiguous_readback_waiter_blocks(readback_waiter, change):
+    operator, responses, lease, waiter, read_job = readback_waiter
+    if change == "lease_missing":
+        lease["group_members"] = lease["group_members"][1:]
+        lease["total_count"] = 1
+    elif change == "owner_id":
+        lease["group_members"][0]["job_id"] += 1
+    elif change == "owner_status":
+        lease["group_members"][0]["status"] = "pending"
+    elif change == "waiter_status":
+        lease["group_members"][1]["status"] = "in_progress"
+    elif change == "waiter_job":
+        read_job["name"] = "manual-publish-v260"
+    elif change == "workflow_sha":
+        waiter["head_sha"] = "f" * 40
+    elif change == "waiter_title":
+        waiter["display_title"] = "schema260-publish"
+    elif change == "extra_job":
+        rows = responses["actions/runs/999/attempts/1/jobs?per_page=100&page=1"]
+        rows["jobs"].append({"id": 402, "run_id": 999, "name": "other", "status": "in_progress"})
+        rows["total_count"] = 2
+    elif change == "jobs_incomplete":
+        responses["actions/runs/999/attempts/1/jobs?per_page=100&page=1"]["total_count"] = 2
+    elif change == "wrong_run":
+        read_job["run_id"] = 12345
+    elif change == "unknown_status":
+        waiter["status"] = "unrecognized"
+    else:
+        read_job["head_sha"] = "f" * 40
+    with pytest.raises(app.Blocked):
+        operator.idle()
+
+
+def test_waiter_arriving_after_initial_idle_does_not_block_post_upload(readback_waiter):
+    operator, responses, _, waiter, _ = readback_waiter
+    page = responses["actions/workflows/static-app-release.yml/runs?per_page=100&page=1"]
+    page["workflow_runs"].remove(waiter)
+    page["total_count"] = 1
+    operator.idle()
+    page["workflow_runs"].append(waiter)
+    page["total_count"] = 2
+    operator.idle()
+
+
+def test_lease_read_uses_existing_api_version_and_excludes_provider_tokens(provenance, monkeypatch):
+    operator, _, _, _, _, _ = provenance
+    calls = []
+    def command(args, **kwargs):
+        calls.append((args, kwargs))
+        return json.dumps({"group_name": "static-production", "total_count": 0,
+                           "group_members": []})
+    monkeypatch.setattr(app, "command", command)
+    assert operator.read_lease()["total_count"] == 0
+    args, kwargs = calls[0]
+    assert "X-GitHub-Api-Version: 2026-03-10" in args
+    assert args[-1] == "repos/Yuto-24/NavMate/actions/concurrency_groups/static-production"
+    assert "STATIC_GOOGLE_ACCESS_TOKEN" not in kwargs["env"]
+    assert "CLOUDFLARE_API_TOKEN" not in kwargs["env"]

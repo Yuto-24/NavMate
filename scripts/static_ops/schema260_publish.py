@@ -44,6 +44,94 @@ def publication_operator(app, root: Path, env: dict):
 
     class PublicationOperator(parent):
         publication_allowed = False
+        allow_readback_waiters = True
+
+        def jobs_for(self, run_id, attempt):
+            page, count, seen, jobs = 1, None, set(), []
+            while True:
+                value = self.gh(
+                    f"actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100&page={page}")
+                rows, total = value["jobs"], value["total_count"]
+                app.require(type(total) is int and total > 0 and isinstance(rows, list)
+                            and (count is None or total == count), "Invalid job inventory")
+                count = total
+                for job in rows:
+                    job_id = job.get("id")
+                    app.require(type(job_id) is int and job_id > 0 and job_id not in seen
+                                and job.get("run_id") == run_id
+                                and ("run_attempt" not in job or job["run_attempt"] == attempt)
+                                and ("head_sha" not in job or job["head_sha"] == env["GITHUB_SHA"]),
+                                "Invalid job identity")
+                    seen.add(job_id)
+                    jobs.append(job)
+                app.require(len(seen) <= total, "Invalid job inventory")
+                if len(seen) == total:
+                    return jobs
+                app.require(len(rows) == 100, "Incomplete job inventory")
+                page += 1
+
+        def read_lease(self):
+            output = app.command([
+                "gh", "api", "--hostname", "github.com", "--method", "GET",
+                "-H", "X-GitHub-Api-Version: 2026-03-10",
+                "repos/" + prepare.REPO + "/actions/concurrency_groups/static-production",
+            ], env={**{key: self.env[key] for key in ("PATH", "HOME", "GH_TOKEN")
+                       if key in self.env}, "GH_PROMPT_DISABLED": "1"})
+            return json.loads(output)
+
+        def validate_readback_waiters(self, active, workflow_id):
+            app.require(all(row.get("event") == "workflow_dispatch"
+                            and row.get("display_title") == "schema260-readback" for row in active),
+                        "Another publication run is not idle")
+            own_id = int(env["GITHUB_RUN_ID"])
+            own_jobs = self.jobs_for(own_id, int(env["GITHUB_RUN_ATTEMPT"]))
+            own = [j for j in own_jobs if j.get("name") == "manual-publish-v260"]
+            app.require(len(own) == 1 and own[0].get("status") == "in_progress"
+                        and all(j is own[0] or j.get("status") == "completed" for j in own_jobs),
+                        "Publication job identity unclear")
+            lease = self.read_lease()
+            members, count = lease.get("group_members"), lease.get("total_count")
+            app.require(lease.get("group_name") == "static-production" and type(count) is int
+                        and 1 <= count <= 100 and isinstance(members, list)
+                        and len(members) == count,
+                        "Unknown publication lease")
+            pairs, waiters = set(), {}
+            for member in members:
+                run_id, job_id = member.get("run_id"), member.get("job_id")
+                app.require(type(run_id) is int and run_id > 0 and type(job_id) is int
+                            and job_id > 0 and (run_id, job_id) not in pairs,
+                            "Unknown publication lease")
+                pairs.add((run_id, job_id))
+                if run_id == own_id:
+                    app.require(job_id == own[0]["id"] and member.get("status") == "in_progress",
+                                "Publication lock not held")
+                else:
+                    app.require(member.get("status") == "pending" and run_id not in waiters,
+                                "Another publication holds the lock")
+                    waiters[run_id] = job_id
+            app.require((own_id, own[0]["id"]) in pairs, "Publication lock missing")
+            active_ids = {row["id"] for row in active}
+            app.require(active_ids <= waiters.keys(), "Another publication run is not idle")
+            for run_id, job_id in waiters.items():
+                run = self.gh(f"actions/runs/{run_id}")
+                app.require(run.get("id") == run_id and run.get("workflow_id") == workflow_id
+                            and run.get("path") == prepare.WORKFLOW
+                            and run.get("event") == "workflow_dispatch"
+                            and run.get("display_title") == "schema260-readback"
+                            and run.get("head_branch") == "main"
+                            and run.get("head_sha") == env["GITHUB_SHA"]
+                            and run.get("status") in ("queued", "pending", "waiting",
+                                                      "requested", "in_progress")
+                            and run.get("repository", {}).get("id") == prepare.REPO_ID
+                            and run.get("head_repository", {}).get("id") == prepare.REPO_ID
+                            and type(run.get("run_attempt")) is int and run["run_attempt"] > 0,
+                            "Readback waiter identity unclear")
+                jobs = self.jobs_for(run_id, run["run_attempt"])
+                match = [j for j in jobs if j.get("id") == job_id]
+                app.require(len(match) == 1 and match[0].get("name") == "readback-v260"
+                            and match[0].get("status") in ("queued", "pending")
+                            and all(j is match[0] or j.get("status") == "completed" for j in jobs),
+                            "Readback waiter job unclear")
 
         def gh(self, endpoint, method="GET", body=None):
             allowed = (
