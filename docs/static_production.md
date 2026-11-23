@@ -250,8 +250,8 @@ artifactの整合性を検証する。
 
 Information内にbrowser storageの制約を表示する。
 site data削除、storage eviction、private browsing終了でLocalデータを失う場合がある。
-永続化要求は保持保証ではない。同期済みだけが別端末へ復元でき、
-未同期outboxは端末消失時に復元できない。NAV LOG JSONはProject backup形式ではない。
+永続化要求は保持保証ではない。ProjectとLast Calculation一式を別端末へ復元できるのは同期済みのデータで、
+未同期outboxは端末消失時に復元できない。Project JSONは入力の受け渡し用で、Last Calculationや同期情報を含まず、全データのバックアップにはならない。
 reloadはsame-tab recovery、browser再起動は保存済み一覧から明示openする既存仕様。
 Sync / Weather障害時の保持は既存テストとproduction artifact試験で確認する。
 

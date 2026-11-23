@@ -46,7 +46,7 @@ test("picker opens compressed KMZ; drop replaces content; cancelled picker keeps
   await drop(page, "ドロップ.kml", kml);
   await expect.poll(async () => (await snapshot(page)).working.import_filename).toBe("ドロップ.kml");
   const previous = (await snapshot(page)).working.import_result;
-  await page.locator('input[type="file"]').setInputFiles([]);
+  await page.locator('#route-file').setInputFiles([]);
   expect((await snapshot(page)).working.import_result).toEqual(previous);
   await drop(page, "broken.kml", "<broken");
   // role=alert already supplies assertive live semantics; verify the emitted
@@ -185,11 +185,11 @@ test("confirmed route does not expose pasted KML replacement or a file picker", 
   await confirmImportedDraft(page);
   await expect(page.getByRole("button", { name: "貼り付けたKMLの編集を続ける" })).toHaveCount(0);
   await expect(paste(page)).toHaveCount(0);
-  await expect(page.locator('input[type="file"]')).toHaveCount(0);
+  await expect(page.locator('#route-file')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "経路を編集", exact: true })).toBeEnabled();
 });
 
-test("download and Clipboard export the displayed result, survive denial, and retain workflow order", async ({ page, context }) => {
+test("download and Clipboard export Project inputs, survive denial, and retain workflow order", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await open(page);
   // Loaded Local assets can calculate/import/export without a connectivity gate.
@@ -265,7 +265,13 @@ test("download and Clipboard export the displayed result, survive denial, and re
     expect(scrollLeft).toBeCloseTo(maxScroll, 0);
     expect((await actions.boundingBox())!.x).toBe(boxes[3]!.x);
     expect((await actions.boundingBox())!.width).toBe(boxes[3]!.width);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const overflow = await page.evaluate(() => ({ width: document.documentElement.scrollWidth,
+      elements: Array.from(document.querySelectorAll("body *")).filter(element => {
+        const r = element.getBoundingClientRect();
+        return r.right > innerWidth && r.width && getComputedStyle(element).position !== "fixed";
+      }).slice(0, 12).map(element => ({ tag: element.tagName, className: element.className,
+        right: element.getBoundingClientRect().right })) }));
+    expect(overflow.width, JSON.stringify(overflow.elements)).toBeLessThanOrEqual(width);
     await actions.scrollIntoViewIfNeeded();
     await page.screenshot({ path: test.info().outputPath(`navlog-export-${width}.png`) });
   }
@@ -273,10 +279,6 @@ test("download and Clipboard export the displayed result, survive denial, and re
   const seaCells = page.locator('.nav-log-table .nav-log-sea-cell[data-display-text]:not([data-display-text=""])');
   await expect(seaCells.first()).toBeVisible();
   await expect(seaCells.locator("input")).toHaveCount(0);
-  const displayedSea = await seaCells.evaluateAll(cells => cells.map(cell => ({
-    to_name: cell.closest("tr")!.querySelector(".route-to-cell")!.textContent,
-    value_ft: cell.getAttribute("data-display-text"),
-  })));
   const original = (await snapshot(page)).working;
   const downloadKml = async () => {
     const pending = page.waitForEvent("download");
@@ -305,26 +307,27 @@ test("download and Clipboard export the displayed result, survive denial, and re
   expect(originalKml.names).toEqual(expect.arrayContaining(["CLIMB", "CRUISE", "DESCENT", "RCA", "EOC"]));
   expect(initialKml).not.toContain("再計算前の結果を出力します。");
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "NAV LOG JSONをダウンロード" }).click();
+  await page.getByRole("button", { name: "プロジェクトJSONをダウンロード" }).click();
   const file = await download;
-  expect(file.suggestedFilename()).toBe("autonavlog-navlog.json");
+  expect(file.suggestedFilename().startsWith(`${original.project.name}_`)).toBe(true);
+  expect(file.suggestedFilename()).toMatch(/_\d{8}-\d{4}\.json$/);
   const text = readFileSync((await file.path())!, "utf8");
   const result = JSON.parse(text);
-  expect(result).toEqual({ format: "autonavlog.navlog", version: 1, outcome: original.outcome, destinationWind: original.destination_wind, sea: result.sea });
-  expect(result.sea.intervals.map((item: any) => ({
-    to_name: item.to_name,
-    value_ft: item.value_ft?.toString() ?? "未確定" }))).toEqual(displayedSea);
-  expect(result.sea.intervals.every((item: any) => item.value_ft === item.automatic_ft)).toBe(true);
-  await page.getByRole("button", { name: "NAV LOG JSONをコピー" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "NAV LOG JSONをコピーしました。" })).toBeVisible();
+  expect(result.format).toBe("navmate.project");
+  expect(result.version).toBe(1);
+  expect(result.inputs.name).toBe(original.project.name);
+  expect(result).not.toHaveProperty("outcome");
+  expect(result).not.toHaveProperty("sea");
+  await page.getByRole("button", { name: "プロジェクトJSONをコピー" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "プロジェクトJSONをコピーしました。" })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(text);
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new DOMException("Denied", "NotAllowedError"); } } }));
-  await page.getByRole("button", { name: "NAV LOG JSONをコピー" }).click();
+  await page.getByRole("button", { name: "プロジェクトJSONをコピー" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "コピーできませんでした" })).toBeVisible();
 
   // Interrupt a pending Clipboard write, then retry using keyboard activation.
-  const copy = page.getByRole("button", { name: "NAV LOG JSONをコピー" });
-  const save = page.getByRole("button", { name: "NAV LOG JSONをダウンロード" });
+  const copy = page.getByRole("button", { name: "プロジェクトJSONをコピー" });
+  const save = page.getByRole("button", { name: "プロジェクトJSONをダウンロード" });
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
     writeText: () => new Promise<void>((_resolve, reject) => {
       (window as any).interruptExport = () => reject(new DOMException("Denied", "NotAllowedError"));
@@ -333,6 +336,7 @@ test("download and Clipboard export the displayed result, survive denial, and re
   await copy.click();
   await expect(copy).toBeDisabled();
   await expect(save).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => typeof (window as any).interruptExport)).toBe("function");
   await page.evaluate(() => (window as any).interruptExport());
   await expect(page.getByRole("alert").filter({ hasText: "コピーできませんでした" })).toBeVisible();
   await expect(copy).toBeEnabled();
@@ -345,14 +349,11 @@ test("download and Clipboard export the displayed result, survive denial, and re
   await page.keyboard.press("Tab");
   await expect(copy).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("status").filter({ hasText: "NAV LOG JSONをコピーしました。" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "プロジェクトJSONをコピーしました。" })).toBeVisible();
   const retriedExport = JSON.parse(await page.evaluate(() => (window as any).retriedExport));
-  // Autosave can update readiness status while the keyboard moves between buttons.
-  expect({ ...retriedExport, outcome: { ...retriedExport.outcome, status: null } }).toEqual({
-    format: "autonavlog.navlog", version: 1,
-    outcome: { ...retrySnapshot.outcome, status: null }, destinationWind: retrySnapshot.destination_wind, sea: result.sea,
-  });
-  // Uncalculated planning edits must not relabel or recalculate the exported result.
+  expect(retriedExport.format).toBe("navmate.project");
+  expect(retriedExport.inputs.name).toBe(retrySnapshot.project.name);
+  // Export current Project inputs while preserving the displayed calculation.
   await page.getByLabel("TGL", { exact: true }).fill("2");
   await expect(page.locator("#kml-export-notice")).toContainText("再計算前の結果を出力します。");
   await expect(page.locator("#kml-export-notice")).toHaveCSS("position", "static");
@@ -373,10 +374,12 @@ test("download and Clipboard export the displayed result, survive denial, and re
   await expect.poll(async () => (await snapshot(page)).working.project.tgl_count).toBe(2);
   await expect(seaCells).toHaveCount(0);
   await copy.click();
+  await expect.poll(() => page.evaluate(() => JSON.parse((window as any).retriedExport).inputs.tgl_count)).toBe(2);
   const staleExport = JSON.parse(await page.evaluate(() => (window as any).retriedExport));
   expect(staleExport).not.toHaveProperty("sea");
+  expect(staleExport.inputs.tgl_count).toBe(2);
   await page.evaluate(() => { URL.createObjectURL = undefined as any; });
-  await page.getByRole("button", { name: "NAV LOG JSONをダウンロード" }).click();
+  await page.getByRole("button", { name: "プロジェクトJSONをダウンロード" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "この環境ではファイルを保存できません" })).toBeVisible();
   // A pending autosave may update readiness status after the TGL edit; export must retain the calculation content.
   const currentOutcome = (await snapshot(page)).working.outcome;
@@ -496,7 +499,7 @@ for (const method of ["file", "paste"] as const) {
     const strip = page.getByRole("list", { name: "経路リスト" });
     await expect(strip.getByRole("listitem")).toHaveCount(1);
     const importRoute = async () => {
-      if (method === "file") await page.locator('input[type="file"]').setInputFiles({ name: "replacement.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(kml) });
+      if (method === "file") await page.locator('#route-file').setInputFiles({ name: "replacement.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(kml) });
       else await paste(page).click();
     };
     page.once("dialog", dialog => dialog.dismiss());
@@ -523,7 +526,7 @@ test("delayed replacement import retains planning edits before route confirmatio
       return original.call(this);
     };
   });
-  const file = page.locator('input[type="file"]');
+  const file = page.locator('#route-file');
   await file.setInputFiles({ name: "delayed.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(kml) });
   await expect(file).toBeDisabled();
   // The prior candidate remains rendered while the replacement is pending.

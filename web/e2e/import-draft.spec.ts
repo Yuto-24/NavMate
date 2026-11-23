@@ -9,7 +9,7 @@ const kml = (...routes: string[]) => `<kml xmlns="http://www.opengis.net/kml/2.2
 const strip = (page: Page) => page.getByRole("list", { name: "経路リスト" });
 const snapshot = (page: Page) => page.evaluate(() => JSON.parse(sessionStorage.getItem("autonavlog.working-session.v1")!));
 async function upload(page: Page, text: string) {
-  await page.locator('input[type="file"]').setInputFiles({ name: "route.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(text) });
+  await page.locator('#route-file').setInputFiles({ name: "route.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(text) });
 }
 async function start(page: Page) {
   await page.goto("/");

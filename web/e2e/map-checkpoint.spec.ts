@@ -9,7 +9,7 @@ const routeKml = `<?xml version="1.0" encoding="UTF-8"?>
 async function importLocalRoute(page: Page) {
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles({ name: "map-interaction.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(routeKml) });
+  await page.locator('#route-file').setInputFiles({ name: "map-interaction.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(routeKml) });
   await confirmImportedDraft(page);
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("気象モード").selectOption("FTD");

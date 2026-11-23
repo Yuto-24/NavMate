@@ -214,17 +214,17 @@
 .route-workspace.is-route-building .draft-import-controls{order:4;display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .draft-import-controls .drop-zone{padding:0;min-height:0;border:0;background:transparent;display:flex;align-items:stretch;justify-content:stretch;position:relative}
 .draft-import-controls .drop-zone>svg,.draft-import-controls .drop-zone>strong,.draft-import-controls .drop-zone>span{display:none}
-.draft-import-controls .file-picker,.draft-import-controls>button{box-sizing:border-box;width:100%;min-height:40px;padding:7px 5px;font-size:11px;line-height:1.4;text-align:center;display:flex;align-items:center;justify-content:center;border:1px solid #aab8bd;border-radius:5px;background:#fff;color:#294c44;margin:0}
+.draft-import-controls .file-picker,.draft-import-controls>button,:where(.map-input-rail) .project-file-control>button{box-sizing:border-box;width:100%;min-height:40px;padding:7px 5px;font-size:11px;line-height:1.4;text-align:center;display:flex;align-items:center;justify-content:center;border:1px solid #aab8bd;border-radius:5px;background:#fff;color:#294c44;margin:0}
 .route-workspace.is-route-building .map-route-actions{order:5;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:8px;border-top:1px solid #dce4e8}
 .route-workspace.is-route-building .map-route-actions button{min-height:40px;padding:7px 5px;font-size:12px}
-.draft-import-controls .file-picker,.draft-import-controls>button{flex-direction:column;gap:2px;white-space:nowrap}
+.draft-import-controls .file-picker,.draft-import-controls>button,:where(.map-input-rail) .project-file-control>button{flex-direction:column;gap:2px;white-space:nowrap}
 .file-picker .file-picker-label{color:inherit;font-size:inherit}
 .file-picker .file-picker-drop-description{display:none}
 .draft-import-controls .file-picker .file-picker-drop-description{display:block;color:inherit;font-size:10px;font-weight:400;white-space:nowrap}
 .draft-import-controls>button>span{display:block;white-space:nowrap}
-.draft-import-controls .file-picker,.draft-import-controls>button{height:48px;min-height:48px}
+.draft-import-controls .file-picker,.draft-import-controls>button,:where(.map-input-rail) .project-file-control>button{height:48px;min-height:48px}
 .draft-import-controls .file-picker{border-color:#4f6f64}
-.draft-import-controls>button{border-color:#ced9d5}
+.draft-import-controls>button,:where(.map-input-rail) .project-file-control>button{border-color:#ced9d5}
 /* Draft's horizontal import row must not inherit legacy stacked spacing. */
 .draft-import-controls .drop-zone,
 .draft-import-controls .drop-zone + .secondary-button{margin:0}
@@ -238,6 +238,7 @@
 .is-route-building .route-strip li { flex:none; justify-content:space-between; min-width:0; }
 .is-route-building .route-strip li>span { overflow-wrap:anywhere; }
 .is-route-building .draft-import-controls { order:3; }
+.route-workspace.is-route-building .project-file-control{order:4;margin:0}
 .is-route-building .map-route-actions { order:4; margin:0; }
 .planning-pane .status-actions .primary-button:not(:disabled),
 .is-route-building .map-route-actions .primary-button:not(:disabled) { background:#c2410c; border-color:#c2410c; }

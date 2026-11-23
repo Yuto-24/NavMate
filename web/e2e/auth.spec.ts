@@ -63,7 +63,7 @@ async function backend(context: BrowserContext) {
   return state;
 }
 async function planRoute(page: Page) {
-  await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+  await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
   await confirmImportedDraft(page);
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");

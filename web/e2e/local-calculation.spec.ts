@@ -67,7 +67,7 @@ for (const width of [390, 1100, 1440]) {
   await enterImportWorkflow(page);
     await expect(page).toHaveTitle(/NavMate/);
     await expect(page.locator(".brand-subtitle")).not.toContainText(" / Local");
-    await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+    await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
     await confirmImportedDraft(page);
     await expect(page.getByLabel("気象モード")).toHaveValue("FORECAST");
     await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
@@ -349,7 +349,7 @@ test("strong FTD wind preserves Python Warning and Blocker results", async ({ pa
   await page.context().route("**/api/**", route => route.abort());
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+  await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
   await confirmImportedDraft(page);
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("気象モード").selectOption("FTD");
@@ -394,7 +394,7 @@ test("actual MSM FORECAST reaches NAV LOG with Python provenance and no fallback
   await page.context().route("**/api/**", route => route.abort());
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+  await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
   await confirmImportedDraft(page);
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-12");
   await page.getByLabel("ETD JST", { exact: true }).fill("12:00");
@@ -493,7 +493,7 @@ for (const width of [1100, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto("/");
     await enterImportWorkflow(page);
-    await page.locator('input[type="file"]').setInputFiles({
+    await page.locator('#route-file').setInputFiles({
       name: "return.kml", mimeType: "application/vnd.google-earth.kml+xml",
       buffer: Buffer.from(`<kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><LineString><coordinates>${coordinates}</coordinates></LineString></Placemark></kml>`),
     });
@@ -557,7 +557,7 @@ test("#414 OLE first-leg CRS remains 094 when VOR/DME columns select another sta
     130.9068944601255,32.945035196803204,0
     131.7372222222,33.4794444444,0
     </coordinates></LineString></Placemark></Document></kml>`;
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('#route-file').setInputFiles({
     name: "ole-crs.kml", mimeType: "application/vnd.google-earth.kml+xml", buffer: Buffer.from(kml),
   });
   await confirmImportedDraft(page);
@@ -602,7 +602,7 @@ test("#414 OLE first-leg CRS remains 094 when VOR/DME columns select another sta
 test("#418 VOR columns keep assignments, release candidates, and display corrected station names", async ({ page }) => {
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+  await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
   await confirmImportedDraft(page);
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("気象モード").selectOption("FTD");

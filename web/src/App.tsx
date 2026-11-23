@@ -19,7 +19,8 @@ import type { ApplicationSession, PendingKmz, NodeNameDraft, VorColumn } from ".
 import { routeImportInput } from "./fileInput";
 import { PlatformError, type PlatformCapabilities, type FileContentSource } from "./platform";
 import type { FileInputProps } from "./BrowserFileInput";
-import { exportNavLog } from "./navLogExport";
+import { ProjectFileInput } from "./components/ProjectFileInput";
+import { projectExportFilename } from "./projectExportFilename";
 import { exportVerticalProfileKml, kmlCopy } from "./verticalProfileKml";
 import {
   candidateFromKey,
@@ -217,7 +218,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     if (request.expectedError && request.expectedError !== error) return;
     planningFocusRequestRef.current = null;
     panel.scrollIntoView({ block: "start" });
-    panel.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+    panel.querySelector<HTMLInputElement>('input[type="date"]')?.focus({ preventScroll: true });
   };
   const focusPlanning = (expectedError?: string) => {
     const projectId = projectIdRef.current;
@@ -1615,7 +1616,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     calculationInFlight.current = false;
   };
 
-  const handleProjectExport = async () => {
+  const handleProjectExport = async (destination: "file" | "clipboard") => {
     if (busy || !application.exportProject || !state?.project) return;
     await runTask(async () => {
       if (!await flushDraftAutosave(true)) throw new Error(DRAFT_AUTOSAVE_FAILURE);
@@ -1632,9 +1633,14 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         applyState(next, { syncCalculationInputs: false });
       }
       const text = await application.exportProject!();
-      await platform.files.save({ name: "navmate-project.json", mediaType: "application/json",
-        content: new TextEncoder().encode(text) });
-    }, { errorKey: "project-export" });
+      if (destination === "clipboard") {
+        await platform.clipboard.writeText(text);
+      } else {
+        await platform.files.save({ name: projectExportFilename(project.name, "json"), mediaType: "application/json",
+          content: new TextEncoder().encode(text) });
+      }
+    }, { errorKey: "project-export",
+      success: destination === "clipboard" ? "プロジェクトJSONをコピーしました。" : undefined });
   };
   const handleProjectImport = async (file: FileContentSource) => {
     if (busy || !application.importProject) return;
@@ -1645,6 +1651,11 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       if (input.content.byteLength > 2 * 1024 * 1024) throw new Error("Project JSONは2 MiB以下にしてください。");
       const text = new TextDecoder("utf-8", { fatal: true }).decode(input.content);
       if (epoch !== lifecycle.current) return;
+      let format: unknown;
+      try { format = JSON.parse(text)?.format; } catch { /* The importer reports invalid JSON. */ }
+      if (format === "autonavlog.navlog") {
+        throw new Error("計算結果用のNAV LOG JSONは追加できません。プロジェクトJSONを選択してください。");
+      }
       const next = await application.importProject!(text);
       if (epoch !== lifecycle.current) return;
       // Refresh only the list; raw planning values and MAP drafts stay on screen.
@@ -1979,8 +1990,6 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         onLoad={handleLoad}
         onDelete={handleDelete}
         onSave={handleSave}
-        onExportProject={application.exportProject ? handleProjectExport : undefined}
-        onImportProject={application.importProject ? handleProjectImport : undefined}
         onNew={handleNew}
       />
 
@@ -2032,6 +2041,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           <div className="draft-import-controls"><FileInput busy={busy} onFile={handleFile} inputRef={routeFileInput} />
           <button className="secondary-button" aria-label="Google Earth からペースト" disabled={busy} onClick={() => void handlePasteImport("clipboard")}><span>Google Earth</span><span>からペースト</span></button></div>
           </>}
+          {application.importProject && <ProjectFileInput busy={busy} onFile={handleProjectImport} />}
         </aside> : <ImportPlanPanel
           panelRef={planningPanelRef}
           importState={state.import}
@@ -2042,6 +2052,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           busy={busy}
           onResumePaste={!state.project && pastedKml && !pasteOpen ? () => setPasteOpen(true) : undefined}
           onResumeKmz={!state.project && pendingKmz && !kmzOpen ? () => setKmzOpen(true) : undefined}
+          projectFileInput={application.importProject && <ProjectFileInput busy={busy} onFile={handleProjectImport} />}
           fileInput={<FileInput busy={busy} onFile={handleFile} inputRef={routeFileInput} />}
           onPaste={() => void handlePasteImport("clipboard")}
         />}
@@ -2159,7 +2170,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             radReciprocal={radReciprocal}
             onRadReciprocalChange={setRadReciprocal}
             exportDisabled={busy || !calculationInputsAreLocallyCurrent || !state.readiness.calculationIsCurrent || hasNavLogEditErrors(navLogEditErrors) || ["pending", "saving", "error"].includes(navLogEditStatus.kind)}
-            savePng={platform.files.save}
+            savePng={file => platform.files.save({ ...file, name: projectExportFilename(state.project!.name, "png") })}
             onExportMessage={(message, kind) => {
               if (kind === "error") {
                 recordOperationError("export-png", message);
@@ -2198,15 +2209,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             editErrors={navLogEditErrors}
             editStatus={navLogEditStatus}
             onEdit={handleNavLogEdit}
-            jsonExport={<>
-              <button className="secondary-button" disabled={busy} onClick={() => void runTask(
-                () => platform.files.save(exportNavLog(state)),
-                { errorKey: "export-json", success: "NAV LOG JSONのダウンロードを開始しました。" },
-              )}>NAV LOG JSONをダウンロード</button>
-              <button className="secondary-button" disabled={busy} onClick={() => void runTask(
-                () => platform.clipboard.writeText(new TextDecoder().decode(exportNavLog(state).content)),
-                { errorKey: "copy-json", success: "NAV LOG JSONをコピーしました。" },
-              )}>NAV LOG JSONをコピー</button>
+            jsonExport={application.exportProject && <>
+              <button className="secondary-button" disabled={busy} onClick={() => void handleProjectExport("file")}>プロジェクトJSONをダウンロード</button>
+              <button className="secondary-button" disabled={busy} onClick={() => void handleProjectExport("clipboard")}>プロジェクトJSONをコピー</button>
             </>}
           />
         </div>

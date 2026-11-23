@@ -19,7 +19,7 @@ const record = (page: Page) => page.evaluate(() => new Promise<any>((resolve, re
 async function setup(page: Page) {
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+  await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
   await confirmImportedDraft(page);
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-16");
   await page.getByLabel("ETD JST", { exact: true }).fill("12:00");

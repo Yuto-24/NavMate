@@ -18,7 +18,6 @@ test("NavMate display name leaves compatibility identities intact", () => {
     ["../src/releaseNotes.ts", '"autonavlog.information.lastSeenUpdate"'],
     ["../src/releaseNotes.ts", '"autonavlog.information.lastSeenRelease"'],
     ["../src/releaseNotes.ts", '"autonavlog.information.knownIssuesSeen"'],
-    ["../src/navLogExport.ts", '"autonavlog.navlog"'],
     ["../src/legacyApplication.ts", '"X-AutoNavLog-Session"'],
   ]) {
     expect(read(path), path).toContain(expected);

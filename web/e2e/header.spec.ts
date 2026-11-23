@@ -56,7 +56,7 @@ test("#218 single-row sticky header preserves workflow, long names and keyboard/
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "プロジェクトメニュー", exact: true })).toBeFocused();
 
-  await page.locator('input[type="file"]').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
+  await page.locator('#route-file').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
   await confirmImportedDraft(page);
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
@@ -169,7 +169,7 @@ test("#218 single-row sticky header preserves workflow, long names and keyboard/
 test("#218 panel pointer actions survive input blur and keyboard departure still closes panels", async ({ page }) => {
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
+  await page.locator('#route-file').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
   await confirmImportedDraft(page);
   await openProjectMenu(page);
   const name = page.getByLabel("プロジェクト", { exact: true });
@@ -206,12 +206,8 @@ test("#218 panel pointer actions survive input blur and keyboard departure still
   await openProjectMenu(page);
   await selector.focus();
   await page.keyboard.press("Tab");
-  const projectFile = page.getByLabel("JSONファイルから追加", { exact: true });
-  await expect(projectFile).toBeFocused();
-  await expect(projectFile.locator("..")).toHaveCSS("outline-style", "solid");
-  await expect(project).toHaveAttribute("aria-expanded", "true");
-  await page.keyboard.press("Tab");
   await expect(project).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#header-project-panel input[type=file]")).toHaveCount(0);
   const more = page.getByRole("button", { name: /^その他/ });
   await more.focus();
   await page.keyboard.press("Enter");

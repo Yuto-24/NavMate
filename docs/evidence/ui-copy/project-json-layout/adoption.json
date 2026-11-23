@@ -1,0 +1,100 @@
+{
+  "items": [
+    {
+      "id": "success",
+      "text": "Projectを追加しました。保存済み一覧から開けます。",
+      "reason": "既存の作業保持契約と保存済み一覧から開く案内を維持する。表記変更は本変更に必要ないため見送る。",
+      "response_quote": "### 1. `success`（取込成功通知）\n- **現行案**: `Projectを追加しました。保存済み一覧から開けます。`\n- **候補**\n  - **候補A（推奨）**: `現在の作業は維持したまま、保存済み一覧に追加しました。一覧から開けます。`\n  - **候補B（現行構造維持・括弧添え）**: `プロジェクトを追加しました（現在の作業は維持）。保存済み一覧から開けます。`\n  - **候補C（短文重視）**: `プロジェクトを保存済み一覧に追加しました。現在の作業はそのままで、一覧から開けます。`\n- **理由**\n  - 利用者がファイル選択後に画面が変わらないと「失敗した？」「今の編集内容が消えた？」と不安になりやすいため、**「現在の作業が維持されること」**を明示することで安心感が生まれます。\n  - 「現在の作業はそのままで開けます」のように繋ぐと「開いても作業が維持される」と誤読されるため、候補A・Bのように「維持」が**追加処理に掛かる係り受け**にしています。\n- **懸念**\n  - トースト表示の幅や表示時間が短い場合、35〜40文字程度でも読み切れない可能性があります（短さを最優先するなら候補Bか、現行案の `Project` を `プロジェクト` に揃える判断になります）。\n  - 既存UI上の名称が「保存済み一覧」か「保存済みProject」かによって、一覧の呼び名を合わせる必要があります。\n",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "  const handleProjectImport = async (file: FileContentSource) => {",
+        "end": "  const handleSave = async (name: string) => {",
+        "expected": "  const handleProjectImport = async (file: FileContentSource) => {\n    if (busy || !application.importProject) return;\n    const epoch = lifecycle.current;\n    await runTask(async () => {\n      if (file.size > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const input = await platform.files.read(file);\n      if (input.content.byteLength > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const text = new TextDecoder(\"utf-8\", { fatal: true }).decode(input.content);\n      if (epoch !== lifecycle.current) return;\n      let format: unknown;\n      try { format = JSON.parse(text)?.format; } catch { /* The importer reports invalid JSON. */ }\n      if (format === \"autonavlog.navlog\") {\n        throw new Error(\"計算結果用のNAV LOG JSONは追加できません。プロジェクトJSONを選択してください。\");\n      }\n      const next = await application.importProject!(text);\n      if (epoch !== lifecycle.current) return;\n      // Refresh only the list; raw planning values and MAP drafts stay on screen.\n      setState(current => current ? { ...current, savedProjects: next.savedProjects,\n        storageWarning: next.storageWarning } : current);\n    }, { errorKey: \"project-import\", success: \"Projectを追加しました。保存済み一覧から開けます。\" });\n  };\n\n  const handleSave = async (name: string) => {"
+      }
+    },
+    {
+      "id": "size",
+      "text": "Project JSONは2 MiB以下にしてください。",
+      "reason": "検証単位の2 MiBと既存表現を維持する。",
+      "response_quote": "### 2. `size`（ファイル選択後のエラー）\n- **現行案**: `Project JSONは2 MiB以下にしてください。`\n- **候補**\n  - **候補A（推奨）**: `2 MiB以下のプロジェクトJSONを選択してください。`\n  - **候補B（理由＋行動を明示）**: `ファイルサイズが上限（2 MiB）を超えています。2 MiB以下のファイルを選択してください。`\n  - **候補C（現行の表記統一のみ）**: `プロジェクトJSONは2 MiB以下にしてください。`\n- **理由**\n  - 現行の「〜にしてください」は利用者側でJSONを編集・削減する印象をわずかに与えます。ファイル選択エラーでは「〜を選択してください」（候補A）または「上限を超えています」（候補B）の方が、その場の状況と次の行動（別ファイルを選び直す）に自然につながります。\n- **懸念**\n  - `2 MiB` は厳密で正確ですが、OSのファイルプロパティ表記（`MB`）と見比べた利用者が単位の違いに戸惑うことがあります。アプリ全体で `MiB` を使う方針か、厳密な上限表示を優先するかは実装判断が必要です。\n  - もし `error` 接頭辞の後ろに連結される仕様であれば、候補Bの前半（`ファイルサイズが上限（2 MiB）を超えています`）のような理由文のみの方が重複しません。\n",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "  const handleProjectImport = async (file: FileContentSource) => {",
+        "end": "  const handleSave = async (name: string) => {",
+        "expected": "  const handleProjectImport = async (file: FileContentSource) => {\n    if (busy || !application.importProject) return;\n    const epoch = lifecycle.current;\n    await runTask(async () => {\n      if (file.size > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const input = await platform.files.read(file);\n      if (input.content.byteLength > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const text = new TextDecoder(\"utf-8\", { fatal: true }).decode(input.content);\n      if (epoch !== lifecycle.current) return;\n      let format: unknown;\n      try { format = JSON.parse(text)?.format; } catch { /* The importer reports invalid JSON. */ }\n      if (format === \"autonavlog.navlog\") {\n        throw new Error(\"計算結果用のNAV LOG JSONは追加できません。プロジェクトJSONを選択してください。\");\n      }\n      const next = await application.importProject!(text);\n      if (epoch !== lifecycle.current) return;\n      // Refresh only the list; raw planning values and MAP drafts stay on screen.\n      setState(current => current ? { ...current, savedProjects: next.savedProjects,\n        storageWarning: next.storageWarning } : current);\n    }, { errorKey: \"project-import\", success: \"Projectを追加しました。保存済み一覧から開けます。\" });\n  };\n\n  const handleSave = async (name: string) => {"
+      }
+    },
+    {
+      "id": "error",
+      "text": "Project JSONを処理できません",
+      "reason": "Python側の既存検証表現を維持し、今回の配置変更に不要な製品コード変更を避ける。",
+      "response_quote": "### 3. `error`（検証エラーの接頭辞）\n- **現行案**: `Project JSONを処理できません`\n- **候補**\n  - **候補A（推奨）**: `プロジェクトJSONを読み込めません`\n  - **候補B（追加操作に即した表現）**: `プロジェクトJSONを取り込めません`\n  - **候補C（形式エラー寄り）**: `プロジェクトJSONの形式が正しくありません`\n- **理由**\n  - 「処理できません」はシステム側の表現でやや硬いため、利用者の操作実感に近い**「読み込めません」**（候補A）の方が直感的です。\n  - 後ろにJSON構文エラー・必須項目不足・型エラーなど多様な理由が続く場合、候補Cだと「内容の整合性」以外の理由と噛み合わないことがあるため、汎用性の高い候補Aが最も破綻しにくいです。\n- **懸念**\n  - 後ろに続く具体的な理由との区切り記号（`：` / `: ` / 改行）や、後続文の文体（体言止め・ですます調・英語メッセージ等）によって読みやすさが変わります。\n  - 画面上は「追加」ボタンから始まっているため、動詞の一貫性を重視する場合は候補B（`取り込めません`）や `追加できません` も検討余地があります。\n",
+      "source": {
+        "path": "src/autonavlog/local.py",
+        "start": "        if path in {\"exportProject\", \"prepareProjectImport\"}:",
+        "end": "        if path == \"validateRecord\":",
+        "expected": "        if path in {\"exportProject\", \"prepareProjectImport\"}:\n            try:\n                if path == \"exportProject\":\n                    if self.session.project is None:\n                        raise ValueError(\"Project is required\")\n                    return json.dumps(export_project(self.session.project), ensure_ascii=False)\n                imported_project = import_project(payload[\"text\"])\n                return imported_project.model_dump_json()\n            except ValidationError as error:\n                # Do not echo untrusted file contents in the user-facing error.\n                issues = error.errors(include_url=False, include_input=False)\n                reason = \" / \".join(\n                    f\"{'.'.join(map(str, item['loc']))}: {item['msg']}\" for item in issues[:3]\n                )\n                raise WebApplicationError(\n                    \"PROJECT_JSON_INVALID\", f\"Project JSONを処理できません: {reason}\"\n                ) from error\n            except (ValueError, TypeError, RecursionError) as error:\n                raise WebApplicationError(\n                    \"PROJECT_JSON_INVALID\", f\"Project JSONを処理できません: {error}\"\n                ) from error\n        if path == \"validateRecord\":"
+      }
+    },
+    {
+      "id": "import",
+      "text": "JSONファイルから追加",
+      "reason": "本人が了承した入口名を維持し、下段への移動後も追加操作であることを明示する。",
+      "response_quote": "### 4. `import`（操作ペイン：KMLファイル選択・Google Earthからペーストの下段）\n- **現行案**: `JSONファイルから追加`\n- **候補**\n  - **候補A（推奨・出力側との対称性重視）**: `プロジェクトJSONから追加`\n  - **候補B（現行維持・ファイル選択の明示）**: `JSONファイルから追加`\n  - **候補C（やや短く）**: `プロジェクトJSONを追加`\n- **理由**\n  - 上段の「KMLファイル選択」「Google Earthからペースト」と並んだとき、**「追加」**という動詞を使うことで「現在の作業に上書きするのではなく、保存済みとして足す」ニュアンスが伝わります。\n  - 出力側が `プロジェクトJSON` を名乗るため、入口も `プロジェクトJSONから追加`（候補A）に揃えると「先ほど保存したプロジェクトJSONをここから戻せる」という対応関係が直感的に分かり、旧NAV LOG JSONの誤選択も減らせます。\n- **懸念**\n  - 候補A（12文字）は現行（10文字）より2文字長く、「ファイル」の語が抜けるため、アイコン等がない場合は「クリックするとファイル選択が開く」ことが現行案より若干伝わりにくくなります。\n  - ペイン幅が狭い場合は、現行の `JSONファイルから追加` や候補C（11文字）の方が収まりが良い可能性があります。\n",
+      "source": {
+        "path": "web/src/components/ProjectFileInput.tsx",
+        "start": "    <div className=\"project-file-control\">",
+        "end": "    </div>",
+        "expected": "    <div className=\"project-file-control\">\n      <button className=\"secondary-button full-width\" type=\"button\" disabled={busy}\n        onClick={() => input.current?.click()}>\n        <FileUp aria-hidden=\"true\" size={17} />\n        JSONファイルから追加\n      </button>\n      <input ref={input} type=\"file\" hidden\n        aria-hidden=\"true\" aria-label=\"JSONファイルから追加\" accept=\".json,application/json\" disabled={busy}\n        onChange={event => {\n          const file = event.target.files?.[0];\n          event.target.value = \"\";\n          if (file) onFile(file);\n        }} />\n    </div>"
+      }
+    },
+    {
+      "id": "export",
+      "text": "プロジェクトJSONをダウンロード",
+      "reason": "Gemini推奨案を採用し、読み戻せるプロジェクト用JSONであることを示す。",
+      "response_quote": "### 5. `export`（NAV LOG末尾）\n- **現行案**: `プロジェクトJSONをダウンロード`\n- **候補**\n  - **候補A（現行維持・推奨）**: `プロジェクトJSONをダウンロード`\n  - **候補B（日本語動詞統一・短め）**: `プロジェクトJSONを書き出し`\n  - **候補C（さらに短め）**: `プロジェクトJSONを保存`\n- **理由**\n  - 現行案は短く自然で、「ローカル端末へファイルとして落とす」挙動が明確です。また、並ぶであろう `copy`（`プロジェクトJSONをコピー`）と語調が綺麗に揃います。\n  - 候補Cの「保存」は、アプリ内の「保存済み一覧への保存」と混同されるおそれがあるため、**「ダウンロード」**（候補A）の方が誤解が少ないです。\n- **懸念**\n  - NAV LOG末尾という配置上、「計算結果も入っている」と誤解される可能性は残ります（ただし「UIに余計な説明を足さない」制約上、`入力用〜` 等を足すと冗長になるため、ボタン名は `プロジェクトJSON` に留めるのが妥当です）。\n  - `copy` と横並びにした際にボタン幅が広くなる場合は、両者の配置（横並び／折り返し）のバランス確認が必要です。\n",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "            jsonExport={application.exportProject && <>",
+        "end": "            </>}\n          />",
+        "expected": "            jsonExport={application.exportProject && <>\n              <button className=\"secondary-button\" disabled={busy} onClick={() => void handleProjectExport(\"file\")}>プロジェクトJSONをダウンロード</button>\n              <button className=\"secondary-button\" disabled={busy} onClick={() => void handleProjectExport(\"clipboard\")}>プロジェクトJSONをコピー</button>\n            </>}\n          />"
+      }
+    },
+    {
+      "id": "copy",
+      "text": "プロジェクトJSONをコピー",
+      "reason": "ダウンロードと対象名を揃え、同じ形式のコピーであることを示す。",
+      "response_quote": "### 6. `copy`（NAV LOG末尾）\n- **現行案**: `プロジェクトJSONをコピー`\n- **候補**\n  - **候補A（現行維持・推奨）**: `プロジェクトJSONをコピー`\n  - **候補B（ボタン幅を大幅に抑えたい場合のみ）**: `JSONをコピー`\n- **理由**\n  - 現行案がすでに十分に短く自然で、`export`・`copied` と対象名が一致しているため迷いがありません。\n  - 候補Bは省スペースですが、NAV LOG末尾にあることで「NAV LOG（計算結果）のJSONをコピーする」と誤認されやすくなるため、原則は候補Aを推奨します。\n- **懸念**\n  - 利用者がコピーしたJSONを「Google Earthからペースト」欄に貼り付けられると誤解する可能性があります（ファイルから追加する仕様のみの場合）。ただし制約上ここに説明は足さない前提のため、既存ペースト欄側のエラー等で自然に案内できるかだけ念頭に置くと安心です。\n",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "            jsonExport={application.exportProject && <>",
+        "end": "            </>}\n          />",
+        "expected": "            jsonExport={application.exportProject && <>\n              <button className=\"secondary-button\" disabled={busy} onClick={() => void handleProjectExport(\"file\")}>プロジェクトJSONをダウンロード</button>\n              <button className=\"secondary-button\" disabled={busy} onClick={() => void handleProjectExport(\"clipboard\")}>プロジェクトJSONをコピー</button>\n            </>}\n          />"
+      }
+    },
+    {
+      "id": "copied",
+      "text": "プロジェクトJSONをコピーしました。",
+      "reason": "Gemini推奨案を採用し、既存通知と句点を揃える。 JSONファイル名の変更後も、コピー先・通知・対象データは同じなので提案を引き続き適用する。",
+      "response_quote": "### 7. `copied`（コピー成功通知）\n- **現行案**: `プロジェクトJSONをコピーしました。`\n- **候補**\n  - **候補A（現行維持・推奨）**: `プロジェクトJSONをコピーしました。`\n  - **候補B（句点なし・トースト統一用）**: `プロジェクトJSONをコピーしました`\n  - **候補C（ボタン直近のインライン表示向け）**: `コピーしました`\n- **理由**\n  - 現行案は簡潔で自然であり、`copy` ボタンの対象名と一致していて確実なフィードバックになります。\n- **懸念**\n  - 既存の他の成功通知（`success` を含む）と**句点「。」の有無**を揃える必要があります。\n  - 通知がボタンラベルの一時切り替え等で行われるUIであれば、候補Aは長すぎてレイアウトが揺れるため候補Cが適しています。\n",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "  const handleProjectExport = async (destination: \"file\" | \"clipboard\") => {",
+        "end": "  const handleProjectImport = async (file: FileContentSource) => {",
+        "expected": "  const handleProjectExport = async (destination: \"file\" | \"clipboard\") => {\n    if (busy || !application.exportProject || !state?.project) return;\n    await runTask(async () => {\n      if (!await flushDraftAutosave(true)) throw new Error(DRAFT_AUTOSAVE_FAILURE);\n      const project = canonicalProjectRef.current ?? state.project!;\n      const drafts = navLogDraftsRef.current;\n      const errors = validateNavLogDrafts(project.sections, drafts);\n      const editedSections = project.sections.map(section =>\n        errors[section.id] ? section : applyDraftToSection(section, drafts[section.id]),\n      );\n      if (Object.keys(drafts).length > 0) {\n        const next = await application.updateProject(\n          updatePayloadRef.current(editedSections, undefined, project),\n        );\n        applyState(next, { syncCalculationInputs: false });\n      }\n      const text = await application.exportProject!();\n      if (destination === \"clipboard\") {\n        await platform.clipboard.writeText(text);\n      } else {\n        await platform.files.save({ name: projectExportFilename(project.name, \"json\"), mediaType: \"application/json\",\n          content: new TextEncoder().encode(text) });\n      }\n    }, { errorKey: \"project-export\",\n      success: destination === \"clipboard\" ? \"プロジェクトJSONをコピーしました。\" : undefined });\n  };\n  const handleProjectImport = async (file: FileContentSource) => {"
+      }
+    },
+    {
+      "id": "legacy",
+      "text": "計算結果用のNAV LOG JSONは追加できません。プロジェクトJSONを選択してください。",
+      "reason": "Gemini候補Aを採用し、取込不可の理由と次の操作を明示する。",
+      "response_quote": "### 8. `legacy`（旧形式ファイル選択後のエラー）\n- **現行案**: `このファイルは計算結果用のNAV LOG JSONです。プロジェクトJSONを選択してください。`\n- **候補**\n  - **候補A（推奨・理由の明確化）**: `計算結果用のNAV LOG JSONは追加できません。プロジェクトJSONを選択してください。`\n  - **候補B（読込エラー表現に寄せる）**: `計算結果用のNAV LOG JSONは読み込めません。プロジェクトJSONを選択してください。`\n  - **候補C（現行維持）**: `このファイルは計算結果用のNAV LOG JSONです。プロジェクトJSONを選択してください。`\n- **理由**\n  - 現行案は事実と次の行動を端的に伝えていますが、候補A・Bのように「〜は追加（読み込み）できません」と言い切ることで、**「ファイル破損ではなく、計算結果用のファイルだから取り込めない」**という理由がひと目で腑に落ちます。\n- **懸念**\n  - **重要**: もしこの文言が `error` の接頭辞（例：`プロジェクトJSONを読み込めません：`）の後ろに連結されて表示される仕様であれば、候補A・Bでは「読み込めません」が重複します。その場合は**現行案（候補C）**のように理由の事実＋選び直し案内だけに留める方が自然です。\n  - 利用者が「NAV LOG末尾から出力したファイル」と「旧NAV LOG JSON」を混同している場合、`旧形式のNAV LOG JSON（計算結果用）は…` と「旧形式」を1語補うと、仕様変更に気づきやすくなる利点もあります（反面、数文字長くなります）。\n",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "  const handleProjectImport = async (file: FileContentSource) => {",
+        "end": "  const handleSave = async (name: string) => {",
+        "expected": "  const handleProjectImport = async (file: FileContentSource) => {\n    if (busy || !application.importProject) return;\n    const epoch = lifecycle.current;\n    await runTask(async () => {\n      if (file.size > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const input = await platform.files.read(file);\n      if (input.content.byteLength > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const text = new TextDecoder(\"utf-8\", { fatal: true }).decode(input.content);\n      if (epoch !== lifecycle.current) return;\n      let format: unknown;\n      try { format = JSON.parse(text)?.format; } catch { /* The importer reports invalid JSON. */ }\n      if (format === \"autonavlog.navlog\") {\n        throw new Error(\"計算結果用のNAV LOG JSONは追加できません。プロジェクトJSONを選択してください。\");\n      }\n      const next = await application.importProject!(text);\n      if (epoch !== lifecycle.current) return;\n      // Refresh only the list; raw planning values and MAP drafts stay on screen.\n      setState(current => current ? { ...current, savedProjects: next.savedProjects,\n        storageWarning: next.storageWarning } : current);\n    }, { errorKey: \"project-import\", success: \"Projectを追加しました。保存済み一覧から開けます。\" });\n  };\n\n  const handleSave = async (name: string) => {"
+      }
+    }
+  ]
+}

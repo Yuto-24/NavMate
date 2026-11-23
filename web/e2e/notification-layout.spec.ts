@@ -192,7 +192,7 @@ for(const mode of ['denied','empty','kmz']) test(`unfinished ${mode} import pres
  await page.getByRole('button',{name:'Test: invalid route'}).click();
  await expect(page.locator('.app-notification')).toBeVisible();
  const error=await page.locator('.app-notification span').first().innerText();
- if(mode==='kmz') await page.locator('input[type=file]').setInputFiles({name:'pending.kmz',mimeType:'application/vnd.google-earth.kmz',buffer:Buffer.from('synthetic')});
+ if(mode==='kmz') await page.locator('#route-file').setInputFiles({name:'pending.kmz',mimeType:'application/vnd.google-earth.kmz',buffer:Buffer.from('synthetic')});
  else await page.getByRole('button',{name:'Google Earth からペースト',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:mode==='kmz'?'KMZ内のKMLを選択':'KML/XMLを貼り付け',exact:true});
  await expect(dialog).toBeVisible();await dialog.getByRole('button',{name:'キャンセル',exact:true}).click();
@@ -217,7 +217,7 @@ test('committed route failure focuses planning once; unrelated failure does not 
  await page.getByRole('button',{name:'Test: valid route',exact:true}).click();
  await page.getByRole('button',{name:'経路を確定',exact:true}).click();
  await expect(page.getByRole('alert')).toContainText('Test: committed route failure');
- await expect(page.locator('.input-rail input').first()).toBeFocused();
+ await expect(page.getByLabel('DATE',{exact:true})).toBeFocused();
  const save=page.getByRole('button',{name:'保存',exact:true});
  await page.locator('.route-map').focus();
  const before=await page.evaluate(()=>scrollY);
@@ -262,7 +262,7 @@ test("#314 project switch clears cancelled SEA progress and an old request canno
   await page.goto("/e2e/notification-harness/index.html?pending-sea=1");
   const calculate = async () => {
     await enterImportWorkflow(page);
-    await page.locator('input[type="file"]').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
+    await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
     await confirmImportedDraft(page);
     await page.getByLabel("気象モード").selectOption("FTD");
     await page.getByLabel("地上風向 ° FROM").fill("360");

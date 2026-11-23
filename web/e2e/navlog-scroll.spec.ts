@@ -78,7 +78,7 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await page.goto("/");
   await expect(page).toHaveTitle("NavMate");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
+  await page.locator('#route-file').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
   await confirmImportedDraft(page);
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("気象モード").selectOption("FTD");
@@ -194,7 +194,7 @@ test("#412 rows align, names size independently, and sticky columns follow edits
   await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
   await page.goto("/");
   await enterImportWorkflow(page);
-  await page.locator('input[type="file"]').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
+  await page.locator('#route-file').setInputFiles(fileURLToPath(new URL("../../tests/fixtures/issue_43_golden.kml", import.meta.url)));
   await confirmImportedDraft(page);
   await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
   await page.getByLabel("気象モード").selectOption("FTD");
