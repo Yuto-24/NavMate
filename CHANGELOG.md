@@ -2,6 +2,36 @@
 
 NavMate のRelease履歴です。公開日時はGitHub Releaseを正本とします。
 
+## 2.6.0
+
+### 利用者向け
+
+#### 追加
+- 地図にAIP空域を表示し、カテゴリごとに切り替えられるようにしました。飛行制限空域の名称や高度も確認できます。
+- 区間ごとの参考SEAを地形データから自動算出し、NAV LOGに表示します。手入力はできません。地形データが一部欠ける場合は参考値に * を付けます。計算後、巡航高度がSEAを下回る場合は注意を表示します。
+- Projectの入力内容のみをJSONで書き出し、別の新しいProjectとして取り込めるようにしました。
+- NAV LOGと燃料表を転記しやすい1枚のPNGとして保存できます。
+
+#### 改善
+- VREP候補をAIP公表座標528地点に更新しました。保存済みProjectを開いた際、一致を確認できた旧地点を更新し、再計算を求めます。同じ保存領域を使う旧タブは更新後の読み書きを停止します。
+- NAV LOGの表示と出力、ETD入力、通知を整理しました。四捨五入とRAD反方位表示は初期状態でONです。
+- KML取込で出発空港のみ判定できた場合も、地図で到着空港を追加して経路を確定できます。
+
+#### 修正
+- 保存された降下時間とDESCENT区間の時間が一致しない場合、3D KMLの出力を制限するよう修正しました。
+- 小丸経由のRJFM帰投で、通常の経路延長に伴う直線降下距離不足の警告を廃止しました。
+
+### 開発者向け
+
+- [PR #509 AIP VREPと保存互換性](https://github.com/Yuto-24/NavMate/pull/509)：一致を確認した旧地点を更新し、IndexedDBの更新で旧タブの読み書きを停止します。Static本番公開には専用の手動移行経路と、旧版・候補・設定に対応する互換性証跡の審査が必要です。
+- [PR #491 AIP空域表示](https://github.com/Yuto-24/NavMate/pull/491)、[PR #505 空域操作](https://github.com/Yuto-24/NavMate/pull/505)、[PR #507 配色](https://github.com/Yuto-24/NavMate/pull/507)：地図の空域表示と操作を追加・整理しました。
+- [PR #482 区間別SEA](https://github.com/Yuto-24/NavMate/pull/482)、[PR #492 自動SEAと巡航注意](https://github.com/Yuto-24/NavMate/pull/492)、[PR #500 地形欠損時の参考値](https://github.com/Yuto-24/NavMate/pull/500)、[PR #508 取得中表示](https://github.com/Yuto-24/NavMate/pull/508)：自動算出と欠損・処理中の表示を整備しました。
+- [PR #501 Project JSON](https://github.com/Yuto-24/NavMate/pull/501)、[PR #498 KML取込](https://github.com/Yuto-24/NavMate/pull/498)：入力の新規取込と経路編集を改善しました。
+- [PR #478 NAV LOG PNG](https://github.com/Yuto-24/NavMate/pull/478)、[PR #479 出力・ETD・通知](https://github.com/Yuto-24/NavMate/pull/479)：出力と画面操作を改善しました。
+- [PR #493 DESCENT検証](https://github.com/Yuto-24/NavMate/pull/493)、[PR #489 RJFM案内](https://github.com/Yuto-24/NavMate/pull/489)：降下時間の整合性と帰投時の警告を修正しました。
+- [PR #481 Source CI再利用](https://github.com/Yuto-24/NavMate/pull/481)、[PR #499 公開起動条件](https://github.com/Yuto-24/NavMate/pull/499)：公開時の検査再利用と起動条件を改善しました。
+- v2.5.2以降のmain変更を含みます。本番公開・移行・実機受入は別途確認が必要です。
+
 ## 2.5.2
 
 ### 利用者向け
