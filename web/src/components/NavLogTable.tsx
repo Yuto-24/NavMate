@@ -671,6 +671,10 @@ export function NavLogTable({
   const [nameWidths, setNameWidths] = useState({ from: 110, to: 110 });
   const [seaAcquiredKey, setSeaAcquiredKey] = useState<string | null>(null);
   const seaKey = sea ? `${project.id}/${sea.geometry_key}` : null;
+  const currentSeaKeyRef = useRef(seaKey);
+  useLayoutEffect(() => {
+    currentSeaKeyRef.current = seaKey;
+  }, [seaKey]);
   // SeaPanel starts automatic acquisition in an effect. Show loading on the first render too.
   const seaAutoPending = Boolean(seaKey && seaAcquiredKey !== seaKey && !seaDisabled
     && onSeaAcquire && sea?.intervals.some(interval => interval.geometry_valid && interval.terrain.required === 0));
@@ -679,7 +683,7 @@ export function NavLogTable({
     try {
       await onSeaAcquire?.();
     } finally {
-      if (seaKey) setSeaAcquiredKey(seaKey);
+      if (seaKey && currentSeaKeyRef.current === seaKey) setSeaAcquiredKey(seaKey);
     }
   };
   const [exporting, setExporting] = useState(false);
