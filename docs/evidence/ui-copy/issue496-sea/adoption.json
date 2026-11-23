@@ -8,8 +8,8 @@
       "source": {
         "path": "web/src/components/SeaCell.tsx",
         "start": "  const value = interval ? (interval.automatic_ft == null ? undefined : `${interval.automatic_ft}${interval.reference ? \"*\" : \"\"}`) ?? \"未確定\" : \"\";",
-        "end": "  return <td className=\"nav-log-sea-cell\" data-display-text={value}>{value}</td>;",
-        "expected": "  const value = interval ? (interval.automatic_ft == null ? undefined : `${interval.automatic_ft}${interval.reference ? \"*\" : \"\"}`) ?? \"未確定\" : \"\";\n  return <td className=\"nav-log-sea-cell\" data-display-text={value}>{value}</td>;"
+        "end": "  </td>;",
+        "expected": "  const value = interval ? (interval.automatic_ft == null ? undefined : `${interval.automatic_ft}${interval.reference ? \"*\" : \"\"}`) ?? \"未確定\" : \"\";\n  const pending = Boolean(loading && interval?.geometry_valid);\n  return <td className=\"nav-log-sea-cell\" data-display-text={value}>\n    {pending\n      ? <span className=\"sea-loading\">\n          <LoaderCircle className=\"sea-loading-icon\" aria-hidden=\"true\" size={14} />\n          {interval?.automatic_ft == null ? \"取得中\" : value}\n        </span>\n      : value}\n  </td>;"
       }
     },
     {

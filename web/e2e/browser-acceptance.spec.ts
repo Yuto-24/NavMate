@@ -60,12 +60,14 @@ test("Static Local workflow saves and restores a calculated Project across lifec
   // This is a persistence/lifecycle check, not a concurrent-worker stress test.
   // Release the first Pyodide worker before starting one in another tab. iPad
   // WebKit can otherwise remain at runtime initialization with both tabs live.
-  await page.goto("about:blank");
+  // Keep an origin document alive while releasing its Pyodide worker, so the
+  // second-tab check does not drop every same-origin document in WebKit.
+  await page.goto("/local/manifest.json");
   const other = await context.newPage();
   await other.goto("/");
   await enterImportWorkflow(other);
-  await expect(other.getByLabel("保存済み", { exact: true }).locator(`option[value="${savedId}"]`)).toHaveCount(1);
   await openProjectMenu(other);
+  await expect(other.getByLabel("保存済み", { exact: true }).locator(`option[value="${savedId}"]`)).toHaveCount(1);
   await other.getByLabel("保存済み", { exact: true }).selectOption(savedId);
   await other.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(other.locator(".nav-log-table")).toHaveText(initialResult, { useInnerText: true });

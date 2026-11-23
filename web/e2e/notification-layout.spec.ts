@@ -274,8 +274,7 @@ test("#314 project switch clears cancelled SEA progress and an old request canno
       await input.fill(altitude!); await input.blur();
     }
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-    await expect(page.locator(".nav-log-table .nav-log-sea-cell")
-      .filter({ hasText: /未確定|[0-9]/ }).first()).toBeVisible();
+    await expect(page.locator('.nav-log-table .nav-log-sea-cell[data-display-text="未確定"]').first()).toBeVisible();
   };
   await calculate();
   const acquire = page.getByRole("button", { name: "地形を再取得", exact: true });

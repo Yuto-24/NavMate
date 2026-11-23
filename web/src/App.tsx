@@ -2152,6 +2152,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           <NavLogTable
             sea={state.readiness.calculationIsCurrent ? state.sea : null}
             seaDisabled={busy || seaBusy}
+            seaBusy={seaBusy}
             seaMessage={seaMessage}
             onSeaUpdate={application.updateSea ? updateSea : undefined}
             onSeaAcquire={application.seaPlan ? acquireSeaForProject : undefined}
