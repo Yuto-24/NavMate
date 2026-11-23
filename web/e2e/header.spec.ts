@@ -67,7 +67,9 @@ test("#218 single-row sticky header preserves workflow, long names and keyboard/
   await page.getByRole("button", { name: "NAV LOGを作る", exact: true }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
   // Full-range SEA evaluation has a 60s acquisition budget, followed by persistence.
-  await expect(page.getByRole("button", { name: "地形を再取得", exact: true })).toBeEnabled({ timeout: 90_000 });
+  const terrainStatus = page.locator(".nav-log-footer-details > [role=status]");
+  await expect(terrainStatus).toContainText("地形データを取得しています。");
+  await expect(terrainStatus).toHaveCount(0, { timeout: 90_000 });
   const result = await page.locator(".nav-log-table").innerText();
   const longName = "長いプロジェクト名を狭い画面でも全文確認する".repeat(2);
   await openProjectMenu(page);

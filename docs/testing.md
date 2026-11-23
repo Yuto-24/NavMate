@@ -468,7 +468,7 @@ NAV LOG scroll→browser acceptance→TAFの順序で実行する。
 Firestore Rules→storage-upgrade→migrationはcontracts runnerで全対象を順番に実行する。
 共有開発は別runnerで、起動前にrelease notesを生成する。
 `dev-shared`で計算済みProjectを別端末から開く場合、NAV LOG表示だけでなく自動SEA更新の完了を待ってから保存する。
-地形応答を固定fixtureにし、「地形を再取得」ボタンが有効になるまで待つことで、外部取得の遅延と保存token更新の競合を避ける。
+地形応答を固定fixtureにし、取得中のステータス表示を確認してから、その表示が消えるまで待つことで、外部取得の遅延と保存token更新の競合を避ける。
 [PR #493のCI](https://github.com/Yuto-24/NavMate/actions/runs/45040943412/job/137265089639)では、保存後のSEA更新と別端末の読込が重なり、同期の競合保護によって読込が拒否された。
 `web`でLocalと同期のexact-once分配を検査し、各集約checkは全matrix entryの成功を要求する。
 失敗・skip・cancelした群を成功扱いにしない。retry、timeout、既存assertionは維持する。
@@ -682,8 +682,11 @@ Local wheel 2.5.0 の不一致により、保存した MSM Advisory が NAV LOG 
 （head `89841438`）では、表全体の比較中に実DEM取得が完了し、SEAが未確定から `5400*` に変わって
 ヘッダー試験が失敗しました。共有Projectの試験も、404固定応答の後に全範囲の評価が続き、30秒の待機で失敗しました。
 SEAの表示・欠損判定は `sea.spec.ts` で検証し、ヘッダー試験のDEM応答は固定します。
-表・保存状態の比較は「地形を再取得」が有効になるまで待ちます。この専用待機は取得予算60秒と
-保存処理を含めて90秒とし、一般のタイムアウトは変更しません。
+表・保存状態の比較は、取得中のステータス表示を確認してから、ステータスが0件になるまで待ちます。
+ボタンは自動取得の開始前にも有効なため、完了判定には使えません。対象は `dev-shared`・`header`・
+`navlog-scroll` で、固定経路の取得が正常終了すると保存と画面反映の後にステータスが消え、
+反映に失敗すると失敗文言が残ります。この専用待機は取得予算60秒と保存処理を含めて90秒とし、
+一般のタイムアウトは変更しません。
 
 同日の[後続CI](https://github.com/Yuto-24/NavMate/actions/runs/45055975910)
 （head `318c921f`）では、iPadの名称変更前後の表比較でも同じSEA変化が発生したため、

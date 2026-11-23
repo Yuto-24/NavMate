@@ -201,7 +201,9 @@ test("#412 rows align, names size independently, and sticky columns follow edits
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   const table = page.locator(".nav-log-table");
   await expect(table).toBeVisible();
-  await expect(page.getByRole("button", { name: "地形を再取得", exact: true })).toBeEnabled({ timeout: 90_000 });
+  const terrainStatus = page.locator(".nav-log-footer-details > [role=status]");
+  await expect(terrainStatus).toContainText("地形データを取得しています。");
+  await expect(terrainStatus).toHaveCount(0, { timeout: 90_000 });
   await page.evaluate(() => document.fonts.ready);
   const widths = () => table.locator("thead .route-name-header")
     .evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
