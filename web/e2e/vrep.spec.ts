@@ -123,7 +123,7 @@ for (const width of [1100, 1440]) {
     // An old saved Project keeps its original occurrence IDs and user names during upgrade.
     await page.evaluate(async ({ savedId, legacy }) => {
       await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open("autonavlog.projects", 2);
+        const request = indexedDB.open("autonavlog.projects");
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const db = request.result, tx = db.transaction("projects", "readwrite");
@@ -150,7 +150,7 @@ for (const width of [1100, 1440]) {
     await expect(page.locator(".candidate-cluster, .vrep-draft-marker")).toHaveCount(0);
     expect((await snapshot(page)).working.project.route_nodes).toEqual(project.route_nodes);
     const durable: any = await page.evaluate(savedId => new Promise((resolve, reject) => {
-      const request = indexedDB.open("autonavlog.projects", 2);
+      const request = indexedDB.open("autonavlog.projects");
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const db = request.result, tx = db.transaction("projects", "readonly");
