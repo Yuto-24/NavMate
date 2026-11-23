@@ -157,6 +157,8 @@ async function logout(page: Page) {
 }
 
 test("Google accounts switch away from shared Projects, sync privately, and delete only dev personal data", async ({ page, browser, baseURL }) => {
+  // Full-range SEA acquisition plus repeated account restarts across two devices.
+  test.setTimeout(240_000);
   await start(page);
   await create(page, "shared-stays");
   const shared = (await localRows(page)).find(row => row.checkpoint);
