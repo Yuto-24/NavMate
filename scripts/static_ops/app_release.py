@@ -637,45 +637,14 @@ class Operator:
         )
         return {"path": str(path), "sha256": digest(raw), "record": record, "evidence": evidence}
 
-    def reviewed_schema(self, sha: str, current: str, variables: dict) -> dict | None:
-        """Reviewed, narrowly defined manual transitions; never an automatic override."""
-        if self.schema_transition is None:
-            return None
-        path = self.schema_transition.resolve()
-        try:
-            raw = path.read_bytes()
-            require(0 < len(raw) <= 1024 * 1024, "Schema transition record too large")
-            record = json.loads(raw)
-        except (OSError, ValueError):
-            raise Blocked("Schema transition record unavailable or invalid") from None
-        require(isinstance(record, dict), "Invalid schema transition record")
-        forecast = record.get("kind") == "forecast-model-selection"
-        aip = record.get("kind") == "aip-reference-source-writer-fence"
-        require(
-            type(record.get("schema_version")) is int and record["schema_version"] == 1
-            and record.get("kind") in (
-                "reference-snapshot-writer-fence", "forecast-model-selection",
-                "aip-reference-source-writer-fence")
-            and record.get("sha") == sha and record.get("current_sha") == current
-            and record.get("tooling_sha") == self.git("rev-parse", "HEAD")
-            and record.get("project") == variables["VITE_FIREBASE_PROJECT_ID"]
-            and record.get("origin") == gate.ORIGIN
-            and record.get("configuration_digest") == fingerprint(public_configuration(variables))
-            and record.get("direction") == "old-to-new"
-            and record.get("recovery") == "forward-fix; preserve Project data"
-            and type(record.get("database_version")) is int
-            and record["database_version"] == (3 if aip else 2),
-            "Schema transition identity, configuration or one-way recovery mismatch",
-        )
+    def schema_shape(self, sha: str, current: str, kind: str) -> None:
+        """Recognize an existing migration contract; this is not evidence or approval."""
+        require(kind in ("reference-snapshot-writer-fence", "forecast-model-selection",
+                         "aip-reference-source-writer-fence"), "Unsupported schema contract")
+        forecast = kind == "forecast-model-selection"
+        aip = kind == "aip-reference-source-writer-fence"
         schema = "data/schemas/project.schema.json"
         writer = "web/src/localProjectRepository.ts"
-        require(
-            record.get("before_blob") == self.source_digest(current, schema)
-            and record.get("after_blob") == self.source_digest(sha, schema)
-            and record["before_blob"] != record["after_blob"]
-            and record.get("writer_blob") == self.source_digest(sha, writer),
-            "Schema transition source identity mismatch",
-        )
         try:
             before = json.loads(self.git("show", f"{current}:{schema}"))
             after = json.loads(self.git("show", f"{sha}:{schema}"))
@@ -753,8 +722,7 @@ class Operator:
         # Presence is a prerequisite, NOT proof of safety. Reviewed browser/SDK
         # evidence below must cover the complete pinned candidate, including races.
         if forecast:
-            require(record.get("latest_policy") == "replace-own-device-latest-on-open"
-                    and self.rules_transition is None
+            require(self.rules_transition is None
                     and all(self.source_digest(current, name) == self.source_digest(sha, name)
                             for name in COMPATIBILITY[:2]),
                     "Forecast transition requires reviewed Latest policy "
@@ -778,6 +746,50 @@ class Operator:
                 and ", LOCAL_DATABASE_VERSION)" in source,
                 "Candidate must contain the version-1 to version-2 writer fence",
             )
+
+    def reviewed_schema(self, sha: str, current: str, variables: dict) -> dict | None:
+        """Reviewed, narrowly defined manual transitions; never an automatic override."""
+        if self.schema_transition is None:
+            return None
+        path = self.schema_transition.resolve()
+        try:
+            raw = path.read_bytes()
+            require(0 < len(raw) <= 1024 * 1024, "Schema transition record too large")
+            record = json.loads(raw)
+        except (OSError, ValueError):
+            raise Blocked("Schema transition record unavailable or invalid") from None
+        require(isinstance(record, dict), "Invalid schema transition record")
+        forecast = record.get("kind") == "forecast-model-selection"
+        aip = record.get("kind") == "aip-reference-source-writer-fence"
+        require(
+            type(record.get("schema_version")) is int and record["schema_version"] == 1
+            and record.get("kind") in (
+                "reference-snapshot-writer-fence", "forecast-model-selection",
+                "aip-reference-source-writer-fence")
+            and record.get("sha") == sha and record.get("current_sha") == current
+            and record.get("tooling_sha") == self.git("rev-parse", "HEAD")
+            and record.get("project") == variables["VITE_FIREBASE_PROJECT_ID"]
+            and record.get("origin") == gate.ORIGIN
+            and record.get("configuration_digest") == fingerprint(public_configuration(variables))
+            and record.get("direction") == "old-to-new"
+            and record.get("recovery") == "forward-fix; preserve Project data"
+            and type(record.get("database_version")) is int
+            and record["database_version"] == (3 if aip else 2),
+            "Schema transition identity, configuration or one-way recovery mismatch",
+        )
+        schema = "data/schemas/project.schema.json"
+        writer = "web/src/localProjectRepository.ts"
+        require(
+            record.get("before_blob") == self.source_digest(current, schema)
+            and record.get("after_blob") == self.source_digest(sha, schema)
+            and record["before_blob"] != record["after_blob"]
+            and record.get("writer_blob") == self.source_digest(sha, writer),
+            "Schema transition source identity mismatch",
+        )
+        if forecast:
+            require(record.get("latest_policy") == "replace-own-device-latest-on-open",
+                    "Forecast transition requires reviewed Latest policy")
+        self.schema_shape(sha, current, record["kind"])
         checks = record.get("checks")
         require(isinstance(checks, dict), "Schema compatibility evidence required")
         evidence = {}

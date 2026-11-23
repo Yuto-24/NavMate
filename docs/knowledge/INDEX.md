@@ -45,3 +45,5 @@ Entries below preserve scoped observations, not repository-wide rules.
 | [MSM-TRIGGER-OPS-DRIFT](entries/msm-trigger-worker-ops-drift.md) | `ops.mjs` による `.state/wrangler.json` 上書き、`observability` 差分、`.state` 欠落、OAuth 401/403、CA 不足、`FRESH` と dispatch の区別 | provisional | 2026-11-18、Worker 再配置と自然 Cron 1 tick 観測。`DISPATCH_ACCEPTED` 経路は未実証 |
 
 Use [TEMPLATE.md](TEMPLATE.md); keep details in their canonical document and link here. Do not turn this index into a transcript or broad file inventory.
+
+- [移行証跡の実行元と承認の再確認](../app_publication_audit.md#migration-evidence-source-identity-issue-514): #514。集約CI成功とnpm lockだけでは移行テスト実行を保証しない。旧fixtureが参照する共有実行コード、実版データの保存時正規化、長時間処理後の承認撤回を確認する。

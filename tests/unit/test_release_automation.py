@@ -218,19 +218,19 @@ def test_automation_workflow_contract():
     assert "workflows: [publish-github-release, test]" not in triggers
     assert "needs: [source-ci]" in workflow
     assert "needs.source-ci.result == 'success'" in workflow
-    assert workflow.count("group: static-production") == 7
+    assert workflow.count("group: static-production") == 9
     assert "vars.STATIC_APP_RELEASE_ENABLED == 'true'" in workflow
     assert "environment: static-production" in workflow and "static-publication" not in workflow
     assert "ref: main" in workflow and "persist-credentials: false" in workflow
     assert "github.repository == 'Yuto-24/NavMate' &&" in workflow
     # Each readback and manual schema operation retains the shared lock and WIF scope.
     assert workflow.count("create_credentials_file: false") == 6
-    assert workflow.count("create_credentials_file: true") == 2
+    assert workflow.count("create_credentials_file: true") == 4
     assert workflow.count("https://www.googleapis.com/auth/firebase.readonly") == 8
     source = (auto.ROOT / ".github/workflows/static-production.yml").read_text()
     assert "group: static-production\n  cancel-in-progress: false\n  queue: max" in source
-    assert workflow.count("cancel-in-progress: false") == 7
-    assert workflow.count("queue: max") == 7
+    assert workflow.count("cancel-in-progress: false") == 9
+    assert workflow.count("queue: max") == 9
 
 
 @pytest.mark.parametrize("version,branch", [

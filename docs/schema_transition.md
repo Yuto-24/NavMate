@@ -125,6 +125,10 @@ first publication and automation enabling remain separately authorized operation
 
 ## AIP出典拡張の手動公開（IndexedDB 2→3）
 
+新しいGitHub操作の入口は[GitHub上の移行証跡と承認](#github上の移行証跡と承認)です。
+以下の既存の手動移行手順も、個別に承認された移行・復旧の入口として保持します。
+
+
 AIP公表座標の出典を保存する候補には、`aip-reference-source-writer-fence` の手動移行を使います。
 初回のスナップショット追加やForecastの移行とは別の契約です。
 許可するschema差分は、規定の `AipReferencePointSource` 定義追加と、
@@ -163,3 +167,70 @@ Projectの `schema_version` と保存recordの `schemaVersion` も変えませ�
 候補・設定・証跡の再照合、30分のplan期限、個別の公開承認は従来どおり必要です。
 ローカルの合成データ・ブラウザー・エミュレーターによる成功は、本番公開や実機受入の完了を意味しません。
 本番候補と設定に結び付いた証跡の承認、および公開後の受入は別途必要です。
+
+
+## GitHub上の移行証跡と承認
+
+既知のAIP出典拡張（IndexedDB 2→3、Rules・indexes不変）では、証跡生成とファイル準備を
+Actionsが行います。操作者は非公開の証跡を確認し、レビューと最終公開を明示的に承認します。
+日常操作でJSON・CLI引数・Secretsを組み立てる必要はありません。
+この実装の導入だけでは本番設定や公開は変わりません。
+
+### 初回設定
+
+別途承認された設定作業として、公開NavMateとは別に、リポジトリ所有者が管理する
+非公開GitHubリポジトリを用意します。次を設定し、既存の保護設定は維持してください。
+
+| 設定 | 用途 |
+| --- | --- |
+| `STATIC_MIGRATION_REVIEW_REPOSITORY` variable | 非公開証跡の保管先（`Yuto-24/<repository>`）。移行中も同じ非公開リポジトリである必要があります。 |
+| `STATIC_MIGRATION_REVIEW_TOKEN` secret | 保管先だけのMetadata read・Issues read/write。ビルドや候補コードへ渡しません。 |
+| `STATIC_MIGRATION_ARCHIVE_KEY` secret | 32 byte鍵のbase64。生成証跡の認証とprepareの暗号化転送に使用します。 |
+
+prepareには既存の`STATIC_CLOUDFLARE_READ_TOKEN`、公開には`CLOUDFLARE_PAGES_TOKEN`を使用します。
+GitHubの変数操作には既存の`STATIC_APP_RELEASE_GH_TOKEN`、Rules読取には既存のWIFを再利用し、
+GitHub Release作成には公開jobの`GITHUB_TOKEN`を使います。新しい権限や設定の適用は別作業です。
+
+### 証跡確認から公開まで
+
+[static-app-release](https://github.com/Yuto-24/NavMate/actions/workflows/static-app-release.yml)の
+**Run workflow**で`main`を選びます。3工程とも同じtooling SHAが必要です。
+途中でmainが進んだ場合は、新しい証跡からやり直します。
+
+1. **証跡を確認する。** 自動生成されたRunのSummaryから非公開Issueを開きます。
+   手動生成には`evidence-migration`を選び、`candidate_sha`を指定します。空欄なら選択した
+   mainのSHAです。実際の現行版と候補版のDockerで、合成Saved・別内容のDraft・Latest・
+   LastCalculationを検証します。旧ブラウザーの保存・同期処理、共有する実行コードと依存関係、
+   候補のpush CIで実行された契約テストと検査定義の一致も要求します。
+2. **独立レビューを記録して準備する。** ソース上の互換性、各検証の結果と限界を独立に確認します。
+   PASSはテスト結果であり、レビュー完了や公開承認ではありません。
+   `prepare-migration`の`migration_record_id`にIssue番号、`reviewed_record_sha256`に
+   そのRunのSummaryのSHA-256を入力します。write以上の権限を持つ人間のGitHubアカウントによる
+   dispatchをレビュー記録とします。既存gateを確認後、天気更新を停止してprepareを実行します。
+3. **公開を最終承認する。** 非公開Issueに追加されたplanと変更対象を確認します。
+   `publish-migration`の`migration_record_id`には今度は**planコメントのID**、
+   `reviewed_record_sha256`にはprepare RunのSummaryのSHA-256を入力します。
+   これが最終公開承認です。plan作成後30分以内に開始する必要があります。
+
+証跡は候補・現行・tooling・公開設定に固定し、生成から24時間以内に使用します。
+合成データもzlib＋base64で圧縮して非公開Issueに残します。実アカウントや実端末の
+本番受入を証明するものではありません。prepareのファイルは暗号化済みArtifactだけを
+公開リポジトリ側に1日保持し、平文の証跡・設定を公開ログやArtifactへ出しません。
+
+公開は既存の`static-production`排他、fresh build・テスト、予報鮮度、Pages照合、
+承認SHA更新を通ります。その後GitHub Releaseを作成・照合し、公開先・承認SHA・Rules・
+設定・承認記録が整合する場合だけ天気更新を元の状態に戻します。元が停止中なら停止を維持します。
+証跡の編集・Issueの閉鎖は承認を無効にし、公開前と再開前にも再確認します。
+
+### 期限切れ・中断・部分失敗
+
+workflowの**Re-run jobsは使用できません**。新しいdispatchで新しい証跡と承認を取得します。
+plan期限切れでも天気更新を無条件に再開しません。公開の副作用がないと確認できた場合は、
+証跡生成・レビュー・prepareからやり直します。再prepare時点で天気が停止中なら、
+その停止状態が保存されるため、後の再開は既存の復旧手順で別途判断します。
+
+API障害、証跡・設定・Rulesの不一致、不確かな公開状態は停止します。非公開Issueの失敗記録で
+stageとUNKNOWN／CONFIRMEDを確認し、[既存の運用手順](static_operations.md)で
+本番Pages・承認SHA・予報更新状態を照合してください。成功か不明な書込は再送せず、
+部分公開を古い証跡で再試行したり、自動rollbackしたりしません。
+非公開記録の保存自体に失敗した場合は、公開ログの最小状態とproviderのreadbackで確認します。

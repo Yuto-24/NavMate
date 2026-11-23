@@ -11,15 +11,46 @@ Validate this delivery first with 1.x. After moving production to 2.x, end 1.x
 maintenance/releases; the global version comparison also prevents a late 1.x
 Release from replacing 2.x. No legacy server stop is part of this mechanism.
 
+## Release作成前の経路判定
+
+通常の入口はリリース準備PRです。`release-preflight` は本番の承認済みSHAと
+canonical `release.json` の一致を確認し、候補との差分から次の経路を表示します。
+PRでの表示には公開権限がありません。VERSION更新後のRelease publisherで再判定し、
+実際の公開直前にも既存の本番照合を行います。
+
+| 経路 | 条件と次の処理 |
+| --- | --- |
+| `AUTOMATIC` | Rules・indexes・Project schema・IndexedDB版が不変。従来どおりGitHub Releaseを作成し、自動公開へ進みます。 |
+| `MANUAL` | 同一Rules・indexesの下で、既知のAIP出典拡張とIndexedDB 2→3に一致。Release作成を保留し、[GitHub上の移行証跡と承認](schema_transition.md#github上の移行証跡と承認)へ進みます。 |
+| `BLOCKED` | 不明な差分、API取得失敗、本番との不一致、または自動証跡の未対応パターン。公開せず個別判断へ回します。 |
+
+初回のIndexedDB 1→2とForecast schema 4→5は既知の契約ですが、この自動証跡経路では
+未対応です。それぞれの既存の手動移行手順を使います。任意のRules・indexes変更や、
+単なるフィールド追加を安全とは判定しません。
+
+`STATIC_APP_RELEASE_ENABLED=true` のとき、VERSION更新のpublisher完了後に経路を
+再確認し、MANUALなら移行証跡を自動生成します。非公開の保管先などの初回設定が
+未完了なら停止します。GitHub UIから直接Releaseを作成した場合も本番gateは残りますが、
+Release作成前の誘導を受けるにはリリース準備PRを使ってください。
+本番がすでに移行済みで契約が不変なら、過去の移行証跡を再使用せず通常経路になります。
+
+この変更をmainに導入しただけでは、既存の`release/1.x`・`release/2.x`上の古いpublisherは
+更新されません。これらのブランチで次のReleaseを準備する前に、publisher・呼出先の
+`release-preflight` workflow・必要なtoolingと依存関係をレビュー済みの変更として反映してください。
+古いpublisherからの完了イベントでもmain側の本番gateは残りますが、Release作成前の判定には
+なりません。保守ブランチへの反映と非公開証跡の初回設定は、このPRの本番操作には含めません。
+
 ## Events and identity
 
-`static-app-release.yml` has the following entrances, all gated by repository variable
-`STATIC_APP_RELEASE_ENABLED == true` (absent is disabled):
+`static-app-release.yml` has the following entrances, for automatic publication, gated by repository variable
+`STATIC_APP_RELEASE_ENABLED == true` (absent is disabled). Separately selected migration
+dispatches retain their own explicit review and approval gates:
 
 - `workflow_run: completed` of successful `publish-github-release` pushes on
   `main` / `release/1.x` / `release/2.x`. This is the default bridge for Releases created with
   `GITHUB_TOKEN`; those Releases do not themselves trigger `release` workflows.
-  No PAT, dispatch step or deployment tool backport is needed in the v1 publisher.
+  The completion bridge itself needs no PAT or dispatch step in the publisher.
+  Pre-Release routing has the branch rollout prerequisite above.
 - 通常の`test` push CI完了は起動条件にしません。Releaseイベントで起動したread-onlyの
   `source-ci` jobがタグのpush CI成功を待ち、成功後にだけ本番公開jobへ進みます。
   ReleaseがCIより先に作られた場合も自動的に待機します。GitHub Release publisherには待機処理を追加しません。
@@ -40,7 +71,8 @@ only the latter permits a reviewed fix without unrelated main changes.
 See [release_lines.md](release_lines.md) for maintenance branch initialization.
 Trusted tooling is checked out from main once, retained at that SHA in the plan;
 candidate release scripts only execute inside the existing credential-free Docker
-build. No publisher-run artifacts or caches are downloaded or executed.
+build. The automatic path downloads no publisher-run artifacts or caches. The migration
+path below uses only its authenticated encrypted prepare archive.
 
 通常の新アプリ昇格は、**ReleaseタグのアプリSHA**と同じpush CIの成功を待ちます。
 toolingのSHAやPRの影響選択CIの成功では代用しません。必要なsuite・実行stepが欠ける、

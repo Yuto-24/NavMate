@@ -26,6 +26,9 @@ on:
           - readback-v260
           - prepare-schema260
           - publish-schema260
+          - evidence-migration
+          - prepare-migration
+          - publish-migration
       release_id:
         description: 'Existing stable GitHub Release ID (only for replay-release)'
         required: false
@@ -42,6 +45,18 @@ on:
         description: 'Explicitly approved 64-character plan SHA-256 (schema publish only)'
         required: false
         type: string
+      candidate_sha:
+        description: 'Candidate commit SHA for evidence-migration; empty uses the selected main commit'
+        required: false
+        type: string
+      migration_record_id:
+        description: 'For prepare-migration: private evidence Issue number. For publish-migration: plan comment ID. Empty for evidence-migration.'
+        required: false
+        type: string
+      reviewed_record_sha256:
+        description: 'Exact private record SHA-256 from the Actions summary confirming your review (prepare-migration or publish-migration)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -49,10 +64,40 @@ permissions:
   id-token: write
 
 jobs:
+  routing:
+    if: >-
+      github.repository == 'Yuto-24/NavMate' &&
+      vars.STATIC_APP_RELEASE_ENABLED == 'true' &&
+      github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      route: ${{ steps.route.outputs.route }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'setuptools>=69' wheel vendor/jma_gpv_weather-0.6.0-py3-none-any.whl .
+      - id: route
+        env:
+          STATIC_APPROVED_SHA: ${{ vars.STATIC_APPROVED_SHA }}
+          CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: python scripts/static_ops/release_preflight.py --sha "$CANDIDATE_SHA"
+
   # Release events only. Wait for the exact tag's push CI before taking the
   # static-production lease, so routine CI completions cannot launch this workflow.
   source-ci:
+    needs: routing
     if: >-
+      always() &&
+      (github.event_name != 'workflow_run' || needs.routing.outputs.route == 'AUTOMATIC') &&
       github.repository == 'Yuto-24/NavMate' &&
       vars.STATIC_APP_RELEASE_ENABLED == 'true' &&
       (github.event_name == 'release' ||
@@ -603,3 +648,145 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STATIC_CLOUDFLARE_READ_TOKEN }}
           STATIC_GOOGLE_ACCESS_TOKEN: ${{ steps.rules-read.outputs.access_token }}
         run: python scripts/static_ops/schema260_readback.py
+
+  migration-evidence:
+    needs: routing
+    if: >-
+      always() && github.repository == 'Yuto-24/NavMate' && vars.STATIC_APP_RELEASE_ENABLED == 'true' && ((github.event_name == 'workflow_run' && needs.routing.outputs.route == 'MANUAL') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.operation == 'evidence-migration'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: static-production
+    permissions:
+      contents: read
+      actions: read
+    defaults:
+      run:
+        working-directory: tooling
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          path: tooling
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - run: python -m pip install 'setuptools>=69' wheel vendor/jma_gpv_weather-0.6.0-py3-none-any.whl '.[test]' 'google-auth[requests]==2.63.1'
+      - run: npm --prefix web ci
+      - name: Run the selected migration operation
+        env:
+          GH_TOKEN: ${{ secrets.STATIC_APP_RELEASE_GH_TOKEN }}
+          STATIC_MIGRATION_REVIEW_REPOSITORY: ${{ vars.STATIC_MIGRATION_REVIEW_REPOSITORY }}
+          STATIC_MIGRATION_REVIEW_TOKEN: ${{ secrets.STATIC_MIGRATION_REVIEW_TOKEN }}
+          STATIC_MIGRATION_ARCHIVE_KEY: ${{ secrets.STATIC_MIGRATION_ARCHIVE_KEY }}
+        run: python scripts/static_ops/migration_release.py
+
+  migration-prepare:
+    concurrency:
+      group: static-production
+      cancel-in-progress: false
+      queue: max
+    if: >-
+      github.repository == 'Yuto-24/NavMate' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.operation == 'prepare-migration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: static-production
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: tooling
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          path: tooling
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - run: python -m pip install 'setuptools>=69' wheel vendor/jma_gpv_weather-0.6.0-py3-none-any.whl '.[test]' 'google-auth[requests]==2.63.1'
+      - run: npm --prefix services/taf-proxy ci
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        id: rules
+        with:
+          workload_identity_provider: ${{ vars.STATIC_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.STATIC_GOOGLE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: false
+      - name: Run the selected migration operation
+        env:
+          GH_TOKEN: ${{ secrets.STATIC_APP_RELEASE_GH_TOKEN }}
+          STATIC_MIGRATION_REVIEW_REPOSITORY: ${{ vars.STATIC_MIGRATION_REVIEW_REPOSITORY }}
+          STATIC_MIGRATION_REVIEW_TOKEN: ${{ secrets.STATIC_MIGRATION_REVIEW_TOKEN }}
+          STATIC_MIGRATION_ARCHIVE_KEY: ${{ secrets.STATIC_MIGRATION_ARCHIVE_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STATIC_CLOUDFLARE_READ_TOKEN }}
+          STATIC_GOOGLE_CREDENTIALS_FILE: ${{ steps.rules.outputs.credentials_file_path }}
+        run: python scripts/static_ops/migration_release.py
+      - name: Retain only the encrypted prepared archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: migration-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/migration-result-${{ github.run_id }}-${{ github.run_attempt }}.aesgcm
+          if-no-files-found: error
+          retention-days: 1
+
+  migration-publish:
+    concurrency:
+      group: static-production
+      cancel-in-progress: false
+      queue: max
+    if: >-
+      github.repository == 'Yuto-24/NavMate' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.operation == 'publish-migration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: static-production
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: tooling
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          path: tooling
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - run: python -m pip install 'setuptools>=69' wheel vendor/jma_gpv_weather-0.6.0-py3-none-any.whl '.[test]' 'google-auth[requests]==2.63.1'
+      - run: npm --prefix services/taf-proxy ci
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        id: rules
+        with:
+          workload_identity_provider: ${{ vars.STATIC_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.STATIC_GOOGLE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: false
+      - name: Run the selected migration operation
+        env:
+          GH_TOKEN: ${{ secrets.STATIC_APP_RELEASE_GH_TOKEN }}
+          STATIC_MIGRATION_REVIEW_REPOSITORY: ${{ vars.STATIC_MIGRATION_REVIEW_REPOSITORY }}
+          STATIC_MIGRATION_REVIEW_TOKEN: ${{ secrets.STATIC_MIGRATION_REVIEW_TOKEN }}
+          STATIC_MIGRATION_ARCHIVE_KEY: ${{ secrets.STATIC_MIGRATION_ARCHIVE_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
+          STATIC_GOOGLE_CREDENTIALS_FILE: ${{ steps.rules.outputs.credentials_file_path }}
+          RELEASE_GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/static_ops/migration_release.py

@@ -1,0 +1,109 @@
+{
+  "mode": "proposal",
+  "items": [
+    {
+      "id": "review-evidence",
+      "text": "Review source compatibility and each test result independently. Only after that review, choose prepare-migration with this Issue number and the record SHA-256 from the Actions summary. Tests are not approval.",
+      "location": "scripts/static_ops/migration_review.py",
+      "purpose": "Explain the next human action for this migration phase",
+      "context": "Private GitHub Issue or comment. Evidence needs independent source review; prepare pauses weather; publish is final authorization. Summary and raw record are bound to one digest.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "review-prepared",
+      "text": "Review the exact plan and changes below. To authorize production publication, choose publish-migration with this comment ID and the record SHA-256 from the Actions summary. Preparation has paused weather updates. The plan expires after 30 minutes.",
+      "location": "scripts/static_ops/migration_review.py",
+      "purpose": "Explain the next human action for this migration phase",
+      "context": "Private GitHub Issue or comment. Evidence needs independent source review; prepare pauses weather; publish is final authorization. Summary and raw record are bound to one digest.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "review-published",
+      "text": "Publication and readback completed. Confirm the recorded approved SHA and weather update state.",
+      "location": "scripts/static_ops/migration_review.py",
+      "purpose": "Explain the next human action for this migration phase",
+      "context": "Private GitHub Issue or comment. Evidence needs independent source review; prepare pauses weather; publish is final authorization. Summary and raw record are bound to one digest.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "review-blocked",
+      "text": "Publication is blocked or incomplete. Inspect canonical Pages, approved SHA, and weather state before recovery. Do not replay uncertain writes or resume weather unconditionally.",
+      "location": "scripts/static_ops/migration_review.py",
+      "purpose": "Explain the next human action for this migration phase",
+      "context": "Private GitHub Issue or comment. Evidence needs independent source review; prepare pauses weather; publish is final authorization. Summary and raw record are bound to one digest.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "input-candidate_sha",
+      "text": "Migration candidate commit; leave empty to use the selected main commit",
+      "location": ".github/workflows/static-app-release.yml",
+      "purpose": "Identify the correct value for a manual Actions form field",
+      "context": "User selects evidence-migration, prepare-migration, or publish-migration. No JSON/CLI construction required.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "input-migration_record_id",
+      "text": "Private evidence Issue number for prepare, or prepared-plan comment ID for publish",
+      "location": ".github/workflows/static-app-release.yml",
+      "purpose": "Identify the correct value for a manual Actions form field",
+      "context": "User selects evidence-migration, prepare-migration, or publish-migration. No JSON/CLI construction required.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "input-reviewed_record_sha256",
+      "text": "Approve the exact private record SHA-256 shown in the review summary",
+      "location": ".github/workflows/static-app-release.yml",
+      "purpose": "Identify the correct value for a manual Actions form field",
+      "context": "User selects evidence-migration, prepare-migration, or publish-migration. No JSON/CLI construction required.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "route-normal",
+      "text": "Existing access and data contracts unchanged",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain the pre-Release routing result",
+      "context": "AUTOMATIC means unchanged contracts only; MANUAL currently supports AIP2-to3; BLOCKED includes unknown or unsupported migrations. No approval is granted by classification.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "route-rules",
+      "text": "Rules or indexes require individual migration review",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain the pre-Release routing result",
+      "context": "AUTOMATIC means unchanged contracts only; MANUAL currently supports AIP2-to3; BLOCKED includes unknown or unsupported migrations. No approval is granted by classification.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "route-unknown",
+      "text": "Unknown or ambiguous schema migration",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain the pre-Release routing result",
+      "context": "AUTOMATIC means unchanged contracts only; MANUAL currently supports AIP2-to3; BLOCKED includes unknown or unsupported migrations. No approval is granted by classification.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "route-database",
+      "text": "Database version changed outside a supported schema migration",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain the pre-Release routing result",
+      "context": "AUTOMATIC means unchanged contracts only; MANUAL currently supports AIP2-to3; BLOCKED includes unknown or unsupported migrations. No approval is granted by classification.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "failure",
+      "text": "Migration BLOCKED. Inspect the private review and current production state; ",
+      "location": "scripts/static_ops/migration_release.py",
+      "purpose": "Direct operator recovery without leaking private state",
+      "context": "Any provider, validation, review, or publication failure. A partial publication must never auto-resume. Following sentence says do not resume or retry an uncertain write.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "publisher-manual",
+      "text": "A migration is required. App Release will collect private review evidence; GitHub Release creation waits for explicit publication approval.",
+      "location": ".github/workflows/publish-github-release.yml",
+      "purpose": "Explain why no GitHub Release was created and what starts next",
+      "context": "VERSION publisher preflight selected MANUAL; automatic evidence collection only if STATIC_APP_RELEASE_ENABLED=true and private review setup exists. Must make that prerequisite clear.",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    }
+  ]
+}
