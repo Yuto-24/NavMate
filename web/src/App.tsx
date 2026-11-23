@@ -1619,6 +1619,18 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     if (busy || !application.exportProject || !state?.project) return;
     await runTask(async () => {
       if (!await flushDraftAutosave(true)) throw new Error(DRAFT_AUTOSAVE_FAILURE);
+      const project = canonicalProjectRef.current ?? state.project!;
+      const drafts = navLogDraftsRef.current;
+      const errors = validateNavLogDrafts(project.sections, drafts);
+      const editedSections = project.sections.map(section =>
+        errors[section.id] ? section : applyDraftToSection(section, drafts[section.id]),
+      );
+      if (Object.keys(drafts).length > 0) {
+        const next = await application.updateProject(
+          updatePayloadRef.current(editedSections, undefined, project),
+        );
+        applyState(next, { syncCalculationInputs: false });
+      }
       const text = await application.exportProject!();
       await platform.files.save({ name: "navmate-project.json", mediaType: "application/json",
         content: new TextEncoder().encode(text) });

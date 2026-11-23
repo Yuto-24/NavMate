@@ -52,7 +52,8 @@ async function confirm(page: Page, weatherMode: "FORECAST" | "FTD" = "FORECAST")
     await altitudeInput.fill(altitude);
   }
 }
-async function calculate(page: Page) {
+async function calculate(page: Page, projectId?: string) {
+  const targetId = projectId ?? (await working(page)).project.id;
   for (const [name, altitude] of [["RJFM", "6500"], ["米ノ津", "7500"], ["玉名", "6500"]]) {
     const altitudeInput = page.getByLabel(`${name}出発Legの計画高度`, { exact: true });
     if (!await altitudeInput.count()) await page.getByLabel(new RegExp(`^${name}出発Leg.*候補$`)).selectOption("custom");
@@ -60,7 +61,9 @@ async function calculate(page: Page) {
   }
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
-  await expect.poll(async () => (await records(page))[0]?.lastCalculation?.outcome).not.toBeNull();
+  await expect.poll(async () => Boolean(
+    (await records(page)).find(record => record.id === targetId)?.lastCalculation,
+  )).toBe(true);
 }
 async function save(page: Page, name: string) {
   await openProjectMenu(page);
@@ -384,7 +387,7 @@ local_application.app._calculate_outcome = _fail_recalculation
   const value = edit === "navlog" ? "120" : "1400";
   await field().fill(value);
   const failureNotice = edit === "navlog"
-    ? page.locator(".nav-log-section").getByRole("status")
+    ? page.locator(".nav-log-edit-status")
     : page.locator("#app-notification-region").getByRole("alert");
   await expect(failureNotice).toContainText("Injected calculation failure");
   const failed = (await records(page))[0];
@@ -701,13 +704,30 @@ test("#319 Project JSON transfers uncalculated inputs into independent saved Pro
     await openProjectMenu(target);
     await target.getByLabel("JSONファイルから追加").setInputFiles({ name: "same.json", mimeType: "application/json", buffer: content });
     await expect.poll(async () => (await records(target)).length).toBe(2);
+    // getAll returns key order: calculate the later record while the first remains uncalculated.
+    const targetId = (await records(target)).at(-1)!.id;
     target.once("dialog", dialog => dialog.accept());
-    await load(target, first[0].id);
+    await load(target, targetId);
     await expect(target.getByLabel("気象モード")).toHaveValue("FTD");
     await target.reload();
     await expect(target.getByRole("button", { name: "プロジェクトメニュー", exact: true })).toBeVisible({ timeout: 120_000 });
-    expect((await working(target)).project.id).toBe(first[0].id);
-    await calculate(target);
+    expect((await working(target)).project.id).toBe(targetId);
+    await calculate(target, targetId);
+    expect((await records(target))[0].lastCalculation).toBeNull();
+    const calculated = (await records(target)).find(record => record.id === targetId)!.lastCalculation;
+    const clockTime = new Date("2026-09-11T03:00:00Z");
+    await target.clock.install({ time: clockTime });
+    await target.clock.pauseAt(new Date(clockTime.getTime() + 1000));
+    await target.locator('.nav-log-table input[aria-label$="手動気温"]').first().fill("-12");
+    await openProjectMenu(target);
+    const editedDownload = target.waitForEvent("download");
+    await target.getByRole("button", { name: "JSONファイルに書き出す", exact: true }).click();
+    const edited = JSON.parse(readFileSync((await (await editedDownload).path())!, "utf8"));
+    expect(edited.inputs.sections[0].manual_temperature_c).toBe(-12);
+    expect((await records(target)).find(record => record.id === targetId)!.lastCalculation).toEqual(calculated);
+    const projectMenu = target.getByRole("button", { name: "プロジェクトメニュー", exact: true });
+    if (await projectMenu.getAttribute("aria-expanded") === "true") await projectMenu.click();
+    await target.clock.resume();
     for (const width of [1100, 1440]) {
       await target.setViewportSize({ width, height: 1000 });
       await expectPlanningLayout(target, width);
