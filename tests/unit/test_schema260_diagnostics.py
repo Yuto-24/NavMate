@@ -37,7 +37,14 @@ def command_arguments(kind, root, store, stage="prepared"):
                 str(destination / "upload/dist-static")]
     args = ["docker", "run", "--rm", "-i", "--mount",
             f"type=bind,source={destination / 'app'},target=/app", "--mount",
-            f"type=bind,source={destination / 'feed'},target=/feed,readonly"]
+            f"type=bind,source={destination / 'feed'},target=/feed,readonly", "--mount",
+            f"type=bind,source={destination / 'metrics'},target=/release-metrics", "--mount",
+            f"type=bind,source={root / 'scripts/static_ops/release_timing.py'},"
+            "target=/release_timing.py,readonly", "--mount",
+            f"type=bind,source={root / 'web/scripts/source-ci-inventory.mjs'},"
+            "target=/source-ci-inventory.mjs,readonly", "--mount",
+            f"type=bind,source={destination / 'source-ci-web.json'},"
+            "target=/source-ci-web.json,readonly"]
     for name in app.gate.CONFIGURATION:
         args += ["--env", name]
     return args + ["--env", "AUTONAVLOG_MSM_FEED=/feed", "--env",
@@ -226,3 +233,30 @@ def test_archive_diagnostics_preserve_original_failure(journal):
     assert saved["archive_failure"]["exception_type"] == "OSError"
     assert saved["archive_failure"]["stage"] == "build-test"
     assert "PRIVATE" not in json.dumps(saved)
+
+
+def test_build_allowlist_matches_actual_pinned_operator_argv(tmp_path, monkeypatch):
+    destination = tmp_path / "prepared"
+    captured = []
+    def command(args, **kwargs):
+        if args[:2] == ["git", "clone"]:
+            (destination / "app").mkdir()
+        if args[:2] == ["docker", "run"]:
+            captured.append((args, kwargs.get("cwd", app.ROOT)))
+            raise app.Blocked("stop after argv capture")
+        if len(args) > 1 and str(args[1]).endswith("prepare_msm_feed.py"):
+            return "{}"
+        return ""
+    monkeypatch.setattr(app, "command", command)
+    monkeypatch.setattr(app.gate, "static_sources", lambda _: None)
+    monkeypatch.setattr(app, "restore", lambda *args: None)
+    monkeypatch.setattr(app, "validate_feed", lambda *args: None)
+    variables = {key: "value" for key in app.gate.REQUIRED_CONFIGURATION}
+    snapshot = {"tooling_sha": bundle.TOOLING, "variables": variables}
+    operator = app.Operator(app.ROOT)
+    monkeypatch.setattr(operator, "source_evidence", lambda _: None)
+    with pytest.raises(app.Blocked, match="argv capture"):
+        operator.build(bundle.CANDIDATE, snapshot, destination)
+    assert len(captured) == 1
+    assert diagnostics.build_command(app, captured[0][0], captured[0][1], app.ROOT, tmp_path) == (
+        "candidate-build-tests")

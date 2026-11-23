@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import zipfile
@@ -21,6 +22,7 @@ else:
     import schema260_prepare as prepare
 
 OPERATION = "publish-schema260"
+PUBLISH_DEADLINE_SECONDS = 80 * 60
 
 
 def scope(env: dict, event: dict) -> dict:
@@ -63,6 +65,7 @@ def publication_operator(app, root: Path, env: dict):
         def upload(self, destination, sha, upload_env):
             app.require(self.publication_allowed and sha == bundle.CANDIDATE,
                         "Explicit fixed publication required")
+            self.idle()
             return app.Operator.upload(self, destination, sha, upload_env)
 
         def snapshot(self, sha, current, *, paused=False):
@@ -236,6 +239,14 @@ def _run_private(root: Path) -> int:
     store, output, status_path = prepare.locations(env)
     prepare.public_status(status_path, {"status": "BLOCKED", "stage": "scope",
                                        "archive_ready": False})
+    deadline = {"expired": False, "command_active": False}
+    def expired(_signum, _frame):
+        deadline["expired"] = True
+        if not deadline["command_active"]:
+            raise TimeoutError("publish deadline expired")
+    previous_handler = signal.signal(signal.SIGALRM, expired)
+    signal.alarm(PUBLISH_DEADLINE_SECONDS)
+    app, original_command = None, None
     created_store, reserved_evidence = False, False
     success, archive_ready = False, False
     archive_errors = {}
@@ -251,6 +262,19 @@ def _run_private(root: Path) -> int:
                        "runner-tools")
         key = bundle.key_bytes(encoded_key)
         app = prepare.load_tooling(root)
+        original_command = app.command
+        def bounded_command(*args, **kwargs):
+            if deadline["expired"]:
+                raise TimeoutError("publish deadline expired")
+            deadline["command_active"] = True
+            try:
+                result = original_command(*args, **kwargs)
+            finally:
+                deadline["command_active"] = False
+            if deadline["expired"]:
+                raise TimeoutError("publish deadline expired")
+            return result
+        app.command = bounded_command
         operator = publication_operator(app, root.resolve(), env)
         store.mkdir(mode=0o700, exist_ok=False)
         created_store = True
@@ -280,17 +304,24 @@ def _run_private(root: Path) -> int:
         execute(app, operator, restored, inputs["reviewed_plan_sha256"], journal)
         success = True
     except Exception as error:
+        signal.alarm(0)
+        if app is not None and original_command is not None:
+            app.command = original_command
         if journal is not None:
             journal.finish(False)
             prepare.diagnostics.record_failure(app, error, root.resolve(), journal, env)
     finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if app is not None and original_command is not None:
+            app.command = original_command
         try:
             if journal is not None and evidence is not None:
                 handoff["publication"] = {
                     "driver_sha": env["GITHUB_SHA"], "run_id": env["GITHUB_RUN_ID"],
                     "run_attempt": env["GITHUB_RUN_ATTEMPT"], "succeeded": success}
-                app.write_json(restored / "handoff.json", handoff)
                 try:
+                    app.write_json(restored / "handoff.json", handoff)
                     # Prepared bytes are unchanged; fresh build/caches/logs are excluded.
                     timing_saved = prepare.encrypted_save(
                         restored, journal, evidence, key, output, success=True, publication=True)
@@ -315,11 +346,11 @@ def _run_private(root: Path) -> int:
                         # Keep the actual publication outcome and mutation journal,
                         # but never restore this reduced archive as a prepared plan.
                         handoff.update(prepared=False, plan_sha256=None, prepared_at=None)
-                        app.write_json(restored / "handoff.json", handoff)
                         try:
                             timing_saved = prepare.encrypted_save(
                                 restored, journal, evidence, key, output,
-                                success=False, publication=True)
+                                success=False, publication=True,
+                                handoff_override=json.dumps(handoff, sort_keys=True).encode())
                             archive_ready = True
                             bundle.require(timing_saved, "archive-timing-save")
                         except Exception as recovery_error:
@@ -361,11 +392,14 @@ def report() -> None:
     _, _, status_path = prepare.locations(dict(os.environ))
     status = (json.loads(status_path.read_text()) if status_path.is_file()
               else {"status": "NOT_STARTED"})
+    status["publish_step"] = os.environ.get("PUBLISH_STEP_OUTCOME", "unknown")
     status["review_upload"] = os.environ.get("REVIEW_UPLOAD_OUTCOME", "unknown")
     status["archive_upload"] = os.environ.get("ARCHIVE_UPLOAD_OUTCOME", "unknown")
-    if status.get("status") == "PUBLISHED" and (status["archive_upload"] != "success"
+    if status.get("status") == "PUBLISHED" and (status["publish_step"] != "success"
+                                               or status["archive_upload"] != "success"
                                                or status["review_upload"] != "success"):
-        status.update(status="BLOCKED", stage="archive-upload")
+        status.update(status="BLOCKED", stage=("publish-step" if status["publish_step"] != "success"
+                                                else "archive-upload"))
     status["workflow_measurement"] = prepare.release_timing.workflow_report(dict(os.environ))
     print(json.dumps(status, sort_keys=True))
 

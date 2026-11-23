@@ -396,7 +396,7 @@ jobs:
       inputs.operation == 'prepare-schema260' &&
       inputs.release_id == ''
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 150
     environment: static-production
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -435,7 +435,7 @@ jobs:
           export_environment_variables: false
       - name: Validate, pause and prepare the fixed schema transition
         id: prepare
-        timeout-minutes: 55
+        timeout-minutes: 135
         env:
           GH_TOKEN: ${{ secrets.STATIC_APP_RELEASE_GH_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.STATIC_CLOUDFLARE_READ_TOKEN }}
@@ -486,7 +486,7 @@ jobs:
       inputs.prepare_run_id != '' && inputs.prepare_run_attempt != '' &&
       inputs.reviewed_plan_sha256 != ''
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 150
     environment: static-production
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -525,7 +525,7 @@ jobs:
           export_environment_variables: false
       - name: Restore the approved plan and publish with the fixed reviewed gates
         id: publish-plan
-        timeout-minutes: 55
+        timeout-minutes: 135
         env:
           GH_TOKEN: ${{ secrets.STATIC_APP_RELEASE_GH_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
@@ -556,6 +556,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          PUBLISH_STEP_OUTCOME: ${{ steps.publish-plan.outcome }}
           REVIEW_UPLOAD_OUTCOME: ${{ steps.review.outcome }}
           ARCHIVE_UPLOAD_OUTCOME: ${{ steps.archive.outcome }}
         run: python driver/scripts/static_ops/schema260_publish.py report >> "$GITHUB_STEP_SUMMARY"

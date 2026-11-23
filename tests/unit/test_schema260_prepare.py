@@ -1048,3 +1048,50 @@ def test_archive_timing_write_failure_preserves_completed_ciphertext(
         assert review['status'] == 'BLOCKED' and review['archive_sha256'] == sealed[0]
         assert not review['publication_authorized']
     assert 'PRIVATE' not in status_path.read_text()
+
+
+def test_unseal_write_failure_cleans_staging_and_allows_retry(archive, tmp_path, monkeypatch):
+    output, key_path, _, _ = archive
+    target = tmp_path / "retry-store"
+    original = bundle.write_private
+    def broken(path, raw):
+        if path.name == "handoff.json":
+            raise OSError("simulated write failure")
+        original(path, raw)
+    monkeypatch.setattr(bundle, "write_private", broken)
+    with pytest.raises(OSError):
+        bundle.unseal(output, key_path, target)
+    assert not target.exists() and not list(tmp_path.glob(".retry-store.*"))
+    monkeypatch.setattr(bundle, "write_private", original)
+    assert bundle.unseal(output, key_path, target)["prepared"]
+
+
+def test_prepare_deadline_saves_recovery(runner_environment, tmp_path, monkeypatch):
+    import time
+    env, state, outputs = runner_environment
+    monkeypatch.setattr(driver, "PREPARE_DEADLINE_SECONDS", 1)
+    def slow(*args):
+        time.sleep(3)
+    monkeypatch.setattr(driver, "execute", slow)
+    assert driver.run(tmp_path) == 1
+    _, archive_path, status_path = driver.locations(env)
+    assert archive_path.exists() and "archive_ready=true" in outputs.read_text()
+    assert json.loads(status_path.read_text())["status"] == "BLOCKED"
+    assert state["automation"] == "true"
+
+
+def test_deadline_waits_for_active_subprocess_before_sealing(
+        runner_environment, tmp_path, monkeypatch):
+    env, _, outputs = runner_environment
+    marker = tmp_path / "child-completed"
+    monkeypatch.setattr(driver, "PREPARE_DEADLINE_SECONDS", 1)
+    def execute(app_module, *_args):
+        script = "import pathlib,time; time.sleep(2); pathlib.Path(" + repr(str(marker))
+        app_module.command([sys.executable, "-c", script + ").write_text('done')"], timeout=5)
+        pytest.fail("deadline must stop prepare after subprocess completes")
+    monkeypatch.setattr(driver, "execute", execute)
+    assert driver.run(tmp_path) == 1
+    _, encrypted, status_path = driver.locations(env)
+    assert marker.read_text() == "done"
+    assert encrypted.exists() and "archive_ready=true" in outputs.read_text()
+    assert json.loads(status_path.read_text())["status"] == "BLOCKED"

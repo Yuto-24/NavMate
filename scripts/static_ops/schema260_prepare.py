@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -33,6 +34,7 @@ WORKFLOW = ".github/workflows/static-app-release.yml"
 REPO_ID, OWNER_ID = 1314030412, 65487096
 CANDIDATE_CI = 45144029154
 OPERATION = "prepare-schema260"
+PREPARE_DEADLINE_SECONDS = 80 * 60
 
 
 def scope(env: dict, event: dict, *, operation: str = OPERATION,
@@ -362,6 +364,14 @@ def _run_private(root: Path) -> int:
     public_status(status_path, {"status": "BLOCKED", "stage": "scope",
                                "automation": "UNCHANGED", "automation_before": "UNKNOWN",
                                "archive_ready": False})
+    deadline = {"expired": False, "command_active": False}
+    def expired(_signum, _frame):
+        deadline["expired"] = True
+        if not deadline["command_active"]:
+            raise TimeoutError("prepare deadline expired")
+    previous_handler = signal.signal(signal.SIGALRM, expired)
+    signal.alarm(PREPARE_DEADLINE_SECONDS)
+    app, original_command = None, None
     journal, evidence, key = None, None, None
     created_store, created_evidence = False, False
     success, archive_ready = False, False
@@ -383,6 +393,19 @@ def _run_private(root: Path) -> int:
         bundle.require(cipher.decrypt(nonce, cipher.encrypt(nonce, b"probe", bundle.MAGIC),
                                       bundle.MAGIC) == b"probe", "archive-crypto")
         app = load_tooling(root)
+        original_command = app.command
+        def bounded_command(*args, **kwargs):
+            if deadline["expired"]:
+                raise TimeoutError("prepare deadline expired")
+            deadline["command_active"] = True
+            try:
+                result = original_command(*args, **kwargs)
+            finally:
+                deadline["command_active"] = False
+            if deadline["expired"]:
+                raise TimeoutError("prepare deadline expired")
+            return result
+        app.command = bounded_command
         store.mkdir(mode=0o700, exist_ok=False)
         created_store = True
         journal = quiet_journal(app, store, status_path)
@@ -393,10 +416,17 @@ def _run_private(root: Path) -> int:
         plan_digest = bundle.sha256((store / "plan.json").read_bytes())
         success = True
     except Exception as error:
+        signal.alarm(0)
+        if app is not None and original_command is not None:
+            app.command = original_command
         if journal is not None:
             journal.finish(False)
             diagnostics.record_failure(app, error, root.resolve(), journal, env)
     finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if app is not None and original_command is not None:
+            app.command = original_command
         try:
             if journal is not None and evidence is not None and key is not None:
                 handoff = {"schema_version": 1, "sha": bundle.CANDIDATE,

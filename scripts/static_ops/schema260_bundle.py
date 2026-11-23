@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import base64
 import contextlib
+import ctypes
 import hashlib
 import io
 import json
@@ -198,13 +199,20 @@ def restore_evidence(files: dict[str, bytes], *, existing: bool = False) -> None
 
 
 def archive_files(store: Path, evidence: dict[str, bytes], success: bool,
-                  *, publication: bool = False):
+                  *, publication: bool = False, handoff_override: bytes | None = None):
     for name, raw in evidence.items():
         yield "evidence/" + name, raw
-    for name in ("prepare-status.json", "handoff.json"):
-        yield "store/" + name, read_file(store / name, MAX_RECORD)
+    yield "store/prepare-status.json", read_file(store / "prepare-status.json", MAX_RECORD)
+    yield "store/handoff.json", (handoff_override if handoff_override is not None
+                                  else read_file(store / "handoff.json", MAX_RECORD))
     if publication:
         yield "store/publish-status.json", read_file(store / "publish-status.json", MAX_RECORD)
+    if publication:
+        fresh = store / "fresh/upload/dist-static/release.json"
+        if fresh.exists() or fresh.is_symlink():
+            for parent in (fresh, *list(fresh.parents)[:3]):
+                require(not parent.is_symlink(), "fresh-inventory-symlink")
+            yield "store/fresh/upload/dist-static/release.json", read_file(fresh, MAX_REPORT)
     if success:
         for name in ("plan.json", "prepared/feed-report.json"):
             yield "store/" + name, read_file(store / name, MAX_REPORT)
@@ -219,13 +227,15 @@ def archive_files(store: Path, evidence: dict[str, bytes], success: bool,
 
 
 def seal(store: Path, evidence: dict[str, bytes], key: bytes, output: Path,
-         *, success: bool, publication: bool = False) -> str:
+         *, success: bool, publication: bool = False,
+         handoff_override: bytes | None = None) -> str:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
     buffer = io.BytesIO()
     total, count = 0, 0
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        for name, raw in archive_files(store, evidence, success, publication=publication):
+        for name, raw in archive_files(store, evidence, success, publication=publication,
+                                       handoff_override=handoff_override):
             total += len(raw)
             count += 1
             require(total <= MAX_PAYLOAD and count <= MAX_FILES, "archive-capacity")
@@ -268,7 +278,7 @@ def unseal(archive_path: Path, key_path: Path, destination: Path) -> dict:
                     and total <= MAX_PAYLOAD, "archive-path-or-capacity")
             require(name.startswith("evidence/") or name in (
                 "store/plan.json", "store/prepare-status.json", "store/publish-status.json",
-                "store/handoff.json",
+                "store/handoff.json", "store/fresh/upload/dist-static/release.json",
                 "store/prepared/feed-report.json")
                 or name.startswith("store/prepared/upload/"), "archive-file")
             files[name] = archive.read(member)
@@ -291,10 +301,21 @@ def unseal(archive_path: Path, key_path: Path, destination: Path) -> dict:
                 == str(EVIDENCE_ROOT / RECORD_NAME), "plan-identity-or-path")
     require(not destination.exists() and not destination.is_symlink(), "store-already-exists")
     restore_evidence(evidence, existing=True)
-    destination.mkdir(mode=0o700)
-    for name, content in files.items():
-        if name.startswith("store/"):
-            write_private(destination / name.removeprefix("store/"), content)
+    temporary = Path(tempfile.mkdtemp(prefix="." + destination.name + ".", dir=destination.parent))
+    try:
+        for name, content in files.items():
+            if name.startswith("store/"):
+                write_private(temporary / name.removeprefix("store/"), content)
+        require(not destination.exists() and not destination.is_symlink(), "store-already-exists")
+        # Linux no-replace rename prevents a racing existing destination from being overwritten.
+        libc = ctypes.CDLL(None, use_errno=True)
+        result = libc.renameat2(-100, os.fsencode(temporary), -100, os.fsencode(destination), 1)
+        if result != 0:
+            error = ctypes.get_errno()
+            raise OSError(error, os.strerror(error))
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary)
     if handoff["prepared"]:
         created = datetime.fromisoformat(plan["prepared_at"])
         handoff["within_plan_window"] = (

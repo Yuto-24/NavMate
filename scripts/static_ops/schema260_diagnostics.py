@@ -34,7 +34,14 @@ def build_command(app, args: list[str], cwd: Path, root: Path, store: Path) -> s
         container = [
             "docker", "run", "--rm", "-i", "--mount",
             f"type=bind,source={destination / 'app'},target=/app", "--mount",
-            f"type=bind,source={destination / 'feed'},target=/feed,readonly",
+            f"type=bind,source={destination / 'feed'},target=/feed,readonly", "--mount",
+            f"type=bind,source={destination / 'metrics'},target=/release-metrics", "--mount",
+            f"type=bind,source={root / 'scripts/static_ops/release_timing.py'},"
+            "target=/release_timing.py,readonly", "--mount",
+            f"type=bind,source={root / 'web/scripts/source-ci-inventory.mjs'},"
+            "target=/source-ci-inventory.mjs,readonly", "--mount",
+            f"type=bind,source={destination / 'source-ci-web.json'},"
+            "target=/source-ci-web.json,readonly",
         ]
         for name in app.gate.CONFIGURATION:
             container += ["--env", name]

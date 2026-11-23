@@ -69,7 +69,11 @@ def test_reruns_and_other_execution_contexts_block(publication_context, name, va
 @pytest.fixture
 def provenance(publication_context, tmp_path, monkeypatch):
     env, event, source = publication_context
+    monkeypatch.setenv("STATIC_GOOGLE_ACCESS_TOKEN", "GOOGLE-SECRET-SENTINEL")
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "CLOUDFLARE-SECRET-SENTINEL")
     operator = driver.publication_operator(app, tmp_path, env)
+    assert operator.env["STATIC_GOOGLE_ACCESS_TOKEN"] == "GOOGLE-SECRET-SENTINEL"
+    assert operator.env["CLOUDFLARE_API_TOKEN"] == "CLOUDFLARE-SECRET-SENTINEL"
     job = {"id": 9, "run_id": 123, "run_attempt": 2, "head_sha": source["head_sha"],
            "name": "manual-prepare-v260", "status": "completed", "conclusion": "success"}
     artifact = {"id": 77, "name": "schema260-123-2", "expired": False, "size_in_bytes": 200,
@@ -444,7 +448,10 @@ def test_real_publish_flow_keeps_recovery_private_and_never_resumes(
     _, _, _, _, _, key_path, original_plan = approved_plan
     bundle.unseal(encrypted, key_path, recovery)
     assert (recovery / "plan.json").read_bytes() == original_plan
-    assert (recovery / "publish-status.json").is_file() and not (recovery / "fresh").exists()
+    assert (recovery / "publish-status.json").is_file()
+    fresh_manifest = recovery / "fresh/upload/dist-static/release.json"
+    assert fresh_manifest.is_file() == (failure != "fresh-build")
+    assert not (recovery / "fresh/cache").exists()
     assert capsys.readouterr() == ("", "")
     ordinary = tmp_path / "subsequent-coverage"
     ordinary.touch()
@@ -528,7 +535,7 @@ def test_original_publish_gates_still_block_before_mutation(runner, tmp_path, mo
 @pytest.mark.parametrize("failure", ["initial-status", "journal-status", "handoff", "seal",
                                       "output", "cleanup", "final-status"])
 def test_finalization_always_attempts_cleanup_and_restores_umask(
-        runner, tmp_path, monkeypatch, failure):
+        runner, tmp_path, monkeypatch, capsys, failure):
     env, _, outputs, _ = runner
     private, encrypted, status_path = prepare.locations(env)
     status_write, json_write = prepare.public_status, app.write_json
@@ -570,6 +577,15 @@ def test_finalization_always_attempts_cleanup_and_restores_umask(
         assert "archive_ready=false\n" in outputs.read_text() and not encrypted.exists()
     if status_path.exists():
         assert "PRIVATE" not in status_path.read_text()
+    if failure == "final-status":
+        for name, value in (("PUBLISH_STEP_OUTCOME", "failure"),
+                            ("REVIEW_UPLOAD_OUTCOME", "success"),
+                            ("ARCHIVE_UPLOAD_OUTCOME", "success")):
+            monkeypatch.setenv(name, value)
+        driver.report()
+        report = json.loads(capsys.readouterr().out)
+        assert report["status"] == "BLOCKED" and report["stage"] == "publish-step"
+        assert report["changes"]["production"] == "CONFIRMED"
 
 
 def test_wrong_key_fails_without_publication(runner, tmp_path, monkeypatch):
@@ -582,19 +598,24 @@ def test_wrong_key_fails_without_publication(runner, tmp_path, monkeypatch):
 def test_manual_publish_workflow_keeps_wif_and_explicit_inputs():
     workflow = (Path(__file__).resolve().parents[2]
                 / ".github/workflows/static-app-release.yml").read_text()
-    manual = workflow.split("\n  manual-publish-v260:\n", 1)[1]
+    manual = workflow.split("\n  manual-publish-v260:\n", 1)[1].split("\n  readback-v260:\n", 1)[0]
     condition = " ".join(manual.split("    if: >-\n", 1)[1]
                          .split("\n    runs-on:", 1)[0].split())
     assert "github.event_name == 'workflow_dispatch'" in condition
     assert "github.ref == 'refs/heads/main'" in condition
     assert "inputs.operation == 'publish-schema260'" in condition
+    assert ("inputs.prepare_run_id != '' && inputs.prepare_run_attempt != '' && "
+            "inputs.reviewed_plan_sha256 != ''") in condition
     for name in ("prepare_run_id", "prepare_run_attempt", "reviewed_plan_sha256"):
         assert f"inputs.{name} != ''" in condition
         assert "${{ inputs." + name not in manual  # No shell interpolation of inputs.
     assert "environment: static-production" in manual
     assert "ref: " + bundle.TOOLING in manual and "ref: ${{ github.sha }}" in manual
-    assert "create_credentials_file: false" in manual
-    assert "https://www.googleapis.com/auth/firebase.readonly" in manual
+    wif = manual.split("id: rules-manual-publish-v260", 1)[1].split("      - name:", 1)[0]
+    assert "create_credentials_file: false" in wif
+    assert "https://www.googleapis.com/auth/firebase.readonly" in wif
+    assert "steps.rules-manual-publish-v260.outputs.access_token" in manual
+    assert "PUBLISH_STEP_OUTCOME: ${{ steps.publish-plan.outcome }}" in manual
     assert "secrets.CLOUDFLARE_PAGES_TOKEN" in manual and "release_automation.py" not in manual
     assert "SCHEMA260_EVIDENCE" not in manual
     assert "steps.publish-plan.outputs.archive_ready == 'true'" in manual
@@ -608,6 +629,8 @@ def test_report_does_not_claim_success_when_private_record_upload_failed(
         monkeypatch.setenv(name, value)
     _, _, status_path = prepare.locations(env)
     prepare.public_status(status_path, {"status": "PUBLISHED", "stage": "resume"})
+    monkeypatch.setenv("PUBLISH_STEP_OUTCOME", "success")
+    monkeypatch.setenv("REVIEW_UPLOAD_OUTCOME", "success")
     monkeypatch.setenv("ARCHIVE_UPLOAD_OUTCOME", "failure")
     driver.report()
     result = json.loads(capsys.readouterr().out)
@@ -649,3 +672,92 @@ def test_publication_archive_timing_write_failure_preserves_actual_result(
         assert not review['publication_authorized']
     assert operator.calls.count('upload') == 1 and 'resume' not in operator.calls
     assert 'PRIVATE' not in status_path.read_text()
+
+
+@pytest.mark.parametrize("step,review,archive,expected", [
+    ("success", "success", "success", "PUBLISHED"),
+    ("failure", "success", "success", "BLOCKED"),
+    ("success", "failure", "success", "BLOCKED"),
+    ("success", "success", "failure", "BLOCKED"),
+])
+def test_summary_reports_step_and_both_transfers(tmp_path, monkeypatch, capsys,
+                                                 step, review, archive, expected):
+    for name, value in {"RUNNER_TEMP": str(tmp_path), "GITHUB_RUN_ID": "345",
+                        "GITHUB_RUN_ATTEMPT": "1", "PUBLISH_STEP_OUTCOME": step,
+                        "REVIEW_UPLOAD_OUTCOME": review, "ARCHIVE_UPLOAD_OUTCOME": archive}.items():
+        monkeypatch.setenv(name, value)
+    _, _, status_path = prepare.locations(dict(os.environ))
+    prepare.public_status(status_path, {"status": "PUBLISHED",
+                                        "changes": {"production": "CONFIRMED"}})
+    driver.report()
+    status = json.loads(capsys.readouterr().out)
+    assert status["status"] == expected and status["changes"]["production"] == "CONFIRMED"
+
+
+def test_handoff_write_failure_seals_publish_journal(runner, approved_plan, tmp_path, monkeypatch):
+    env, operator, outputs, _ = runner
+    original = app.write_json
+    def fail(path, value):
+        if path.name == "handoff.json" and "publication" in value:
+            raise OSError("private simulated failure")
+        original(path, value)
+    monkeypatch.setattr(app, "write_json", fail)
+    assert driver.run(tmp_path) == 1
+    _, encrypted, status_path = prepare.locations(env)
+    assert encrypted.exists() and "archive_ready=true" in outputs.read_text()
+    handoff = bundle.unseal(encrypted, approved_plan[5], tmp_path / "recovered")
+    assert handoff["publication"]["succeeded"] and not handoff["prepared"]
+    saved = json.loads((tmp_path / "recovered/publish-status.json").read_text())
+    assert saved["changes"]["production"] == "CONFIRMED"
+    assert json.loads(status_path.read_text())["status"] == "BLOCKED"
+    assert operator.calls.count("upload") == 1
+
+
+def test_queued_run_blocks_before_upload(provenance, monkeypatch, tmp_path):
+    operator, _, _, _, _, _ = provenance
+    operator.publication_allowed = True
+    def busy(self):
+        raise app.Blocked("busy")
+    monkeypatch.setattr(type(operator), "idle", busy)
+    monkeypatch.setattr(app.Operator, "upload", lambda *args: pytest.fail("unexpected upload"))
+    with pytest.raises(app.Blocked, match="busy"):
+        operator.upload(tmp_path, bundle.CANDIDATE, {})
+
+
+def test_publish_deadline_waits_for_active_command(runner, tmp_path, monkeypatch):
+    import sys
+
+    env, _, outputs, _ = runner
+    marker = tmp_path / "child-finished"
+    monkeypatch.setattr(driver, "PUBLISH_DEADLINE_SECONDS", 1)
+    def execute(app_module, *_args):
+        script = "import pathlib,time; time.sleep(2); pathlib.Path(" + repr(str(marker))
+        app_module.command([sys.executable, "-c", script + ").write_text('done')"], timeout=5)
+        pytest.fail("deadline must stop publication after the child exits")
+    monkeypatch.setattr(driver, "execute", execute)
+    assert driver.run(tmp_path) == 1
+    _, encrypted, status_path = prepare.locations(env)
+    assert marker.read_text() == "done"
+    assert encrypted.exists() and "archive_ready=true" in outputs.read_text()
+    assert json.loads(status_path.read_text())["status"] == "BLOCKED"
+
+
+def test_publish_deadline_retains_unknown_mutation(runner, approved_plan, tmp_path, monkeypatch):
+    import sys
+
+    env, _, outputs, _ = runner
+    marker = tmp_path / "mutation-finished"
+    monkeypatch.setattr(driver, "PUBLISH_DEADLINE_SECONDS", 1)
+    def execute(app_module, _operator, _store, _reviewed, journal):
+        script = "import pathlib,time; time.sleep(2); pathlib.Path(" + repr(str(marker))
+        journal.mutation("production", lambda: app_module.command(
+            [sys.executable, "-c", script + ").write_text('done')"], timeout=5))
+        pytest.fail("no later mutation may run")
+    monkeypatch.setattr(driver, "execute", execute)
+    assert driver.run(tmp_path) == 1
+    _, encrypted, _ = prepare.locations(env)
+    assert marker.read_text() == "done" and "archive_ready=true" in outputs.read_text()
+    bundle.unseal(encrypted, approved_plan[5], tmp_path / "recovered")
+    status = json.loads((tmp_path / "recovered/publish-status.json").read_text())
+    assert status["changes"]["production"] == "UNKNOWN"
+    assert status["events"][-1]["state"] == "ATTEMPTED"
