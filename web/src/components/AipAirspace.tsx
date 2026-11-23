@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef } from "react";
 import { GeoJSON, Pane } from "react-leaflet";
 import { aipCategories, type AipAirspace } from "../aipAirspace";
 
@@ -11,32 +10,16 @@ export function AipAirspaceLayers({ data, hidden }: { data: AipAirspace; hidden:
   </Pane>;
 }
 
-export function AipAirspaceControl({ data, failed, hidden, onChange }: {
+export function AipAirspaceControl({ data, failed, hidden, onChange, pcaVisible, onPcaChange }: {
   data: AipAirspace | null; failed: boolean; hidden: string[]; onChange: (id: string) => void;
+  pcaVisible: boolean; onPcaChange: (visible: boolean) => void;
 }) {
-  const controlRef = useRef<HTMLDetailsElement>(null);
-  useLayoutEffect(() => {
-    const control = controlRef.current!;
-    const frame = control.closest<HTMLElement>(".map-frame")!;
-    const toolbar = control.parentElement!;
-    const options = control.querySelector<HTMLElement>(".aip-layer-options")!;
-    const updateHeight = () => {
-      if (!control.open) return;
-      const available = frame.getBoundingClientRect().bottom - options.getBoundingClientRect().top - 8;
-      options.style.setProperty("--aip-available-height", `${Math.max(0, available)}px`);
-    };
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(frame);
-    observer.observe(toolbar);
-    control.addEventListener("toggle", updateHeight);
-    return () => {
-      observer.disconnect();
-      control.removeEventListener("toggle", updateHeight);
-    };
-  }, []);
-  return <details ref={controlRef} className="aip-layer-control">
-    <summary>空域レイヤー</summary>
+  return <details className="aip-layer-control">
+    <summary>空域表示</summary>
     <div className="aip-layer-options">
+      <label>
+        <input type="checkbox" checked={pcaVisible} onChange={event => onPcaChange(event.target.checked)} />宮崎特別管制区（PCA）
+      </label>
       {aipCategories.map(([id, label]) => <label key={id}>
         <input type="checkbox" checked={!hidden.includes(id)} onChange={() => onChange(id)} />{label}
       </label>)}

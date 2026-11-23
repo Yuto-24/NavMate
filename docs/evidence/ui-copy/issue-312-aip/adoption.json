@@ -170,14 +170,14 @@
     },
     {
       "id": "aip-14",
-      "text": "空域レイヤー",
-      "reason": "原本の分類とIssueの意図を優先して現状維持。ACAは未対応と断定せず対応未確認とし、発行元は登録済み出典の表記を保持する。",
+      "text": "空域表示",
+      "reason": "Issue #502指定の見出しへ変更。右ペインでPCAとAIPをまとめるため、元の候補Bを採用。移動後の文脈はissue-502-airspace-paneでもGeminiへ再提案依頼し照合した。",
       "response_quote": "### aip-14: 空域レイヤー\n* **現行文言**: 空域レイヤー\n* **提案候補**:\n  * **候補A（推奨・現状維持）**: `空域レイヤー`\n  * **候補B**: `空域表示`\n  * **候補C**: `AIP空域`\n* **理由**:\n  * 他のマップレイヤー機能（航空路、ウェイポイント等）がある場合、それらと並列なセクションヘッダーとして最も自然です。\n* **懸念**:\n  * 後述の出典説明（aip-18, 19）と連動する場合、「AIP空域」とするほうがデータソースのスコープが明確になる場合があります。",
       "source": {
         "path": "web/src/components/AipAirspace.tsx",
-        "start": "    <summary>空域レイヤー</summary>",
-        "end": "    <summary>空域レイヤー</summary>",
-        "expected": "    <summary>空域レイヤー</summary>"
+        "start": "    <summary>空域表示</summary>",
+        "end": "    <summary>空域表示</summary>",
+        "expected": "    <summary>空域表示</summary>"
       }
     },
     {

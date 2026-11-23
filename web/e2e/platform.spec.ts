@@ -394,7 +394,7 @@ test("source links open without an opener and cannot unlock a pending save", asy
   await confirmImportedDraft(page);
   await page.getByLabel("気象モード").selectOption("FTD");
   await page.getByLabel("ETD JST", { exact: true }).fill("09:00");
-  await page.getByText("空域レイヤー", { exact: true }).click();
+  await page.getByText("空域表示", { exact: true }).click();
   const link = page.getByRole("link", { name: "航空情報センター AIP", exact: true });
   const href = (await link.getAttribute("href"))!;
   await context.route(href, route => route.fulfill({ contentType: "text/html", body: "<title>Reference</title>" }));
@@ -537,7 +537,7 @@ test("delayed replacement import retains planning edits before route confirmatio
   await expect(page.getByRole("button", { name: "経路を確定", exact: true })).toBeEnabled();
 });
 
-test("#312 layer preferences preserve Project and Last Calculation", async ({ page }) => {
+test("#312 #502 layer preferences preserve Project and Last Calculation", async ({ page }) => {
   await open(page);
   await drop(page, "route.kml", kml);
   await confirmImportedDraft(page);
@@ -549,10 +549,13 @@ test("#312 layer preferences preserve Project and Last Calculation", async ({ pa
   await page.getByRole("button", { name: /^NAV LOGを作る$/ }).click();
   await expect.poll(async () => (await snapshot(page)).working.outcome).not.toBeNull();
   const before = (await snapshot(page)).working;
-  await page.getByText("空域レイヤー", { exact: true }).click();
+  await page.getByText("空域表示", { exact: true }).click();
   await page.getByLabel("民間訓練・試験空域", { exact: true }).uncheck();
   await expect(page.locator(".aip-Civil_training_and_testing_areas")).toHaveCount(0);
+  await page.getByLabel("宮崎特別管制区（PCA）", { exact: true }).uncheck();
+  await expect(page.locator(".rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(0);
   expect((await snapshot(page)).working).toEqual(before);
+  expect(await page.evaluate(() => localStorage.getItem("autonavlog.pca-visible.v1"))).toBe("false");
   expect(await page.evaluate(() => localStorage.getItem("autonavlog.aip-layers.v1")))
     .toContain("Civil_training_and_testing_areas");
   await page.reload();

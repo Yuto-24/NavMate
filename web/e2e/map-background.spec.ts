@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { aipCategories } from "../src/aipAirspace";
+import { openProjectMenu } from "./helpers/header";
 import { selectAirport, zoomMapTo } from "./helpers/mapCandidates";
 
 const preference = "autonavlog.map-background.v1";
@@ -109,73 +111,147 @@ test("#243 invalid or blocked device preferences do not prevent switching; outsi
   await zoomMapTo(page, 15);
 });
 
+async function expectAirspacePane(page: Page, width: number) {
+  const control = page.locator(".planning-pane-scroll > .aip-layer-control");
+  await expect(control).toHaveCount(1);
+  await expect(page.locator(".map-frame .aip-layer-control")).toHaveCount(0);
+  const boxes = await page.evaluate(() => {
+    const map = document.querySelector(".map-frame")!.getBoundingClientRect();
+    const pane = document.querySelector(".planning-pane")!.getBoundingClientRect();
+    const control = document.querySelector(".aip-layer-control")!;
+    const route = document.querySelector(".map-route-controls, .route-timeline")!;
+    return { map: { top: map.top, right: map.right, bottom: map.bottom },
+      pane: { top: pane.top, left: pane.left },
+      followsRoute: Boolean(route.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING),
+      overflow: document.documentElement.scrollWidth - innerWidth };
+  });
+  expect(boxes.followsRoute).toBe(true);
+  expect(boxes.overflow).toBeLessThanOrEqual(1);
+  if (width > 700) {
+    expect(boxes.map.right).toBeLessThanOrEqual(boxes.pane.left + 2);
+    expect(Math.abs(boxes.map.top - boxes.pane.top)).toBeLessThanOrEqual(2);
+  } else expect(boxes.pane.top).toBeGreaterThanOrEqual(boxes.map.bottom - 1);
+}
+
 for (const width of [390, 1100, 1440]) {
-  test(`#312 AIP layers survive route creation, Planning, re-edit and reload at ${width}px`, async ({ page }, info) => {
+  test(`#312 #502 airspace pane preserves creation, Planning, re-edit and reload at ${width}px`, async ({ page }, info) => {
     await mockTiles(page);
     await page.setViewportSize({ width, height: 1100 });
     const requests: string[] = [];
     page.on("request", request => requests.push(request.url()));
     await start(page);
     const civil = page.locator(".aip-Civil_training_and_testing_areas");
-    await expect(civil.first()).toBeAttached();
-    expect(await civil.count()).toBe(132);
+    const pca = page.getByLabel("宮崎特別管制区（PCA）", { exact: true });
+    const summary = page.getByText("空域表示", { exact: true });
+    const control = page.locator(".aip-layer-control");
+    await expect(control).not.toHaveAttribute("open");
+    await expect(civil).toHaveCount(132);
     await expect(page.locator(".aip-airspace.leaflet-interactive")).toHaveCount(0);
     await expect(page.locator(".rjfm-training-airspace")).toHaveCount(0);
-    await page.getByText("空域レイヤー", { exact: true }).click();
+    await expectAirspacePane(page, width);
+    await summary.click();
+    await expectAirspacePane(page, width);
     await expect(page.getByText("AIRAC有効日：2026-10-29", { exact: true })).toBeVisible();
-    await page.getByLabel("民間訓練・試験空域", { exact: true }).uncheck();
-    await expect(civil).toHaveCount(0);
-    await page.getByLabel("民間訓練・試験空域", { exact: true }).check();
-    await page.getByText("空域レイヤー", { exact: true }).click();
+    // Fresh devices show exactly the three requested AIP categories plus PCA.
+    const defaults = ["Civil_training_and_testing_areas", "Approach_control_area_CIVIL", "Restricted_area_Airspace_restrictions"];
+    for (const [id, label] of aipCategories) {
+      await expect(page.getByLabel(label, { exact: true })).toBeChecked({ checked: defaults.includes(id) });
+      if (defaults.includes(id)) await expect(page.locator(`.aip-${id}`).first()).toBeAttached();
+      else await expect(page.locator(`.aip-${id}`)).toHaveCount(0);
+    }
+    await expect(pca).toBeChecked();
+    await pca.uncheck();
+    await expect(page.locator(".rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(0);
+    await pca.check();
+    await summary.click();
     await selectAirport(page, "RJFM");
     await selectAirport(page, "RJFK");
     await page.getByRole("button", { name: "経路を確定", exact: true }).click();
     await expect(page.locator(".route-workspace.is-route-building")).toHaveCount(0);
-    await expect(civil).toHaveCount(132);
-    await page.getByText("空域レイヤー", { exact: true }).click();
-    const menuBox = (await page.locator(".aip-layer-options").boundingBox())!;
-    const frameBox = (await page.locator(".map-frame").boundingBox())!;
-    expect(menuBox.x).toBeGreaterThanOrEqual(frameBox.x);
-    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(frameBox.x + frameBox.width);
-    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(frameBox.y + frameBox.height);
-    const lastCategory = page.getByLabel("回廊", { exact: true });
-    await lastCategory.scrollIntoViewIfNeeded();
-    await expect(lastCategory).toBeInViewport();
+    await expectAirspacePane(page, width);
+    await summary.click();
+    await expectAirspacePane(page, width);
+    await expect(page.locator(".rjfm-pca-boundary")).toHaveCount(1);
+    await expect(page.locator(".rjfm-pca-exclusion")).toHaveCount(1);
+    await pca.uncheck();
+    await expect(page.locator(".rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(0);
+    await pca.check();
+    await expect(page.locator(".rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(2);
+    // Every category can be enabled/disabled independently, including initial OFF layers.
+    for (const [id, label] of aipCategories) {
+      await test.step(label, async () => {
+        const checkbox = page.getByLabel(label, { exact: true });
+        await checkbox.check();
+        await expect(page.locator(`.aip-${id}`).first()).toBeAttached();
+        await checkbox.uncheck();
+        await expect(page.locator(`.aip-${id}`)).toHaveCount(0);
+      });
+    }
+    await pca.uncheck();
     const source = page.getByRole("link", { name: "航空情報センター AIP", exact: true });
     await source.scrollIntoViewIfNeeded();
     expect(await source.evaluate(element => {
       const box = element.getBoundingClientRect();
       return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
     })).toBe(true);
-    await page.getByText("空域レイヤー", { exact: true }).click();
+    await expect(control).toContainText("NOTAM・現在の使用状況は未反映");
+    await page.screenshot({ path: info.outputPath(`airspace-planning-${width}.png`), fullPage: true });
+    await summary.click();
     await page.getByRole("button", { name: "経路を編集", exact: true }).click();
     await expect(page.locator(".route-workspace.is-route-building")).toBeVisible();
-    await expect(civil).toHaveCount(132);
-    await page.getByText("空域レイヤー", { exact: true }).click();
-    await page.getByLabel("民間訓練・試験空域", { exact: true }).uncheck();
-    await page.getByText("空域レイヤー", { exact: true }).click();
+    await summary.click();
+    await expectAirspacePane(page, width);
+    await expect(pca).not.toBeChecked();
+    await expect(page.locator(".aip-airspace, .rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(0);
+    await pca.check();
+    await expect(page.locator(".rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(2);
+    await pca.uncheck();
+    await summary.click();
     await page.getByRole("button", { name: "地図を全画面表示", exact: true }).click();
-    await page.getByText("空域レイヤー", { exact: true }).click();
-    const fullMenu = (await page.locator(".aip-layer-options").boundingBox())!;
-    expect(fullMenu.x).toBeGreaterThanOrEqual(0);
-    expect(fullMenu.x + fullMenu.width).toBeLessThanOrEqual(width);
-    await page.screenshot({ path: info.outputPath(`aip-${width}.png`) });
-    await page.reload();
+    await expect(page.getByRole("dialog", { name: "全画面の経路地図" })).toBeVisible();
+    await expect(page.locator(".map-frame .aip-layer-control")).toHaveCount(0);
+    await page.getByRole("button", { name: "地図の全画面表示を終了", exact: true }).click();
     await start(page);
-    await page.getByText("空域レイヤー", { exact: true }).click();
-    await expect(page.getByLabel("民間訓練・試験空域", { exact: true })).not.toBeChecked();
-    await expect(civil).toHaveCount(0);
-    await expect(page.locator(".aip-Restricted_area_Airspace_restrictions").first()).toBeAttached();
-    const boxes = await page.evaluate(() => {
-      const map = document.querySelector('.map-frame')!.getBoundingClientRect();
-      const pane = document.querySelector('.planning-pane')!.getBoundingClientRect();
-      return { right: map.right, left: pane.left, delta: Math.abs(map.top - pane.top) };
-    });
-    if (width > 700) {
-      expect(boxes.right).toBeLessThanOrEqual(boxes.left + 2);
-      expect(boxes.delta).toBeLessThanOrEqual(2);
-    }
+    await summary.click();
+    await expect(pca).not.toBeChecked();
+    await expect(page.locator(".aip-airspace, .rjfm-pca-boundary, .rjfm-pca-exclusion")).toHaveCount(0);
+    await expect(control.getByRole("checkbox", { checked: true })).toHaveCount(0);
+    await expectAirspacePane(page, width);
     expect(requests.some(url => url.includes('/reference/aip/Civil_training_and_testing_areas-'))).toBe(true);
     expect(requests.some(url => url.includes('kokuarea_minkankunren'))).toBe(false);
+  });
+}
+
+for (const hidden of [[], ["Civil_training_and_testing_areas", "FIR"]]) {
+  test(`#312 #502 existing AIP preference ${JSON.stringify(hidden)} survives reload and Project switches`, async ({ page }) => {
+    await mockTiles(page);
+    await start(page);
+    await page.evaluate(hidden => localStorage.setItem("autonavlog.aip-layers.v1", JSON.stringify(hidden)), hidden);
+    await start(page);
+    const assertSavedPreference = async () => {
+      await page.getByText("空域表示", { exact: true }).click();
+      for (const [id, label] of aipCategories) {
+        await expect(page.getByLabel(label, { exact: true })).toBeChecked({ checked: !hidden.includes(id) });
+      }
+      expect(await page.evaluate(() => JSON.parse(localStorage.getItem("autonavlog.aip-layers.v1")!))).toEqual(hidden);
+      await page.getByText("空域表示", { exact: true }).click();
+    };
+    await assertSavedPreference();
+    await selectAirport(page, "RJFM");
+    await selectAirport(page, "RJFK");
+    await page.getByRole("button", { name: "経路を確定", exact: true }).click();
+    await openProjectMenu(page);
+    await page.getByLabel("プロジェクト", { exact: true }).fill("Airspace preference");
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
+    await page.getByRole("button", { name: "新規", exact: true }).click();
+    await assertSavedPreference();
+    await openProjectMenu(page);
+    await page.getByLabel("保存済み", { exact: true }).selectOption({ label: "Airspace preference" });
+    await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
+    await expect(page.locator(".route-workspace.is-route-building")).toHaveCount(0);
+    await assertSavedPreference();
+    await start(page);
+    await assertSavedPreference();
   });
 }

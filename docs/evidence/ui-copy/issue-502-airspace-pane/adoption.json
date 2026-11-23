@@ -1,0 +1,292 @@
+{
+  "items": [
+    {
+      "id": "aip-0",
+      "text": "民間訓練・試験空域",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-0: 民間訓練・試験空域\n* **現行文言**: 民間訓練・試験空域\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `民間訓練・試験空域`\n  * **候補B**: `訓練・試験空域（民間）`\n* **理由**: 航空路誌（AIP）の正式分類と一致しており、航空従事者にとって最も認知度が高く誤認が生じません。候補Bは下の「進入管制空域（民間）」と命名則を統一する案ですが、原本表記の馴染みやすさから候補Aが自然です。\n* **懸念**: 特になし。初期ON対象であるため、略称化せず正式なカテゴリ名を保つのが安全です。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"Civil_training_and_testing_areas\", \"民間訓練・試験空域\"],",
+        "end": "  [\"Civil_training_and_testing_areas\", \"民間訓練・試験空域\"],",
+        "expected": "  [\"Civil_training_and_testing_areas\", \"民間訓練・試験空域\"],"
+      }
+    },
+    {
+      "id": "aip-1",
+      "text": "自衛隊訓練・試験空域（高高度）",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-1: 自衛隊訓練・試験空域（高高度）\n* **現行文言**: 自衛隊訓練・試験空域（高高度）\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `自衛隊訓練・試験空域（高高度）`\n  * **候補B**: `自衛隊 訓練・試験（高高度）`\n* **理由**: AIPでの区分（自衛隊等の訓練・試験空域）を正確に表しています。「高高度」と付くことで低高度（aip-2）との高度区分（FL140等）の違いが即座に理解できます。\n* **懸念**: ペイン幅が狭い端末の場合、1行に収まらず改行される可能性があります（視認性への影響）。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"JSDF_training_and_testing_areas_HIGH\", \"自衛隊訓練・試験空域（高高度）\"],",
+        "end": "  [\"JSDF_training_and_testing_areas_HIGH\", \"自衛隊訓練・試験空域（高高度）\"],",
+        "expected": "  [\"JSDF_training_and_testing_areas_HIGH\", \"自衛隊訓練・試験空域（高高度）\"],"
+      }
+    },
+    {
+      "id": "aip-2",
+      "text": "自衛隊訓練・試験空域（低高度）",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-2: 自衛隊訓練・試験空域（低高度）\n* **現行文言**: 自衛隊訓練・試験空域（低高度）\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `自衛隊訓練・試験空域（低高度）`\n  * **候補B**: `自衛隊 訓練・試験（低高度）`\n* **理由**: aip-1と対になる項目であり、VFRや低高度巡航を行う小型機操縦士にとって特に重要度の高い空域です。\n* **懸念**: aip-1同様、文字数が15文字あるため狭幅ペインでの改行折り返しへの配慮が必要です。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"JSDF_training_and_testing_areas_LOW\", \"自衛隊訓練・試験空域（低高度）\"],",
+        "end": "  [\"JSDF_training_and_testing_areas_LOW\", \"自衛隊訓練・試験空域（低高度）\"],",
+        "expected": "  [\"JSDF_training_and_testing_areas_LOW\", \"自衛隊訓練・試験空域（低高度）\"],"
+      }
+    },
+    {
+      "id": "aip-3",
+      "text": "飛行制限空域",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-3: 飛行制限空域\n* **現行文言**: 飛行制限空域\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `飛行制限空域`\n  * **候補B**: `制限空域（Restricted Area）`\n* **理由**: 航空法・AIP上の定義（Restricted / Danger / Prohibited Area等を含む総称）として定着しており、初期ONにふさわしい簡潔で過不足のない表現です。\n* **懸念**: 一時的なNOTAM制限空域（TFR等）が含まれると利用者が誤解するリスクがあります（後述の出典・制約文言で「NOTAM未反映」を明示することでカバー）。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"Restricted_area_Airspace_restrictions\", \"飛行制限空域\"],",
+        "end": "  [\"Restricted_area_Airspace_restrictions\", \"飛行制限空域\"],",
+        "expected": "  [\"Restricted_area_Airspace_restrictions\", \"飛行制限空域\"],"
+      }
+    },
+    {
+      "id": "aip-4",
+      "text": "進入管制空域（民間）",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-4: 進入管制空域（民間）\n* **現行文言**: 進入管制空域（民間）\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `進入管制空域（民間）`\n  * **候補B**: `進入管制区 / ターミナル空域（民間）`\n* **理由**: 国土交通省（民間空港）が管制を担当する進入管制区（Approach Control Area）であることが直感的に分かります。\n* **懸念**: 「ターミナル管制空域（TCA）」と混同する初心者がいる可能性がありますが、原本のカテゴリ意味を保持する上では現行が最適です。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"Approach_control_area_CIVIL\", \"進入管制空域（民間）\"],",
+        "end": "  [\"Approach_control_area_CIVIL\", \"進入管制空域（民間）\"],",
+        "expected": "  [\"Approach_control_area_CIVIL\", \"進入管制空域（民間）\"],"
+      }
+    },
+    {
+      "id": "aip-5",
+      "text": "進入管制空域（軍用）",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-5: 進入管制空域（軍用）\n* **現行文言**: 進入管制空域（軍用）\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `進入管制空域（軍用）`\n  * **候補B**: `進入管制空域（自衛隊・米軍）`\n* **理由**: aip-4（民間）と明確に対比されており、自衛隊や在日米軍が管轄する進入管制空域であることが明確です。\n* **懸念**: 原本分類上「軍用」と総称されている場合、候補Bのように補足を増やすと原本カテゴリの意味や簡潔さを損ねるため候補Aが妥当です。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"Approach_control_area_MIL\", \"進入管制空域（軍用）\"],",
+        "end": "  [\"Approach_control_area_MIL\", \"進入管制空域（軍用）\"],",
+        "expected": "  [\"Approach_control_area_MIL\", \"進入管制空域（軍用）\"],"
+      }
+    },
+    {
+      "id": "aip-6",
+      "text": "管制圏・情報圏",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-6: 管制圏・情報圏\n* **現行文言**: 管制圏・情報圏\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `管制圏・情報圏`\n  * **候補B**: `管制圏 / 航空交通情報圏`\n* **理由**: 空港周辺のControl Zone（CTR）およびInformation Zoneであることを端的に表しています。\n* **懸念**: 1つのトグルでCTRと情報圏（および民間・自衛隊双方）が同時にONになる挙動を理解しやすい反面、特定空港のCTRのみを見たい利用者には大括りすぎると感じられる可能性があります。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"Control_zone_and_Information_zone\", \"管制圏・情報圏\"],",
+        "end": "  [\"Control_zone_and_Information_zone\", \"管制圏・情報圏\"],",
+        "expected": "  [\"Control_zone_and_Information_zone\", \"管制圏・情報圏\"],"
+      }
+    },
+    {
+      "id": "aip-7",
+      "text": "防空識別圏（内側）",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-7: 防空識別圏（内側）\n* **現行文言**: 防空識別圏（内側）\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `防空識別圏（内側）`\n  * **候補B**: `ADIZ（内側境界）`\n* **理由**: ADIZ（Air Defense Identification Zone）の内側境界線（本土側・領空近傍）であることを明確に示しています。\n* **懸念**: 航空従事者には「ADIZ」の略称が極めて一般的ですが、他カテゴリが和文表記で統一されているため日本語表記（候補A）が整合します。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"ADIZ_INNER\", \"防空識別圏（内側）\"],",
+        "end": "  [\"ADIZ_INNER\", \"防空識別圏（内側）\"],",
+        "expected": "  [\"ADIZ_INNER\", \"防空識別圏（内側）\"],"
+      }
+    },
+    {
+      "id": "aip-8",
+      "text": "防空識別圏（外側）",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-8: 防空識別圏（外側）\n* **現行文言**: 防空識別圏（外側）\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `防空識別圏（外側）`\n  * **候補B**: `ADIZ（外側境界）`\n* **理由**: aip-7と対をなし、外側の識別圏境界であることを端的に示します。\n* **懸念**: 地図上で内側・外側両方をONにした際、線種や色の区別がつかないと画面が煩雑化する懸念があります。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"ADIZ_OUTER\", \"防空識別圏（外側）\"],",
+        "end": "  [\"ADIZ_OUTER\", \"防空識別圏（外側）\"],",
+        "expected": "  [\"ADIZ_OUTER\", \"防空識別圏（外側）\"],"
+      }
+    },
+    {
+      "id": "aip-9",
+      "text": "飛行情報区",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-9: 飛行情報区\n* **現行文言**: 飛行情報区\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `飛行情報区`\n  * **候補B**: `飛行情報区（FIR）`\n* **理由**: 福岡FIRなどの境界を示す原本カテゴリとして定着しています。\n* **懸念**: 日本国内の計画作成時、広域表示にしない限り画面外になりやすく、ONにしても変化がないと感じられる可能性があります。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"FIR\", \"飛行情報区\"],",
+        "end": "  [\"FIR\", \"飛行情報区\"],",
+        "expected": "  [\"FIR\", \"飛行情報区\"],"
+      }
+    },
+    {
+      "id": "aip-10",
+      "text": "QNH適用区域",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-10: QNH適用区域\n* **現行文言**: QNH適用区域\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `QNH適用区域`\n  * **候補B**: `高度計規正区域（QNH適用）`\n* **理由**: 高度計規正方式の適用境界を示す用語として航空業界で標準的です。\n* **懸念**: 一般的な有視界飛行計画では利用頻度が低いため、初期OFFのまま必要なパイロットのみが選択する運用に適しています。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"QNH_Application_Area\", \"QNH適用区域\"],",
+        "end": "  [\"QNH_Application_Area\", \"QNH適用区域\"],",
+        "expected": "  [\"QNH_Application_Area\", \"QNH適用区域\"],"
+      }
+    },
+    {
+      "id": "aip-11",
+      "text": "超音速飛行空域",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-11: 超音速飛行空域\n* **現行文言**: 超音速飛行空域\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `超音速飛行空域`\n* **理由**: 原本カテゴリ名そのまま。特殊用途空域として意図が明瞭です。\n* **懸念**: 民間機・一般航空の運航計画では通常使用されないため、探す優先度は低いです。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"Supersonic_flight_area\", \"超音速飛行空域\"],",
+        "end": "  [\"Supersonic_flight_area\", \"超音速飛行空域\"],",
+        "expected": "  [\"Supersonic_flight_area\", \"超音速飛行空域\"],"
+      }
+    },
+    {
+      "id": "aip-12",
+      "text": "離陸飛行経路区域",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-12: 離陸飛行経路区域\n* **現行文言**: 離陸飛行経路区域\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `離陸飛行経路区域`\n* **理由**: 原本の区分名と一致しており、誤認の余地がありません。\n* **懸念**: SID（標準計器出発方式）そのものと混同されないよう、あくまで空域境界の表示である前提が必要です。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"Take_off_flight_path_area\", \"離陸飛行経路区域\"],",
+        "end": "  [\"Take_off_flight_path_area\", \"離陸飛行経路区域\"],",
+        "expected": "  [\"Take_off_flight_path_area\", \"離陸飛行経路区域\"],"
+      }
+    },
+    {
+      "id": "aip-13",
+      "text": "回廊",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-13: 回廊\n* **現行文言**: 回廊\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `回廊`\n  * **候補B**: `回廊（Corridor）`\n* **理由**: コリドー（進入・通過用の設定空域）を示す原本名であり簡潔です。\n* **懸念**: 「回廊」単体だと一般利用者には何の回廊か伝わりにくいですが、制約（原本カテゴリの意味保持・不要な補足を増やさない）に従うと現行が妥当です。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"Corridors\", \"回廊\"],",
+        "end": "  [\"Corridors\", \"回廊\"],",
+        "expected": "  [\"Corridors\", \"回廊\"],"
+      }
+    },
+    {
+      "id": "aip-14",
+      "text": "空域表示",
+      "reason": "Issue指定の「空域表示」とGeminiの推奨が一致。AIPだけでなくPCAを含む折りたたみ見出しとして採用。",
+      "response_quote": "#### aip-14: 空域表示\n* **現行文言**: 空域表示\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `空域表示`\n  * **候補B**: `空域オーバーレイ`\n* **理由**: 折りたたみヘッダーとして最もシンプルかつ直感的です。\n* **懸念**: ルート計画ペイン内で「経路セクション」の下に配置されるため、これが「地図上の空域線表示の設定」であることが直感的に理解される必要があります。",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "    <summary>空域表示</summary>",
+        "end": "    <summary>空域表示</summary>",
+        "expected": "    <summary>空域表示</summary>"
+      }
+    },
+    {
+      "id": "aip-15",
+      "text": "AIP空域を読み込めませんでした。再読み込みしてください。",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-15: エラー表示\n* **現行文言**: AIP空域を読み込めませんでした。再読み込みしてください。\n* **提案候補**:\n  * **候補A**: `AIP空域データを取得できませんでした。再読み込みしてください。`\n  * **候補B（現行維持・推奨）**: `AIP空域を読み込めませんでした。再読み込みしてください。`\n  * **候補C（アクション付き）**: `AIP空域の読み込みに失敗しました。[再試行]`\n* **理由**: 何が失敗したのか（AIP空域）と次に行うべき操作（再読み込み/再試行）が明確です。\n* **懸念**: ネットワークエラーなのか端末側の問題なのかが分からない点がありますが、エラー文言としては簡潔で迷いがありません。",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "      <p>{failed ? \"AIP空域を読み込めませんでした。再読み込みしてください。\" : !data ? \"AIP空域を読み込み中…\" : `AIRAC有効日：${data.effectiveDate}`}</p>",
+        "end": "      <p>{failed ? \"AIP空域を読み込めませんでした。再読み込みしてください。\" : !data ? \"AIP空域を読み込み中…\" : `AIRAC有効日：${data.effectiveDate}`}</p>",
+        "expected": "      <p>{failed ? \"AIP空域を読み込めませんでした。再読み込みしてください。\" : !data ? \"AIP空域を読み込み中…\" : `AIRAC有効日：${data.effectiveDate}`}</p>"
+      }
+    },
+    {
+      "id": "aip-16",
+      "text": "AIP空域を読み込み中…",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-16: ローディング表示\n* **現行文言**: AIP空域を読み込み中…\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `AIP空域を読み込み中…`\n  * **候補B**: `空域データを読み込み中…`\n* **理由**: ユーザーに待ち状態を伝え、非同期ロード中であることを明示できます。\n* **懸念**: 特になし。",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "      <p>{failed ? \"AIP空域を読み込めませんでした。再読み込みしてください。\" : !data ? \"AIP空域を読み込み中…\" : `AIRAC有効日：${data.effectiveDate}`}</p>",
+        "end": "      <p>{failed ? \"AIP空域を読み込めませんでした。再読み込みしてください。\" : !data ? \"AIP空域を読み込み中…\" : `AIRAC有効日：${data.effectiveDate}`}</p>",
+        "expected": "      <p>{failed ? \"AIP空域を読み込めませんでした。再読み込みしてください。\" : !data ? \"AIP空域を読み込み中…\" : `AIRAC有効日：${data.effectiveDate}`}</p>"
+      }
+    },
+    {
+      "id": "aip-17",
+      "text": "AIRAC有効日：",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-17: AIRAC有効日\n* **現行文言**: AIRAC有効日：\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `AIRAC有効日：`\n  * **候補B**: `AIRACサイクル / 有効日：`\n* **理由**: 航空情報（AIP）の更新単位であるAIRAC発行日・有効開始日を示す標準的なラベルです。\n* **懸念**: 日付（例: 2026/04/16）が後に続くため、コロン（：）の有無や半角・全角の統一が必要です。",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "      <p>{failed ? \"AIP空域を読み込めませんでした。再読み込みしてください。\" : !data ? \"AIP空域を読み込み中…\" : `AIRAC有効日：${data.effectiveDate}`}</p>",
+        "end": "      <p>{failed ? \"AIP空域を読み込めませんでした。再読み込みしてください。\" : !data ? \"AIP空域を読み込み中…\" : `AIRAC有効日：${data.effectiveDate}`}</p>",
+        "expected": "      <p>{failed ? \"AIP空域を読み込めませんでした。再読み込みしてください。\" : !data ? \"AIP空域を読み込み中…\" : `AIRAC有効日：${data.effectiveDate}`}</p>"
+      }
+    },
+    {
+      "id": "aip-18",
+      "text": "航空情報センター AIP",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-18: データ出典機関\n* **現行文言**: 航空情報センター AIP\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `国土交通省 航空情報センター AIP`\n  * **候補B**: `航空情報センター（AIS JAPAN）AIP`\n  * **候補C**: `航空情報センター AIP`\n* **理由**: 提供元が国土交通省航空局の航空情報センター（AIS）であることを示します。候補Aにすると公式出典としての信頼性が高まりますが、スペースが限られる場合は現行（候補C）でも十分に意図が伝わります。\n* **懸念**: 次のaip-19と文章として連結される場合、助詞（「の」）との接続が自然である必要があります。",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "      <p><a data-airspace-source href=\"https://top.swim.mlit.go.jp/swim/\" target=\"_blank\" rel=\"noopener noreferrer\">航空情報センター AIP</a>のShapefileを加工。NOTAM・現在の使用状況は未反映。TCA未収録・ACA対応未確認。</p>",
+        "end": "      <p><a data-airspace-source href=\"https://top.swim.mlit.go.jp/swim/\" target=\"_blank\" rel=\"noopener noreferrer\">航空情報センター AIP</a>のShapefileを加工。NOTAM・現在の使用状況は未反映。TCA未収録・ACA対応未確認。</p>",
+        "expected": "      <p><a data-airspace-source href=\"https://top.swim.mlit.go.jp/swim/\" target=\"_blank\" rel=\"noopener noreferrer\">航空情報センター AIP</a>のShapefileを加工。NOTAM・現在の使用状況は未反映。TCA未収録・ACA対応未確認。</p>"
+      }
+    },
+    {
+      "id": "aip-19",
+      "text": "のShapefileを加工。NOTAM・現在の使用状況は未反映。TCA未収録・ACA対応未確認。",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### aip-19: 免責・未収録制約\n* **現行文言**: のShapefileを加工。NOTAM・現在の使用状況は未反映。TCA未収録・ACA対応未確認。\n* **提案候補**:\n  * **候補A（現行維持に近い・推奨）**: `のShapefileを加工。NOTAM・リアルタイム使用状況は未反映。TCA未収録・ACA対応未確認。`\n  * **候補B（箇条書き風・可読性重視）**: `のデータを加工して表示。最新のNOTAM・運用状況は未反映です。※TCA未収録・ACA未対応`\n  * **候補C（現行維持）**: `のShapefileを加工。NOTAM・現在の使用状況は未反映。TCA未収録・ACA対応未確認。`\n* **理由**: \n  1. 制約である「TCA・ACAを提供済みとしない」をストレートに満たしている。\n  2. 動的なNOTAMや実際の空域アクティベーション状況（Hot/Cold）を反映したものではないという安全上の重要免責が明記されている。\n* **懸念**: aip-18から続く文（`[航空情報センター AIP] + [のShapefileを加工...]`）としてUI上で自然に読めるレイアウトになっているか、または注記ブロックとして独立しているかの確認が必要です。",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "      <p><a data-airspace-source href=\"https://top.swim.mlit.go.jp/swim/\" target=\"_blank\" rel=\"noopener noreferrer\">航空情報センター AIP</a>のShapefileを加工。NOTAM・現在の使用状況は未反映。TCA未収録・ACA対応未確認。</p>",
+        "end": "      <p><a data-airspace-source href=\"https://top.swim.mlit.go.jp/swim/\" target=\"_blank\" rel=\"noopener noreferrer\">航空情報センター AIP</a>のShapefileを加工。NOTAM・現在の使用状況は未反映。TCA未収録・ACA対応未確認。</p>",
+        "expected": "      <p><a data-airspace-source href=\"https://top.swim.mlit.go.jp/swim/\" target=\"_blank\" rel=\"noopener noreferrer\">航空情報センター AIP</a>のShapefileを加工。NOTAM・現在の使用状況は未反映。TCA未収録・ACA対応未確認。</p>"
+      }
+    },
+    {
+      "id": "acc-11",
+      "text": "ACCセクター（FL335以上）",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### acc-11: ACCセクター（FL335以上）\n* **現行文言**: ACCセクター（FL335以上）\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `ACCセクター（FL335以上）`\n  * **候補B**: `航空交通管制部セクター（高高度 / FL335以上）`\n* **理由**: 航空交通管制部（ACC）の管制セクター境界のうち高高度側であることが一目で分かります。航空従事者にとってFL335の境界表記は極めて自然です。\n* **懸念**: 「ACC」という略称が一般学習者には即座に通じない可能性がありますが、操作ペインの限られた幅では短縮形が適しています。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"ACC_Sector_at_or_above_FL335\", \"ACCセクター（FL335以上）\"],",
+        "end": "  [\"ACC_Sector_at_or_above_FL335\", \"ACCセクター（FL335以上）\"],",
+        "expected": "  [\"ACC_Sector_at_or_above_FL335\", \"ACCセクター（FL335以上）\"],"
+      }
+    },
+    {
+      "id": "acc-12",
+      "text": "ACCセクター（FL335未満）",
+      "reason": "右ペインへの移動後も原本カテゴリと既存の出典・制約の意味を保つため現行候補を採用。ACAを未対応と断定する候補や不要な略語・補足追加は採用しない。",
+      "response_quote": "#### acc-12: ACCセクター（FL335未満）\n* **現行文言**: ACCセクター（FL335未満）\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `ACCセクター（FL335未満）`\n  * **候補B**: `航空交通管制部セクター（低高度 / FL335未満）`\n* **理由**: acc-11と対をなし、FL335未満の低中高度セクターであることを端的に表しています。\n* **懸念**: 特になし。",
+      "source": {
+        "path": "web/src/aipAirspace.ts",
+        "start": "  [\"ACC_Sector_below_FL335\", \"ACCセクター（FL335未満）\"],",
+        "end": "  [\"ACC_Sector_below_FL335\", \"ACCセクター（FL335未満）\"],",
+        "expected": "  [\"ACC_Sector_below_FL335\", \"ACCセクター（FL335未満）\"],"
+      }
+    },
+    {
+      "id": "pca-toggle",
+      "text": "宮崎特別管制区（PCA）",
+      "reason": "宮崎のみが対象であることを明示する現行推奨を採用。境界と除外円の連動は実装とブラウザ検証で確認し、別IssueのTooltipや凡例整理は含めない。",
+      "response_quote": "#### pca-toggle: 宮崎PCA\n* **現行文言**: 宮崎特別管制区（PCA）\n* **提案候補**:\n  * **候補A（現行維持・推奨）**: `宮崎特別管制区（PCA）`\n  * **候補B**: `特別管制区（宮崎PCA）`\n* **理由**: \n  1. 制約「他地域のPCAがあるように見せない」を確実に担保するため、冒頭または名称内に「宮崎」を明記することが必須。\n  2. 連動して境界と中心除外円がON/OFFされるトグルのラベルとして、過不足のない正式名称＋略称表記です。\n* **懸念**: 「境界と除外円が連動する」という挙動についての補足ラベルは制約により追加しない方針のため、利用者がトグルを操作した際に除外円まで消える挙動を自明と捉えるかどうかがポイントになります。名称自体は候補Aが最も誤解を生みません。",
+      "source": {
+        "path": "web/src/components/AipAirspace.tsx",
+        "start": "        <input type=\"checkbox\" checked={pcaVisible} onChange={event => onPcaChange(event.target.checked)} />宮崎特別管制区（PCA）",
+        "end": "        <input type=\"checkbox\" checked={pcaVisible} onChange={event => onPcaChange(event.target.checked)} />宮崎特別管制区（PCA）",
+        "expected": "        <input type=\"checkbox\" checked={pcaVisible} onChange={event => onPcaChange(event.target.checked)} />宮崎特別管制区（PCA）"
+      }
+    },
+    {
+      "id": "header-source",
+      "text": "必要な出典表示は地図上にも常時表示します。空域の出典は「空域表示」から確認できます。",
+      "reason": "既存案内の移動先だけを修正する候補Bを採用。空域表示は独立ペインではないため候補Aのペイン呼称を避け、PCA出典も移動済みとする候補Cは実装と異なるため採用しない。",
+      "response_quote": "#### header-source: ヘッダー出典案内\n* **現行文言**: 必要な出典表示は地図上にも常時表示します。空域の出典は「空域表示」から確認できます。\n* **提案候補**:\n  * **候補A（推奨）**: `地図タイルの出典は画面上に常時表示しています。空域データの出典・制約は「空域表示」ペインをご確認ください。`\n  * **候補B（現行維持）**: `必要な出典表示は地図上にも常時表示します。空域の出典は「空域表示」から確認できます。`\n  * **候補C**: `地図出典は画面端に表示。空域・PCAの出典情報は右ペイン「空域表示」内に記載されています。`\n* **理由**: 制約「地図タイルの常時出典と、折りたたみ内のAIP出典を混同しない」を明確にするため、候補Aでは「地図タイル（地理院地図やOpenStreetMap等）」と「空域データ（AIP/PCA）」の所在の違いを言葉として明確に区別しています。\n* **懸念**: ヘッダーの限られたスペースに表示する場合、文長が長すぎると他のヘッダー項目（タイトルや保存ボタン等）を圧迫する恐れがあります。",
+      "source": {
+        "path": "web/src/components/Header.tsx",
+        "start": "              <p>必要な出典表示は地図上にも常時表示します。空域の出典は「空域表示」から確認できます。</p>",
+        "end": "              <p>必要な出典表示は地図上にも常時表示します。空域の出典は「空域表示」から確認できます。</p>",
+        "expected": "              <p>必要な出典表示は地図上にも常時表示します。空域の出典は「空域表示」から確認できます。</p>"
+      }
+    }
+  ]
+}
