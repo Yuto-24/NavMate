@@ -48,6 +48,8 @@ for (const width of [1100, 1440]) {
     await expect(pending.locator(".sea-loading-icon")).toBeVisible();
     await expect(page.locator(".sea-warning")).toHaveCount(0);
     releaseTerrain();
+    // Acquisition has a 60 s budget; assert completion before the settled UI.
+    await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
     const first = table.locator(".nav-log-sea-cell").filter({ hasText: /未確定|[0-9]/ }).first();
     await expect(first).toHaveAttribute("data-display-text", "未確定");
     await expect(table.locator(".sea-loading-icon")).toHaveCount(0);
@@ -99,6 +101,7 @@ for (const width of [1100, 1440]) {
       await expect(cpCells.locator("input")).toHaveCount(0);
       await page.reload();
       await expect(cpCells).toHaveCount(2);
+      await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
       for (const cell of await cpCells.all()) await expect(cell).toHaveText("未確定");
       const state = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working, artifactSessionKey);
       expect(state.outcome.check_point_projections).toHaveLength(2);
@@ -294,9 +297,11 @@ test("#314 #485 final visual CP intervals retain SEA values without manual edito
   await expect(rows).toHaveCount(3);
   expect(await rows.locator(".route-to-cell").allTextContents()).toEqual(["VISUAL CP 1", "VISUAL CP 2", "RJFS"]);
   await expect(rows.locator("input")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
   for (const cell of await rows.locator(".nav-log-sea-cell").all()) await expect(cell).toHaveText("未確定");
   expect(await rows.first().locator(".nav-log-sea-cell ~ td").allTextContents()).toEqual(Array(18).fill(""));
   await page.reload();
   await expect(rows).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
   for (const cell of await rows.locator(".nav-log-sea-cell").all()) await expect(cell).toHaveText("未確定");
 });

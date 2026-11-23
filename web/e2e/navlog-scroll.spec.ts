@@ -54,6 +54,7 @@ async function checkToastLayout(page: Page, width: number) {
 }
 
 test("first Local NAV LOG calculation and recalculation scroll to the result", async ({ page }) => {
+  await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
   await page.clock.install({ time: new Date("2026-09-11T00:00:00Z") });
   await page.addInitScript(() => {
     const original = Element.prototype.scrollIntoView;
@@ -103,7 +104,14 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   expect(await page.evaluate(() => (window as any).navLogScrollsAtCalculationStart)).toBe(0);
   expect(await page.evaluate(() => (window as any).navLogScrolls)).toBe(1);
   await expectNavLogPaperGrid(page);
-  const firstTable = await page.locator(".nav-log-table").innerText();
+  // SEA acquisition may finish while the toast clock is paused. Compare the
+  // underlying cell values, excluding the transient spinner/loading label.
+  const tableValues = () => page.locator(".nav-log-table th, .nav-log-table td").evaluateAll(
+    cells => cells.map(cell => cell.classList.contains("nav-log-sea-cell")
+      ? (cell as HTMLElement).dataset.displayText
+      : (cell as HTMLElement).innerText),
+  );
+  const firstTable = await tableValues();
   await expect(page.locator(".calculation-toast-region")).toHaveAttribute("aria-live", "polite");
   const readiness = await page.locator(".status-rail").innerText();
   for (const width of [390, 1100, 1440]) await checkToastLayout(page, width);
@@ -111,7 +119,7 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await expect(toast).toBeVisible();
   await page.clock.runFor(1);
   await expect(toast).toHaveCount(0);
-  await expect(page.locator(".nav-log-table")).toHaveText(firstTable, { useInnerText: true });
+  await expect.poll(tableValues).toEqual(firstTable);
   await expect(page.locator(".status-rail")).toHaveText(readiness, { useInnerText: true });
   // Keep timers paused through recalculation; only runFor advances toast time.
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
@@ -123,7 +131,7 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await expectNavLogAtViewportTop(page);
   expect(await page.evaluate(() => (window as any).navLogScrollsAtCalculationStart)).toBe(1);
   expect(await page.evaluate(() => (window as any).navLogScrolls)).toBe(2);
-  await expect(page.locator(".nav-log-table")).toHaveText(firstTable, { useInnerText: true });
+  await expect.poll(tableValues).toEqual(firstTable);
   await expectNavLogPaperGrid(page);
 
   // A new successful calculation gets a fresh five seconds even if the old toast was still open.
@@ -137,7 +145,7 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await toast.getByRole("button", { name: "メッセージを閉じる" }).click();
   await expect(toast).toHaveCount(0);
   await page.clock.runFor(5_000);
-  await expect(page.locator(".nav-log-table")).toHaveText(firstTable, { useInnerText: true });
+  await expect.poll(tableValues).toEqual(firstTable);
   await page.clock.resume();
 
   // Exercise Issue #276 against the real Local result in the hosted browser job.
@@ -178,7 +186,7 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await expect(page.locator("#operation-messages")).toContainText("自動保存できませんでした");
   await page.getByRole("button", { name: /^その他/ }).click();
   await expect(toast).toHaveCount(0);
-  await expect(page.locator(".nav-log-table")).toHaveText(firstTable, { useInnerText: true });
+  await expect.poll(tableValues).toEqual(firstTable);
 });
 
 test("#412 rows align, names size independently, and sticky columns follow edits", async ({ page }, info) => {
