@@ -51,13 +51,13 @@
     {
       "id": "blocked-message",
       "text": "Migration BLOCKED. Inspect the Firestore record and production state before recovery;",
-      "reason": "既存の意味と停止条件を維持。提案を確認し、今回のFirestore閲覧とGitHub承認の役割に照らして採用・調整。",
+      "reason": "既存の意味と停止条件を維持。提案を確認し、今回のFirestore閲覧とGitHub承認の役割に照らして採用・調整。 PR #518 review repair: preparation/publication persistence has completed before the new notification-only handler; this unchanged message remains only in the operation-failure handler.",
       "response_quote": "### 5. `blocked-message`\n- **現行**: `Migration BLOCKED. Inspect the Firestore record and production state before recovery; do not resume or retry an uncertain write.`\n- **候補**\n  - **候補A（禁止事項を先頭に配置し Re-run 反射を止める）**:\n    `Migration BLOCKED. Do not re-run this workflow or retry an uncertain write. Inspect the Firestore record and production state before taking any recovery step.`\n  - **候補B（自動停止であることを明示）**:\n    `Migration BLOCKED — automatic stop. Inspect the Firestore record and live production state first; do not resume, retry, or re-run while write state is uncertain.`\n- **理由**\n  - GitHub Actions 失敗時に運用者が反射的に押しがちな「Re-run jobs」ボタンを止めるため、`Do not re-run this workflow` を冒頭または明確な語彙で示すのが実操作上もっとも効きます。\n  - 追加操作や迂回手順を勝手に案内せず、「まず Firestore 記録と本番状態を確認する」原則を崩しません。\n- **懸念**\n  - 確認後の正規手順（例：必要に応じた `revoke` 等の判断）まで心理的に禁止されたと誤解されないよう、`before taking any recovery step` / `while write state is uncertain` と条件を限定しています。\n  - GitHub Actions のログ注釈（`::error::`）等で1行表示される場合を想定し、長くなりすぎないよう1〜2文に収める必要があります。\n\n---",
       "source": {
         "path": "scripts/static_ops/migration_release.py",
         "start": "        # Provider output, raw configuration",
-        "end": "        return 1\n    finally:",
-        "expected": "        # Provider output, raw configuration and record bodies never enter public logs.\n        print(\n            \"Migration BLOCKED. Inspect the Firestore record and production state before recovery; \"\n            \"do not resume or retry an uncertain write.\"\n        )\n        return 1\n    finally:"
+        "end": "        return 1\n    else:",
+        "expected": "        # Provider output, raw configuration and record bodies never enter public logs.\n        print(\n            \"Migration BLOCKED. Inspect the Firestore record and production state before recovery; \"\n            \"do not resume or retry an uncertain write.\"\n        )\n        return 1\n    else:"
       }
     },
     {

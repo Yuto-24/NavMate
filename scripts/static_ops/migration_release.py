@@ -523,8 +523,6 @@ def main():
                 },
                 root=evidence_root,
             )
-        report(reference)
-        return 0
     except BaseException as error:
         if journal is not None:
             diagnostics.record_failure(app, error, ROOT, journal, dict(os.environ))
@@ -577,6 +575,14 @@ def main():
             "do not resume or retry an uncertain write."
         )
         return 1
+    else:
+        # The record is durably saved and read back. Notification cannot undo it.
+        try:
+            report(reference)
+        except BaseException:
+            print("Migration record saved. Summary unavailable; inspect the record in Firestore.")
+            return 1
+        return 0
     finally:
         cleanup_failed = False
         for directory in reversed(owned_directories):

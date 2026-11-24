@@ -74,7 +74,7 @@
 | 安定版 Release 自動公開 | [安定版 Release 自動公開](automatic_app_releases.md) | 安定版 Release からの自動公開橋渡し、単調更新と停止条件 |
 | バージョンライン・Release 契約 | [バージョンライン・Release 契約](release_lines.md) | 開発・保守ブランチ運用、VERSION/CHANGELOG と PR Release 契約 |
 | Schema 4→5 手動移行 | [Forecast Schema 4→5 移行手順](forecast_schema_transition.md) | Schema 4→5 移行の互換条件、完了記録、再適用 helper 手順 |
-- [Firestore移行証跡の運用](migration_evidence_operations.md): 専用プロジェクトの初回設定、標準画面での閲覧、GitHub承認・撤回・保持と合成データ受入。
+| Firestore移行証跡の運用 | [Firestore移行証跡の運用](migration_evidence_operations.md) | 専用プロジェクトの初回設定、標準画面での閲覧、GitHub承認・撤回・保持と合成データ受入 |
 | Schema 4→5 Actions 手順 | [Schema 4→5 Actions 手順](schema431_actions_prepare.md) | Actions による暗号化受け渡し手順、期限境界、実公開知見 |
 | 一方通行ストレージ移行 | [Project schema 手動移行手順](schema_transition.md) | 初回スナップショット追加（DB 1→2）、AIP出典拡張（DB 2→3）と [初回の実装検証記録](schema_transition_validation.md) |
 | 旧サーバ廃止準備・救済 | [旧サーバ廃止準備・データ救済手順](server_retirement.md) | 旧環境停止の前提条件、移行 URL 除去、オフライン救済と Volume 整理 |

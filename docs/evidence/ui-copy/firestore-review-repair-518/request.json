@@ -1,0 +1,29 @@
+{
+  "mode": "proposal",
+  "items": [
+    {
+      "id": "saved-notification",
+      "text": "Migration record saved. Summary unavailable; inspect the record in Firestore.",
+      "location": "Actions CLI; only after prepared/published record persistence and readback succeed.",
+      "purpose": "Avoid treating notification failure as publication failure.",
+      "context": "Dedicated Firestore migration evidence; JSON originals and hashes, GitHub approval, permanent revoke without production concurrency wait. No live values or data.",
+      "constraints": "Keep behavior and human intent; propose concise wording. Never suggest retrying or repeating a completed publication. No new permissions or architecture."
+    },
+    {
+      "id": "revoke-boundary",
+      "text": "撤回は処理の境界で再確認します。確認と外部サービスへの変更は同時に確定できないため、確認直後に撤回された場合は変更が進むことがあります。撤回後も天気更新と公開状態を確認してください。",
+      "location": "Firestore運用手順の撤回説明。公開処理の排他待ちは入れない。",
+      "purpose": "State the cross-service race limit honestly; no promise of immediate cancellation.",
+      "context": "Dedicated Firestore migration evidence; JSON originals and hashes, GitHub approval, permanent revoke without production concurrency wait. No live values or data.",
+      "constraints": "Keep behavior and human intent; propose concise wording. Never suggest retrying or repeating a completed publication. No new permissions or architecture."
+    },
+    {
+      "id": "cleanup-validation",
+      "text": "検査に失敗した一式は保持し、後続の正常な一式の整理を続けます。走査後に失敗を記録し、jobを失敗として通知します。",
+      "location": "Firestore運用手順の30日保持説明。",
+      "purpose": "Explain retention of unverifiable evidence without blocking independent cleanup.",
+      "context": "Dedicated Firestore migration evidence; JSON originals and hashes, GitHub approval, permanent revoke without production concurrency wait. No live values or data.",
+      "constraints": "Keep behavior and human intent; propose concise wording. Never suggest retrying or repeating a completed publication. No new permissions or architecture."
+    }
+  ]
+}

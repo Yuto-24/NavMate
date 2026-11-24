@@ -53,10 +53,23 @@ def decode(value):
         return {key: decode(item) for key, item in value["mapValue"].get("fields", {}).items()}
     if "integerValue" in value:
         return int(value["integerValue"])
-    for kind in ("nullValue", "booleanValue", "doubleValue", "stringValue"):
+    if "doubleValue" in value:
+        return float(value["doubleValue"])
+    for kind in ("nullValue", "booleanValue", "stringValue"):
         if kind in value:
             return value[kind]
     raise app.Blocked("Unsupported review field")
+
+
+def same(left, right):
+    """Compare JSON values recursively without bool/int/float coercion."""
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(same(left[key], right[key]) for key in left)
+    if isinstance(left, list):
+        return len(left) == len(right) and all(same(a, b) for a, b in zip(left, right, strict=True))
+    return left == right
 
 
 class Firestore:

@@ -82,8 +82,9 @@ class Reviews:
         raw = document["original_json"]
         app.require(app.digest(raw.encode()) == expected, "Reviewed record changed")
         value = json.loads(raw)
-        app.require(document == envelope(raw, document["root_id"], document["attachments"]),
-                    "Review original and display differ")
+        app.require(
+            firestore.same(document, envelope(raw, document["root_id"], document["attachments"])),
+            "Review original and display differ")
         app.require(type(value.get("schema_version")) is int and value["schema_version"] == 1,
                     "Unsupported review record")
         attachments = document["attachments"]
@@ -97,10 +98,10 @@ class Reviews:
         for label, digest in required.items():
             part = self.db.get("migrationRecords/" + id + "-" + label, tx)
             app.require(isinstance(part, dict), "Review attachment missing")
-            app.require(part == envelope(part["original_json"], document["root_id"])
+            app.require(firestore.same(part, envelope(part["original_json"], document["root_id"]))
                         and part["sha256"] == digest, "Review attachment changed")
             if label == "plan":
-                app.require(json.loads(part["original_json"]) == value["plan"],
+                app.require(firestore.same(json.loads(part["original_json"]), value["plan"]),
                             "Exact plan differs from review")
         return value, document
 
@@ -157,7 +158,8 @@ class Reviews:
             # Never replay writes, even when the server may have committed them.
             # Reconcile exact known document IDs using a fresh consistent snapshot.
             with self.db.transaction() as check:
-                app.require(all(self.db.get(path, check) == value for path, value in known.items()),
+                app.require(all(firestore.same(self.db.get(path, check), value)
+                                for path, value in known.items()),
                             "Evidence write outcome unknown; do not retry")
 
     def begin(self, id, expected, operation):
@@ -190,7 +192,8 @@ class Reviews:
                 "observations"]["sample_sha256"], "Synthetic sample hash mismatch")
         if phase == "prepared":
             app.require(plan_json is not None and attachments["plan"] == value["plan_sha256"]
-                        and json.loads(plan_json) == value["plan"], "Exact plan required")
+                        and firestore.same(json.loads(plan_json), value["plan"]),
+                        "Exact plan required")
         known = {"migrationRecords/" + id: document}
         known.update({"migrationRecords/" + id + "-" + label: envelope(content, root)
                       for label, content in parts.items()})
@@ -207,6 +210,8 @@ class Reviews:
                 create = True
             else:
                 create = False
+                app.require(phase != "blocked" or group["state"] != "PUBLISHED",
+                            "Published evidence cannot become blocked")
                 if phase != "blocked":
                     app.require(tombstone is None and group["revoked"] is False,
                                 "Migration review was revoked")
@@ -232,17 +237,22 @@ class Reviews:
             self.commit_known(writes, known, tx)
         # Re-read every original, display and attachment, without an expiry shortcut.
         with self.db.transaction() as tx:
-            app.require(self.document(id, document["sha256"], tx)[0] == value,
+            app.require(firestore.same(self.document(id, document["sha256"], tx)[0], value),
                         "Evidence readback mismatch")
         return self.reference(id, document["sha256"])
 
     def revoke(self, id, expected, actor):
         with self.db.transaction(write=True) as tx:
-            _, document = self.document(id, expected, tx)
-            root = document["root_id"]
-            group_path = "migrationGroups/" + checked_id(root)
-            group = self.db.get(group_path, tx)
-            app.require(group and group["root_id"] == root, "Evidence lifecycle missing")
+            value, group = self.observe(id, expected, tx, active=False)
+            root = group["root_id"]
+            group_path = "migrationGroups/" + root
+            app.require(any(group.get(role) == {"id": id, "sha256": expected}
+                            for role in ("evidence", "prepared", "published", "blocked")),
+                        "Revoked record is not part of this migration group")
+            if value["phase"] == "published":
+                app.require(value["evidence_reference"] == group["evidence"]
+                            and group["evidence"]["id"] == root,
+                            "Published evidence parent changed")
             path = "migrationRevocations/" + root
             existing = self.db.get(path, tx)
             if existing is not None:
@@ -263,6 +273,7 @@ class Reviews:
     def cleanup(self, now=None):
         now = now or datetime.now(UTC)
         removed = 0
+        failed = []
         for root in self.db.groups():
             checked_id(root)
             with self.db.transaction(write=True) as tx:
@@ -279,25 +290,30 @@ class Reviews:
                     continue
                 paths = [path]
                 values = {}
-                for role in ("evidence", "prepared", "published"):
-                    ref = group[role]
-                    value, document = self.document(ref["id"], ref["sha256"], tx)
-                    app.require(document["root_id"] == root and value["phase"] == role,
-                                "Retention evidence set changed")
-                    paths.append("migrationRecords/" + ref["id"])
-                    paths.extend("migrationRecords/" + ref["id"] + "-" + label
-                                 for label in document["attachments"])
-                    values[role] = value
-                app.require(group["evidence"]["id"] == root
-                            and values["prepared"]["evidence_reference"] == group["evidence"]
-                            and values["published"]["evidence_reference"] == group["evidence"]
-                            and values["published"]["prepared_reference"] == group["prepared"]
-                            and values["published"].get("final_verified") is True
-                            and values["published"]["created_at"] == group["completed_at"],
-                            "Retention final verification missing")
+                try:
+                    for role in ("evidence", "prepared", "published"):
+                        ref = group[role]
+                        value, document = self.document(ref["id"], ref["sha256"], tx)
+                        app.require(document["root_id"] == root and value["phase"] == role,
+                                    "Retention evidence set changed")
+                        paths.append("migrationRecords/" + ref["id"])
+                        paths.extend("migrationRecords/" + ref["id"] + "-" + label
+                                     for label in document["attachments"])
+                        values[role] = value
+                    app.require(group["evidence"]["id"] == root
+                                and values["prepared"]["evidence_reference"] == group["evidence"]
+                                and values["published"]["evidence_reference"] == group["evidence"]
+                                and values["published"]["prepared_reference"] == group["prepared"]
+                                and values["published"].get("final_verified") is True
+                                and values["published"]["created_at"] == group["completed_at"],
+                                "Retention final verification missing")
+                except app.Blocked:
+                    failed.append(root)
+                    continue  # Keep the entire set; only validation failures are isolated.
                 writes = [{"delete": self.db.root + "/" + name} for name in paths]
                 self.commit_known(writes, dict.fromkeys(paths), tx)
                 removed += 1
+        app.require(not failed, "Retention validation failed for record sets: " + ", ".join(failed))
         return removed
 
 
