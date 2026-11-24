@@ -1,0 +1,20 @@
+{
+  "date": "2026-11-24",
+  "requested_model": "gemini-4-neon-high",
+  "status": "draft received",
+  "limits": "Requested model only; backend identity is not independently verified. No live IAM/Console acceptance.",
+  "decisions": [
+    "Use Gemini draft as input, then compare against code and the approved plan.",
+    "Reject draft claim that publish has no lease wait: only revoke avoids the production lease.",
+    "Use synthetic-only acceptance-migration before enablement; no production token, source receipt, or evidence signature.",
+    "Preserve the existing publication gates and root VERSION/CHANGELOG."
+  ],
+  "sha256": {
+    "documentation-prompt.txt": "405109822cd5d39976265549dac7672d9d4cc1fd9c91564bbcc918471f47bbfe",
+    "documentation-response.json": "4453afad44b84b890237e84dfa316582cc18c6d19773890cd04b10154089fbdd"
+  },
+  "independent_document_check": {
+    "model": "gpt-6.1-sol",
+    "result": "GPT-6.1 Sol completed independent read-only review and final focused document/UI-source recheck; no mandatory findings or material mismatches."
+  }
+}

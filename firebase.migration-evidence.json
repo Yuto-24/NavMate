@@ -1,0 +1,7 @@
+{
+  "firestore": {
+    "rules": "firebase/migration-evidence.rules",
+    "indexes": "firebase/migration-evidence.indexes.json"
+  },
+  "emulators": { "firestore": { "port": 8092 }, "ui": { "enabled": false } }
+}

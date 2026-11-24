@@ -212,7 +212,9 @@ def test_even_whitespace_only_contract_changes_stop_before_any_build(tmp_path, p
 def test_automation_workflow_contract():
     workflow = (auto.ROOT / ".github/workflows/static-app-release.yml").read_text()
     triggers = workflow.split("\non:\n")[1].split("\npermissions:")[0]
-    assert all(event not in triggers for event in ("push:", "pull_request", "schedule:"))
+    assert all(event not in triggers for event in ("push:", "pull_request"))
+    # Only the dedicated evidence cleanup job admits schedule (covered in lifecycle tests).
+    assert "  schedule:" in triggers
     assert "types: [published]" in triggers
     assert "workflows: [publish-github-release]" in triggers
     assert "workflows: [publish-github-release, test]" not in triggers
@@ -225,7 +227,7 @@ def test_automation_workflow_contract():
     assert "github.repository == 'Yuto-24/NavMate' &&" in workflow
     # Each readback and manual schema operation retains the shared lock and WIF scope.
     assert workflow.count("create_credentials_file: false") == 6
-    assert workflow.count("create_credentials_file: true") == 4
+    assert workflow.count("create_credentials_file: true") == 10  # Four Rules + six evidence
     assert workflow.count("https://www.googleapis.com/auth/firebase.readonly") == 8
     source = (auto.ROOT / ".github/workflows/static-production.yml").read_text()
     assert "group: static-production\n  cancel-in-progress: false\n  queue: max" in source

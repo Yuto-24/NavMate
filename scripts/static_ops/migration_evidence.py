@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import sys
-import zlib
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -182,7 +180,7 @@ def actual_versions(operator, sha, current, directory: Path):
         return {
             **result,
             "sample_sha256": app.digest(raw.encode()),
-            "sample_zlib_base64": base64.b64encode(zlib.compress(raw.encode())).decode("ascii"),
+            "sample_json": raw,
         }
     finally:
         original_failure = sys.exc_info()[0] is not None
@@ -247,7 +245,9 @@ def collect(operator, sha, directory):
         "after_blob": operator.source_digest(sha, release_preflight.SCHEMA),
         "writer_blob": operator.source_digest(sha, release_preflight.WRITER),
     }
+    sample_json = domain.pop("sample_json")
     return {
+        "sample_json": sample_json,
         "schema_version": 1,
         "phase": "evidence",
         "result": "PASS",

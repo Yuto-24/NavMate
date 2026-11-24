@@ -1,0 +1,79 @@
+利用者の視点からUI文言を提案してください。ツール実行・ファイル操作は禁止です。
+本人指定の意図と制約を守り、各idに候補と理由、懸念を示してください。
+最終文言は実装担当が判断します。
+{
+  "items": [
+    {
+      "id": "record-id",
+      "text": "Firestore record ID: evidence for prepare, prepared plan for publish, target record for revoke",
+      "location": "GitHub Actions operation form or summary / Release routing",
+      "purpose": "Firestoreで詳細閲覧しGitHubで明示承認する。旧Issue番号入力を避ける。",
+      "context": "本人のみ。prepareは天気更新を停止、publishは30分期限/公開排他を維持。revokeは排他待ちなし。Summaryには固定リンク/記録ID/ハッシュだけ。",
+      "constraints": "秘密値/実データなし。Firestore/IAM/WIF仕様、変数名、承認者名、記録ID形式、原本/添字map/サンプル/plan構造、期限/保持/受入仕様は送信許可済み。追加操作/権限/公開経路の緩和は禁止。"
+    },
+    {
+      "id": "record-hash",
+      "text": "SHA-256 of the Firestore record you reviewed (prepare, publish, or revoke)",
+      "location": "GitHub Actions operation form or summary / Release routing",
+      "purpose": "Firestoreで詳細閲覧しGitHubで明示承認する。旧Issue番号入力を避ける。",
+      "context": "本人のみ。prepareは天気更新を停止、publishは30分期限/公開排他を維持。revokeは排他待ちなし。Summaryには固定リンク/記録ID/ハッシュだけ。",
+      "constraints": "秘密値/実データなし。Firestore/IAM/WIF仕様、変数名、承認者名、記録ID形式、原本/添字map/サンプル/plan構造、期限/保持/受入仕様は送信許可済み。追加操作/権限/公開経路の緩和は禁止。"
+    },
+    {
+      "id": "revoke-operation",
+      "text": "Select a readback, replay, or migration operation; revoke-migration is permanent and requires new evidence to start over",
+      "location": "GitHub Actions operation form or summary / Release routing",
+      "purpose": "Firestoreで詳細閲覧しGitHubで明示承認する。旧Issue番号入力を避ける。",
+      "context": "本人のみ。prepareは天気更新を停止、publishは30分期限/公開排他を維持。revokeは排他待ちなし。Summaryには固定リンク/記録ID/ハッシュだけ。",
+      "constraints": "秘密値/実データなし。Firestore/IAM/WIF仕様、変数名、承認者名、記録ID形式、原本/添字map/サンプル/plan構造、期限/保持/受入仕様は送信許可済み。追加操作/権限/公開経路の緩和は禁止。"
+    },
+    {
+      "id": "firestore-summary",
+      "text": "Migration review: {console_url}\nRecord: `{record_id}`; SHA-256: `{record_sha256}`",
+      "location": "GitHub Actions operation form or summary / Release routing",
+      "purpose": "Firestoreで詳細閲覧しGitHubで明示承認する。旧Issue番号入力を避ける。",
+      "context": "本人のみ。prepareは天気更新を停止、publishは30分期限/公開排他を維持。revokeは排他待ちなし。Summaryには固定リンク/記録ID/ハッシュだけ。",
+      "constraints": "秘密値/実データなし。Firestore/IAM/WIF仕様、変数名、承認者名、記録ID形式、原本/添字map/サンプル/plan構造、期限/保持/受入仕様は送信許可済み。追加操作/権限/公開経路の緩和は禁止。"
+    },
+    {
+      "id": "blocked-message",
+      "text": "Migration BLOCKED. Inspect the Firestore record and production state before recovery; do not resume or retry an uncertain write.",
+      "location": "GitHub Actions operation form or summary / Release routing",
+      "purpose": "Firestoreで詳細閲覧しGitHubで明示承認する。旧Issue番号入力を避ける。",
+      "context": "本人のみ。prepareは天気更新を停止、publishは30分期限/公開排他を維持。revokeは排他待ちなし。Summaryには固定リンク/記録ID/ハッシュだけ。",
+      "constraints": "秘密値/実データなし。Firestore/IAM/WIF仕様、変数名、承認者名、記録ID形式、原本/添字map/サンプル/plan構造、期限/保持/受入仕様は送信許可済み。追加操作/権限/公開経路の緩和は禁止。"
+    },
+    {
+      "id": "manual-route",
+      "text": "No GitHub Release was created (MANUAL migration required). Review migration evidence in Firestore Console, then authorize prepare and publication from App Release with the record ID and SHA-256.",
+      "location": "GitHub Actions operation form or summary / Release routing",
+      "purpose": "Firestoreで詳細閲覧しGitHubで明示承認する。旧Issue番号入力を避ける。",
+      "context": "本人のみ。prepareは天気更新を停止、publishは30分期限/公開排他を維持。revokeは排他待ちなし。Summaryには固定リンク/記録ID/ハッシュだけ。",
+      "constraints": "秘密値/実データなし。Firestore/IAM/WIF仕様、変数名、承認者名、記録ID形式、原本/添字map/サンプル/plan構造、期限/保持/受入仕様は送信許可済み。追加操作/権限/公開経路の緩和は禁止。"
+    },
+    {
+      "id": "candidate",
+      "text": "Candidate commit SHA for evidence-migration; empty uses the selected main commit",
+      "location": "GitHub Actions operation form or summary / Release routing",
+      "purpose": "Firestoreで詳細閲覧しGitHubで明示承認する。旧Issue番号入力を避ける。",
+      "context": "本人のみ。prepareは天気更新を停止、publishは30分期限/公開排他を維持。revokeは排他待ちなし。Summaryには固定リンク/記録ID/ハッシュだけ。",
+      "constraints": "秘密値/実データなし。Firestore/IAM/WIF仕様、変数名、承認者名、記録ID形式、原本/添字map/サンプル/plan構造、期限/保持/受入仕様は送信許可済み。追加操作/権限/公開経路の緩和は禁止。"
+    },
+    {
+      "id": "route-normal",
+      "text": "Normal release is eligible for automatic publication.",
+      "location": "GitHub Actions operation form or summary / Release routing",
+      "purpose": "Firestoreで詳細閲覧しGitHubで明示承認する。旧Issue番号入力を避ける。",
+      "context": "本人のみ。prepareは天気更新を停止、publishは30分期限/公開排他を維持。revokeは排他待ちなし。Summaryには固定リンク/記録ID/ハッシュだけ。",
+      "constraints": "秘密値/実データなし。Firestore/IAM/WIF仕様、変数名、承認者名、記録ID形式、原本/添字map/サンプル/plan構造、期限/保持/受入仕様は送信許可済み。追加操作/権限/公開経路の緩和は禁止。"
+    },
+    {
+      "id": "route-rules",
+      "text": "Rules/indexes changes require an individual reviewed migration.",
+      "location": "GitHub Actions operation form or summary / Release routing",
+      "purpose": "Firestoreで詳細閲覧しGitHubで明示承認する。旧Issue番号入力を避ける。",
+      "context": "本人のみ。prepareは天気更新を停止、publishは30分期限/公開排他を維持。revokeは排他待ちなし。Summaryには固定リンク/記録ID/ハッシュだけ。",
+      "constraints": "秘密値/実データなし。Firestore/IAM/WIF仕様、変数名、承認者名、記録ID形式、原本/添字map/サンプル/plan構造、期限/保持/受入仕様は送信許可済み。追加操作/権限/公開経路の緩和は禁止。"
+    }
+  ]
+}

@@ -41,4 +41,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Continue with migration evidence before creating a Release
-        run: echo 'No GitHub Release was created (MANUAL migration required). App Release collects private review evidence when STATIC_APP_RELEASE_ENABLED=true and private review setup is complete; GitHub Release creation waits for explicit publication authorization.' >> "$GITHUB_STEP_SUMMARY"
+        run: echo 'No GitHub Release was created (MANUAL migration required). Review migration evidence in Firestore Console, then authorize prepare and publication from App Release with the record ID and SHA-256 for each step.' >> "$GITHUB_STEP_SUMMARY"

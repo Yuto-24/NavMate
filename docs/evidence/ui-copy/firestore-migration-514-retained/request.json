@@ -1,0 +1,61 @@
+{
+  "mode": "proposal",
+  "items": [
+    {
+      "id": "route-unknown",
+      "text": "Unknown or ambiguous schema migration",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain the pre-Release routing result",
+      "context": "Release経路判定。Firestoreで詳細閲覧しGitHubで承認。既知AIP以外のRules/indexes差分は個別移行に停止。既存の個別移行を自動証跡に誘導しない。",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "route-database",
+      "text": "Database version changed outside a supported schema migration",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain the pre-Release routing result",
+      "context": "Release経路判定。Firestoreで詳細閲覧しGitHubで承認。既知AIP以外のRules/indexes差分は個別移行に停止。既存の個別移行を自動証跡に誘導しない。",
+      "constraints": "Keep operation names and SHA-256 exact. Never imply tests are human approval. Keep English for Actions operator UI. No production acceptance claim."
+    },
+    {
+      "id": "route-legacy",
+      "text": "Known legacy contract has no automated evidence recipe; individual migration required",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain routing and the next operator action before GitHub Release creation",
+      "context": "Release経路判定。Firestoreで詳細閲覧しGitHubで承認。既知AIP以外のRules/indexes差分は個別移行に停止。既存の個別移行を自動証跡に誘導しない。",
+      "constraints": "Preserve exact operation names. Avoid implying that classification or tests provide approval. Concise English operator guidance."
+    },
+    {
+      "id": "route-legacy-next",
+      "text": "Use the separately reviewed legacy migration procedure",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain routing and the next operator action before GitHub Release creation",
+      "context": "Release経路判定。Firestoreで詳細閲覧しGitHubで承認。既知AIP以外のRules/indexes差分は個別移行に停止。既存の個別移行を自動証跡に誘導しない。",
+      "constraints": "Preserve exact operation names. Avoid implying that classification or tests provide approval. Concise English operator guidance."
+    },
+    {
+      "id": "route-manual-next",
+      "text": "Review evidence in Firestore Console, dispatch prepare-migration, then review the prepared plan and approve publish-migration",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain routing and the next operator action before GitHub Release creation",
+      "context": "Release経路判定。Firestoreで詳細閲覧しGitHubで承認。既知AIP以外のRules/indexes差分は個別移行に停止。既存の個別移行を自動証跡に誘導しない。",
+      "constraints": "Preserve exact operation names. Avoid implying that classification or tests provide approval. Concise English operator guidance."
+    },
+    {
+      "id": "route-manual",
+      "text": "Recognized contract; pinned compatibility evidence and explicit approval required",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain routing and the next operator action before GitHub Release creation",
+      "context": "Release経路判定。Firestoreで詳細閲覧しGitHubで承認。既知AIP以外のRules/indexes差分は個別移行に停止。既存の個別移行を自動証跡に誘導しない。",
+      "constraints": "Preserve exact operation names. Avoid implying that classification or tests provide approval. Concise English operator guidance."
+    },
+    {
+      "id": "route-unavailable",
+      "text": "Preflight unavailable; reconcile production and access before retry",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain routing and the next operator action before GitHub Release creation",
+      "context": "Release経路判定。Firestoreで詳細閲覧しGitHubで承認。既知AIP以外のRules/indexes差分は個別移行に停止。既存の個別移行を自動証跡に誘導しない。",
+      "constraints": "Preserve exact operation names. Avoid implying that classification or tests provide approval. Concise English operator guidance."
+    }
+  ]
+}

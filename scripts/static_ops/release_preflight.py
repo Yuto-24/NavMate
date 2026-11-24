@@ -127,7 +127,7 @@ def classify(operator, sha: str, current: str) -> dict:
         **result,
         "route": "MANUAL",
         "kind": kind,
-        "next_step": "Review the private evidence, dispatch prepare-migration, then approve publish-migration",  # noqa: E501
+        "next_step": "Review evidence in Firestore Console, dispatch prepare-migration, then review the prepared plan and approve publish-migration",  # noqa: E501
         "reason": (
             "Recognized contract; pinned compatibility evidence and explicit approval required"
         ),
