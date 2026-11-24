@@ -657,8 +657,7 @@ test("#280 #465 saved CUT seconds and legacy Last Calculation reopen without rec
   await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell").nth(1)).toHaveText("0");
 });
 
-test("#319 Project JSON transfers calculated Project inputs into independent saved Projects", async ({ page, browser, browserName }) => {
-  if (browserName === "chromium") await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+test("#319 Project JSON transfers calculated Project inputs into independent saved Projects", async ({ page, browser }) => {
   await start(page);
   await confirm(page, "FTD");
   for (const width of [1100, 1440]) {
