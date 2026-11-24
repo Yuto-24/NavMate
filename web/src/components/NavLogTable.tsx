@@ -820,11 +820,6 @@ export function NavLogTable({
         </p>
       )}
       <NavLogSummary outcome={outcome} destinationWind={destinationWind} />
-      <div className="nav-log-download-actions">
-        <button className="primary-button" type="button" disabled={exportDisabled || exporting || !savePng}
-          onClick={() => void exportPng()}>{exporting ? "PNGを作成中…" : "PNG"}<Download aria-hidden="true" size={17} /></button>
-        {kmlExport}
-      </div>
       <div className="nav-log-edit-guide" id="nav-log-edit-guide">
         <span className={`nav-log-edit-status nav-log-edit-status-${editStatus.kind}`} role="status" aria-live="polite">
           {editStatus.message}
@@ -1091,7 +1086,12 @@ export function NavLogTable({
               <p>{issue.message}</p>
             </aside>
           ))}
-          {jsonExport && <div className="navlog-export-actions">{jsonExport}</div>}
+          <div className="navlog-export-actions nav-log-download-actions">
+            {jsonExport}
+            <button className="primary-button" type="button" disabled={exportDisabled || exporting || !savePng}
+              onClick={() => void exportPng()}>{exporting ? "PNGを作成中…" : "PNG"}<Download aria-hidden="true" size={17} /></button>
+            {kmlExport}
+          </div>
         </div>
       </div>
       {rjfmGuidance && <RjfmGuidancePanel guidance={rjfmGuidance} />}

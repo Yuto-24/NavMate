@@ -1778,7 +1778,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .danger-button { color: var(--red-700); background: var(--red-50); border: 1px solid var(--red-700); }
 .danger-button:hover:not(:disabled) { background: #fde3e0; }
 .account-dialog .primary-button, .account-dialog .danger-button { margin: 4px 8px 4px 0; }
-.nav-log-download-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 12px 0; }
+.nav-log-download-actions { align-items: center; gap: 8px 12px; }
 .nav-log-download-actions .kml-export-notice { position: static; flex-basis: 100%; margin: 0; color: #82500a; background: var(--amber-100); border-color: #e4bf72; }
 .nav-log-rad-control { min-height: 30px; padding: 4px 10px; border: 1px solid var(--slate-200); border-radius: var(--radius-sm); color: var(--brand-950); cursor: pointer; }
 .nav-log-rad-control:has(input:checked) { background: var(--teal-50); border-color: var(--brand-accent); }

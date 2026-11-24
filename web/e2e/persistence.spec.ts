@@ -674,8 +674,7 @@ test("#319 Project JSON transfers calculated Project inputs into independent sav
   const download = await downloadPromise;
   const content = readFileSync((await download.path())!);
   const exported = JSON.parse(content.toString());
-  await page.getByRole("button", { name: "プロジェクトJSONをコピー", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "プロジェクトJSONをコピーしました。" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "プロジェクトJSONをコピー", exact: true })).toHaveCount(0);
   expect(exported.format).toBe("navmate.project");
   expect(exported.inputs.weather_mode).toBe("FTD");
   expect(exported.inputs.id).toBeUndefined();

@@ -13,9 +13,9 @@ import { projectExportFilename } from "../src/projectExportFilename";
 test("Project export names preserve Japanese names and use export time in JST across midnight", () => {
   const at = new Date("2026-11-23T15:04:59Z");
   expect(projectExportFilename("宮崎往復", "json", at)).toBe("宮崎往復_20261124-0004.json");
-  expect(projectExportFilename("宮崎往復", "png", at)).toBe("宮崎往復_20261124-0004.png");
+  expect(projectExportFilename("宮崎往復", "png", at)).toBe("NAVLOG_宮崎往復.png");
   expect(projectExportFilename("経路/A:B?", "json", at)).toBe("経路_A_B__20261124-0004.json");
-  expect(projectExportFilename("  ", "png", at)).toBe("プロジェクト_20261124-0004.png");
+  expect(projectExportFilename("  ", "png", at)).toBe("NAVLOG_プロジェクト.png");
 });
 
 const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");

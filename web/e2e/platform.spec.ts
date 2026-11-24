@@ -189,7 +189,7 @@ test("confirmed route does not expose pasted KML replacement or a file picker", 
   await expect(page.getByRole("button", { name: "経路を編集", exact: true })).toBeEnabled();
 });
 
-test("download and Clipboard export Project inputs, survive denial, and retain workflow order", async ({ page, context }) => {
+test("download Project inputs and retain workflow order", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await open(page);
   // Loaded Local assets can calculate/import/export without a connectivity gate.
@@ -229,7 +229,7 @@ test("download and Clipboard export Project inputs, survive denial, and retain w
         boxes: [".nav-log-summary", ".nav-log-scroll", ".fuel-plan-section", ".navlog-export-actions"].map(rect),
         footer: rect(".nav-log-footer"),
         sea: rect(".sea-panel"),
-        buttons: [1, 2].map(index => rect(`.navlog-export-actions button:nth-child(${index})`)),
+        buttons: [1, 2, 3].map(index => rect(`.navlog-export-actions button:nth-child(${index})`)),
       };
     });
     for (let i = 1; i < 3; i++) {
@@ -238,20 +238,23 @@ test("download and Clipboard export Project inputs, survive denial, and retain w
     expect(boxes[3]!.y).toBeGreaterThanOrEqual(sea.y + sea.height + 16);
     expect(boxes[3]!.y + boxes[3]!.height).toBeCloseTo(footer.y + footer.height, 0);
     const actions = content.locator(".navlog-export-actions");
-    await expect(actions.locator("button")).toHaveCount(2);
-    expect(await actions.evaluate(element => getComputedStyle(element).gap)).toBe("8px");
+    await expect(actions.locator("button")).toHaveCount(3);
+    await expect(actions.locator("button").nth(0)).toHaveAccessibleName("プロジェクトJSONをダウンロード");
+    await expect(actions.locator("button").nth(1)).toHaveAccessibleName("PNG");
+    await expect(actions.locator("button").nth(2)).toHaveAccessibleName("Google Earth");
+    expect(await actions.evaluate(element => getComputedStyle(element).columnGap)).toBe("12px");
     expect(await actions.evaluate(element => element.closest(".nav-log-scroll"))).toBeNull();
     if (width === 390) {
       expect(sea.y).toBeGreaterThanOrEqual(boxes[2]!.y + boxes[2]!.height + 16);
       expect(buttons[0]!.x).toBe(boxes[0]!.x);
-      expect(buttons[1]!.y).toBeGreaterThanOrEqual(buttons[0]!.y + buttons[0]!.height + 8);
+      expect(buttons[1]!.x).toBeGreaterThan(buttons[0]!.x);
     } else {
       expect(sea.x).toBeGreaterThanOrEqual(boxes[2]!.x + boxes[2]!.width + 32);
       expect(sea.y).toBeCloseTo(boxes[2]!.y, 0);
       expect(boxes[2]!.width).toBe(420);
       expect(boxes[3]!.y + boxes[3]!.height).toBeGreaterThanOrEqual(boxes[2]!.y + boxes[2]!.height);
       expect(buttons[1]!.y).toBe(buttons[0]!.y);
-      expect(buttons[1]!.x + buttons[1]!.width).toBeCloseTo(boxes[0]!.x + boxes[0]!.width, 0);
+      expect(buttons[2]!.x + buttons[2]!.width).toBeCloseTo(boxes[0]!.x + boxes[0]!.width, 0);
     }
     expect(buttons[1]!.x + buttons[1]!.width).toBeLessThanOrEqual(width);
     const scroll = content.locator(".nav-log-scroll");
@@ -282,7 +285,7 @@ test("download and Clipboard export Project inputs, survive denial, and retain w
   const original = (await snapshot(page)).working;
   const downloadKml = async () => {
     const pending = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Google Earth 用にエクスポート", exact: true }).click();
+    await page.getByRole("button", { name: "Google Earth", exact: true }).click();
     const downloaded = await pending;
     expect(downloaded.suggestedFilename()).toBe(`${original.last_calculation.project.name}.kml`);
     return readFileSync((await downloaded.path())!, "utf8");
@@ -318,41 +321,7 @@ test("download and Clipboard export Project inputs, survive denial, and retain w
   expect(result.inputs.name).toBe(original.project.name);
   expect(result).not.toHaveProperty("outcome");
   expect(result).not.toHaveProperty("sea");
-  await page.getByRole("button", { name: "プロジェクトJSONをコピー" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "プロジェクトJSONをコピーしました。" })).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(text);
-  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new DOMException("Denied", "NotAllowedError"); } } }));
-  await page.getByRole("button", { name: "プロジェクトJSONをコピー" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "コピーできませんでした" })).toBeVisible();
-
-  // Interrupt a pending Clipboard write, then retry using keyboard activation.
-  const copy = page.getByRole("button", { name: "プロジェクトJSONをコピー" });
-  const save = page.getByRole("button", { name: "プロジェクトJSONをダウンロード" });
-  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
-    writeText: () => new Promise<void>((_resolve, reject) => {
-      (window as any).interruptExport = () => reject(new DOMException("Denied", "NotAllowedError"));
-    }),
-  } }));
-  await copy.click();
-  await expect(copy).toBeDisabled();
-  await expect(save).toBeDisabled();
-  await expect.poll(() => page.evaluate(() => typeof (window as any).interruptExport)).toBe("function");
-  await page.evaluate(() => (window as any).interruptExport());
-  await expect(page.getByRole("alert").filter({ hasText: "コピーできませんでした" })).toBeVisible();
-  await expect(copy).toBeEnabled();
-  await expect(save).toBeEnabled();
-  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
-    writeText: async (value: string) => { (window as any).retriedExport = value; },
-  } }));
-  const retrySnapshot = (await snapshot(page)).working;
-  await save.focus();
-  await page.keyboard.press("Tab");
-  await expect(copy).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("status").filter({ hasText: "プロジェクトJSONをコピーしました。" })).toBeVisible();
-  const retriedExport = JSON.parse(await page.evaluate(() => (window as any).retriedExport));
-  expect(retriedExport.format).toBe("navmate.project");
-  expect(retriedExport.inputs.name).toBe(retrySnapshot.project.name);
+  await expect(page.getByRole("button", { name: "プロジェクトJSONをコピー" })).toHaveCount(0);
   // Export current Project inputs while preserving the displayed calculation.
   await page.getByLabel("TGL", { exact: true }).fill("2");
   await expect(page.locator("#kml-export-notice")).toContainText("再計算前の結果を出力します。");
@@ -386,7 +355,7 @@ test("download and Clipboard export Project inputs, survive denial, and retain w
   expect({ ...currentOutcome, status: null }).toEqual({ ...original.outcome, status: null });
   await context.setOffline(false);
   await page.reload();
-  await expect(page.getByRole("button", { name: "Google Earth 用にエクスポート", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Google Earth", exact: true })).toBeEnabled();
   await expect(page.locator("#kml-export-notice")).toContainText("再計算前の結果を出力します。");
   expect(await inspectKml(await downloadKml())).toEqual(originalKml);
 });

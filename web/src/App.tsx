@@ -9,7 +9,7 @@ import { importCandidateToMapDraft } from "./importRouteDraft";
 import { canConfirmMapDraft, validMapDraft, nextWaypointName, routeDraftFromProject, type MapRoutePoint } from "./mapRouteDraft";
 import { AccountSyncControl } from "./components/AccountSyncControl";
 import { useCallback, useSyncExternalStore, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from "react";
-import { AlertCircle, CheckCircle2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, ExternalLink, X } from "lucide-react";
 import { ApplicationError } from "./application";
 import { WorkChangeQueue } from "./workChangeQueue";
 import type { AutoNavLogApplication, UpdateProjectInput } from "./application";
@@ -1616,7 +1616,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     calculationInFlight.current = false;
   };
 
-  const handleProjectExport = async (destination: "file" | "clipboard") => {
+  const handleProjectExport = async () => {
     if (busy || !application.exportProject || !state?.project) return;
     await runTask(async () => {
       if (!await flushDraftAutosave(true)) throw new Error(DRAFT_AUTOSAVE_FAILURE);
@@ -1633,14 +1633,9 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         applyState(next, { syncCalculationInputs: false });
       }
       const text = await application.exportProject!();
-      if (destination === "clipboard") {
-        await platform.clipboard.writeText(text);
-      } else {
-        await platform.files.save({ name: projectExportFilename(project.name, "json"), mediaType: "application/json",
-          content: new TextEncoder().encode(text) });
-      }
-    }, { errorKey: "project-export",
-      success: destination === "clipboard" ? "プロジェクトJSONをコピーしました。" : undefined });
+      await platform.files.save({ name: projectExportFilename(project.name, "json"), mediaType: "application/json",
+        content: new TextEncoder().encode(text) });
+    }, { errorKey: "project-export" });
   };
   const handleProjectImport = async (file: FileContentSource) => {
     if (busy || !application.importProject) return;
@@ -2188,7 +2183,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
                   () => platform.files.save(exportVerticalProfileKml(state.verticalProfile!,
                     Boolean(state.verticalProfileStale) || !calculationInputsAreLocallyCurrent)),
                   { errorKey: "export-kml", success: kmlCopy.saved },
-                )}>{kmlCopy.download}</button>
+                )}>Google Earth <ExternalLink aria-hidden="true" size={17} /></button>
               {(!state.verticalProfile || state.verticalProfileStale || !calculationInputsAreLocallyCurrent) &&
                 <div id="kml-export-notice" className="message-bar message-warning kml-export-notice" role="status">
                   {!state.verticalProfile ? kmlCopy.unavailable : kmlCopy.stale}
@@ -2208,10 +2203,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             editErrors={navLogEditErrors}
             editStatus={navLogEditStatus}
             onEdit={handleNavLogEdit}
-            jsonExport={application.exportProject && <>
-              <button className="secondary-button" disabled={busy} onClick={() => void handleProjectExport("file")}>プロジェクトJSONをダウンロード</button>
-              <button className="secondary-button" disabled={busy} onClick={() => void handleProjectExport("clipboard")}>プロジェクトJSONをコピー</button>
-            </>}
+            jsonExport={application.exportProject &&
+              <button className="secondary-button" aria-label="プロジェクトJSONをダウンロード" disabled={busy} onClick={() => void handleProjectExport()}>JSON <Download aria-hidden="true" size={17} /></button>}
           />
         </div>
       )}

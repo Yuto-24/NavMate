@@ -176,7 +176,7 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
     const actions = (await page.locator(".nav-log-download-actions").boundingBox())!;
     const toolbar = (await page.locator(".nav-log-toolbar").boundingBox())!;
     expect(actions.y).toBeGreaterThanOrEqual(summary.y + summary.height);
-    expect(toolbar.y).toBeGreaterThanOrEqual(actions.y + actions.height);
+    expect(actions.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height);
     const add = (await page.getByRole("button", { name: "VOR/DME列を追加" }).boundingBox())!;
     const rad = (await page.locator(".nav-log-rad-control").boundingBox())!;
     expect(rad.x).toBeGreaterThan(add.x + add.width);
@@ -184,7 +184,7 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
     await expect(page.getByText("四捨五入モード", { exact: true })).toHaveCount(0);
     await expect(page.locator(".status-actions .primary-button")).toHaveCSS("background-color", "rgb(194, 65, 12)");
     await expect(output).toHaveCSS("background-color", "rgb(34, 92, 77)");
-    await expect(page.getByRole("button", { name: "Google Earth 用にエクスポート" })).toHaveCSS("background-color", "rgb(34, 92, 77)");
+    await expect(page.getByRole("button", { name: "Google Earth" })).toHaveCSS("background-color", "rgb(34, 92, 77)");
   }
   await page.locator(".nav-log-scroll").evaluate(el => { el.scrollLeft = el.scrollWidth; });
   const expectedCells = await page.locator(".nav-log-table").evaluate(table => {
@@ -199,8 +199,7 @@ test("#477 clean PNG includes both tables, selected VORs and current modes witho
   await output.click();
   const download = await downloadPromise;
   const projectName = await page.getByRole("button", { name: "プロジェクトメニュー", exact: true }).getAttribute("title");
-  expect(download.suggestedFilename().startsWith(`${projectName}_`)).toBe(true);
-  expect(download.suggestedFilename()).toMatch(/_\d{8}-\d{4}\.png$/);
+  expect(download.suggestedFilename()).toBe(`NAVLOG_${projectName}.png`);
   const path = info.outputPath("NAVLOG.png");
   await download.saveAs(path);
   const pngToast = page.locator("#app-notification-region .app-notification").filter({ hasText: "PNGのダウンロードを開始しました。" });
