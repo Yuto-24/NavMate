@@ -190,7 +190,6 @@ test("confirmed route does not expose pasted KML replacement or a file picker", 
 });
 
 test("download Project inputs and retain workflow order", async ({ page, context }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await open(page);
   // Loaded Local assets can calculate/import/export without a connectivity gate.
   if (isLocal()) await context.setOffline(true);
@@ -342,9 +341,10 @@ test("download Project inputs and retain workflow order", async ({ page, context
   expect(await inspectKml(staleKml)).toEqual(originalKml);
   await expect.poll(async () => (await snapshot(page)).working.project.tgl_count).toBe(2);
   await expect(seaCells).toHaveCount(0);
-  await copy.click();
-  await expect.poll(() => page.evaluate(() => JSON.parse((window as any).retriedExport).inputs.tgl_count)).toBe(2);
-  const staleExport = JSON.parse(await page.evaluate(() => (window as any).retriedExport));
+  const staleDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "プロジェクトJSONをダウンロード" }).click();
+  const staleExport = JSON.parse(readFileSync((await (await staleDownload).path())!, "utf8"));
+  expect(staleExport).not.toHaveProperty("outcome");
   expect(staleExport).not.toHaveProperty("sea");
   expect(staleExport.inputs.tgl_count).toBe(2);
   await page.evaluate(() => { URL.createObjectURL = undefined as any; });
