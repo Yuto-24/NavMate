@@ -2311,7 +2311,7 @@ test("RJFM departure guidance renders route overlays and runway diagnostics", as
   const legend = page.getByRole("group", { name: "RJFMガイダンス凡例" });
   await expect(legend).toHaveCSS("pointer-events", "none");
   await expect(legend).toContainText("PCA：約656–2,625 ft（200–800 m）");
-  await expect(legend).toContainText("中心除外 9 km");
+  await expect(legend).not.toContainText("中心除外 9 km");
   await expect(legend).not.toContainText("民間訓練試験空域 KS4（GSI）");
   await expect(legend).not.toContainText("区画を表示");
   await expect(page.locator(".rjfm-airspace-note")).toHaveCount(0);

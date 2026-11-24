@@ -6,6 +6,8 @@ web/.env*
 .github/workflows/*
 !.github/workflows/test.yml
 !.github/workflows/static-production.yml
+!.github/workflows/release-preflight.yml
+!.github/workflows/publish-github-release.yml
 .venv
 .autonavlog-data
 .codex

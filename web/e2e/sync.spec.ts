@@ -14,7 +14,7 @@ async function start(page: Page, subject: string) {
 }
 
 async function state(page: Page) { return page.evaluate(() => (window as any).authTest.contexts.at(-1).sync.getState()); }
-async function create(page: Page, name: string) {
+async function create(page: Page, name: string, releaseTerrain?: () => void) {
   await enterImportWorkflow(page);
   await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
   await confirmImportedDraft(page);
@@ -32,6 +32,13 @@ async function create(page: Page, name: string) {
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
   await expect(page.getByLabel("計算済みNAV LOG", { exact: true })).toBeFocused();
+  if (releaseTerrain) {
+    // Finish automatic SEA persistence before saving the cross-device snapshot.
+    const terrainStatus = page.locator(".nav-log-footer-details > [role=status]");
+    await expect(terrainStatus).toContainText("地形データを取得しています。");
+    releaseTerrain();
+    await expect(terrainStatus).toHaveCount(0, { timeout: 90_000 });
+  }
   const projectName = page.getByLabel("プロジェクト", { exact: true });
   await openProjectMenu(page);
   await projectName.click();
@@ -60,11 +67,22 @@ async function blockLocalDeletion(page: Page, accountId: string) {
 }
 test("real SDK: fresh device Last Calculation, offline edit, blocking conflict both, delete Undo and account separation", async ({ browser, page, context }) => {
   await backend(context);
+  // Live terrain writes must not add another conflict to this explicit conflict scenario.
+  const terrain = "**/xyz/dem_png/**";
+  let releaseTerrain!: () => void;
+  const terrainGate = new Promise<void>(resolve => { releaseTerrain = resolve; });
+  await context.route(terrain, async route => {
+    await terrainGate;
+    await route.fulfill({ status: 404, body: "fixture missing" });
+  });
   const subject = `sync-${crypto.randomUUID()}`;
-  await start(page, subject); await create(page, "Sync route");
+  try {
+    await start(page, subject); await create(page, "Sync route", releaseTerrain);
+  } finally { releaseTerrain(); }
   const cutValues = await page.locator(".nav-leg-heading-row .nav-log-cut-cell").allTextContents();
   expect(cutValues.some(value => /^\d+$/.test(value))).toBe(true);
   const other = await browser.newContext({ viewport: page.viewportSize()! }); await backend(other); const ipad = await other.newPage();
+  await other.route(terrain, route => route.fulfill({ status: 404, body: "fixture missing" }));
   try {
     await start(ipad, subject); await open(ipad, "Sync route");
     // #465: another device restores straight-hold seconds through the real SDK.

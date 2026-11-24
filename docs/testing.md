@@ -470,6 +470,11 @@ Firestore Rules→storage-upgrade→migrationはcontracts runnerで全対象を�
 `dev-shared`で計算済みProjectを別端末から開く場合、NAV LOG表示だけでなく自動SEA更新の完了を待ってから保存する。
 地形応答を固定fixtureにし、取得中のステータス表示を確認してから、その表示が消えるまで待つことで、外部取得の遅延と保存token更新の競合を避ける。
 [PR #493のCI](https://github.com/Yuto-24/NavMate/actions/runs/45040943412/job/137265089639)では、保存後のSEA更新と別端末の読込が重なり、同期の競合保護によって読込が拒否された。
+2026-11-24、[PR #517のiPhone同期CI](https://github.com/Yuto-24/NavMate/actions/runs/45228943720/job/137883294565)でも、
+意図したFUEL編集の競合を解消した直後に別の競合が開き、削除ボタンが隠れたままタイムアウトしました。
+trace内のFirestore書込を比較すると、後続更新の内容差分はDraftの`metadata.sea`追加とtoken・更新時刻でした。
+この端末間引渡し・競合解決テストにも地形fixtureとSEA保存完了待ちを適用し、保存前に取得ステータスの開始から消滅までを確認します。
+取得の60秒上限と保存を含めた待機は90秒以内とし、競合保護・削除Undo・アカウント分離の検証は維持します。
 `web`でLocalと同期のexact-once分配を検査し、各集約checkは全matrix entryの成功を要求する。
 失敗・skip・cancelした群を成功扱いにしない。retry、timeout、既存assertionは維持する。
 ローカルのPlaywright configの既定値は1 workerのままとする。
@@ -653,6 +658,12 @@ Playwright 1.62.1では、明示的な親stepがないassertionを記録する�
   1回の `page.evaluate()` 内で比較対象を測り、位置・順序の許容範囲は維持します。
 
 この記録はテストの同期方法に関する観測です。修正後のHosted CI成功を示すものではありません。
+
+2026-11-24、[PR #517のiPhone NAV LOG CI](https://github.com/Yuto-24/NavMate/actions/runs/45228943720/job/137883294426)では、
+1時間先への時計移動後に自動保存が失敗しました。処理中の`LocalClient`リクエストには10分の期限があり、
+応答待ちを残した時計の再現検証でも1時間先への移動によるWorker終了を確認しました。
+停止先は3分のテスト上限より長く、10分の処理期限より短い5分先にします。
+通知の5秒寿命と`runFor()`による検証は維持し、時計の移動が別の期限を発火させないかも確認します。
 
 #### 再利用イメージの Python Reference と Local wheel
 

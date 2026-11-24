@@ -734,12 +734,7 @@ export function RouteWorkspace({
                   opacity: 0.95,
                   weight: 3,
                 }}
-              >
-                <Tooltip sticky>
-                  PCA中心除外 {rjfmMapReference.pca.exclusionRadiusKm.toLocaleString("ja-JP")} km
-                  （国交省告示）
-                </Tooltip>
-              </Circle>
+              />
             </>
           )}
           {trainingAirspace.polygons.map((airspace) => (
@@ -958,7 +953,6 @@ export function RouteWorkspace({
                   –{Math.round(rjfmMapReference.pca.sourceAltitudeUpperM / 0.3048).toLocaleString("ja-JP")} ft（{rjfmMapReference.pca.sourceAltitudeLowerM.toLocaleString("ja-JP")}
                   –{rjfmMapReference.pca.sourceAltitudeUpperM.toLocaleString("ja-JP")} m）
                 </span>
-                <span><i className="is-pca-exclusion" aria-hidden="true" style={localMode ? { borderColor: pcaColor } : undefined} />中心除外 {rjfmMapReference.pca.exclusionRadiusKm.toLocaleString("ja-JP")} km</span>
               </>
             )}
             {rjfmGuidance && (

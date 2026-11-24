@@ -55,6 +55,7 @@ COPY web/public ./web/public
 COPY assets/branding ./assets/branding
 COPY .github/workflows/test.yml ./.github/workflows/test.yml
 COPY .github/workflows/static-production.yml ./.github/workflows/static-production.yml
+COPY .github/workflows/release-preflight.yml .github/workflows/publish-github-release.yml ./.github/workflows/
 
 RUN chmod 755 scripts/run_ci_checks.sh \
     && python -m pip install vendor/jma_gpv_weather-0.6.0-py3-none-any.whl ".[test]" \

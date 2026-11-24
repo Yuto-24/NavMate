@@ -218,19 +218,19 @@ def test_automation_workflow_contract():
     assert "workflows: [publish-github-release, test]" not in triggers
     assert "needs: [source-ci]" in workflow
     assert "needs.source-ci.result == 'success'" in workflow
-    assert workflow.count("group: static-production") == 7
+    assert workflow.count("group: static-production") == 9
     assert "vars.STATIC_APP_RELEASE_ENABLED == 'true'" in workflow
     assert "environment: static-production" in workflow and "static-publication" not in workflow
     assert "ref: main" in workflow and "persist-credentials: false" in workflow
     assert "github.repository == 'Yuto-24/NavMate' &&" in workflow
     # Each readback and manual schema operation retains the shared lock and WIF scope.
     assert workflow.count("create_credentials_file: false") == 6
-    assert workflow.count("create_credentials_file: true") == 2
+    assert workflow.count("create_credentials_file: true") == 4
     assert workflow.count("https://www.googleapis.com/auth/firebase.readonly") == 8
     source = (auto.ROOT / ".github/workflows/static-production.yml").read_text()
     assert "group: static-production\n  cancel-in-progress: false\n  queue: max" in source
-    assert workflow.count("cancel-in-progress: false") == 7
-    assert workflow.count("queue: max") == 7
+    assert workflow.count("cancel-in-progress: false") == 9
+    assert workflow.count("queue: max") == 9
 
 
 @pytest.mark.parametrize("version,branch", [
@@ -384,3 +384,46 @@ def test_snapshot_requires_current_public_repository_before_publication(
     with pytest.raises(KeyError if accepted else app.Blocked,
                        match="STATIC_ORIGIN" if accepted else "Expected public repository"):
         op.snapshot(NEW, OLD)
+
+
+@pytest.mark.parametrize("trigger", ["release", "workflow_dispatch", "workflow_run"])
+@pytest.mark.parametrize("version", [2, 3])
+def test_every_normal_entry_checks_selected_tag_database_version(monkeypatch, trigger, version):
+    source = Source()
+    event = {"repository": REPO,
+             "action": "completed" if trigger == "workflow_run" else "published",
+             "workflow_run": {"id": 42}, "release": source.selected,
+             "inputs": {"release_id": "123"}}
+    selected = auto.select_release(source, event, trigger)
+    op = auto.ActionsOperator(selected)
+    original_git = source.git
+
+    def git(*args):
+        if args[0] == "show" and args[1].endswith(":" + auto.release_preflight.WRITER):
+            db = version if args[1].startswith(NEW) else 2
+            from tests.unit.test_static_schema_transition import writer_source
+
+            return writer_source(db)
+        return original_git(*args)
+
+    op.git = git
+    op.gh = lambda path: ({"value": "true"} if path.startswith("actions/variables/")
+                          else source.gh(path))
+    monkeypatch.setattr(auto.source_ci, "require_success", lambda *_: {})
+    reached = []
+
+    def snapshot(*args, **kwargs):
+        reached.append(True)
+        return {"version": "1.23.0"}
+
+    monkeypatch.setattr(app.Operator, "snapshot", snapshot)
+    monkeypatch.setattr(app, "release", lambda *_: {
+        "commit": OLD, "dirty": False, "version": "1.22.0",
+    })
+    if version == 3:
+        with pytest.raises(app.Blocked, match="Database version changed"):
+            op.snapshot(NEW, OLD)
+        assert not reached
+    else:
+        assert op.snapshot(NEW, OLD)["github_release"] == selected
+        assert reached == [True]

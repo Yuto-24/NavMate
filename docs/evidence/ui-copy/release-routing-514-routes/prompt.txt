@@ -1,0 +1,47 @@
+利用者の視点からUI文言を提案してください。ツール実行・ファイル操作は禁止です。
+本人指定の意図と制約を守り、各idに候補と理由、懸念を示してください。
+最終文言は実装担当が判断します。
+{
+  "items": [
+    {
+      "id": "route-legacy",
+      "text": "Known legacy contract has no automated evidence recipe; individual migration required",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain routing and the next operator action before GitHub Release creation",
+      "context": "Preflight outputs route and publication_authorized=false. AIP source union with DB2-to3 is MANUAL; known legacy 1-to2/forecast transitions lack automated evidence recipes and are BLOCKED. API errors are BLOCKED. User must independently review generated evidence before prepare-migration, then separately authorize publish-migration. No production setting is changed by preflight.",
+      "constraints": "Preserve exact operation names. Avoid implying that classification or tests provide approval. Concise English operator guidance."
+    },
+    {
+      "id": "route-legacy-next",
+      "text": "Use the separately reviewed legacy migration procedure",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain routing and the next operator action before GitHub Release creation",
+      "context": "Preflight outputs route and publication_authorized=false. AIP source union with DB2-to3 is MANUAL; known legacy 1-to2/forecast transitions lack automated evidence recipes and are BLOCKED. API errors are BLOCKED. User must independently review generated evidence before prepare-migration, then separately authorize publish-migration. No production setting is changed by preflight.",
+      "constraints": "Preserve exact operation names. Avoid implying that classification or tests provide approval. Concise English operator guidance."
+    },
+    {
+      "id": "route-manual-next",
+      "text": "Review the private evidence, dispatch prepare-migration, then approve publish-migration",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain routing and the next operator action before GitHub Release creation",
+      "context": "Preflight outputs route and publication_authorized=false. AIP source union with DB2-to3 is MANUAL; known legacy 1-to2/forecast transitions lack automated evidence recipes and are BLOCKED. API errors are BLOCKED. User must independently review generated evidence before prepare-migration, then separately authorize publish-migration. No production setting is changed by preflight.",
+      "constraints": "Preserve exact operation names. Avoid implying that classification or tests provide approval. Concise English operator guidance."
+    },
+    {
+      "id": "route-manual",
+      "text": "Recognized contract; pinned compatibility evidence and explicit approval required",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain routing and the next operator action before GitHub Release creation",
+      "context": "Preflight outputs route and publication_authorized=false. AIP source union with DB2-to3 is MANUAL; known legacy 1-to2/forecast transitions lack automated evidence recipes and are BLOCKED. API errors are BLOCKED. User must independently review generated evidence before prepare-migration, then separately authorize publish-migration. No production setting is changed by preflight.",
+      "constraints": "Preserve exact operation names. Avoid implying that classification or tests provide approval. Concise English operator guidance."
+    },
+    {
+      "id": "route-unavailable",
+      "text": "Preflight unavailable; reconcile production and access before retry",
+      "location": "scripts/static_ops/release_preflight.py",
+      "purpose": "Explain routing and the next operator action before GitHub Release creation",
+      "context": "Preflight outputs route and publication_authorized=false. AIP source union with DB2-to3 is MANUAL; known legacy 1-to2/forecast transitions lack automated evidence recipes and are BLOCKED. API errors are BLOCKED. User must independently review generated evidence before prepare-migration, then separately authorize publish-migration. No production setting is changed by preflight.",
+      "constraints": "Preserve exact operation names. Avoid implying that classification or tests provide approval. Concise English operator guidance."
+    }
+  ]
+}

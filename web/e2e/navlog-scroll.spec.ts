@@ -95,8 +95,9 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   const toast = page.locator(".calculation-toast");
   // Freeze before calculation so layout/assertion time on slower CI runners
   // cannot consume the toast's five-second lifetime.
-  // The fixed target exceeds the test timeout, avoiding a clock-read round trip.
-  await page.clock.pauseAt(new Date("2026-09-11T01:00:00Z"));
+  // Stay beyond this test's 3-minute budget but below LocalClient's 10-minute
+  // deadline: jumping an hour can kill a worker request from pending autosave.
+  await page.clock.pauseAt(new Date("2026-09-11T00:05:00Z"));
   await page.getByRole("button", { name: "NAV LOGを作る", exact: true }).click();
   await expect(toast).toHaveText("NAV LOGを計算しました。準備状況と各値を確認してください。");
   await page.clock.runFor(500); // Run the existing scroll-to-result frame.

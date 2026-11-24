@@ -538,3 +538,50 @@ Issueのworkflow全体609秒／633秒とは計測境界が異なる。driver内�
   同じSHAでもfeed・時刻・外部状態が変わる。Issueの対象外であり実装しない。
 - **保留：依存cache変更。** 既存Runのrunner依存導入は22秒／19秒だが、container内部とは別。
   新計測で冷温差・失敗例と効果を確認してから、再現性を保てる範囲を別途判断する。
+
+
+## Migration evidence source identity (Issue #514)
+
+Verified locally on 2026-11-24 for the new Actions evidence path; this is not a
+production migration approval. The operational entry remains
+[schema_transition.md](schema_transition.md#github上の移行証跡と承認).
+
+- A successful aggregate CI job cannot establish that the migration suite ran.
+  Require the exact contracts job and execution step, and pin executable test inputs,
+  including `web/package.json`. The dependency lock alone does not prevent an npm
+  script from becoming a successful no-op. Negative coverage lives in
+  `tests/unit/test_migration_release.py`.
+- The frozen pre-AIP adapters import shared helpers from the candidate through the
+  Vite harness. Pinning just those three adapter blobs is insufficient: compare the
+  emitted JavaScript across their runtime dependency closure and pin the SDK lock.
+  Type-only additions need not invalidate identical execution behavior.
+- The actual-version probe used 2.5.2 commit
+  `ab26080419f1a375db786b045c43aca828b02d7c` and 2.6.0 commit
+  `6b94850507c381b5645a26d914fdc6e8fe597f81` in separate installed Docker images.
+  Saved, distinct Draft, Latest and historical LastCalculation survived. CUT display
+  values are rederived on open and stripped by the existing durable serializer;
+  compare the complete durable records through that serializer, not raw display state.
+  These observations cover synthetic records, not production accounts/devices.
+- Review withdrawal must be checked at mutation boundaries after long builds/readback,
+  including GitHub Release creation and weather resume. A digest verified only when
+  dispatch starts does not establish continuing approval. Tests preserve failure state
+  rather than replaying uncertain Release creation or resuming weather.
+
+### PR #517 review corrections (2026-11-24)
+
+The release routing audit also applies to `release: published` and `replay-release`:
+compare the selected tag's database version in the shared automatic snapshot gate.
+A version-like argument in an unrelated call is not evidence of the IndexedDB version.
+The recognizer accepts only the existing writer forms; new forms require review.
+
+The actual-version probe must compare the candidate-restored Draft in full. Generate
+the distinct synthetic draft through the old application's restore path before saving
+its baseline: hand-editing planning inputs leaves a derived status that the old
+application itself changes. Do not discard fields from the candidate comparison to
+hide that fixture inconsistency. Browser dependency checks also reject alternative
+extension siblings in both pinned trees, and Docker probes override image ENTRYPOINT.
+
+Evidence: PR #517 review regression tests in `test_release_preflight.py`,
+`test_release_automation.py`, `test_migration_release.py`, and
+`check_migration_browser.test.mjs`. These local checks do not establish production
+migration acceptance or hosted CI completion.

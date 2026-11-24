@@ -7,7 +7,8 @@ Read [the workflow](README.md) before adding or applying lessons. For the full m
 - [Agent workflow](../agent_workflow.md)
 - [PR本文更新によるCIキャンセル](../testing.md#pr本文更新によるciキャンセル): PR #478。本文編集もCIを起動し、先行Runのcancelledが集約失敗へ波及する。テスト本体の失敗と分け、本文を先に更新して最後にpushする。
 - [多数のassertionによるPlaywrightの記録負荷](../testing.md#多数のassertionによるplaywrightの記録負荷): PR #494。iPad WebKitの格子検証で約5万4千件のassertion記録が累積しtimeout。Playwright 1.62.1の親step検索を確認し、検証内容を保って反復単位の `test.step()` で区切る。
-- [スクロール中の位置測定と時計の停止](../testing.md#スクロール中の位置測定と時計の停止): PR #489。別々の座標取得と停止時刻の取得・指定の間に時間が進む問題。位置の同時測定と、固定時刻からの時計制御で検証条件を保つ。
+- [スクロール中の位置測定と時計の停止](../testing.md#スクロール中の位置測定と時計の停止): PR #489・#517。位置の同時測定と固定時刻からの時計制御。停止先はテスト上限より先、処理中のWorker期限より手前に置く。
+- [同期テストのSEA保存待ち](../testing.md#browser-worker-count): PR #493・#517。地形の自動保存が別端末との意図しない競合を生む。外部地形をfixtureに固定し、SEA保存後に引き渡す。集約失敗や操作timeoutは個別jobのtraceと書込内容で切り分ける。
 - [DESCENT時間とGoogle Earth受入](../testing.md#descent時間とgoogle-earth受入issue-173): #173。時間不足だけでなく超過も検証し、RJFM帰路の保存運用時間と一般EOCのsnap例外を維持する。数値・KML構造検証とEarth実表示受入を分ける。
 - [EOC高度連続性とsnap時間差](../testing.md#eocの高度連続性とsnap時間差issue-470): #470。前段の実効CRUISE時間による高度到達と、snapによる描画時間差を分離。旧Goldenの高度不連続、保存済みsnap根拠の照合、30秒以内の描画補正の検証境界。
 - [再利用イメージのPython Reference版ずれ](../testing.md#再利用イメージの-python-reference-と-local-wheel): Issue #418。PYTHONPATHだけではdistribution metadataは更新されず、古い版番号が計算fingerprintに入る。Local wheelと現行パッケージを揃える。旧環境での変更前UIの失敗だけから既存不具合と断定しない。
@@ -45,3 +46,5 @@ Entries below preserve scoped observations, not repository-wide rules.
 | [MSM-TRIGGER-OPS-DRIFT](entries/msm-trigger-worker-ops-drift.md) | `ops.mjs` による `.state/wrangler.json` 上書き、`observability` 差分、`.state` 欠落、OAuth 401/403、CA 不足、`FRESH` と dispatch の区別 | provisional | 2026-11-18、Worker 再配置と自然 Cron 1 tick 観測。`DISPATCH_ACCEPTED` 経路は未実証 |
 
 Use [TEMPLATE.md](TEMPLATE.md); keep details in their canonical document and link here. Do not turn this index into a transcript or broad file inventory.
+
+- [移行証跡の実行元と承認の再確認](../app_publication_audit.md#migration-evidence-source-identity-issue-514): #514。集約CI成功とnpm lockだけでは移行テスト実行を保証しない。旧fixtureが参照する共有実行コード、実版データの保存時正規化、長時間処理後の承認撤回を確認する。
