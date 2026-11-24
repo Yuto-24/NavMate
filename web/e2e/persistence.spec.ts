@@ -657,10 +657,14 @@ test("#280 #465 saved CUT seconds and legacy Last Calculation reopen without rec
   await expect(page.locator(".nav-leg-heading-row .nav-log-cut-cell").nth(1)).toHaveText("0");
 });
 
-test("#319 Project JSON transfers calculated Project inputs into independent saved Projects", async ({ page, browser, browserName }) => {
-  if (browserName === "chromium") await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+test("#319 Project JSON transfers calculated Project inputs into independent saved Projects", async ({ page, browser }) => {
   await start(page);
   await confirm(page, "FTD");
+  for (const width of [1100, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expectPlanningLayout(page, width);
+    await expect(page.getByRole("button", { name: "JSONファイルから追加", exact: true })).toHaveCount(0);
+  }
   await expect.poll(async () => (await working(page)).project?.weather_mode).toBe("FTD");
   await expect(page.getByRole("button", { name: "プロジェクトJSONをダウンロード", exact: true })).toHaveCount(0);
   await calculate(page);
@@ -669,8 +673,7 @@ test("#319 Project JSON transfers calculated Project inputs into independent sav
   const download = await downloadPromise;
   const content = readFileSync((await download.path())!);
   const exported = JSON.parse(content.toString());
-  await page.getByRole("button", { name: "プロジェクトJSONをコピー", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "プロジェクトJSONをコピーしました。" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "プロジェクトJSONをコピー", exact: true })).toHaveCount(0);
   expect(exported.format).toBe("navmate.project");
   expect(exported.inputs.weather_mode).toBe("FTD");
   expect(exported.inputs.id).toBeUndefined();

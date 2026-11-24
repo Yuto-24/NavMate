@@ -2,7 +2,7 @@
   "tool": "agy",
   "requested_model": "gemini-4-neon-high",
   "model_identity_note": "Requested model only; backend identity is not independently verified.",
-  "started_at": "2026-11-21T17:05:33.309989+00:00",
+  "started_at": "2026-11-24T12:05:18.026763+00:00",
   "command": [
     "agy",
     "--model",
@@ -17,11 +17,11 @@
   ],
   "status": "response-received",
   "returncode": 0,
-  "finished_at": "2026-11-21T17:06:47.204931+00:00",
+  "finished_at": "2026-11-24T12:06:28.443250+00:00",
   "sha256": {
-    "request.json": "1acaa35c479bc734312f41a2d69f9aa1a7e67d2dccf1d76f13f1d8126a5052bd",
-    "prompt.txt": "acb50f2359db2e98d1bdb1319e8bbc4429b9cfa4c62b6fbc0b015af1bf916614",
-    "stdout.json": "c4fd6eb9057f0a54048da8f46809e4f212fe27f38834a223f8970696bef29763",
+    "request.json": "43add9566e407cd941df354d04b140e3925238a80d96a47dcb476f610bcf9f52",
+    "prompt.txt": "fd39f4b457b983f50e7b6f88086fad0d9ed4d2a7cd7f3b681ea474234d90f8f0",
+    "stdout.json": "389d60d751088a97c233d17819b878d1c3a37c66f47fd7a4ab2d84636ba51e6f",
     "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   }
 }

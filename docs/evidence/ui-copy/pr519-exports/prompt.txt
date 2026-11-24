@@ -1,0 +1,47 @@
+利用者の視点からUI文言を提案してください。ツール実行・ファイル操作は禁止です。
+本人指定の意図と制約を守り、各idに候補と理由、懸念を示してください。
+最終文言は実装担当が判断します。
+{
+  "items": [
+    {
+      "id": "json",
+      "text": "JSON",
+      "location": "NAV LOG末尾、ダウンロードアイコン",
+      "purpose": "Project入力JSONの保存",
+      "context": "PNGとGoogle Earthの左。計算後に表示。コピー機能は削除。",
+      "constraints": "利用者指定。アクセシブル名はプロジェクトJSONをダウンロード。"
+    },
+    {
+      "id": "png",
+      "text": "PNG",
+      "location": "NAV LOG末尾、ダウンロードアイコン",
+      "purpose": "NAV LOGと燃料表を画像として保存",
+      "context": "JSONの右、Google Earthの左。入力変更などで無効化する。",
+      "constraints": "既存文言を移動。"
+    },
+    {
+      "id": "png-busy",
+      "text": "PNGを作成中…",
+      "location": "PNGボタン",
+      "purpose": "画像生成中の状態",
+      "context": "処理中のみラベルを切り替え、無効化する。",
+      "constraints": "既存文言を移動。"
+    },
+    {
+      "id": "earth",
+      "text": "Google Earth",
+      "location": "NAV LOG末尾、エクスポートアイコン",
+      "purpose": "Google Earth用KMLの保存",
+      "context": "PNGの右。出力不可や古い結果の場合は隣に警告を表示。",
+      "constraints": "利用者指定。"
+    },
+    {
+      "id": "import",
+      "text": "JSONファイルから追加",
+      "location": "経路作成画面",
+      "purpose": "Project JSONのインポート",
+      "context": "経路確定後の飛行計画画面ではこのボタンを削除し、経路作成画面では維持。JSON出力とは別。",
+      "constraints": "利用者の削除指示を優先。"
+    }
+  ]
+}
