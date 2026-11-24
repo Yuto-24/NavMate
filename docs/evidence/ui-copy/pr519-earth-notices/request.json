@@ -1,0 +1,21 @@
+{
+  "mode": "proposal",
+  "items": [
+    {
+      "id": "earth-unavailable",
+      "text": "Google Earth 用に出力するには、NAV LOGを再計算してください。",
+      "location": "NAV LOG末尾のGoogle Earth出力ボタンに隣接する警告",
+      "purpose": "再計算による回復を案内。",
+      "context": "縦断プロファイルがない場合はGoogle Earthボタンを無効にして直下に表示。",
+      "constraints": "既存文言を移動し、今回の意図は操作の集約。新しい補足は必要な場合のみ提案。"
+    },
+    {
+      "id": "earth-stale",
+      "text": "再計算前の結果を出力します。編集した内容は含まれません。",
+      "location": "NAV LOG末尾のGoogle Earth出力ボタンに隣接する警告",
+      "purpose": "出力に編集が含まれないことを示す。",
+      "context": "入力が古い場合、Google Earthボタンの直下に表示し、古いKMLの保存は可能。",
+      "constraints": "既存文言を移動し、今回の意図は操作の集約。新しい補足は必要な場合のみ提案。"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "items": [
+    {
+      "id": "json",
+      "text": "JSON",
+      "reason": "本人指定の短い表示名とダウンロードアイコンを維持。入力のみである点はアクセシブル名で対象を示す。",
+      "response_quote": "### 1. `json`\n- **現在案 / 制約**: `JSON`（利用者指定／アクセシブル名は「プロジェクトJSONをダウンロード」）\n- **候補**\n  1. **`JSON`**（推奨・本人指定を維持）\n  2. **`JSONを保存`**（参考案：動作を明示したい場合）\n  3. **`プロジェクトJSON`**（参考案：対象を明示したい場合）\n- **理由**\n  - 利用者指定を最優先しつつ、隣の `PNG` と同じ形式名＋ダウンロードアイコンで並ぶため視認性と統一感が高い。\n  - 短いためNAV LOG末尾のアクション列に収まりやすく、意味の補足は指定済みのアクセシブル名（「プロジェクトJSONをダウンロード」）で担保できる。\n- **懸念**\n  - 計算後に表示される位置にあるため、利用者が「Project入力JSON」ではなく「計算結果（NAV LOG）のJSON」と誤解する可能性がある（必要に応じてツールチップ等で「入力データを保存」と補足すると親切）。\n  - コピー機能が削除されたことに気づかず、旧来どおりクリップボードへコピーされると思い込む既存利用者がいるかもしれない。",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "            jsonExport={application.exportProject &&",
+        "end": "          />",
+        "expected": "            jsonExport={application.exportProject &&\n              <button className=\"secondary-button\" aria-label=\"プロジェクトJSONをダウンロード\" disabled={busy} onClick={() => void handleProjectExport()}>JSON <Download aria-hidden=\"true\" size={17} /></button>}\n          />"
+      }
+    },
+    {
+      "id": "png",
+      "text": "PNG",
+      "reason": "既存の表示名とアイコンを維持しJSONの右に移す。",
+      "response_quote": "### 2. `png`\n- **現在案 / 制約**: `PNG`（既存文言を移動）\n- **候補**\n  1. **`PNG`**（推奨・既存文言を維持）\n  2. **`PNG画像`**（参考案：形式名に不慣れな利用者向け）\n  3. **`画像 (PNG)`**（参考案：用途を先に伝えたい場合）\n- **理由**\n  - 既存文言のまま移動することで既利用者の学習コストを抑えられ、左隣の `JSON` と「形式名＋ダウンロードアイコン」で完全に揃う。\n  - 処理中ラベル（`PNGを作成中…`）とも語彙が一致する。\n- **懸念**\n  - 「NAV LOGと燃料表が1つ（またはセット）の画像として保存される」ことはラベルだけでは伝わりにくい（`json` と同様に、アクセシブル名やツールチップで「NAV LOGと燃料表をPNGでダウンロード」などと補うと親切）。\n  - 入力変更などで無効化された際、**なぜ押せないのか（再計算が必要など）**がボタン単体では分からず戸惑う恐れがある。左隣の `JSON` が同じ条件で無効化されない場合、挙動の違いが分かりにくくなる。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "          <div className=\"navlog-export-actions nav-log-download-actions\">",
+        "end": "            {kmlExport}",
+        "expected": "          <div className=\"navlog-export-actions nav-log-download-actions\">\n            {jsonExport}\n            <button className=\"primary-button\" type=\"button\" disabled={exportDisabled || exporting || !savePng}\n              onClick={() => void exportPng()}>{exporting ? \"PNGを作成中…\" : \"PNG\"}<Download aria-hidden=\"true\" size={17} /></button>\n            {kmlExport}"
+      }
+    },
+    {
+      "id": "png-busy",
+      "text": "PNGを作成中…",
+      "reason": "既存の処理中表示を維持する。",
+      "response_quote": "### 3. `png-busy`\n- **現在案 / 制約**: `PNGを作成中…`（既存文言を移動）\n- **候補**\n  1. **`PNGを作成中…`**（推奨・既存文言を維持）\n  2. **`作成中…`**（参考案：ボタン幅の伸縮を抑えたい場合）\n  3. **`PNGを保存中…`**（参考案：ダウンロードアイコンの印象に近づける場合）\n- **理由**\n  - 既存文言で違和感なく、「待機すれば画像ができる」ことが専門用語（「生成」「レンダリング」等）を使わずに伝わる。\n  - 無効化と組み合わせることで二重押下防止の意図が明確になる。\n- **懸念**\n  - 通常時の `PNG`（3文字）から `PNGを作成中…`（8文字）へ切り替わる際、ボタン幅が大きく広がって右隣の `Google Earth` が横に押し出される**レイアウトシフト（ガタつき・折り返し）**が起きやすい。\n  - 画面リーダー利用者向けに、状態変化が通知されるか（`aria-busy` やライブリージョン等）の確認が必要。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "          <div className=\"navlog-export-actions nav-log-download-actions\">",
+        "end": "            {kmlExport}",
+        "expected": "          <div className=\"navlog-export-actions nav-log-download-actions\">\n            {jsonExport}\n            <button className=\"primary-button\" type=\"button\" disabled={exportDisabled || exporting || !savePng}\n              onClick={() => void exportPng()}>{exporting ? \"PNGを作成中…\" : \"PNG\"}<Download aria-hidden=\"true\" size={17} /></button>\n            {kmlExport}"
+      }
+    },
+    {
+      "id": "earth",
+      "text": "Google Earth",
+      "reason": "本人指定の表示名とエクスポートアイコンを採用。KML警告と無効化は維持する。",
+      "response_quote": "### 4. `earth`\n- **現在案 / 制約**: `Google Earth`（利用者指定）\n- **候補**\n  1. **`Google Earth`**（推奨・本人指定を維持）\n  2. **`Google Earth (KML)`**（参考案：ファイル保存であることを明示したい場合）\n  3. **`KML出力`**（参考案：形式名で左2つと揃える場合 ※本人指定と相反するため非推奨）\n- **理由**\n  - 利用者指定を尊重しつつ、技術的な拡張子（KML）よりも実際に開くツール名を示す方が、利用者にとって「何に使う出力か」が直感的に分かる。\n- **懸念**\n  - 左2つ（`JSON` / `PNG`）が「形式名＋ダウンロードアイコン」なのに対し、ここだけ「アプリ名＋エクスポートアイコン」になるため、**クリックするとGoogle Earthのアプリや外部Webサイトが直接開く**と誤解される可能性がある（アクセシブル名やツールチップで「Google Earth用KMLを保存」等と補足すると安心）。\n  - 出力不可や古い結果の警告が隣に表示されるため、文字列の長さ（`Google Earth`）と相まって狭い画面では折り返しや視認性低下が起きやすい。また「警告が出ているが押せるのか／押せないのか」が一目で分かる状態表現が重要。",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "            kmlExport={<>",
+        "end": "            roundingMode={state.roundingMode ?? true}",
+        "expected": "            kmlExport={<>\n              <button className=\"primary-button\" disabled={busy || !state.verticalProfile}\n                aria-describedby={(!state.verticalProfile || state.verticalProfileStale || !calculationInputsAreLocallyCurrent) ? \"kml-export-notice\" : undefined}\n                onClick={() => void runTask(\n                  () => platform.files.save(exportVerticalProfileKml(state.verticalProfile!,\n                    Boolean(state.verticalProfileStale) || !calculationInputsAreLocallyCurrent)),\n                  { errorKey: \"export-kml\", success: kmlCopy.saved },\n                )}>Google Earth <ExternalLink aria-hidden=\"true\" size={17} /></button>\n              {(!state.verticalProfile || state.verticalProfileStale || !calculationInputsAreLocallyCurrent) &&\n                <div id=\"kml-export-notice\" className=\"message-bar message-warning kml-export-notice\" role=\"status\">\n                  {!state.verticalProfile ? kmlCopy.unavailable : kmlCopy.stale}\n                </div>}\n            </>}\n            roundingMode={state.roundingMode ?? true}"
+      }
+    },
+    {
+      "id": "import",
+      "text": "JSONファイルから追加",
+      "reason": "経路作成画面の既存操作を維持し、飛行計画画面の操作は本人の指示どおり削除する。",
+      "response_quote": "### 5. `import`\n- **現在案 / 制約**: `JSONファイルから追加`（経路確定後の飛行計画画面では削除し、経路作成画面では維持。利用者の削除指示を優先）\n- **候補**\n  1. **`JSONファイルから追加`**（推奨・既存文言を維持 ※「一覧や経路へ追加する」挙動に合致する場合）\n  2. **`JSONファイルから読み込む`**（参考案：現在の入力を上書き・復元する挙動の場合）\n  3. **`プロジェクトJSONを読み込む`**（参考案：NAV LOG末尾の `JSON` 出力と対になるファイルであることを明示したい場合）\n- **理由**\n  - 飛行計画画面からの削除という利用者指示を最優先しつつ、経路作成画面では現行文言を維持することで既存利用者の混乱を最小限にできる。\n  - `JSON出力` とは役割が異なることが文言の粒度からも区別しやすい。\n- **懸念**\n  - **「追加」と実挙動のズレ**: もし実際の動作が「既存データへの追記」ではなく「プロジェクト全体の置き換え（上書き）」や「新規読込」である場合、「追加」という文言が誤解や意図しない上書きを生む懸念がある（実挙動が“一覧への追加”なら問題なし）。\n  - NAV LOG末尾の保存ボタン（`JSON`）と読み込む対象が同じProject JSONであることが、初見の利用者には結びつきにくい場合がある。\n  - 飛行計画画面からボタンが削除されるため、以前そこから読み込んでいた利用者が「インポート機能が消えた」と迷う可能性がある（経路作成画面に戻れば使えることが伝わる導線になっていると望ましい）。",
+      "source": {
+        "path": "web/src/components/ProjectFileInput.tsx",
+        "start": "export function ProjectFileInput",
+        "end": "\n  );\n}",
+        "expected": "export function ProjectFileInput({ busy, onFile }: {\n  busy: boolean;\n  onFile: (file: File) => void;\n}) {\n  const input = useRef<HTMLInputElement>(null);\n  return (\n    <div className=\"project-file-control\">\n      <button className=\"secondary-button full-width\" type=\"button\" disabled={busy}\n        onClick={() => input.current?.click()}>\n        <FileUp aria-hidden=\"true\" size={17} />\n        JSONファイルから追加\n      </button>\n      <input ref={input} type=\"file\" hidden\n        aria-hidden=\"true\" aria-label=\"JSONファイルから追加\" accept=\".json,application/json\" disabled={busy}\n        onChange={event => {\n          const file = event.target.files?.[0];\n          event.target.value = \"\";\n          if (file) onFile(file);\n        }} />\n    </div>\n  );\n}"
+      }
+    }
+  ]
+}

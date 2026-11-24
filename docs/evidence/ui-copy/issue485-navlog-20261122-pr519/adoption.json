@@ -1,0 +1,652 @@
+{
+  "items": [
+    {
+      "id": "rad-mode",
+      "text": "RAD反方位",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。 RAD反方位とPNGのRAD 反方位は、操作名とモード列挙の既存表記として維持する。",
+      "response_quote": "- `rad-mode`｜引用:「RAD反方位」｜採用可否: 採用可｜候補: 「RAD反方位」（現行案）｜理由: 本人指定どおり180°を除いて簡潔に保ちつつ、RADのみ反転する既存機能がチェックボックス単体で伝わるため。｜懸念: 初見利用者にはDME距離が変わらない点や180°反転の意味がやや抽象的だが、ツールチップで補完されるため軽微。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "          <label className=\"nav-log-rad-control\">",
+        "end": "        <div className=\"nav-log-rounding-control\">",
+        "expected": "          <label className=\"nav-log-rad-control\">\n            <input type=\"checkbox\" checked={radReciprocal} disabled={exporting}\n              onChange={event => onRadReciprocalChange?.(event.target.checked)} />\n            RAD反方位\n          </label>\n        </div>\n        <div className=\"nav-log-rounding-control\">"
+      }
+    },
+    {
+      "id": "png-start",
+      "text": "PNGのダウンロードを開始しました。",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-start`｜引用:「PNGのダウンロードを開始しました。」｜採用可否: 採用可｜候補: 「PNGのダウンロードを開始しました。」（現行案）｜理由: ブラウザのダウンロード挙動に正確に沿っており、5秒表示のToastとして簡潔かつ安心感があるため。｜懸念: ブラウザ設定によっては保存完了や保存先に気付きにくい場合があるが、Web仕様上の軽微な懸念にとどまる。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "  const exportPng = async () => {",
+        "end": "  const displayRows: NavLogDisplayRow[] = outcome.display_rows;",
+        "expected": "  const exportPng = async () => {\n    if (!sectionRef.current || !savePng || exporting || exportDisabled) return;\n    setExporting(true);\n    try {\n      const modeText = `${roundingMode ? \"四捨五入\" : \"通常\"} / RAD ${radReciprocal ? \"反方位\" : \"通常\"}`;\n      await savePng(await exportNavLogPng(sectionRef.current, modeText));\n      onExportMessage?.(\"PNGのダウンロードを開始しました。\", \"success\");\n    } catch {\n      onExportMessage?.(\"PNGを保存できませんでした。もう一度お試しください。\", \"error\");\n    } finally {\n      setExporting(false);\n    }\n  };\n  const displayRows: NavLogDisplayRow[] = outcome.display_rows;"
+      }
+    },
+    {
+      "id": "png-failure",
+      "text": "PNGを保存できませんでした。もう一度お試しください。",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-failure`｜引用:「PNGを保存できませんでした。もう一度お試しください。」｜採用可否: 採用可｜候補: 「PNGを保存できませんでした。もう一度お試しください。」（現行案／別案:「PNGを保存できませんでした。再度お試しいただくか、その他メニューの履歴から再試行してください。」）｜理由: 失敗の事実と再試行行動が2文で端的に伝わり、5秒表示のToastでも瞬時に読めるため。｜懸念: その他メニューの履歴に残り再試行できる導線がToast文言だけでは分からないため、5秒後に消えた後で再試行場所を探しにくい懸念がある。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "  const exportPng = async () => {",
+        "end": "  const displayRows: NavLogDisplayRow[] = outcome.display_rows;",
+        "expected": "  const exportPng = async () => {\n    if (!sectionRef.current || !savePng || exporting || exportDisabled) return;\n    setExporting(true);\n    try {\n      const modeText = `${roundingMode ? \"四捨五入\" : \"通常\"} / RAD ${radReciprocal ? \"反方位\" : \"通常\"}`;\n      await savePng(await exportNavLogPng(sectionRef.current, modeText));\n      onExportMessage?.(\"PNGのダウンロードを開始しました。\", \"success\");\n    } catch {\n      onExportMessage?.(\"PNGを保存できませんでした。もう一度お試しください。\", \"error\");\n    } finally {\n      setExporting(false);\n    }\n  };\n  const displayRows: NavLogDisplayRow[] = outcome.display_rows;"
+      }
+    },
+    {
+      "id": "png-mode-caption",
+      "text": "四捨五入",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。 RAD反方位とPNGのRAD 反方位は、操作名とモード列挙の既存表記として維持する。",
+      "response_quote": "- `png-mode-caption`｜引用:「四捨五入」｜採用可否: 採用可｜候補: 「四捨五入」（現行案。4通りの合成全文も採用可）｜理由: 画面の選択肢（「通常」「四捨五入」）と用語が一致し、4通りすべての見出しで紙NAVLOG転記時に丸め状態とRAD状態を一目で判別できるため。｜懸念: 画面の「RAD反方位」（空白なし）とPNG見出し「RAD 反方位」（空白あり）に微細な表記ゆれがあり、「通常 / RAD 通常」では「通常」が連続して左側の対象が一瞬分かりづらい可能性がある。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "      const modeText =",
+        "end": "      await savePng(await exportNavLogPng(sectionRef.current, modeText));",
+        "expected": "      const modeText = `${roundingMode ? \"四捨五入\" : \"通常\"} / RAD ${radReciprocal ? \"反方位\" : \"通常\"}`;\n      await savePng(await exportNavLogPng(sectionRef.current, modeText));"
+      }
+    },
+    {
+      "id": "png-title",
+      "text": "NAV LOG",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-title`｜引用:「NAV LOG」｜採用可否: 採用可｜候補: 「NAV LOG」（現行案）｜理由: 画面・紙NAVLOGの呼称と一致し、清書PNGの主表見出しとして視認性が高く簡潔なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/navLogPng.ts",
+        "start": "  const title = document.createElement(\"h2\");",
+        "end": "  document.body.append(paper);",
+        "expected": "  const title = document.createElement(\"h2\");\n  title.textContent = `NAV LOG — ${modeText}`;\n  paper.append(title);\n  for (const selector of [\".nav-log-table\", \".fuel-plan-table\"]) {\n    const original = section.querySelector<HTMLTableElement>(selector);\n    if (!original) throw new Error(\"Missing NAV LOG table\");\n    if (selector === \".fuel-plan-table\") {\n      const heading = document.createElement(\"h3\");\n      heading.textContent = \"TIME / FUEL PLAN\";\n      paper.append(heading);\n    }\n    const table = original.cloneNode(true) as HTMLTableElement;\n    if (selector === \".nav-log-table\") {\n      // Selection controls remain on screen; blank VOR columns have no paper value.\n      const emptyColumns = Array.from(table.tHead!.rows[0]!.cells)\n        .flatMap((cell, index) => cell.dataset.pngText === \"\" ? [index] : [])\n        .reverse();\n      for (const index of emptyColumns) {\n        const col = table.querySelectorAll(\"col\")[index];\n        const removedWidth = original.tHead!.rows[0]!.cells[index]!.getBoundingClientRect().width;\n        for (const row of Array.from(table.rows)) row.deleteCell(index);\n        col?.remove();\n        const width = parseFloat(table.style.width) - removedWidth;\n        table.style.width = table.style.minWidth = `${width}px`;\n      }\n      table.querySelectorAll(\".nav-leg-spacer-row\").forEach(row => row.remove());\n      table.querySelectorAll(\".nav-leg-heading-row\").forEach((row, index) => {\n        if (index === 0) return;\n        const spacer = document.createElement(\"tr\");\n        spacer.className = \"nav-leg-spacer-row\";\n        for (let column = 0; column < table.tHead!.rows[0]!.cells.length; column++) {\n          spacer.append(document.createElement(\"td\"));\n        }\n        row.before(spacer);\n      });\n    }\n    table.querySelectorAll<HTMLElement>(\"[data-display-text]\").forEach(cell => {\n      const pair = cell.querySelector(\".nav-log-pair\");\n      if (pair) cell.replaceChildren(pair);\n      else cell.textContent = cell.dataset.displayText ?? \"\";\n    });\n    table.querySelectorAll<HTMLElement>(\"[data-png-text]\").forEach(cell => {\n      const text = cell.dataset.pngText ?? \"\";\n      if (cell.matches(\".vor-reference-header\") && text) {\n        const split = text.indexOf(\" \");\n        cell.replaceChildren(document.createTextNode(text.slice(0, split)), document.createElement(\"br\"),\n          document.createTextNode(text.slice(split)));\n      } else cell.textContent = text;\n    });\n    table.querySelectorAll(\"button, input, select, [id]\").forEach(element => {\n      if (element.matches(\"button, input, select\")) element.remove();\n      else element.removeAttribute(\"id\");\n    });\n    paper.append(table);\n  }\n  document.body.append(paper);"
+      }
+    },
+    {
+      "id": "png-vor-header",
+      "text": "VOR/DME",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-vor-header`｜引用:「VOR/DME」｜採用可否: 採用可｜候補: 「VOR/DME」（現行案）｜理由: 本人指定の上段「VOR/DME」・下段「局ID 局名」の2段構成で航法援助施設列が明確になり、未選択列除外とも整合するため。｜懸念: 90px幅内で長い局名が複数行へ折り返すと見出し行高が増え視認性が落ちる可能性がある。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "                <th className=\"vor-reference-header\"",
+        "end": "                  <div className=\"vor-reference-heading\">",
+        "expected": "                <th className=\"vor-reference-header\" key={column.id}\n                  data-png-text={selectedVorStations[index] ? `VOR/DME ${selectedVorStations[index]!.identifier} ${selectedVorStations[index]!.name}` : \"\"}>\n                  <div className=\"vor-reference-heading\">"
+      }
+    },
+    {
+      "id": "rad-tooltip",
+      "text": "RAD反方位",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `rad-tooltip`｜引用:「RAD反方位」｜採用可否: 採用可｜候補: 「RAD反方位」（現行案）｜理由: チェックボックス表記と一致し、AIP有効日と合わせてON/OFF時の表示基準の違いがツールチップ全文で正しく伝わるため。｜懸念: OFF側の「局からTOへのRAD・距離」に比べON側「RAD反方位・距離」は方向基準の説明が簡略なため、未経験者には対比がやや分かりにくい可能性がある。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "                    title={`AIP ${selectedVorStations[index]",
+        "end": "                    value={column.stationIdentifier ?? VOR_AUTO_SELECTION}",
+        "expected": "                    title={`AIP ${selectedVorStations[index]?.effective_cycle ?? VOR_DATASET_EFFECTIVE_CYCLE} / ${radReciprocal ? \"RAD反方位\" : \"局からTOへのRAD\"}・距離`}\n                    value={column.stationIdentifier ?? VOR_AUTO_SELECTION}"
+      }
+    },
+    {
+      "id": "rad-cell-tooltip",
+      "text": "RAD反方位",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `rad-cell-tooltip`｜引用:「RAD反方位」｜採用可否: 採用可｜候補: 「RAD反方位」（現行案）｜理由: 局ID・表示基準・編集不可（表示専用セル）がツールチップ全文に揃い、他箇所と用語が一貫しているため。｜懸念: 局選択ツールチップの「RAD反方位・距離」とセル側の「RAD反方位 / 距離」で区切り記号が異なるが、実用上の支障は軽微。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "                        title={station == null",
+        "end": "                        data-display-text={vorReference}",
+        "expected": "                        title={station == null\n                          ? \"VOR/DME基準局を選択してください。\"\n                          : `${station.identifier} ${radReciprocal ? \"RAD反方位\" : \"局からTOへのRAD\"} / 距離（表示専用セル）`}\n                        data-display-text={vorReference}"
+      }
+    },
+    {
+      "id": "rounding-options",
+      "text": "四捨五入モード",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `rounding-options`｜引用:「四捨五入モード」｜採用可否: 採用可｜候補: 「四捨五入モード」（現行案）｜理由: 本人指定どおり可視ラベルを省いて簡潔な画面を維持しつつ、`aria-label`で支援技術へラジオグループの目的を的確に伝えられるため。｜懸念: 視覚利用者には可視ラベルがないぶん初見で文脈判断が要るが、選択肢の「四捨五入」自体が自己説明的なため影響は小さい。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "        <div className=\"nav-log-rounding-control\">",
+        "end": "      <div className=\"table-scroll nav-log-scroll\">",
+        "expected": "        <div className=\"nav-log-rounding-control\">\n          <div className=\"nav-log-rounding-options\" role=\"radiogroup\"\n            aria-label=\"四捨五入モード\">\n            <label>\n              <input type=\"radio\" name=\"nav-log-rounding-mode\" checked={!roundingMode}\n                disabled={roundingDisabled} onChange={() => onRoundingChange?.(false)} />\n              通常\n            </label>\n            <label>\n              <input type=\"radio\" name=\"nav-log-rounding-mode\" checked={roundingMode}\n                disabled={roundingDisabled} onChange={() => onRoundingChange?.(true)} />\n              四捨五入\n            </label>\n          </div>\n        </div>\n      </div>\n      <div className=\"table-scroll nav-log-scroll\">"
+      }
+    },
+    {
+      "id": "png-column-855",
+      "text": "PA",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-855`｜引用:「PA」｜採用可否: 採用可｜候補: 「PA」（現行案）｜理由: 既存の項目名・単位を維持する制約に沿い、2行目の「ft」および「TO | SEA | PA」の列順でも気圧高度列として迷わず識別できるため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>PA<br /><small>ft</small></th>",
+        "end": "              <th>PA<br /><small>ft</small></th>",
+        "expected": "              <th>PA<br /><small>ft</small></th>"
+      }
+    },
+    {
+      "id": "png-column-856",
+      "text": "TOAT",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-856`｜引用:「TOAT」｜採用可否: 採用可｜候補: 「TOAT」（現行案）｜理由: 既存画面の項目名・単位（°C）をそのまま維持しており、外気温度欄として紙NAVLOGへの転記対応が明確なため。｜懸念: 一般的なOAT表記に慣れた外部利用者には初見確認が要るが、既存画面統一の制約上問題ない。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>TOAT<br /><small>°C</small></th>",
+        "end": "              <th>TOAT<br /><small>°C</small></th>",
+        "expected": "              <th>TOAT<br /><small>°C</small></th>"
+      }
+    },
+    {
+      "id": "png-column-857",
+      "text": "CAS",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-857`｜引用:「CAS」｜採用可否: 採用可｜候補: 「CAS」（現行案）｜理由: 既存の項目名・単位（kt）を維持しており、較正対気速度として標準的で誤認の余地がないため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>CAS<br /><small>kt</small></th>",
+        "end": "              <th>CAS<br /><small>kt</small></th>",
+        "expected": "              <th>CAS<br /><small>kt</small></th>"
+      }
+    },
+    {
+      "id": "png-column-858",
+      "text": "TAS",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-858`｜引用:「TAS」｜採用可否: 採用可｜候補: 「TAS」（現行案）｜理由: 既存の項目名・単位（kt）を維持しており、真対気速度として標準的で転記しやすいため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>TAS<br /><small>kt</small></th>",
+        "end": "              <th>TAS<br /><small>kt</small></th>",
+        "expected": "              <th>TAS<br /><small>kt</small></th>"
+      }
+    },
+    {
+      "id": "png-column-859",
+      "text": "TC",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-859`｜引用:「TC」｜採用可否: 採用可｜候補: 「TC」（現行案）｜理由: 既存表記を維持しており、真針路（True Course）を示す航空標準略称として簡潔かつ明確なため。｜懸念: 角度単位（°）は付かないが元画面どおりであり、NAVLOGの慣例として支障はない。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>TC</th>",
+        "end": "              <th>TC</th>",
+        "expected": "              <th>TC</th>"
+      }
+    },
+    {
+      "id": "png-column-860",
+      "text": "VAR",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-860`｜引用:「VAR」｜採用可否: 採用可｜候補: 「VAR」（現行案）｜理由: 既存表記を維持しており、磁気偏差（Variation）として標準的で列幅もコンパクトに保てるため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>VAR</th>",
+        "end": "              <th>VAR</th>",
+        "expected": "              <th>VAR</th>"
+      }
+    },
+    {
+      "id": "png-column-861",
+      "text": "MC",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-861`｜引用:「MC」｜採用可否: 採用可｜候補: 「MC」（現行案）｜理由: 既存表記を維持しており、磁針路（Magnetic Course）としてTC・VARからの連続性も自然なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>MC</th>",
+        "end": "              <th>MC</th>",
+        "expected": "              <th>MC</th>"
+      }
+    },
+    {
+      "id": "png-column-862",
+      "text": "WIND",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-862`｜引用:「WIND」｜採用可否: 採用可｜候補: 「WIND」（現行案）｜理由: 既存表記を維持しており、風向/風速（270/30）やCALM・未取得の表示形式と合わせて直感的に理解できるため。｜懸念: 単位表記はないが航空NAVLOGの定型形式であり既存画面と一致しているため支障はない。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>WIND</th>",
+        "end": "              <th>WIND</th>",
+        "expected": "              <th>WIND</th>"
+      }
+    },
+    {
+      "id": "png-column-863",
+      "text": "WCA",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-863`｜引用:「WCA」｜採用可否: 採用可｜候補: 「WCA」（現行案）｜理由: 既存表記を維持しており、偏流修正角（Wind Correction Angle）として標準的で簡潔なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>WCA</th>",
+        "end": "              <th>WCA</th>",
+        "expected": "              <th>WCA</th>"
+      }
+    },
+    {
+      "id": "png-column-864",
+      "text": "MH",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-864`｜引用:「MH」｜採用可否: 採用可｜候補: 「MH」（現行案）｜理由: 既存表記を維持しており、磁方位（Magnetic Heading）として紙NAVLOG転記に直結するため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>MH</th>",
+        "end": "              <th>MH</th>",
+        "expected": "              <th>MH</th>"
+      }
+    },
+    {
+      "id": "png-column-865",
+      "text": "ZONE / CUM",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-865`｜引用:「ZONE / CUM」｜採用可否: 採用可｜候補: 「ZONE / CUM」（現行案）｜理由: 既存表記を維持し、2行目の「DIST NM」およびセル内の「区間値 / 累計値」表示と対応関係が一致するため。｜懸念: 子レグは単独値表示（スラッシュなし）になるが左側位置揃えによりZONE値と識別でき懸念は小さい。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>",
+        "end": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>",
+        "expected": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>"
+      }
+    },
+    {
+      "id": "png-column-866",
+      "text": "GS",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-866`｜引用:「GS」｜採用可否: 採用可｜候補: 「GS」（現行案）｜理由: 既存の項目名・単位（kt）を維持しており、対地速度として標準的で視認性が高いため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>GS<br /><small>kt</small></th>",
+        "end": "              <th>GS<br /><small>kt</small></th>",
+        "expected": "              <th>GS<br /><small>kt</small></th>"
+      }
+    },
+    {
+      "id": "png-column-867",
+      "text": "ZONE / CUM",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-867`｜引用:「ZONE / CUM」｜採用可否: 採用可｜候補: 「ZONE / CUM」（現行案）｜理由: 既存表記を維持し、2行目の「ETE min」およびセル内の「区間値 / 累計値」表示と整合するため。｜懸念: DIST列と1行目表記が同じだが、2行目の「ETE min」で明確に区別できるため懸念は小さい。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ZONE / CUM<br /><small>ETE min</small></th>",
+        "end": "              <th>ZONE / CUM<br /><small>ETE min</small></th>",
+        "expected": "              <th>ZONE / CUM<br /><small>ETE min</small></th>"
+      }
+    },
+    {
+      "id": "png-column-868",
+      "text": "ETO",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-868`｜引用:「ETO」｜採用可否: 採用可｜候補: 「ETO」（現行案）｜理由: 既存表記を維持しており、予定通過時刻（Estimated Time Over）として標準的な紙NAVLOG欄名と一致するため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ETO</th>",
+        "end": "              <th>ETO</th>",
+        "expected": "              <th>ETO</th>"
+      }
+    },
+    {
+      "id": "png-column-869",
+      "text": "ATO",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-869`｜引用:「ATO」｜採用可否: 採用可｜候補: 「ATO」（現行案）｜理由: 既存表記を維持しており、実通過時刻（Actual Time Over）として標準的で分かりやすいため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ATO</th>",
+        "end": "              <th>ATO</th>",
+        "expected": "              <th>ATO</th>"
+      }
+    },
+    {
+      "id": "png-column-870",
+      "text": "ATE",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-870`｜引用:「ATE」｜採用可否: 採用可｜候補: 「ATE」（現行案）｜理由: 既存表記を維持しており、実所要時間（Actual Time Enroute）としてETO・ATOとの並びも自然なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ATE</th>",
+        "end": "              <th>ATE</th>",
+        "expected": "              <th>ATE</th>"
+      }
+    },
+    {
+      "id": "png-column-871",
+      "text": "SECT / REM",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-871`｜引用:「SECT / REM」｜採用可否: 採用可｜候補: 「SECT / REM」（現行案）｜理由: 既存表記を維持し、2行目の「FUEL gal」と合わせてセル内の「区間消費 / 残量」の意味が一目で分かるため。｜懸念: Fuel Tableの単位「G」と表記差はあるが、本人指定の既存維持方針に沿っており実務上の誤認は起きにくい。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>SECT / REM<br /><small>FUEL gal</small></th>",
+        "end": "              <th>SECT / REM<br /><small>FUEL gal</small></th>",
+        "expected": "              <th>SECT / REM<br /><small>FUEL gal</small></th>"
+      }
+    },
+    {
+      "id": "png-column-872",
+      "text": "30° CUT",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-column-872`｜引用:「30° CUT」｜採用可否: 採用可｜候補: 「30° CUT」（現行案）｜理由: 既存の項目名・単位（sec）を維持しており、30°カット修正秒数欄として実務用語に即しているため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>30° CUT<br /><small>sec</small></th>",
+        "end": "              <th>30° CUT<br /><small>sec</small></th>",
+        "expected": "              <th>30° CUT<br /><small>sec</small></th>"
+      }
+    },
+    {
+      "id": "png-from",
+      "text": "FROM",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-from`｜引用:「FROM」｜採用可否: 採用可｜候補: 「FROM」（現行案）｜理由: 既存表記・経路順を維持しており、区間始点列として誰にも誤解のない標準表現なため。｜懸念: 長い地点名を省略しない仕様上、列幅や折り返しが増える可能性はあるが転記正確性優先の本人指定に合致する。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th className=\"route-name-header route-from-cell\">FROM</th>",
+        "end": "              <th className=\"route-name-header route-from-cell\">FROM</th>",
+        "expected": "              <th className=\"route-name-header route-from-cell\">FROM</th>"
+      }
+    },
+    {
+      "id": "png-to",
+      "text": "TO",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-to`｜引用:「TO」｜採用可否: 採用可｜候補: 「TO」（現行案）｜理由: 既存表記を維持しており、本人指定の列順「TO | SEA | PA」でも終点地点と区間SEA（終点行表示）の対応が追いやすいため。｜懸念: 長い地点名による幅・行高の増加は起こり得るが正確性優先の仕様として妥当。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th className=\"route-name-header route-to-cell\">TO</th>",
+        "end": "              <th className=\"route-name-header route-to-cell\">TO</th>",
+        "expected": "              <th className=\"route-name-header route-to-cell\">TO</th>"
+      }
+    },
+    {
+      "id": "png-fuel-table",
+      "text": "TIME / FUEL PLAN",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `png-fuel-table`｜引用:「TIME / FUEL PLAN」｜採用可否: 採用可｜候補: 「TIME / FUEL PLAN」（現行案）｜理由: 現行画面の見出しをそのまま維持しており、NAV LOG直下の時間・燃料計画表であることが明確なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-time",
+      "text": "TIME",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-time`｜引用:「TIME」｜採用可否: 採用可｜候補: 「TIME」（現行案）｜理由: 現行画面の上段列名を維持しており、`0 : 10`形式の値と合わせて所要時間列であることが一目で分かるため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-fuel",
+      "text": "FUEL",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-fuel`｜引用:「FUEL」｜採用可否: 採用可｜候補: 「FUEL」（現行案）｜理由: 現行画面の上段列名を維持しており、`1.5 G`形式の値と合わせて燃料列として明確なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-taxi-run-up",
+      "text": "TAXI・RUN UP",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-taxi-run-up`｜引用:「TAXI・RUN UP」｜採用可否: 採用可｜候補: 「TAXI・RUN UP」（現行案）｜理由: 現行画面の表記を維持しており、地上滑走・ランナップ行として紙NAVLOGとの対応が取りやすいため。｜懸念: 英字間の全角中黒「・」は体裁上の特徴だが、現行維持の本人指定に沿っており変更不要。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-bof",
+      "text": "BOF",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-bof`｜引用:「BOF」｜採用可否: 採用可｜候補: 「BOF」（現行案）｜理由: 現行画面の行名をそのまま維持しており、本アプリ利用者の運用表記と一致しているため。｜懸念: 初見利用者には略称の意味がやや伝わりにくいが、既存表記維持の制約上問題ない。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-climb",
+      "text": "CLIMB",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-climb`｜引用:「CLIMB」｜採用可否: 採用可｜候補: 「CLIMB」（現行案）｜理由: 現行画面の行名を維持しており、上昇フェーズの時間・燃料として標準的かつ明確なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-cruise",
+      "text": "CRUISE",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-cruise`｜引用:「CRUISE」｜採用可否: 採用可｜候補: 「CRUISE」（現行案）｜理由: 現行画面の行名を維持しており、巡航フェーズの時間・燃料として標準的かつ明確なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-descent",
+      "text": "DESCENT",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-descent`｜引用:「DESCENT」｜採用可否: 採用可｜候補: 「DESCENT」（現行案）｜理由: 現行画面の行名を維持しており、降下フェーズの時間・燃料として標準的かつ明確なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-tgl",
+      "text": "TGL",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-tgl`｜引用:「TGL」｜採用可否: 採用可｜候補: 「TGL」（現行案）｜理由: 現行画面の行名を維持しており、タッチアンドゴーの時間・燃料区分として実務上定着しているため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-additional",
+      "text": "ADDITIONAL",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-additional`｜引用:「ADDITIONAL」｜採用可否: 採用可｜候補: 「ADDITIONAL」（現行案）｜理由: 現行画面の行名を維持しており、追加時間・燃料の内訳として明確なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-reserve",
+      "text": "RESERVE",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-reserve`｜引用:「RESERVE」｜採用可否: 採用可｜候補: 「RESERVE」（現行案）｜理由: 現行画面の行名を維持しており、予備燃料・時間として標準的で誤解がないため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-min-required",
+      "text": "MIN REQUIRED",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-min-required`｜引用:「MIN REQUIRED」｜採用可否: 採用可｜候補: 「MIN REQUIRED」（現行案）｜理由: 現行画面の行名を維持しており、最低必要時間・燃料の集計行として明確なため。｜懸念: 幅420px・行高24px内ではやや長めの行名だが、収まり上の支障は小さい。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-extra",
+      "text": "EXTRA",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-extra`｜引用:「EXTRA」｜採用可否: 採用可｜候補: 「EXTRA」（現行案）｜理由: 現行画面の行名を維持しており、余剰燃料・時間として標準的かつ簡潔なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-total",
+      "text": "TOTAL",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-total`｜引用:「TOTAL」｜採用可否: 採用可｜候補: 「TOTAL」（現行案）｜理由: 現行画面の行名を維持しており、合計行として一目で認識できるため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelPlanTable({ outcome }",
+        "end": "function displayCellClass",
+        "expected": "function FuelPlanTable({ outcome }: { outcome: CalculationOutcome }) {\n  const display = buildFuelPlanDisplay(outcome);\n  const bofRows = [\n    [\"CLIMB\", display.climbMinutes, display.climbGal],\n    [\"CRUISE\", display.cruiseMinutes, display.cruiseGal],\n    [\"DESCENT\", display.descentMinutes, display.descentGal],\n    [\"TGL\", display.tglMinutes, display.tglGal],\n    [\"ADDITIONAL\", display.additionalMinutes, display.additionalGal],\n  ] as const;\n  return (\n    <section className=\"fuel-plan-section\" aria-labelledby=\"fuel-plan-title\">\n      <div className=\"fuel-plan-heading\">\n        <h3 id=\"fuel-plan-title\">TIME / FUEL PLAN</h3>\n      </div>\n      <table className=\"fuel-plan-table\">\n        <colgroup><col /><col /><col /><col /><col /></colgroup>\n        <thead><tr><th colSpan={3} /><th>TIME</th><th>FUEL</th></tr></thead>\n        <tbody>\n          <tr>\n            <td className=\"fuel-gray\" />\n            <td colSpan={2} className=\"fuel-strong\">TAXI・RUN UP</td>\n            <td><FuelTime minutes={display.taxiRunupMinutes} /></td>\n            <td><FuelAmount amount={display.taxiRunupGal} /></td>\n          </tr>\n          {bofRows.map(([label, minutes, amount], index) => (\n            <tr key={label}>\n              {index === 0 && <td rowSpan={6} className=\"fuel-gray\" />}\n              {index === 0 && (\n                <td rowSpan={5} className=\"fuel-bof\">\n                  BOF<br /><small>{display.bofGal === null ? \"\" : `${display.bofGal.toFixed(1)} G`}</small>\n                </td>\n              )}\n              <td className=\"fuel-phase\">{label}</td>\n              <td><FuelTime minutes={minutes} /></td>\n              <td><FuelAmount amount={amount} /></td>\n            </tr>\n          ))}\n          <tr className=\"fuel-reserve-row\">\n            <td colSpan={2} className=\"fuel-strong\">RESERVE</td>\n            <td><FuelTime minutes={display.reserveMinutes} /></td>\n            <td><FuelAmount amount={display.reserveGal} /></td>\n          </tr>\n          <tr className=\"fuel-min-row\">\n            <td colSpan={3} className=\"fuel-gray fuel-strong\">MIN REQUIRED</td>\n            <td className=\"fuel-gray\"><FuelTime minutes={display.minRequiredMinutes} /></td>\n            <td className=\"fuel-gray\"><FuelAmount amount={display.minRequiredGal} /></td>\n          </tr>\n          <tr className=\"fuel-extra-row\">\n            <td colSpan={3} className=\"fuel-strong\">EXTRA</td>\n            <td><FuelTime minutes={display.extraMinutes} /></td>\n            <td><FuelAmount amount={display.extraGal} /></td>\n          </tr>\n          <tr>\n            <td colSpan={3} className=\"fuel-strong\">TOTAL</td>\n            <td><FuelTime minutes={display.totalMinutes} /></td>\n            <td><FuelAmount amount={display.totalGal} /></td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n  );\n}\n\nfunction displayCellClass"
+      }
+    },
+    {
+      "id": "fuel-unit",
+      "text": "G",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `fuel-unit`｜引用:「G」｜採用可否: 採用可｜候補: 「G」（現行案）｜理由: 現行表示を維持し`gal`へ変更しない本人指定に完全に合致し、紙NAVLOG転記時の見慣れた表記を保てるため。｜懸念: NAV LOG本表の`FUEL gal`と単位表記が混在するが、文脈上ガロンと明確に分かり本人指定どおりのため許容範囲。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function FuelAmount({ amount }",
+        "end": "function FuelPlanTable({ outcome }",
+        "expected": "function FuelAmount({ amount }: { amount: number | null }) {\n  return (\n    <div className=\"fuel-amount\">\n      <span>{amount === null ? \"\" : amount.toFixed(1)}</span>\n      <span>G</span>\n    </div>\n  );\n}\n\nfunction FuelPlanTable({ outcome }"
+      }
+    },
+    {
+      "id": "rounding-normal",
+      "text": "通常",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `rounding-normal`｜引用:「通常」｜採用可否: 採用可｜候補: 「通常」（現行案）｜理由: 既存ラジオ選択の表記を維持し、PNG見出しの「通常」とも完全一致して画面と出力の対応が分かりやすいため。｜懸念: 可視ラベル「四捨五入モード」削除後は隣接する「四捨五入」との対比で意味を補う形になるが、同一ラジオ群内のため実用上の支障は小さい。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "        <div className=\"nav-log-rounding-control\">",
+        "end": "      <div className=\"table-scroll nav-log-scroll\">",
+        "expected": "        <div className=\"nav-log-rounding-control\">\n          <div className=\"nav-log-rounding-options\" role=\"radiogroup\"\n            aria-label=\"四捨五入モード\">\n            <label>\n              <input type=\"radio\" name=\"nav-log-rounding-mode\" checked={!roundingMode}\n                disabled={roundingDisabled} onChange={() => onRoundingChange?.(false)} />\n              通常\n            </label>\n            <label>\n              <input type=\"radio\" name=\"nav-log-rounding-mode\" checked={roundingMode}\n                disabled={roundingDisabled} onChange={() => onRoundingChange?.(true)} />\n              四捨五入\n            </label>\n          </div>\n        </div>\n      </div>\n      <div className=\"table-scroll nav-log-scroll\">"
+      }
+    },
+    {
+      "id": "rounding-enabled",
+      "text": "四捨五入",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `rounding-enabled`｜引用:「四捨五入」｜採用可否: 採用可｜候補: 「四捨五入」（現行案）｜理由: 既存ラジオ選択およびPNG見出しと表記が一致し、可視ラベルなしでも機能の意図が直感的に伝わるため。｜懸念: 適用対象や桁数は選択肢名単体では見えないが、既存機能・簡潔画面維持の制約上問題ない。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "        <div className=\"nav-log-rounding-control\">",
+        "end": "      <div className=\"table-scroll nav-log-scroll\">",
+        "expected": "        <div className=\"nav-log-rounding-control\">\n          <div className=\"nav-log-rounding-options\" role=\"radiogroup\"\n            aria-label=\"四捨五入モード\">\n            <label>\n              <input type=\"radio\" name=\"nav-log-rounding-mode\" checked={!roundingMode}\n                disabled={roundingDisabled} onChange={() => onRoundingChange?.(false)} />\n              通常\n            </label>\n            <label>\n              <input type=\"radio\" name=\"nav-log-rounding-mode\" checked={roundingMode}\n                disabled={roundingDisabled} onChange={() => onRoundingChange?.(true)} />\n              四捨五入\n            </label>\n          </div>\n        </div>\n      </div>\n      <div className=\"table-scroll nav-log-scroll\">"
+      }
+    },
+    {
+      "id": "unit-ft",
+      "text": "ft",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-ft`｜引用:「ft」｜採用可否: 採用可｜候補: 「ft」（現行案）｜理由: 既存画面どおりPA列2行目の単位として簡潔かつ標準的で、SEA列（ft MSL）との区別も保てるため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>PA<br /><small>ft</small></th>",
+        "end": "              <th>PA<br /><small>ft</small></th>",
+        "expected": "              <th>PA<br /><small>ft</small></th>"
+      }
+    },
+    {
+      "id": "unit-°C",
+      "text": "°C",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-°C`｜引用:「°C」｜採用可否: 採用可｜候補: 「°C」（現行案）｜理由: 既存画面どおりTOAT列2行目の温度単位として標準的かつ簡潔なため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>TOAT<br /><small>°C</small></th>",
+        "end": "              <th>TOAT<br /><small>°C</small></th>",
+        "expected": "              <th>TOAT<br /><small>°C</small></th>"
+      }
+    },
+    {
+      "id": "unit-kt",
+      "text": "kt",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-kt`｜引用:「kt」｜採用可否: 採用可｜候補: 「kt」（現行案）｜理由: 既存画面どおりCAS・TAS・GS各列の2行目単位として航空標準に沿い一貫しているため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>CAS<br /><small>kt</small></th>",
+        "end": "              <th>CAS<br /><small>kt</small></th>",
+        "expected": "              <th>CAS<br /><small>kt</small></th>"
+      }
+    },
+    {
+      "id": "unit-DIST-NM",
+      "text": "DIST NM",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-DIST-NM`｜引用:「DIST NM」｜採用可否: 採用可｜候補: 「DIST NM」（現行案）｜理由: 既存画面どおり1行目「ZONE / CUM」と組み合わせて距離と海里単位を過不足なく示せるため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>",
+        "end": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>",
+        "expected": "              <th>ZONE / CUM<br /><small>DIST NM</small></th>"
+      }
+    },
+    {
+      "id": "unit-ETE-min",
+      "text": "ETE min",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-ETE-min`｜引用:「ETE min」｜採用可否: 採用可｜候補: 「ETE min」（現行案）｜理由: 既存画面どおり1行目「ZONE / CUM」と組み合わせて所要時間と分単位が明確になり、DIST列とも即座に見分けられるため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>ZONE / CUM<br /><small>ETE min</small></th>",
+        "end": "              <th>ZONE / CUM<br /><small>ETE min</small></th>",
+        "expected": "              <th>ZONE / CUM<br /><small>ETE min</small></th>"
+      }
+    },
+    {
+      "id": "unit-FUEL-gal",
+      "text": "FUEL gal",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-FUEL-gal`｜引用:「FUEL gal」｜採用可否: 採用可｜候補: 「FUEL gal」（現行案）｜理由: 既存画面どおり1行目「SECT / REM」と組み合わせて燃料とガロン単位が明確なため。｜懸念: Fuel Tableの「G」と表記差があるが本人指定の既存維持方針に沿っており実務上の問題はない。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>SECT / REM<br /><small>FUEL gal</small></th>",
+        "end": "              <th>SECT / REM<br /><small>FUEL gal</small></th>",
+        "expected": "              <th>SECT / REM<br /><small>FUEL gal</small></th>"
+      }
+    },
+    {
+      "id": "unit-sec",
+      "text": "sec",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `unit-sec`｜引用:「sec」｜採用可否: 採用可｜候補: 「sec」（現行案）｜理由: 既存画面どおり「30° CUT」列の2行目単位として秒単位であることが簡潔に伝わるため。｜懸念: 特段の懸念なし。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "              <th>30° CUT<br /><small>sec</small></th>",
+        "end": "              <th>30° CUT<br /><small>sec</small></th>",
+        "expected": "              <th>30° CUT<br /><small>sec</small></th>"
+      }
+    },
+    {
+      "id": "paired-numeric-display",
+      "text": " / ",
+      "reason": "現行の表示条件と表記を維持する。Geminiが採用可と確認。既存の表記・単位を維持し、SEAを本表へ統合した画面とPNGの文脈で一致を確認した。",
+      "response_quote": "- `paired-numeric-display`｜引用:「 / 」｜採用可否: 採用可｜候補: 「 / 」（現行案）｜理由: 前後に空白を入れた区切りにより小数を含む区間値と累計・残量値（例`58.5 / 106`）の視認性が高く、見出しの「ZONE / CUM」「SECT / REM」や子レグ単独値の右端揃えとも調和するため。｜懸念: 桁数が増えた場合にセル横幅をわずかに圧迫する可能性はあるが、DIST/ETEの末尾`.0`省略と併用されるため実用上の懸念は小さい。",
+      "source": {
+        "path": "web/src/components/NavLogTable.tsx",
+        "start": "function DisplayCell({",
+        "end": "\nfunction isVisibleCell",
+        "expected": "function DisplayCell({\n  cell,\n  extraClass = \"\",\n  paired = false,\n  omitIntegralDecimal = false,\n}: {\n  cell: NavLogDisplayCell;\n  extraClass?: string;\n  paired?: boolean;\n  omitIntegralDecimal?: boolean;\n}) {\n  const text = omitIntegralDecimal\n    ? (cell.text ?? \"\").replace(/\\.0(?=\\s*(?:\\/|$))/g, \"\")\n    : cell.text ?? \"\";\n  const values = text.split(\" / \");\n  const alignPair = paired && /^-?\\d+(?:\\.\\d+)?$/.test(values[0]!);\n  return (\n    <td\n      className={`${displayCellClass(cell)} ${extraClass}`.trim()}\n      title={cell.reason_code ?? \"計算結果から生成した表示専用セルです。\"}\n      data-display-text={text}\n      data-cell-state={cell.state}\n    >\n      {alignPair ? (\n        <span className=\"nav-log-pair\">\n          <span className=\"nav-log-zone-value\">{values[0]}</span>\n          <span>{values.length > 1 ? \" / \" : \"\"}</span>\n          <span>{values[1] ?? \"\"}</span>\n        </span>\n      ) : text}\n      {cell.manual && <small>手入力</small>}\n    </td>\n  );\n}\n\nfunction isVisibleCell"
+      }
+    }
+  ]
+}

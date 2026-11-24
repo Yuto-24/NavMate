@@ -1,0 +1,64 @@
+{
+  "items": [
+    {
+      "id": "success",
+      "text": "Projectを追加しました。保存済み一覧から開けます。",
+      "reason": "既存の表示と挙動を維持する。既存の作業保持契約と保存済み一覧から開く案内を維持する。表記変更は本変更に必要ないため見送る。",
+      "response_quote": "- **表記の統一**: 現行案では `Project` / `Project JSON`（`success`, `size`, `error`）と `プロジェクトJSON`（`legacy`）、`JSONファイル`（`import`）が混在しています。文言としては「プロジェクト」「プロジェクトJSON」に揃えるのが自然ですが、一覧の見出し等が英語「Project」で固定されている場合はそちらに合わせる判断もあります。\n- **メンタルモデルの統一**: 現在の作業へ直接反映するのではなく「保存済み一覧へ追加する」挙動のため、ボタンや成功通知では「追加」、ファイル不正時は「読み込めません／追加できません」と整理すると誤解が減ります。\n\n---",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "  const handleProjectImport = async (file: FileContentSource) => {",
+        "end": "  const handleSave = async (name: string) => {",
+        "expected": "  const handleProjectImport = async (file: FileContentSource) => {\n    if (busy || !application.importProject) return;\n    const epoch = lifecycle.current;\n    await runTask(async () => {\n      if (file.size > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const input = await platform.files.read(file);\n      if (input.content.byteLength > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const text = new TextDecoder(\"utf-8\", { fatal: true }).decode(input.content);\n      if (epoch !== lifecycle.current) return;\n      let format: unknown;\n      try { format = JSON.parse(text)?.format; } catch { /* The importer reports invalid JSON. */ }\n      if (format === \"autonavlog.navlog\") {\n        throw new Error(\"計算結果用のNAV LOG JSONは追加できません。プロジェクトJSONを選択してください。\");\n      }\n      const next = await application.importProject!(text);\n      if (epoch !== lifecycle.current) return;\n      // Refresh only the list; raw planning values and MAP drafts stay on screen.\n      setState(current => current ? { ...current, savedProjects: next.savedProjects,\n        storageWarning: next.storageWarning } : current);\n    }, { errorKey: \"project-import\", success: \"Projectを追加しました。保存済み一覧から開けます。\" });\n  };\n\n  const handleSave = async (name: string) => {"
+      }
+    },
+    {
+      "id": "size",
+      "text": "Project JSONは2 MiB以下にしてください。",
+      "reason": "既存の表示と挙動を維持する。検証単位の2 MiBと既存表現を維持する。",
+      "response_quote": "- **表記の統一**: 現行案では `Project` / `Project JSON`（`success`, `size`, `error`）と `プロジェクトJSON`（`legacy`）、`JSONファイル`（`import`）が混在しています。文言としては「プロジェクト」「プロジェクトJSON」に揃えるのが自然ですが、一覧の見出し等が英語「Project」で固定されている場合はそちらに合わせる判断もあります。\n- **メンタルモデルの統一**: 現在の作業へ直接反映するのではなく「保存済み一覧へ追加する」挙動のため、ボタンや成功通知では「追加」、ファイル不正時は「読み込めません／追加できません」と整理すると誤解が減ります。\n\n---",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "  const handleProjectImport = async (file: FileContentSource) => {",
+        "end": "  const handleSave = async (name: string) => {",
+        "expected": "  const handleProjectImport = async (file: FileContentSource) => {\n    if (busy || !application.importProject) return;\n    const epoch = lifecycle.current;\n    await runTask(async () => {\n      if (file.size > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const input = await platform.files.read(file);\n      if (input.content.byteLength > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const text = new TextDecoder(\"utf-8\", { fatal: true }).decode(input.content);\n      if (epoch !== lifecycle.current) return;\n      let format: unknown;\n      try { format = JSON.parse(text)?.format; } catch { /* The importer reports invalid JSON. */ }\n      if (format === \"autonavlog.navlog\") {\n        throw new Error(\"計算結果用のNAV LOG JSONは追加できません。プロジェクトJSONを選択してください。\");\n      }\n      const next = await application.importProject!(text);\n      if (epoch !== lifecycle.current) return;\n      // Refresh only the list; raw planning values and MAP drafts stay on screen.\n      setState(current => current ? { ...current, savedProjects: next.savedProjects,\n        storageWarning: next.storageWarning } : current);\n    }, { errorKey: \"project-import\", success: \"Projectを追加しました。保存済み一覧から開けます。\" });\n  };\n\n  const handleSave = async (name: string) => {"
+      }
+    },
+    {
+      "id": "error",
+      "text": "Project JSONを処理できません",
+      "reason": "既存の表示と挙動を維持する。Python側の既存検証表現を維持し、今回の配置変更に不要な製品コード変更を避ける。",
+      "response_quote": "- **表記の統一**: 現行案では `Project` / `Project JSON`（`success`, `size`, `error`）と `プロジェクトJSON`（`legacy`）、`JSONファイル`（`import`）が混在しています。文言としては「プロジェクト」「プロジェクトJSON」に揃えるのが自然ですが、一覧の見出し等が英語「Project」で固定されている場合はそちらに合わせる判断もあります。\n- **メンタルモデルの統一**: 現在の作業へ直接反映するのではなく「保存済み一覧へ追加する」挙動のため、ボタンや成功通知では「追加」、ファイル不正時は「読み込めません／追加できません」と整理すると誤解が減ります。\n\n---",
+      "source": {
+        "path": "src/autonavlog/local.py",
+        "start": "        if path in {\"exportProject\", \"prepareProjectImport\"}:",
+        "end": "        if path == \"validateRecord\":",
+        "expected": "        if path in {\"exportProject\", \"prepareProjectImport\"}:\n            try:\n                if path == \"exportProject\":\n                    if self.session.project is None:\n                        raise ValueError(\"Project is required\")\n                    return json.dumps(export_project(self.session.project), ensure_ascii=False)\n                imported_project = import_project(payload[\"text\"])\n                return imported_project.model_dump_json()\n            except ValidationError as error:\n                # Do not echo untrusted file contents in the user-facing error.\n                issues = error.errors(include_url=False, include_input=False)\n                reason = \" / \".join(\n                    f\"{'.'.join(map(str, item['loc']))}: {item['msg']}\" for item in issues[:3]\n                )\n                raise WebApplicationError(\n                    \"PROJECT_JSON_INVALID\", f\"Project JSONを処理できません: {reason}\"\n                ) from error\n            except (ValueError, TypeError, RecursionError) as error:\n                raise WebApplicationError(\n                    \"PROJECT_JSON_INVALID\", f\"Project JSONを処理できません: {error}\"\n                ) from error\n        if path == \"validateRecord\":"
+      }
+    },
+    {
+      "id": "import",
+      "text": "JSONファイルから追加",
+      "reason": "既存の表示と挙動を維持する。本人が了承した入口名を維持し、下段への移動後も追加操作であることを明示する。",
+      "response_quote": "- **表記の統一**: 現行案では `Project` / `Project JSON`（`success`, `size`, `error`）と `プロジェクトJSON`（`legacy`）、`JSONファイル`（`import`）が混在しています。文言としては「プロジェクト」「プロジェクトJSON」に揃えるのが自然ですが、一覧の見出し等が英語「Project」で固定されている場合はそちらに合わせる判断もあります。\n- **メンタルモデルの統一**: 現在の作業へ直接反映するのではなく「保存済み一覧へ追加する」挙動のため、ボタンや成功通知では「追加」、ファイル不正時は「読み込めません／追加できません」と整理すると誤解が減ります。\n\n---",
+      "source": {
+        "path": "web/src/components/ProjectFileInput.tsx",
+        "start": "    <div className=\"project-file-control\">",
+        "end": "    </div>",
+        "expected": "    <div className=\"project-file-control\">\n      <button className=\"secondary-button full-width\" type=\"button\" disabled={busy}\n        onClick={() => input.current?.click()}>\n        <FileUp aria-hidden=\"true\" size={17} />\n        JSONファイルから追加\n      </button>\n      <input ref={input} type=\"file\" hidden\n        aria-hidden=\"true\" aria-label=\"JSONファイルから追加\" accept=\".json,application/json\" disabled={busy}\n        onChange={event => {\n          const file = event.target.files?.[0];\n          event.target.value = \"\";\n          if (file) onFile(file);\n        }} />\n    </div>"
+      }
+    },
+    {
+      "id": "legacy",
+      "text": "計算結果用のNAV LOG JSONは追加できません。プロジェクトJSONを選択してください。",
+      "reason": "既存の表示と挙動を維持する。Gemini候補Aを採用し、取込不可の理由と次の操作を明示する。",
+      "response_quote": "- **表記の統一**: 現行案では `Project` / `Project JSON`（`success`, `size`, `error`）と `プロジェクトJSON`（`legacy`）、`JSONファイル`（`import`）が混在しています。文言としては「プロジェクト」「プロジェクトJSON」に揃えるのが自然ですが、一覧の見出し等が英語「Project」で固定されている場合はそちらに合わせる判断もあります。\n- **メンタルモデルの統一**: 現在の作業へ直接反映するのではなく「保存済み一覧へ追加する」挙動のため、ボタンや成功通知では「追加」、ファイル不正時は「読み込めません／追加できません」と整理すると誤解が減ります。\n\n---",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "  const handleProjectImport = async (file: FileContentSource) => {",
+        "end": "  const handleSave = async (name: string) => {",
+        "expected": "  const handleProjectImport = async (file: FileContentSource) => {\n    if (busy || !application.importProject) return;\n    const epoch = lifecycle.current;\n    await runTask(async () => {\n      if (file.size > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const input = await platform.files.read(file);\n      if (input.content.byteLength > 2 * 1024 * 1024) throw new Error(\"Project JSONは2 MiB以下にしてください。\");\n      const text = new TextDecoder(\"utf-8\", { fatal: true }).decode(input.content);\n      if (epoch !== lifecycle.current) return;\n      let format: unknown;\n      try { format = JSON.parse(text)?.format; } catch { /* The importer reports invalid JSON. */ }\n      if (format === \"autonavlog.navlog\") {\n        throw new Error(\"計算結果用のNAV LOG JSONは追加できません。プロジェクトJSONを選択してください。\");\n      }\n      const next = await application.importProject!(text);\n      if (epoch !== lifecycle.current) return;\n      // Refresh only the list; raw planning values and MAP drafts stay on screen.\n      setState(current => current ? { ...current, savedProjects: next.savedProjects,\n        storageWarning: next.storageWarning } : current);\n    }, { errorKey: \"project-import\", success: \"Projectを追加しました。保存済み一覧から開けます。\" });\n  };\n\n  const handleSave = async (name: string) => {"
+      }
+    }
+  ]
+}
