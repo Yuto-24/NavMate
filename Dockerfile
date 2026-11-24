@@ -46,6 +46,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY tests ./tests
+COPY firebase/migration-evidence.rules firebase/migration-evidence.indexes.json ./firebase/
+COPY firebase.migration-evidence.json ./
 COPY docs/evidence/airport-vor-departure.json ./docs/evidence/airport-vor-departure.json
 COPY docs/reference/vrep-169-confirmed-source.md ./docs/reference/vrep-169-confirmed-source.md
 COPY scripts ./scripts

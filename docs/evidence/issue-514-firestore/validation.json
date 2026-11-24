@@ -1,0 +1,76 @@
+{
+  "date": "2026-11-24",
+  "base_sha": "edf8e1795cae843cb95972f39763c6d727aa1b13",
+  "scope": "Dedicated Firestore migration review storage and Actions integration; synthetic local tests only.",
+  "emulator": {
+    "version": "1.20.2",
+    "transport": "Firestore REST, read-only/read-write transactions, batchGet in the same transaction, atomic commit without write retries",
+    "result": "267 passed, 1 memory-only Rules check skipped; includes lifecycle, preflight and release automation after project-isolation correction",
+    "get_transaction_observation": "Emulator GET with transaction query produced Unmapped JavaType BYTE_STRING and timed out. The standard batchGet POST with transaction uses the same snapshot and passed. Existing Account Sync migration REST code also uses batchGet.",
+    "canary": "PRIVATE_CANARY_config_sample_exception_514",
+    "coverage": [
+      "original/display/sample/plan readback and corruption/missing",
+      "permanent revocation",
+      "evidence 24-hour and plan 30-minute expiry",
+      "parent substitution",
+      "concurrent claims, at most one admitted (all may fail closed)",
+      "uncertain create/delete commit: reconcile known IDs without replay",
+      "900 KiB capacity stop",
+      "30-day exact boundary and incomplete/failed/unknown/revoked retention",
+      "client Rules denial and independence from GitHub visibility",
+      "public Summary/log canaries and encrypted-only artifact",
+      "synthetic-only acceptance cannot produce signed publication evidence",
+      "credential removal before candidate operator construction"
+    ],
+    "representative_sample": {
+      "original_bytes": 267837,
+      "wire_bytes": 717724,
+      "result": "PASS: full synthetic Saved, distinct Draft, Latest and historical LastCalculation stored and read back; only test-owned records then removed"
+    }
+  },
+  "workflow_validation": {
+    "actionlint": "Passed after ignoring unchanged queue key unsupported by cached actionlint and disabling unrelated pre-existing shellcheck warning. Python workflow contracts preserve queue/max and schedule exclusion."
+  },
+  "limits": [
+    "No live Firebase project/IAM/WIF changes or acceptance",
+    "No production publish, v2.6.0 publish, merge or enablement",
+    "No application browser/Compose runtime validation: no application layout/runtime behavior changed",
+    "Hosted CI and automatic CodeRabbit remain separate pending gates"
+  ],
+  "official_sources": [
+    "https://firebase.google.com/docs/firestore/reference/rest/v1/projects.databases.documents/batchGet",
+    "https://firebase.google.com/docs/firestore/reference/rest/v1/projects.databases.documents/commit"
+  ],
+  "independent_review": {
+    "model": "gpt-6.1-sol",
+    "result": "Initial read-only review, final UI/docs check and project-isolation/workflow-contract recheck completed; no remaining mandatory findings"
+  },
+  "local_ci": {
+    "status": "PASS",
+    "command": "docker run [CI workflow mounts] <test-stage image> sh scripts/run_ci_checks.sh",
+    "image": "sha256:e26718a056066bbc731a52b4f169015f22e095767d0e4cb4f55f0dab64b07d32",
+    "pytest": {
+      "passed": 4473,
+      "skipped": 38,
+      "warnings": 1,
+      "seconds": 536.62,
+      "skip_detail": "35 dedicated emulator cases verified separately; 1 memory-only Rules check verified with emulator; 2 root-only DAC skips passed separately as UID 10001"
+    },
+    "shared_checks": [
+      "release sources",
+      "ruff",
+      "mypy: 96 source files",
+      "performance and runtime data",
+      "exported schemas",
+      "sdist and wheel build"
+    ],
+    "separate_checks": [
+      "Web typecheck: PASS",
+      "UI evidence/source: 27 records PASS",
+      "actionlint with documented pre-existing tool exceptions: PASS",
+      "Nonroot schema260/schema431 DAC regressions: 2 passed"
+    ],
+    "prior_failure": "Initial whole-suite run found obsolete schedule prohibition and credential-file count in workflow contract; both corrected, focused tests and complete Docker rerun passed.",
+    "log_sha256": "1ca91a116bd42ce684912abf75b011dc35f7a4ffa0f59feffd239da89a48494c"
+  }
+}

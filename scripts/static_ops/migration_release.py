@@ -1,7 +1,7 @@
 """Main-only migration evidence, reviewed prepare and explicitly approved publish.
 
 No operation in this module is invoked by a PR. Publication reuses app_release;
-private reviews and encrypted transport do not replace any of its gates.
+Firestore reviews and encrypted transport do not replace any of its gates.
 """
 
 from __future__ import annotations
@@ -35,6 +35,9 @@ JOBS = {
     "evidence-migration": "migration-evidence",
     "prepare-migration": "migration-prepare",
     "publish-migration": "migration-publish",
+    "revoke-migration": "migration-revoke",
+    "cleanup-migration": "migration-cleanup",
+    "acceptance-migration": "migration-acceptance",
 }
 
 
@@ -42,6 +45,7 @@ def scope(env, event):
     operation = (
         "evidence-migration"
         if env.get("GITHUB_EVENT_NAME") == "workflow_run"
+        else "cleanup-migration" if env.get("GITHUB_EVENT_NAME") == "schedule"
         else event.get("inputs", {}).get("operation")
     )
     app.require(
@@ -51,7 +55,8 @@ def scope(env, event):
         and env.get("RUNNER_ENVIRONMENT") == "github-hosted"
         and env.get("GITHUB_REPOSITORY") == app.REPO
         and env.get("GITHUB_REPOSITORY_ID") == "1314030412"
-        and env.get("GITHUB_EVENT_NAME") in ("workflow_dispatch", "workflow_run")
+        and env.get("GITHUB_REPOSITORY_OWNER_ID") == "65487096"
+        and env.get("GITHUB_EVENT_NAME") in ("workflow_dispatch", "workflow_run", "schedule")
         and env.get("GITHUB_REF") == "refs/heads/main"
         and env.get("GITHUB_WORKFLOW_REF")
         == app.REPO + "/.github/workflows/static-app-release.yml@refs/heads/main"
@@ -214,6 +219,7 @@ def prepare(operator, evidence, reviewer, store, evidence_directory, journal):
     initial = before_pause(operator)
     journal.value["automation_before"] = initial["variables"]["STATIC_AUTOMATION_ENABLED"]
     journal.save()
+    operator.approval_check()
     operator.pause_allowed = True
     try:
         journal.mutation(
@@ -324,15 +330,43 @@ def report(reference):
     # Only an access-controlled link and exact digest. No private report fields.
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
         output.write(
-            f"Private migration review: {reference['url']}\n\n"
-            f"Record: `{reference['id']}`; SHA-256: `{reference['sha256']}`\n"
+            f"Review details in [Firestore Console]({reference['url']})\n\n"
+            f"- Record ID: `{reference['id']}`\n"
+            f"- SHA-256: `{reference['sha256']}`\n"
         )
+
+
+def synthetic_acceptance(reviews):
+    """No source receipt or signature: these records can never authorize publication."""
+    sample = json.dumps({"synthetic_only": True, "saved": {"id": "synthetic-project"},
+                         "latest": {"draft": "Synthetic sample for console inspection"}},
+                        ensure_ascii=False, indent=2)
+    evidence = {
+        "schema_version": 1, "phase": "evidence", "synthetic_only": True,
+        "created_at": datetime.now(UTC).isoformat(),
+        "checks": {"old_to_new": {"observations": {"sample_sha256": app.digest(sample.encode())}}},
+        "publication_authorized": False,
+    }
+    parent = reviews.save(evidence, sample_json=sample)
+    # The lifecycle itself is exercised without pausing weather, building or publishing.
+    reviews.begin(parent["id"], parent["sha256"], "prepare")
+    plan = {"prepared_at": datetime.now(UTC).isoformat(), "synthetic_only": True,
+            "changes": {"production": "NO_OPERATION"}, "candidate": "synthetic-candidate"}
+    raw = json.dumps(plan, ensure_ascii=False, indent=2) + "\n"
+    prepared = reviews.save({
+        "schema_version": 1, "phase": "prepared", "synthetic_only": True,
+        "created_at": datetime.now(UTC).isoformat(), "plan": plan,
+        "plan_sha256": app.digest(raw.encode()), "publication_authorized": False,
+        "evidence_reference": {name: parent[name] for name in ("id", "sha256")},
+    }, root=parent["id"], plan_json=raw)
+    reviews.read(prepared["id"], prepared["sha256"], comment=True)
+    return parent, prepared
 
 
 def main():
     previous = os.umask(0o077)
     journal, reviews, reference = None, None, None
-    issue = None
+    evidence_root = None
     operation = "startup"
     owned_directories = []
     try:
@@ -341,10 +375,27 @@ def main():
         operation = scope(env, event)
         inputs = event.get("inputs", {})
         reader = app.Operator()
-        reviews = migration_review.Reviews(reader)
-        key = transport.key_bytes(os.environ.pop("STATIC_MIGRATION_ARCHIVE_KEY", ""))
-        os.environ.pop("STATIC_MIGRATION_REVIEW_TOKEN", None)
+        reviews = migration_review.Reviews(
+            reader, allow_disabled=operation in ("revoke-migration", "acceptance-migration"))
+        key_text = os.environ.pop("STATIC_MIGRATION_ARCHIVE_KEY", "")
+        # Capture evidence credentials before creating operators or candidate environments.
+        os.environ.pop("STATIC_MIGRATION_EVIDENCE_CREDENTIALS_FILE", None)
         release_token = os.environ.pop("RELEASE_GITHUB_TOKEN", "")
+        if operation == "cleanup-migration":
+            reviews.cleanup()
+            return 0
+        if operation == "acceptance-migration":
+            migration_review.approved_actor(reader, env)
+            for reference in synthetic_acceptance(reviews):
+                report(reference)
+            return 0
+        if operation == "revoke-migration":
+            actor = migration_review.approved_actor(reader, env)
+            reference = reviews.revoke(inputs.get("migration_record_id", ""),
+                                       inputs.get("reviewed_record_sha256", ""), actor)
+            report(reference)
+            return 0
+        key = transport.key_bytes(key_text)
         operator = MigrationOperator()
         app.require(
             operator.git("rev-parse", "HEAD") == env["GITHUB_SHA"]
@@ -368,10 +419,10 @@ def main():
                     "Trusted release-preparation event required",
                 )
                 sha = run["head_sha"]
-            evidence = migration_review.signed_evidence(
-                migration_evidence.collect(operator, sha, temporary), key
-            )
-            reference = reviews.save(evidence)
+            collected = migration_evidence.collect(operator, sha, temporary)
+            sample_json = collected.pop("sample_json")
+            evidence = migration_review.signed_evidence(collected, key)
+            reference = reviews.save(evidence, sample_json=sample_json)
             report(reference)
             return 0
         reviewer = migration_review.approved_actor(reader, env)
@@ -379,10 +430,11 @@ def main():
             inputs.get("migration_record_id", ""),
             inputs.get("reviewed_record_sha256", ""),
         )
-        approved = reviews.read(number, expected, comment=operation == "publish-migration")
-        issue = int(number) if operation == "prepare-migration" else approved["issue"]
-        app.require(type(issue) is int and issue > 0, "Invalid private review Issue")
-        root = Path("/tmp") / ("navmate-migration-" + str(issue))
+        approved = reviews.begin(number, expected,
+                                 "prepare" if operation == "prepare-migration" else "publish")
+        evidence_root = number if operation == "prepare-migration" else approved[
+            "evidence_reference"]["id"]
+        root = Path("/tmp") / ("navmate-migration-" + evidence_root)
         root.mkdir(mode=0o700)  # Fixed paths preserve the reviewed receipt across runners.
         owned_directories.append(root)
         store, evidence_directory = root / "store", root / "evidence"
@@ -414,7 +466,6 @@ def main():
                     "schema_version": 1,
                     "phase": "prepared",
                     "candidate_sha": sha,
-                    "issue": issue,
                     "created_at": datetime.now(UTC).isoformat(),
                     "plan": plan,
                     "handoff": handoff,
@@ -424,7 +475,8 @@ def main():
                     "evidence_reference": {"id": number, "sha256": expected},
                     "publication_authorized": False,
                 },
-                issue=issue,
+                root=evidence_root,
+                plan_json=(store / "plan.json").read_text(),
             )
         else:
             app.require(
@@ -465,8 +517,11 @@ def main():
                     "created_at": datetime.now(UTC).isoformat(),
                     "result": journal.value,
                     "reviewed_record_sha256": expected,
+                    "evidence_reference": approved["evidence_reference"],
+                    "prepared_reference": {"id": number, "sha256": expected},
+                    "final_verified": True,
                 },
-                issue=issue,
+                root=evidence_root,
             )
         report(reference)
         return 0
@@ -488,14 +543,13 @@ def main():
                         "created_at": datetime.now(UTC).isoformat(),
                         "result": journal.value,
                     },
-                    issue=issue,
+                    root=evidence_root,
                 )
                 report(reference)
             except Exception:
                 # No plaintext fallback to public artifacts/logs.
                 pass
-            safe = {key: journal.value.get(key) for key in ("status", "stage", "changes")}
-            print(json.dumps(safe))
+            # Journal changes/configuration and exception text stay in IAM-protected storage.
         elif reviews is not None:
             try:
                 reference = reviews.save(
@@ -512,14 +566,14 @@ def main():
                             else "Inspect the selected operation and its inputs",
                         },
                     },
-                    issue=issue,
+                    root=evidence_root,
                 )
                 report(reference)
             except Exception:
                 pass
         # Provider output, raw configuration and record bodies never enter public logs.
         print(
-            "Migration BLOCKED. Inspect the private record and production state before recovery; "
+            "Migration BLOCKED. Inspect the Firestore record and production state before recovery; "
             "do not resume or retry an uncertain write."
         )
         return 1

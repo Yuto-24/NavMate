@@ -4,7 +4,7 @@ import copy
 import io
 import json
 import zipfile
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -41,149 +41,12 @@ def evidence():
     }
 
 
-@pytest.fixture
-def reviews(monkeypatch):
-    repository = {
-        "id": 10,
-        "private": True,
-        "full_name": "Yuto-24/private-review",
-        "owner": {"id": 65487096},
-    }
-    records = {}
-
-    def api(self, path, method="GET", body=None):
-        if not path:
-            return copy.deepcopy(repository)
-        if path == "graphql":
-            comment = records["issues/comments/2"]
-            parent = records["issues/1"]
-            number = int(comment["issue_url"].rsplit("/", 1)[1])
-            return {"data": {"node": {
-                "fullDatabaseId": "2", "body": comment["body"],
-                "issue": {"number": number, "state": parent["state"].upper(),
-                          "repository": {"databaseId": 10,
-                                         "nameWithOwner": repository["full_name"],
-                                         "isPrivate": repository["private"]}},
-            }}}
-        if method == "POST":
-            if path == "issues":
-                result = {"number": 1, "body": body["body"], "state": "open"}
-                records["issues/1"] = result
-            else:
-                result = {
-                    "id": 2,
-                    "node_id": "comment-two",
-                    "body": body["body"],
-                    "issue_url": "https://api.github.com/repos/Yuto-24/private-review/issues/1",
-                }
-                records["issues/comments/2"] = result
-            return result
-        return copy.deepcopy(records[path])
-
-    monkeypatch.setenv("STATIC_MIGRATION_REVIEW_REPOSITORY", repository["full_name"])
-    monkeypatch.setenv("STATIC_MIGRATION_REVIEW_TOKEN", "test-only")
-    monkeypatch.setattr(review.Reviews, "api", api)
-    return review.Reviews(None), repository, records
-
-
-def test_private_read_binds_visible_summary_and_full_observation(reviews):
-    store, _, records = reviews
-    value = review.signed_evidence(evidence(), KEY)
-    reference = store.save(value)
-    assert store.read("1", reference["sha256"]) == value
-    review.verify_evidence(value, KEY)
-    assert "Tests are not approval" in records["issues/1"]["body"]
-    records["issues/1"]["body"] = records["issues/1"]["body"].replace(
-        "Tests are not approval", "Tests authorize publication"
-    )
-    with pytest.raises(app.Blocked, match="changed"):
-        store.read("1", reference["sha256"])
-
-
-@pytest.mark.parametrize("change", ["public", "owner", "repository", "withdrawn", "expired"])
-def test_review_identity_privacy_withdrawal_and_expiry_fail_closed(reviews, change):
-    store, repository, records = reviews
-    value = evidence()
-    if change == "expired":
-        value["created_at"] = (datetime.now(UTC) - timedelta(hours=25)).isoformat()
-    reference = store.save(value)
-    if change == "public":
-        repository["private"] = False
-    elif change == "owner":
-        repository["owner"]["id"] = 20
-    elif change == "repository":
-        repository["id"] = 11
-    elif change == "withdrawn":
-        records["issues/1"]["state"] = "closed"
-    with pytest.raises(app.Blocked):
-        store.read("1", reference["sha256"])
-
-
-def test_prepared_comment_cannot_be_moved_to_another_issue(reviews):
-    store, _, records = reviews
-    store.save(evidence())
-    value = {**evidence(), "phase": "prepared", "issue": 1}
-    reference = store.save(value, issue=1)
-    assert store.read("2", reference["sha256"], comment=True) == value
-    records["issues/comments/2"]["issue_url"] += "2"
-    with pytest.raises(app.Blocked, match="another Issue"):
-        store.read("2", reference["sha256"], comment=True)
-
-
 def test_modified_observations_cannot_be_resigned_by_digest_or_review():
     value = review.signed_evidence(evidence(), KEY)
     value["checks"]["old_to_new"]["observations"]["receipt"] = 2
     with pytest.raises(app.Blocked, match="sealed"):
         review.verify_evidence(value, KEY)
 
-
-def test_issue_body_and_withdrawal_are_checked_in_the_same_response(reviews, monkeypatch):
-    store, _, records = reviews
-    reference = store.save(evidence())
-    records["issues/1"]["state"] = "closed"
-    original = store.api
-
-    def api(path, *args):
-        result = original(path, *args)
-        if path == "issues/1":
-            # Reopening a replacement must not authorize the captured closed body.
-            records[path]["state"] = "open"
-            records[path]["body"] = "replacement"
-        return result
-
-    monkeypatch.setattr(store, "api", api)
-    with pytest.raises(app.Blocked, match="withdrawn"):
-        store.read("1", reference["sha256"])
-
-
-@pytest.mark.parametrize("fault", ["closed", "replacement", "missing", "errors", "identity"])
-def test_comment_uses_current_body_and_parent_from_one_observation(reviews, monkeypatch, fault):
-    store, _, records = reviews
-    store.save(evidence())
-    reference = store.save({**evidence(), "phase": "prepared", "issue": 1}, issue=1)
-    original = store.api
-
-    def api(path, *args):
-        result = original(path, *args)
-        if path == "issues/comments/2":
-            if fault == "closed":
-                records["issues/1"]["state"] = "closed"
-            if fault == "replacement":
-                records[path]["body"] = review.body_for({
-                    **evidence(), "phase": "prepared", "issue": 1, "changed": True,
-                })
-        if path == "graphql":
-            if fault == "missing":
-                result["data"]["node"] = None
-            elif fault == "errors":
-                result["errors"] = [{"message": "unavailable"}]
-            elif fault == "identity":
-                result["data"]["node"]["fullDatabaseId"] = "3"
-        return result
-
-    monkeypatch.setattr(store, "api", api)
-    with pytest.raises(app.Blocked):
-        store.read("2", reference["sha256"], comment=True)
 
 
 @pytest.mark.parametrize("tampered", [False, True])

@@ -1,4 +1,4 @@
-"""Private GitHub review records. Digests bind an explicit dispatch to exact bytes.
+"""Firestore migration review records. Digests bind dispatch to exact JSON bytes.
 
 This module never treats tests, a generated report, or an Issue's open state as
 review approval. The authenticated human dispatch and its digest are required.
@@ -13,10 +13,7 @@ import re
 from datetime import UTC, datetime, timedelta
 
 from scripts.static_ops import app_release as app
-
-PREFIX = "NavMate migration review v1\n\n```json\n"
-SUFFIX = "\n```\n"
-MAX_BYTES = 60_000
+from scripts.static_ops import migration_firestore as firestore
 
 
 def signed_evidence(value: dict, key: bytes) -> dict:
@@ -37,205 +34,271 @@ def verify_evidence(value: dict, key: bytes) -> None:
     )
 
 
-def body_for(value: dict) -> str:
-    phase = value["phase"]
-    instructions = {
-        "evidence": "Independently review source compatibility and each test result. Tests are not approval. Then select prepare-migration with this Issue number and the record SHA-256 from the Actions summary. Preparation pauses weather updates.",  # noqa: E501
-        "prepared": "Weather updates are paused. This plan expires 30 minutes after preparation. Review the exact plan and changes below. To authorize production publication, select publish-migration with this comment ID and the record SHA-256 from the Actions summary.",  # noqa: E501
-        "published": "Publication and readback completed. Confirm the recorded approved commit SHA and weather update state.",  # noqa: E501
-        "blocked": "Publication is blocked or incomplete. Inspect canonical Pages, approved SHA, and weather state before recovery. Do not replay uncertain writes or resume weather unconditionally.",  # noqa: E501
-    }
-    summary = [
-        "## Migration " + phase,
-        "",
-        instructions[phase],
-        "",
-        "Candidate: `" + value["candidate_sha"] + "`",
-        "",
-    ]
-    if phase == "evidence":
-        identity = value["identity"]
-        summary += [
-            "Current: `" + identity["current_sha"] + "`",
-            "Tooling: `" + identity["tooling_sha"] + "`",
-            "",
-        ]
-        summary += [
-            "- " + name + ": " + check["result"] + " — " + check["summary"]
-            for name, check in value["checks"].items()
-        ]
-        summary += [
-            "",
-            "Synthetic data and emulator results do not establish live account or real-device acceptance.",  # noqa: E501
-            "",
-        ]
-    origin = value.get("origin_run", value.get("handoff", {}).get("origin_run", {}))
-    run_id = origin.get("run_id", "")
-    if isinstance(run_id, str) and re.fullmatch(r"[1-9]\d{0,19}", run_id):
-        summary += [f"[Actions summary](https://github.com/{app.REPO}/actions/runs/{run_id})", ""]
-    summary += [f"[Migration runbook](https://github.com/{app.REPO}/blob/main/docs/"
-                "schema_transition.md#github上の移行証跡と承認)", ""]
-    raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
-    return "\n".join(summary) + PREFIX + raw + SUFFIX
+def record_id(env, phase):
+    app.require(phase in {"evidence", "prepared", "published", "blocked", "revoked"},
+                "Invalid evidence phase")
+    run, attempt = env.get("GITHUB_RUN_ID", ""), env.get("GITHUB_RUN_ATTEMPT", "")
+    app.require(all(re.fullmatch(r"[1-9]\d{0,19}", item) for item in (run, attempt)),
+                "Exact evidence run identity required")
+    return f"r{run}-a{attempt}-{phase}"
+
+
+def checked_id(value):
+    app.require(isinstance(value, str) and re.fullmatch(
+        r"r[1-9]\d{0,19}-a[1-9]\d{0,19}-(evidence|prepared|published|blocked|revoked)", value),
+        "Firestore record ID required; regenerate legacy Issue/comment evidence")
+    return value
+
+
+def envelope(raw, root_id, attachments=None):
+    value = json.loads(raw)
+    return {"root_id": root_id, "original_json": raw, "display": firestore.display(value),
+            "sha256": app.digest(raw.encode()), "attachments": attachments or {}}
 
 
 class Reviews:
-    def __init__(self, operator):
-        self.operator = operator
-        self.repository = os.environ.get("STATIC_MIGRATION_REVIEW_REPOSITORY", "")
-        self.token = os.environ.get("STATIC_MIGRATION_REVIEW_TOKEN", "")
-        app.require(
-            re.fullmatch(r"Yuto-24/[A-Za-z0-9_.-]+", self.repository)
-            and self.repository != app.REPO
-            and self.token,
-            "Configure an owner-controlled private migration review repository",
-        )
-        repository = self.api("")
-        self.repository_id = repository.get("id")
-        self.require_private(repository)
+    """Immutable originals and a small transactional lifecycle per evidence set.
 
-    def require_private(self, repository=None):
-        repository = self.api("") if repository is None else repository
-        app.require(
-            repository.get("private") is True
-            and repository.get("full_name") == self.repository
-            and repository.get("owner", {}).get("id") == 65487096
-            and type(self.repository_id) is int
-            and self.repository_id > 0
-            and repository.get("id") == self.repository_id,
-            "Migration evidence repository must remain private and owner-controlled",
-        )
+    One prepare and one publication are admitted per evidence set. Failed or
+    uncertain attempts require new evidence. A revocation tombstone is permanent.
+    """
 
-    def open_issue(self, number):
-        app.require(type(number) is int and number > 0, "Invalid private review Issue")
-        issue = self.api(f"issues/{number}")
-        app.require(
-            issue.get("number") == number
-            and issue.get("state") == "open"
-            and "pull_request" not in issue,
-            "Migration review was withdrawn or is unavailable",
-        )
-        return issue
+    def __init__(self, operator=None, *, database=None, env=None, allow_disabled=False):
+        self.env = dict(os.environ) if env is None else env
+        self.db = database or firestore.configured(self.env, allow_disabled=allow_disabled)
 
-    def api(self, path, method="GET", body=None):
-        # Keep this narrowly scoped credential out of producer/build subprocesses.
-        result = app.command(
-            [
-                "gh",
-                "api",
-                "--hostname",
-                "github.com",
-                "--method",
-                method,
-                "graphql" if path == "graphql" else
-                ("repos/" + self.repository + "/" + path).rstrip("/"),
-                *(["--input", "-"] if body is not None else []),
-            ],
-            env={
-                "PATH": os.environ.get("PATH", os.defpath),
-                "GH_TOKEN": self.token,
-                "GH_PROMPT_DISABLED": "1",
-            },
-            input_text=json.dumps(body) if body is not None else None,
-        )
-        return json.loads(result)
+    def reference(self, id, digest):
+        return {"id": checked_id(id), "sha256": digest,
+                "url": "https://console.firebase.google.com/project/" + self.db.project
+                       + "/firestore/databases/-default-/data"}
 
-    def save(self, value: dict, *, issue: int | None = None) -> dict:
-        self.require_private()
-        raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
-        app.require(len(raw.encode()) <= MAX_BYTES, "Private review record too large")
-        body = body_for(value)
-        app.require(len(body.encode()) <= MAX_BYTES, "Private review record too large")
-        digest = app.digest(body.encode())
-        if issue is None:
-            result = self.api(
-                "issues",
-                "POST",
-                {"title": "Migration " + value["candidate_sha"][:12], "body": body},
-            )
-            reference = {"type": "issue", "id": result["number"], "issue": result["number"]}
-        else:
-            self.open_issue(issue)
-            result = self.api(f"issues/{issue}/comments", "POST", {"body": body})
-            reference = {"type": "comment", "id": result["id"], "issue": issue}
-        # An uncertain POST is never replayed. The operator reconciles the private Issue.
-        app.require(result.get("body") == body, "Private record write was not confirmed")
-        self.require_private()
-        return {
-            **reference,
-            "sha256": digest,
-            "url": f"https://github.com/{self.repository}/issues/{reference['issue']}",
-        }
-
-    def read(self, number: str, expected: str, *, comment=False) -> dict:
-        self.require_private()
-        app.require(
-            re.fullmatch(r"[1-9]\d{0,19}", number) and re.fullmatch(r"[0-9a-f]{64}", expected),
-            "Exact private record identity and reviewed digest required",
-        )
-        endpoint = "issues/" + ("comments/" if comment else "") + number
-        result = self.api(endpoint)
-        if comment:
-            # REST supplies only the node identity. Never combine its body with
-            # a later parent state: read both from the same GraphQL observation.
-            node_id = result.get("node_id")
-            app.require(isinstance(node_id, str) and node_id, "Comment identity unavailable")
-            response = self.api("graphql", "POST", {
-                "query": """query($id: ID!) { node(id: $id) { ... on IssueComment {
-                    fullDatabaseId body
-                    issue { number state repository { databaseId nameWithOwner isPrivate } }
-                } } }""",
-                "variables": {"id": node_id},
-            })
-            app.require(not response.get("errors"), "Private comment observation failed")
-            result = (response.get("data") or {}).get("node")
-            app.require(
-                isinstance(result, dict) and str(result.get("fullDatabaseId")) == number,
-                "Private comment identity changed",
-            )
-        else:
-            app.require(
-                result.get("number") == int(number)
-                and result.get("state") == "open"
-                and "pull_request" not in result,
-                "Migration review was withdrawn or is unavailable",
-            )
-        body = result.get("body", "")
-        app.require(
-            isinstance(body, str)
-            and body.count(PREFIX) == 1
-            and body.endswith(SUFFIX)
-            and len(body.encode()) <= MAX_BYTES + len(PREFIX) + len(SUFFIX),
-            "Invalid private review record",
-        )
-        raw = body.split(PREFIX, 1)[1][: -len(SUFFIX)]
-        app.require(app.digest(body.encode()) == expected, "Reviewed private record changed")
+    def document(self, id, expected, tx):
+        checked_id(id)
+        app.require(isinstance(expected, str) and re.fullmatch(r"[0-9a-f]{64}", expected),
+                    "Reviewed record SHA-256 required")
+        document = self.db.get("migrationRecords/" + id, tx)
+        app.require(isinstance(document, dict) and document.get("sha256") == expected,
+                    "Reviewed record missing or changed")
+        raw = document["original_json"]
+        app.require(app.digest(raw.encode()) == expected, "Reviewed record changed")
         value = json.loads(raw)
-        app.require(body_for(value) == body, "Private review summary changed")
-        app.require(
-            type(value.get("schema_version")) is int and value["schema_version"] == 1,
-            "Unsupported private review record",
-        )
-        if comment:
-            issue = value.get("issue")
-            parent = result.get("issue") or {}
-            app.require(
-                type(issue) is int and issue > 0 and parent.get("number") == issue
-                and parent.get("repository") == {
-                    "databaseId": self.repository_id,
-                    "nameWithOwner": self.repository,
-                    "isPrivate": True,
-                },
-                "Prepared review belongs to another Issue",
-            )
-            app.require(parent.get("state") == "OPEN", "Migration review was withdrawn")
+        app.require(document == envelope(raw, document["root_id"], document["attachments"]),
+                    "Review original and display differ")
+        app.require(type(value.get("schema_version")) is int and value["schema_version"] == 1,
+                    "Unsupported review record")
+        attachments = document["attachments"]
+        required = {}
+        if value["phase"] == "evidence" and "sample_sha256" in value["checks"][
+                "old_to_new"]["observations"]:
+            required["sample"] = value["checks"]["old_to_new"]["observations"]["sample_sha256"]
+        if value["phase"] == "prepared":
+            required["plan"] = value["plan_sha256"]
+        app.require(attachments == required, "Review attachment manifest changed")
+        for label, digest in required.items():
+            part = self.db.get("migrationRecords/" + id + "-" + label, tx)
+            app.require(isinstance(part, dict), "Review attachment missing")
+            app.require(part == envelope(part["original_json"], document["root_id"])
+                        and part["sha256"] == digest, "Review attachment changed")
+            if label == "plan":
+                app.require(json.loads(part["original_json"]) == value["plan"],
+                            "Exact plan differs from review")
+        return value, document
+
+    def observe(self, id, expected, tx, *, active=True):
+        value, document = self.document(id, expected, tx)
+        root = checked_id(document["root_id"])
+        group = self.db.get("migrationGroups/" + root, tx)
+        app.require(isinstance(group, dict) and group.get("root_id") == root,
+                    "Evidence lifecycle unavailable")
+        tombstone = self.db.get("migrationRevocations/" + root, tx)
+        if active:
+            app.require(tombstone is None and group.get("revoked") is False,
+                        "Migration review was revoked; generate new evidence")
+            app.require(group.get("state") != "BLOCKED", "Evidence has an incomplete operation")
+        if value["phase"] == "evidence":
+            app.require(id == root and group["evidence"] == {"id": id, "sha256": expected},
+                        "Evidence parent changed")
+        elif value["phase"] == "prepared":
+            parent = value["evidence_reference"]
+            app.require(parent == group["evidence"] and parent["id"] == root
+                        and group["prepared"] == {"id": id, "sha256": expected},
+                        "Prepared evidence parent changed")
+            original, _ = self.document(root, parent["sha256"], tx)
+            if active:
+                self.fresh(original)
+        else:
+            app.require(not active, "Evidence or prepared plan required")
+        if active:
+            self.fresh(value)
+        return value, group
+
+    @staticmethod
+    def fresh(value):
         created = app.instant(value["created_at"])
-        app.require(
-            datetime.now(UTC) - timedelta(hours=24) <= created <= datetime.now(UTC),
-            "Evidence expired; generate and review fresh evidence",
-        )
-        self.require_private()
+        now = datetime.now(UTC)
+        app.require(now - timedelta(hours=24) <= created <= now,
+                    "Evidence expired; generate and review fresh evidence")
+        if value["phase"] == "prepared":
+            prepared = app.instant(value["plan"]["prepared_at"])
+            app.require(now - timedelta(minutes=30) <= prepared <= now,
+                        "Plan expired; generate new evidence")
+
+    def read(self, id, expected, *, comment=False):
+        with self.db.transaction() as tx:
+            value, _ = self.observe(id, expected, tx)
+            app.require(value["phase"] == ("prepared" if comment else "evidence"),
+                        "Wrong review phase")
+            return value
+
+    def commit_known(self, writes, known, tx):
+        try:
+            self.db.commit(writes, tx)
+        except Exception:
+            # Never replay writes, even when the server may have committed them.
+            # Reconcile exact known document IDs using a fresh consistent snapshot.
+            with self.db.transaction() as check:
+                app.require(all(self.db.get(path, check) == value for path, value in known.items()),
+                            "Evidence write outcome unknown; do not retry")
+
+    def begin(self, id, expected, operation):
+        app.require(operation in ("prepare", "publish"), "Invalid lifecycle operation")
+        with self.db.transaction(write=True) as tx:
+            value, group = self.observe(id, expected, tx)
+            phase = "evidence" if operation == "prepare" else "prepared"
+            state = "EVIDENCE" if operation == "prepare" else "PREPARED"
+            app.require(value["phase"] == phase and group["state"] == state,
+                        "Evidence already used; generate new evidence")
+            claim = record_id(self.env, "prepared" if operation == "prepare" else "published")
+            group = {**group, "state": "PREPARING" if operation == "prepare" else "PUBLISHING",
+                     "claim": claim}
+            path = "migrationGroups/" + group["root_id"]
+            self.commit_known([self.db.put(path, group, create=False)], {path: group}, tx)
         return value
+
+    def save(self, value, *, root=None, sample_json=None, plan_json=None):
+        phase = value["phase"]
+        id = record_id(self.env, phase)
+        root = checked_id(root) if root else id
+        parts = {name: raw for name, raw in (("sample", sample_json), ("plan", plan_json))
+                 if raw is not None}
+        attachments = {name: app.digest(raw.encode()) for name, raw in parts.items()}
+        raw = firestore.canonical(value)
+        document = envelope(raw, root, attachments)
+        # Attachments are already bound by fields in the exact original record.
+        if sample_json is not None:
+            app.require(attachments["sample"] == value["checks"]["old_to_new"][
+                "observations"]["sample_sha256"], "Synthetic sample hash mismatch")
+        if phase == "prepared":
+            app.require(plan_json is not None and attachments["plan"] == value["plan_sha256"]
+                        and json.loads(plan_json) == value["plan"], "Exact plan required")
+        known = {"migrationRecords/" + id: document}
+        known.update({"migrationRecords/" + id + "-" + label: envelope(content, root)
+                      for label, content in parts.items()})
+        with self.db.transaction(write=True) as tx:
+            path = "migrationGroups/" + root
+            group = self.db.get(path, tx)
+            tombstone = self.db.get("migrationRevocations/" + root, tx)
+            if group is None:
+                app.require(root == id and phase in ("evidence", "blocked"),
+                            "Evidence lifecycle missing")
+                group = {"root_id": root, "state": "EVIDENCE" if phase == "evidence" else "BLOCKED",
+                         "revoked": False, "evidence": {"id": id, "sha256": document["sha256"]},
+                         "prepared": {}, "published": {}, "blocked": {}, "claim": ""}
+                create = True
+            else:
+                create = False
+                if phase != "blocked":
+                    app.require(tombstone is None and group["revoked"] is False,
+                                "Migration review was revoked")
+                    expected_state = "PREPARING" if phase == "prepared" else "PUBLISHING"
+                    app.require(phase in ("prepared", "published")
+                                and group["state"] == expected_state and group["claim"] == id,
+                                "Migration operation claim changed")
+                    app.require(value["evidence_reference"] == group["evidence"],
+                                "Evidence parent changed")
+                if phase == "published":
+                    app.require(value.get("final_verified") is True
+                                and value["prepared_reference"] == group["prepared"],
+                                "Final publication verification required")
+                    group["completed_at"] = value["created_at"]
+                group[phase if phase != "blocked" else "blocked"] = {
+                    "id": id, "sha256": document["sha256"]}
+                group["state"] = {"prepared": "PREPARED", "published": "PUBLISHED",
+                                  "blocked": "BLOCKED"}[phase]
+                group["claim"] = ""
+            known[path] = group
+            writes = [self.db.put(name, item, create=create if name == path else True)
+                      for name, item in known.items()]
+            self.commit_known(writes, known, tx)
+        # Re-read every original, display and attachment, without an expiry shortcut.
+        with self.db.transaction() as tx:
+            app.require(self.document(id, document["sha256"], tx)[0] == value,
+                        "Evidence readback mismatch")
+        return self.reference(id, document["sha256"])
+
+    def revoke(self, id, expected, actor):
+        with self.db.transaction(write=True) as tx:
+            _, document = self.document(id, expected, tx)
+            root = document["root_id"]
+            group_path = "migrationGroups/" + checked_id(root)
+            group = self.db.get(group_path, tx)
+            app.require(group and group["root_id"] == root, "Evidence lifecycle missing")
+            path = "migrationRevocations/" + root
+            existing = self.db.get(path, tx)
+            if existing is not None:
+                app.require(group["revoked"] is True, "Revocation state changed")
+                return self.reference(existing["id"], existing["sha256"])
+            value = {"schema_version": 1, "phase": "revoked",
+                     "created_at": datetime.now(UTC).isoformat(),
+                     "record_id": id, "reviewed_record_sha256": expected, "actor": actor}
+            revoked_id = record_id(self.env, "revoked")
+            document = envelope(firestore.canonical(value), root)
+            marker = {"id": revoked_id, "sha256": document["sha256"]}
+            group = {**group, "revoked": True}
+            known = {path: marker, "migrationRecords/" + revoked_id: document, group_path: group}
+            self.commit_known([self.db.put(name, item, create=name != group_path)
+                               for name, item in known.items()], known, tx)
+            return self.reference(revoked_id, document["sha256"])
+
+    def cleanup(self, now=None):
+        now = now or datetime.now(UTC)
+        removed = 0
+        for root in self.db.groups():
+            checked_id(root)
+            with self.db.transaction(write=True) as tx:
+                path = "migrationGroups/" + root
+                group = self.db.get(path, tx)
+                if (not group or group.get("state") != "PUBLISHED"
+                        or group.get("revoked") is not False):
+                    continue
+                if group.get("claim") or group.get("blocked") or not group.get("completed_at"):
+                    continue
+                if now < app.instant(group["completed_at"]) + timedelta(days=30):
+                    continue
+                if self.db.get("migrationRevocations/" + root, tx) is not None:
+                    continue
+                paths = [path]
+                values = {}
+                for role in ("evidence", "prepared", "published"):
+                    ref = group[role]
+                    value, document = self.document(ref["id"], ref["sha256"], tx)
+                    app.require(document["root_id"] == root and value["phase"] == role,
+                                "Retention evidence set changed")
+                    paths.append("migrationRecords/" + ref["id"])
+                    paths.extend("migrationRecords/" + ref["id"] + "-" + label
+                                 for label in document["attachments"])
+                    values[role] = value
+                app.require(group["evidence"]["id"] == root
+                            and values["prepared"]["evidence_reference"] == group["evidence"]
+                            and values["published"]["evidence_reference"] == group["evidence"]
+                            and values["published"]["prepared_reference"] == group["prepared"]
+                            and values["published"].get("final_verified") is True
+                            and values["published"]["created_at"] == group["completed_at"],
+                            "Retention final verification missing")
+                writes = [{"delete": self.db.root + "/" + name} for name in paths]
+                self.commit_known(writes, dict.fromkeys(paths), tx)
+                removed += 1
+        return removed
 
 
 def approved_actor(operator, env: dict) -> str:
@@ -246,7 +309,8 @@ def approved_actor(operator, env: dict) -> str:
     )
     user = operator.gh("collaborators/" + actor + "/permission")
     app.require(
-        user.get("permission") in ("admin", "maintain", "write")
+        actor == "Yuto-24"
+        and user.get("permission") in ("admin", "maintain", "write")
         and user.get("user", {}).get("login") == actor
         and user["user"].get("type") == "User",
         "Authorized human approval required",

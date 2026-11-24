@@ -1,0 +1,7 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    { "collectionGroup": "migrationRecords", "fieldPath": "original_json", "indexes": [] },
+    { "collectionGroup": "migrationRecords", "fieldPath": "display", "indexes": [] }
+  ]
+}

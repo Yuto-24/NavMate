@@ -29,8 +29,9 @@ PRでの表示には公開権限がありません。VERSION更新後のRelease 
 単なるフィールド追加を安全とは判定しません。
 
 `STATIC_APP_RELEASE_ENABLED=true` のとき、VERSION更新のpublisher完了後に経路を
-再確認し、MANUALなら移行証跡を自動生成します。非公開の保管先などの初回設定が
-未完了なら停止します。GitHub UIから直接Releaseを作成した場合も本番gateは残りますが、
+再確認します。MANUALの証跡自動生成には、別途受入後の
+`STATIC_MIGRATION_EVIDENCE_ENABLED=true`も必要です。未設定・無効なら生成せず、
+[Firestoreの初回設定・受入](migration_evidence_operations.md)を先に行います。GitHub UIから直接Releaseを作成した場合も本番gateは残りますが、
 Release作成前の誘導を受けるにはリリース準備PRを使ってください。
 通常公開の全入口（`release: published`・`replay-release`・`workflow_run`）で、実際のタグSHAの
 IndexedDB版を現行版と再比較します。版変更や、既存のDB open呼出しとして認識できない版指定は

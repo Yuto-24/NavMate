@@ -1,0 +1,7 @@
+ツール使用とファイル操作は禁止。与えた非秘密の仕様だけから日本語の短い運用手順の草稿と、英語Actions入力文言の候補/懸念を提案してください。未導入であり実環境確認済みと書かない。
+移行証跡は非公開GitHub Issueから専用FirebaseプロジェクトのFirestore Standard既定DBへ。GitHubが操作入口と最終承認。本人Yuto-24のみ閲覧承認。専用UI/サーバー不要。旧Issue番号/コメントIDは拒否して新証跡を生成。
+別途承認する設定: 課金をリンクしない専用プロジェクト、専用SAに証跡プロジェクトだけroles/datastore.user。既存WIF providerのrepository/owner/main/workflow_ref/environment制約維持。本番Rules読取SAと分離。クライアントRules全面拒否。本人既存Googleアカウントで管理画面。Webアプリ/Auth/Functionsなし、TTL不使用。
+変数STATIC_MIGRATION_EVIDENCE_PROJECT_ID/STATIC_MIGRATION_EVIDENCE_SERVICE_ACCOUNT/STATIC_MIGRATION_EVIDENCE_ENABLED、既存STATIC_MIGRATION_ARCHIVE_KEYは認証とArtifact暗号化に継続。旧STATIC_MIGRATION_REVIEW_REPOSITORY/TOKEN廃止。資格情報は候補buildに渡さない。
+操作evidence-migration/prepare-migration/publish-migration/revoke-migration。記録IDはrRUN-aATT-phase。入力名維持: migration_record_idはprepareでevidence記録ID、publishでprepared記録ID、revokeで対象記録ID。reviewed_record_sha256は記録SHA256。Summaryは固定管理画面リンク、ID、ハッシュ、最小状態だけ。24h証跡/30m plan。原本JSONと展開表示を読める。配列は添字mapで展開。合成サンプルは別文書で全体SHA256と結合。planは正確なJSON原本も別文書。各文書900KiB超過停止。撤回永続で新証跡必要、公開排他待ちなし。
+成功かつ最終照合済みで関連未完了なしだけ30日後に日次整理。失敗/未完了/不明/撤回は保持。実環境は合成データのみで本人の正確planとsample閲覧、未許可拒否、本番/開発DBアクセス拒否を受入し、その後だけ有効化。設定変更/本番公開/v2.6.0公開/マージは実装に含めない。
+英語文言案には次のidを含める: record-id, record-hash, revoke-operation, firestore-summary, blocked-message, manual-route。余分な操作/役割/注意文を追加しない。

@@ -503,6 +503,12 @@ jobs:
             curl --fail --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8186/healthz > /dev/null
           fi
           npx --yes firebase-tools@15.10.1 emulators:exec --only firestore --project demo-autonavlog-sync "sh scripts/run_account_sync_suite.sh $SUITE $SHARD"
+      - name: Verify Firestore migration evidence lifecycle
+        if: matrix.suite == 'contracts' && matrix.shard == 1
+        run: >-
+          npx --yes firebase-tools@15.10.1 emulators:exec
+          --config firebase.migration-evidence.json --only firestore --project demo-migration-evidence
+          "MIGRATION_TEST_EMULATOR=127.0.0.1:8092 PYTHONPATH=src:. python -m pytest -q tests/unit/test_migration_firestore.py"
       - name: Verify shared development with isolated Firebase emulators
         if: matrix.suite == 'dev-shared'
         run: npx --yes firebase-tools@15.10.1 emulators:exec --config firebase.dev.json --only auth,firestore --project navmate-6b281 "npm --prefix web run test:dev-shared"
