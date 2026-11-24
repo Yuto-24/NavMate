@@ -13,7 +13,6 @@ interface ImportPlanPanelProps {
   projectExists: boolean;
   busy: boolean;
   fileInput: ReactNode;
-  projectFileInput?: ReactNode;
   onPaste: () => void;
   onResumeKmz?: () => void;
   onResumePaste?: () => void;
@@ -59,7 +58,6 @@ export function ImportPlanPanel({
   projectExists,
   busy,
   fileInput,
-  projectFileInput,
   onPaste,
   onResumeKmz,
   onResumePaste,
@@ -109,7 +107,6 @@ export function ImportPlanPanel({
             </button>
           </>
         )}
-        {projectFileInput}
         {importState.filename && (
           <div className="imported-file">
             <Route aria-hidden="true" size={18} />

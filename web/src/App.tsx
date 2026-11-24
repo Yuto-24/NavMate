@@ -2052,7 +2052,6 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           busy={busy}
           onResumePaste={!state.project && pastedKml && !pasteOpen ? () => setPasteOpen(true) : undefined}
           onResumeKmz={!state.project && pendingKmz && !kmzOpen ? () => setKmzOpen(true) : undefined}
-          projectFileInput={application.importProject && <ProjectFileInput busy={busy} onFile={handleProjectImport} />}
           fileInput={<FileInput busy={busy} onFile={handleFile} inputRef={routeFileInput} />}
           onPaste={() => void handlePasteImport("clipboard")}
         />}

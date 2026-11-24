@@ -661,6 +661,11 @@ test("#319 Project JSON transfers calculated Project inputs into independent sav
   if (browserName === "chromium") await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await start(page);
   await confirm(page, "FTD");
+  for (const width of [1100, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expectPlanningLayout(page, width);
+    await expect(page.getByRole("button", { name: "JSONファイルから追加", exact: true })).toHaveCount(0);
+  }
   await expect.poll(async () => (await working(page)).project?.weather_mode).toBe("FTD");
   await expect(page.getByRole("button", { name: "プロジェクトJSONをダウンロード", exact: true })).toHaveCount(0);
   await calculate(page);
