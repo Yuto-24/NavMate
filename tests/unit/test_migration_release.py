@@ -54,6 +54,17 @@ def reviews(monkeypatch):
     def api(self, path, method="GET", body=None):
         if not path:
             return copy.deepcopy(repository)
+        if path == "graphql":
+            comment = records["issues/comments/2"]
+            parent = records["issues/1"]
+            number = int(comment["issue_url"].rsplit("/", 1)[1])
+            return {"data": {"node": {
+                "fullDatabaseId": "2", "body": comment["body"],
+                "issue": {"number": number, "state": parent["state"].upper(),
+                          "repository": {"databaseId": 10,
+                                         "nameWithOwner": repository["full_name"],
+                                         "isPrivate": repository["private"]}},
+            }}}
         if method == "POST":
             if path == "issues":
                 result = {"number": 1, "body": body["body"], "state": "open"}
@@ -61,6 +72,7 @@ def reviews(monkeypatch):
             else:
                 result = {
                     "id": 2,
+                    "node_id": "comment-two",
                     "body": body["body"],
                     "issue_url": "https://api.github.com/repos/Yuto-24/private-review/issues/1",
                 }
@@ -123,6 +135,106 @@ def test_modified_observations_cannot_be_resigned_by_digest_or_review():
     value["checks"]["old_to_new"]["observations"]["receipt"] = 2
     with pytest.raises(app.Blocked, match="sealed"):
         review.verify_evidence(value, KEY)
+
+
+def test_issue_body_and_withdrawal_are_checked_in_the_same_response(reviews, monkeypatch):
+    store, _, records = reviews
+    reference = store.save(evidence())
+    records["issues/1"]["state"] = "closed"
+    original = store.api
+
+    def api(path, *args):
+        result = original(path, *args)
+        if path == "issues/1":
+            # Reopening a replacement must not authorize the captured closed body.
+            records[path]["state"] = "open"
+            records[path]["body"] = "replacement"
+        return result
+
+    monkeypatch.setattr(store, "api", api)
+    with pytest.raises(app.Blocked, match="withdrawn"):
+        store.read("1", reference["sha256"])
+
+
+@pytest.mark.parametrize("fault", ["closed", "replacement", "missing", "errors", "identity"])
+def test_comment_uses_current_body_and_parent_from_one_observation(reviews, monkeypatch, fault):
+    store, _, records = reviews
+    store.save(evidence())
+    reference = store.save({**evidence(), "phase": "prepared", "issue": 1}, issue=1)
+    original = store.api
+
+    def api(path, *args):
+        result = original(path, *args)
+        if path == "issues/comments/2":
+            if fault == "closed":
+                records["issues/1"]["state"] = "closed"
+            if fault == "replacement":
+                records[path]["body"] = review.body_for({
+                    **evidence(), "phase": "prepared", "issue": 1, "changed": True,
+                })
+        if path == "graphql":
+            if fault == "missing":
+                result["data"]["node"] = None
+            elif fault == "errors":
+                result["errors"] = [{"message": "unavailable"}]
+            elif fault == "identity":
+                result["data"]["node"]["fullDatabaseId"] = "3"
+        return result
+
+    monkeypatch.setattr(store, "api", api)
+    with pytest.raises(app.Blocked):
+        store.read("2", reference["sha256"], comment=True)
+
+
+@pytest.mark.parametrize("tampered", [False, True])
+def test_release_metadata_comes_from_approved_commit_not_build_checkout(
+    tmp_path, monkeypatch, tampered,
+):
+    import subprocess
+    from pathlib import Path
+
+    import publish_github_release as publisher
+
+    root = tmp_path / "trusted"
+    root.mkdir()
+    notes = "### 利用者向け\n\n#### 修正\n\n- Approved\n\n### 開発者向け\n\n- Tests\n"
+    (root / "VERSION").write_text("2.6.0\n")
+    (root / "CHANGELOG.md").write_text("# Changes\n\n## 2.6.0\n\n" + notes)
+
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+    git("init", "--quiet")
+    git("add", "VERSION", "CHANGELOG.md")
+    git("-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-qm", "source")
+    sha = git("rev-parse", "HEAD")
+    store = tmp_path / "store"
+    build = store / "fresh/app"
+    build.mkdir(parents=True)
+    for name in ("VERSION", "CHANGELOG.md"):
+        text = (root / name).read_text()
+        (build / name).write_text(text.replace("2.6.0", "2.6.1").replace("Approved", "Changed")
+                                  if tampered else text)
+    calls = []
+    original_run = publisher.run
+
+    def run(*args):
+        if args[0] == "git":
+            return original_run(*args)
+        calls.append((args, Path(args[args.index("--notes-file") + 1]).read_text()))
+        return ""
+
+    monkeypatch.setattr(publisher, "run", run)
+    monkeypatch.setattr(publisher, "api", lambda path: [] if "?per_page=" in path else None)
+    monkeypatch.setattr(migration.release_automation, "stable", lambda value: value)
+    monkeypatch.setattr(migration.release_automation, "candidate", lambda *_: sha)
+    operator = SimpleNamespace(root=root, source_branch=lambda _: "main", git=git, gh=lambda _: {})
+    migration.github_release(operator, sha, store, "test-only")
+    assert len(calls) == 1
+    argv, published_notes = calls[0]
+    assert argv[:4] == ("gh", "release", "create", "v2.6.0")
+    assert argv[argv.index("--target") + 1] == sha
+    assert published_notes == notes
 
 
 @pytest.mark.parametrize(
@@ -458,6 +570,7 @@ def test_probe_entrypoint_and_all_image_cleanup_attempts(monkeypatch, tmp_path, 
         elif argv[:2] == ["docker", "run"]:
             assert argv[argv.index("--entrypoint") + 1] == "python"
             assert argv.count("python") == 1
+            assert argv[argv.index("--env") + 1] == "PYTHONOPTIMIZE=0"
             if argv[-1] == "generate":
                 return '{"synthetic":true}'
             if failure == "probe-and-remove":

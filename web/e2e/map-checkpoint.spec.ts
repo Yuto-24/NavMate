@@ -122,6 +122,12 @@ test("PCA notice uses converted feet while operational limits, geometry and acqu
   await expect(page.getByRole("tooltip").filter({ hasText: "宮崎特別管制区（PCA）" })).toContainText("原告示高度 約656–2,625 ft（200–800 m）");
   await expect(page.getByRole("tooltip").filter({ hasText: "宮崎特別管制区（PCA）" })).toContainText("運用判定 656–2,700 ft MSL（利用者承認値）");
   await boundary.dispatchEvent("mouseout");
+  const exclusion = page.locator(".rjfm-pca-exclusion");
+  await expect(exclusion).toHaveCount(1);
+  await exclusion.dispatchEvent("mouseover");
+  await expect(page.getByRole("tooltip").filter({ hasText: "中心除外" })).toHaveCount(0);
+  await exclusion.dispatchEvent("mouseout");
+  await expect(legend).not.toContainText("中心除外");
   for (const width of [390, 1100, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await expect(page).toHaveTitle(/NavMate/);

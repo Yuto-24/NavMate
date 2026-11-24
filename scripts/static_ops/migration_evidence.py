@@ -152,6 +152,8 @@ def actual_versions(operator, sha, current, directory: Path):
             "none",
             "--entrypoint",
             "python",
+            "--env",
+            "PYTHONOPTIMIZE=0",
             "--mount",
             f"type=bind,source={probe},target=/migration_probe.py,readonly",
         ]

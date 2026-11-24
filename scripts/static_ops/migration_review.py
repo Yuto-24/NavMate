@@ -127,6 +127,7 @@ class Reviews:
                 "github.com",
                 "--method",
                 method,
+                "graphql" if path == "graphql" else
                 ("repos/" + self.repository + "/" + path).rstrip("/"),
                 *(["--input", "-"] if body is not None else []),
             ],
@@ -174,6 +175,31 @@ class Reviews:
         )
         endpoint = "issues/" + ("comments/" if comment else "") + number
         result = self.api(endpoint)
+        if comment:
+            # REST supplies only the node identity. Never combine its body with
+            # a later parent state: read both from the same GraphQL observation.
+            node_id = result.get("node_id")
+            app.require(isinstance(node_id, str) and node_id, "Comment identity unavailable")
+            response = self.api("graphql", "POST", {
+                "query": """query($id: ID!) { node(id: $id) { ... on IssueComment {
+                    fullDatabaseId body
+                    issue { number state repository { databaseId nameWithOwner isPrivate } }
+                } } }""",
+                "variables": {"id": node_id},
+            })
+            app.require(not response.get("errors"), "Private comment observation failed")
+            result = (response.get("data") or {}).get("node")
+            app.require(
+                isinstance(result, dict) and str(result.get("fullDatabaseId")) == number,
+                "Private comment identity changed",
+            )
+        else:
+            app.require(
+                result.get("number") == int(number)
+                and result.get("state") == "open"
+                and "pull_request" not in result,
+                "Migration review was withdrawn or is unavailable",
+            )
         body = result.get("body", "")
         app.require(
             isinstance(body, str)
@@ -192,14 +218,17 @@ class Reviews:
         )
         if comment:
             issue = value.get("issue")
-            self.open_issue(issue)
+            parent = result.get("issue") or {}
             app.require(
-                result.get("issue_url")
-                == f"https://api.github.com/repos/{self.repository}/issues/{issue}",
+                type(issue) is int and issue > 0 and parent.get("number") == issue
+                and parent.get("repository") == {
+                    "databaseId": self.repository_id,
+                    "nameWithOwner": self.repository,
+                    "isPrivate": True,
+                },
                 "Prepared review belongs to another Issue",
             )
-        else:
-            self.open_issue(int(number))
+            app.require(parent.get("state") == "OPEN", "Migration review was withdrawn")
         created = app.instant(value["created_at"])
         app.require(
             datetime.now(UTC) - timedelta(hours=24) <= created <= datetime.now(UTC),

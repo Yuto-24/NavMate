@@ -12,6 +12,7 @@ import re
 import shutil
 import stat
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -244,13 +245,22 @@ def github_release(operator, sha, store, token):
     import publish_github_release as publisher
 
     app.require(token, "GitHub Release publication authentication unavailable")
-    checkout = store / "fresh/app"
     previous_directory, previous_token = Path.cwd(), os.environ.get("GH_TOKEN")
     try:
-        os.chdir(checkout)
-        os.environ["GH_TOKEN"] = token
-        # Execute trusted tooling, never the candidate's publisher script.
-        publisher.publish(checkout, "refs/heads/" + operator.source_branch(sha), sha, app.REPO)
+        # The build checkout is writable by candidate code. Read release sources
+        # from the approved commit in a separate checkout that never runs a build.
+        with tempfile.TemporaryDirectory(prefix="navmate-release-metadata-") as directory:
+            checkout = Path(directory) / "app"
+            app.command([
+                "git", "clone", "--no-hardlinks", "--no-checkout",
+                str(operator.root), str(checkout),
+            ])
+            app.command(["git", "checkout", "--detach", sha], cwd=checkout)
+            os.chdir(checkout)
+            os.environ["GH_TOKEN"] = token
+            # Execute trusted tooling, never the candidate's publisher script.
+            publisher.publish(checkout, "refs/heads/" + operator.source_branch(sha), sha, app.REPO)
+            os.chdir(previous_directory)
     finally:
         os.chdir(previous_directory)
         if previous_token is None:
