@@ -467,14 +467,19 @@ NAV LOG scroll→browser acceptance→TAFの順序で実行する。
 各runnerのemulatorは独立し、ランダムsubjectとcontextによる分離も維持する。
 Firestore Rules→storage-upgrade→migrationはcontracts runnerで全対象を順番に実行する。
 共有開発は別runnerで、起動前にrelease notesを生成する。
-`dev-shared`で計算済みProjectを別端末から開く場合、NAV LOG表示だけでなく自動SEA更新の完了を待ってから保存する。
-地形応答を固定fixtureにし、取得中のステータス表示を確認してから、その表示が消えるまで待つことで、外部取得の遅延と保存token更新の競合を避ける。
+`sync`・`dev-shared`で計算済みProjectを別端末から開く場合、NAV LOG表示だけでなく全区間のSEA保存完了を待ってから明示保存する。
+送信・受信端末のDEM応答を固定fixtureにし、外部取得の遅延と保存token更新による意図しない競合を避ける。
 [PR #493のCI](https://github.com/Yuto-24/NavMate/actions/runs/45040943412/job/137265089639)では、保存後のSEA更新と別端末の読込が重なり、同期の競合保護によって読込が拒否された。
 2026-11-24、[PR #517のiPhone同期CI](https://github.com/Yuto-24/NavMate/actions/runs/45228943720/job/137883294565)でも、
 意図したFUEL編集の競合を解消した直後に別の競合が開き、削除ボタンが隠れたままタイムアウトしました。
 trace内のFirestore書込を比較すると、後続更新の内容差分はDraftの`metadata.sea`追加とtoken・更新時刻でした。
-この端末間引渡し・競合解決テストにも地形fixtureとSEA保存完了待ちを適用し、保存前に取得ステータスの開始から消滅までを確認します。
-取得の60秒上限と保存を含めた待機は90秒以内とし、競合保護・削除Undo・アカウント分離の検証は維持します。
+当時は取得ステータスの開始から消滅を待って保存していましたが、全体ステータスはIssue #526で廃止しました。
+2026-11-26、[PR #531の同期CI](https://github.com/Yuto-24/NavMate/actions/runs/45670923920/job/139405983099)の
+`#465 legacy CUT`では、保存後のSEA更新により別端末の「開く」に未保存変更の確認が出て、Playwrightの既定動作で取り消されました。
+現在の`sync`共通fixtureはDEMを404に固定し、全区間の評価済み記録と未取得・不正データがないことを90秒以内で確認します。
+続いて「地形を再取得」が有効になってから保存するため、初回取得とキャッシュ再利用の両方を扱えます。
+競合保護・削除Undo・アカウント分離の検証は維持します。取得開始そのものの検証と`dev-shared`の待機は
+[SEA先行評価の検証手順](#sea先行評価と差分再利用issue-526)を参照してください。
 `web`でLocalと同期のexact-once分配を検査し、各集約checkは全matrix entryの成功を要求する。
 失敗・skip・cancelした群を成功扱いにしない。retry、timeout、既存assertionは維持する。
 ローカルのPlaywright configの既定値は1 workerのままとする。
