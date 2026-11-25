@@ -692,7 +692,15 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       setState(previous => previous?.project?.id === projectId && previous.sea?.geometry_key === geometryKey
         && next.project ? { ...previous, sea: next.sea,
           project: { ...previous.project, metadata: { ...previous.project.metadata, sea: next.project.metadata.sea } },
-          workingRecovery: next.workingRecovery, savedProjects: next.savedProjects, storageWarning: next.storageWarning,
+          workingRecovery: previous.workingRecovery?.project && next.workingRecovery ? {
+            ...previous.workingRecovery,
+            project: { ...previous.workingRecovery.project,
+              metadata: { ...previous.workingRecovery.project.metadata, sea: next.project.metadata.sea } },
+            // Local persistence advances these even though calculation recovery stays current.
+            durableToken: next.workingRecovery.durableToken,
+            repositoryRecovery: next.workingRecovery.repositoryRecovery,
+          } : previous.workingRecovery,
+          savedProjects: next.savedProjects, storageWarning: next.storageWarning,
         } : previous);
     };
     try {
@@ -709,7 +717,10 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           setSeaPending(previous => new Set([...previous].filter(value => value !== key)));
         },
       });
-      if (current()) setSeaMessage("");
+      if (current()) {
+        setSeaMessage("");
+        clearSeaSaveError();
+      }
     } catch (reason) {
       if (seaControllerRef.current === controller && !controller.signal.aborted
         && epoch === lifecycle.current && projectIdRef.current === projectId) {
@@ -728,6 +739,12 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         if (controller.signal.aborted) setSeaMessage("");
       }
     }
+  };
+
+  const clearSeaSaveError = () => {
+    const resolvedError = operationErrorsRef.current["sea-save"];
+    recordOperationError("sea-save", null);
+    setError(current => current === resolvedError ? null : current);
   };
 
   // A confirmed/restored Project can evaluate terrain before the first NAV LOG.
@@ -1722,6 +1739,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       "プロジェクトを保存しました。",
     );
     if (saved?.project) {
+      clearSeaSaveError();
       setProjectName(saved.project.name);
       setSelectedProjectId(saved.project.id);
     }

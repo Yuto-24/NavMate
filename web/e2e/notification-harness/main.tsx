@@ -77,6 +77,24 @@ startApplication(browserPlatform, ({ application, platform }) => {
       return result;
     };
   }
+  const reviewSea = new URLSearchParams(location.search).get("review-sea");
+  if (reviewSea && application.updateSea) {
+    const update = application.updateSea.bind(application);
+    const control = { hold: reviewSea === "delay", failNext: reviewSea === "failure",
+      releases: [] as (() => void)[] };
+    (window as any).seaReview = control;
+    application.updateSea = async input => {
+      const result = await update(input);
+      // Synthesize Legacy HTTP delivery order after Local's serial queue has completed.
+      // Local itself cannot deliver an older response after a later calculation.
+      if (control.hold) await new Promise<void>(resolve => control.releases.push(resolve));
+      if (control.failNext) {
+        control.failNext = false;
+        throw new ApplicationError("Test: SEA save failed", "LOCAL_STORAGE_FAILED", {}, result);
+      }
+      return result;
+    };
+  }
   // Unmount the previous account immediately, including dialogs and pending UI work.
   flushSync(() => view.render(
     <StrictMode>{localMode
