@@ -6,7 +6,7 @@ import math
 from typing import Any
 
 from autonavlog.application.project_service import ProjectService
-from autonavlog.application.sea import POLICY, SeaRecord, sea_plan
+from autonavlog.application.sea import POLICY, SeaRecord, legacy_interval_keys, sea_plan
 from autonavlog.domain.planning import PersistedUiState
 from autonavlog.domain.project import Project
 from autonavlog.web.models import UpdateProjectRequest
@@ -164,10 +164,14 @@ def import_project(text: str) -> Project:
     if not isinstance(manual, dict):
         raise ValueError("invalid manual SEA")
     valid_keys = {item["key"] for item in sea_plan(project)["intervals"]}
-    if not set(manual) <= valid_keys:
+    legacy_keys = legacy_interval_keys(project)
+    if not set(manual) <= valid_keys | legacy_keys.keys():
         raise ValueError("manual SEA references an unknown interval")
+    mapped = {legacy_keys.get(key, key): value for key, value in manual.items()}
+    if len(mapped) != len(manual):
+        raise ValueError("duplicate manual SEA interval")
     records = {key: SeaRecord.model_validate_json(json.dumps({"manual_ft": value}), strict=True)
-               for key, value in manual.items()}
+               for key, value in mapped.items()}
     project.metadata["sea"] = {"policy": POLICY, "records": {
         key: record.model_dump(mode="json") for key, record in records.items()}}
     return project

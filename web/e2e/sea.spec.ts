@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { resolve } from "node:path";
 import { test, artifactSessionKey } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
+import { openProjectMenu } from "./helpers/header";
 
 for (const width of [1100, 1440]) {
   test(`#314 SEA automatic/unknown, reload, recalculation and workflow positions ${width}px`, async ({ page }) => {
@@ -24,6 +25,8 @@ for (const width of [1100, 1440]) {
     await enterImportWorkflow(page);
     await page.locator('#route-file').setInputFiles(resolve("e2e/fixtures/terrain/sea-route.kml"));
     await confirmImportedDraft(page);
+    await expect.poll(() => heldFirstTile).toBe(true); // #526 starts before NAV LOG calculation.
+    await expect(page.locator(".nav-log-table")).toHaveCount(0);
     await page.getByLabel("気象モード").selectOption("FTD");
     await page.getByLabel("地上風向 ° FROM").fill("360");
     await page.getByLabel("地上風速 kt").fill("15");
@@ -31,6 +34,12 @@ for (const width of [1100, 1440]) {
     await page.getByLabel("5,000 ft風速 kt").fill("30");
     for (const input of await page.locator('input[aria-label$="出発Legの計画高度"]').all()) {
       await input.fill("2500"); await input.blur();
+    }
+    if (width === 1100) {
+      await openProjectMenu(page);
+      await page.getByLabel("プロジェクト", { exact: true }).fill("SEA pending");
+      await page.getByRole("button", { name: "保存", exact: true }).click();
+      await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
     }
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
     const table = page.locator(".nav-log-table");
@@ -105,8 +114,9 @@ for (const width of [1100, 1440]) {
       for (const cell of await cpCells.all()) await expect(cell).toHaveText("未確定");
       const state = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working, artifactSessionKey);
       expect(state.outcome.check_point_projections).toHaveLength(2);
+      // The last CP-to-TP interval ends after cruise; only three intervals overlap cruise.
       await expect(table.locator(".nav-log-sea-cell").filter({ hasText: /未確定|[0-9]/ }))
-        .toHaveCount(state.project.sections.length + 2);
+        .toHaveCount(3);
     }
     await page.locator(".nav-log-section").screenshot({ path: `/tmp/issue485-sea-${width}.png` });
     expect(errors).toEqual([]);
@@ -139,7 +149,11 @@ test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and re
     raw[y * 769 + x * 3 + 3] = 0;
   }
   const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", header), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
-  await page.route("**/xyz/dem_png/**", route => route.fulfill({ contentType: "image/png", body: png }));
+  let tileRequests = 0;
+  await page.route("**/xyz/dem_png/**", route => {
+    tileRequests++;
+    return route.fulfill({ contentType: "image/png", body: png });
+  });
   await page.goto("/"); await enterImportWorkflow(page);
   await page.locator('#route-file').setInputFiles(resolve("e2e/fixtures/terrain/sea-route.kml"));
   await confirmImportedDraft(page);
@@ -152,6 +166,8 @@ test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and re
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   const first = page.locator(".nav-log-sea-cell").filter({ hasText: /未確定|[0-9]/ }).first();
   await expect(first).toHaveAttribute("data-display-text", display, { timeout: 90_000 });
+  // Results now arrive per interval; capture the saved project only after all finish.
+  await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
   await expect(first.locator("input")).toHaveCount(0);
   const saved = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.metadata.sea, artifactSessionKey);
   const records = Object.values(saved.records) as { terrain: { complete: boolean; required: number; valid: number; provenance: { url: string; acquiredAt: string; sha256: string }[] } }[];
@@ -175,6 +191,11 @@ test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and re
   await expect(page.locator(".sea-caution")).toHaveCount(0);
   const restored = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.metadata.sea, artifactSessionKey);
   expect(restored).toEqual(saved);
+  const beforeInputChanges = tileRequests;
+  await page.getByLabel("地上風速 kt").fill("16");
+  await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+  await expect(first).toHaveAttribute("data-display-text", display);
+  expect(tileRequests).toBe(beforeInputChanges);
   // A saved number remains readable while an explicit reacquisition is in flight.
   let releaseRetry!: () => void;
   const retryGate = new Promise<void>(resolve => { releaseRetry = resolve; });
@@ -189,10 +210,14 @@ test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and re
   await page.getByRole("button", { name: "地形を再取得" }).click();
   await expect(first.locator(".sea-loading-icon")).toBeVisible();
   await expect(first).toContainText(display);
+  await page.getByLabel("地上風速 kt").fill("17");
+  await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+  await expect(first.locator(".sea-loading-icon")).toBeVisible();
   releaseRetry();
   await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
   await expect(first.locator(".sea-loading-icon")).toHaveCount(0);
   await expect(first).toHaveAttribute("data-display-text", display);
+  await expect(page.getByLabel("地上風速 kt")).toHaveValue("17");
   await expect(page.locator(".sea-caution")).toHaveCount(0);
   await expect(page.locator(".sea-reference-note")).toHaveCount(partial ? 1 : 0);
   if (partial) {
@@ -261,7 +286,7 @@ test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and re
 
 }
 
-test("#314 #485 final visual CP intervals retain SEA values without manual editors in NAV LOG", async ({ page }) => {
+test("#314 #485 #526 final visual CP intervals leave SEA blank outside cruise", async ({ page }) => {
   await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
   await page.goto("/");
   await enterImportWorkflow(page);
@@ -276,6 +301,12 @@ test("#314 #485 final visual CP intervals retain SEA values without manual edito
     await input.fill("2500"); await input.blur();
   }
 
+  // Background terrain saves must finish before the fixture edits the recovery snapshot.
+  await expect.poll(() => page.evaluate(key => {
+    const project = JSON.parse(sessionStorage.getItem(key)!).working.project;
+    const records = Object.values(project.metadata.sea?.records ?? {}) as any[];
+    return records.length === project.sections.length && records.every(item => item.terrain.evaluated);
+  }, artifactSessionKey)).toBe(true);
   await page.evaluate(key => {
     const session = JSON.parse(sessionStorage.getItem(key)!);
     const project = session.working.project;
@@ -294,14 +325,16 @@ test("#314 #485 final visual CP intervals retain SEA values without manual edito
   await page.reload();
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   const rows = page.locator(".nav-log-table tr[data-sea-only]");
-  await expect(rows).toHaveCount(3);
-  expect(await rows.locator(".route-to-cell").allTextContents()).toEqual(["VISUAL CP 1", "VISUAL CP 2", "RJFM"]);
-  await expect(rows.locator("input")).toHaveCount(0);
+  await expect(rows).toHaveCount(0);
   await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
-  for (const cell of await rows.locator(".nav-log-sea-cell").all()) await expect(cell).toHaveText("未確定");
-  expect(await rows.first().locator(".nav-log-sea-cell ~ td").allTextContents()).toEqual(Array(18).fill(""));
+  const last = page.locator('.nav-log-table tr[data-row-type="PHYSICAL_LEG_SUMMARY"]').last();
+  await expect(last.locator(".nav-log-sea-cell")).toHaveText("");
+  await expect(page.locator(".sea-warning").filter({ hasText: /VISUAL CP/ })).toHaveCount(0);
   await page.reload();
-  await expect(rows).toHaveCount(3);
+  await expect(last.locator(".nav-log-sea-cell")).toHaveText("");
+  await expect(rows).toHaveCount(0);
   await expect(page.getByRole("button", { name: "地形を再取得" })).toBeEnabled({ timeout: 90_000 });
-  for (const cell of await rows.locator(".nav-log-sea-cell").all()) await expect(cell).toHaveText("未確定");
+  const restored = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working, artifactSessionKey);
+  expect(restored.outcome.check_point_projections).toHaveLength(2);
+  expect(Object.values(restored.project.metadata.sea.records)).toHaveLength(restored.project.sections.length + 2);
 });

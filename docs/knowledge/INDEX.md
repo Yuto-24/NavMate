@@ -31,7 +31,7 @@ Read [the workflow](README.md) before adding or applying lessons. For the full m
 
 - [AIP形式間照合と配布境界](../testing.md#aip地図参照データissue-311): Issue #311。KMLの5件差は高度帯・管制主体の統合表現。Hiroshima・Sapporoには水平形状差もあり、Shapefileを採用して差を保持する。地図用データは計算用ZIPとfingerprintの外に同梱する。
 - [MAP background imagery](../map_background.md): Issue #243の配信元・出典、倍率と欠損時の表示、端末保存の境界。
-- [SEA計算と取得の切り分け](../sea.md): Issue #314。区間の評価と旧手動値の保持条件。#485の本表統合では最終進入のCPにSEA専用行が必要（[検証上の境界](../testing.md#sea取得とlocal開発サーバーの切り分けissue-314)）。ネイティブfetchのreceiverとViteのmanifest更新後起動失敗は[検証記録](../testing.md#sea取得とlocal開発サーバーの切り分けissue-314)を参照。
+- [SEA計算と取得の切り分け](../sea.md): Issue #526の直角端面・共有扇形・巡航だけの表示と旧値の保持条件。[先行評価の保存待ち・端末キャッシュ・境界誤差](../testing.md#sea先行評価と差分再利用issue-526)、ネイティブfetchのreceiverとViteのmanifest更新後起動失敗は[検証記録](../testing.md#sea取得とlocal開発サーバーの切り分けissue-314)を参照。
 - [Terrain inputs](../terrain_inputs.md): Issue #313のDEM10B PNG復号、画素被覆、欠損と標高基準（実タイル確認の限界と検証コマンドは [testing.md](../testing.md#地形入力gsi-dem10b--地形点-kmlの検証)）。
 
 - [WX cloud/RH feasibility](../wx_profile_feasibility.md): Issue #374。指定KML経路のMSM/GSM実GPV、雲高推定の限界、portableの追加コストとAPI境界。2026-11-09確認、Safari実機は未検証。

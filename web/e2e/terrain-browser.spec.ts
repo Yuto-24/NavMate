@@ -120,3 +120,48 @@ test("default GSI source calls native fetch with its browser receiver", async ({
   expect(input).toEqual({ status: "missing", reason: "http-404" });
   expect(requests).toBe(1);
 });
+
+test("#526 intermediate evaluation survives reload outside Project storage and tolerates eviction/denial", async ({ page }) => {
+  await page.evaluate(async () => {
+    const { SeaEvaluationCache } = await import("/src/seaCache.ts");
+    const cache = new SeaEvaluationCache(true);
+    await cache.ready();
+    cache.set("fixture-region", { summary: { complete: false, evaluated: true,
+      maximum_m: 100, required: 2, valid: 1, missing: 1, not_acquired: 0, invalid: 0, provenance: [] } });
+    await cache.flush();
+    localStorage.setItem("terrain-test-existing-project", "keep");
+  });
+  await page.reload();
+  const result = await page.evaluate(async () => {
+    const { SeaEvaluationCache, SEA_CACHE_BYTES } = await import("/src/seaCache.ts");
+    const restored = new SeaEvaluationCache(true);
+    await restored.ready();
+    const value = restored.get("fixture-region");
+    const bytes = restored.retainedBytes;
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase("navmate.terrain.strips-turns.v2");
+      request.onsuccess = () => resolve(); request.onerror = () => reject(request.error);
+    });
+    const evicted = new SeaEvaluationCache(true);
+    await evicted.ready();
+    const original = indexedDB.open;
+    indexedDB.open = () => { throw new DOMException("fixture denied", "QuotaExceededError"); };
+    let fallback;
+    try {
+      const denied = new SeaEvaluationCache(true);
+      await denied.ready();
+      denied.set("fixture-region", value!);
+      await denied.flush();
+      fallback = denied.get("fixture-region");
+    } finally { indexedDB.open = original; }
+    return { value, fallback, evicted: evicted.get("fixture-region") ?? null,
+      bounded: bytes <= SEA_CACHE_BYTES, existing: localStorage.getItem("terrain-test-existing-project"),
+      databases: (await indexedDB.databases()).map(item => item.name) };
+  });
+  expect(result.value?.summary).toMatchObject({ complete: false, evaluated: true, maximum_m: 100, missing: 1 });
+  expect(result.fallback).toEqual(result.value);
+  expect(result.evicted).toBeNull();
+  expect(result.bounded).toBe(true);
+  expect(result.existing).toBe("keep");
+  expect(result.databases.some(name => name?.startsWith("autonavlog.projects"))).toBe(false);
+});

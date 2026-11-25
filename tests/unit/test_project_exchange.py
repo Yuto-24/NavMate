@@ -97,8 +97,27 @@ def test_bad_json_and_size(text):
         import_project(text)
 
 
+def test_legacy_sea_keys_import_without_adopting_old_terrain(app):
+    from autonavlog.application.sea import LEGACY_POLICY, legacy_interval_keys, sea_plan
+
+    project = app.session.project
+    old_key, new_key = next(iter(legacy_interval_keys(project).items()))
+    project.metadata["sea"] = {"policy": LEGACY_POLICY, "records": {
+        old_key: {"manual_ft": 6000, "terrain": {"complete": True, "required": 1,
+            "valid": 1, "maximum_m": 304.8}}
+    }}
+    payload = json.loads(export_project(project))
+    assert payload["manual_sea"] == {new_key: 6000}
+    payload["manual_sea"] = {old_key: 6000}  # An unmodified v1 export from the prior release.
+    item = sea_plan(import_project(json.dumps(payload)))["intervals"][0]
+    assert item["manual_ft"] == 6000 and item["automatic_ft"] is None
+    payload["manual_sea"][new_key] = 7000
+    with pytest.raises(ValueError, match="duplicate manual SEA"):
+        import_project(json.dumps(payload))
+
+
 def test_checkpoints_manual_sea_and_stale_inputs_survive_without_calculation(app):
-    from autonavlog.application.sea import sea_plan
+    from autonavlog.application.sea import POLICY, sea_plan
 
     project = app.session.project
     section = project.sections[0]
@@ -109,7 +128,7 @@ def test_checkpoints_manual_sea_and_stale_inputs_survive_without_calculation(app
     project = app.session.project
     plan = sea_plan(project)
     key = next(item["key"] for item in plan["intervals"] if item["geometry_valid"])
-    project.metadata["sea"] = {"policy": "sea-3nm-forward-cap-v1", "records": {
+    project.metadata["sea"] = {"policy": POLICY, "records": {
         key: {"manual_ft": 6000, "terrain": {"complete": True, "maximum_m": 100,
             "provenance": [{"token": "DO_NOT_TRANSFER"}]}}
     }}

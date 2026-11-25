@@ -113,9 +113,33 @@ export function planTerrainCoverage(region: readonly LonLat[]): TerrainCoverage 
   const tileCount = (Math.floor(maxX / 256) - Math.floor(minX / 256) + 1) *
     (Math.floor(maxY / 256) - Math.floor(minY / 256) + 1);
   if (tileCount > 64) return invalid("tile-budget");
+  // For a convex polygon its intersection with a closed one-pixel-high band
+  // projects to one x interval. Every pixel in that interval touches the area.
+  // This enumerates the same closed footprints without a point/edge test per pixel.
+  const turns = ring.map((a, i) => cross(a, ring[(i + 1) % ring.length]!, ring[(i + 2) % ring.length]!));
+  const convex = turns.every(v => v >= 0) || turns.every(v => v <= 0);
+  const rowExtent = (y: number): [number, number] | null => {
+    const xs: number[] = [];
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i]!, b = ring[(i + 1) % ring.length]!;
+      if (a[1] >= y - EPS && a[1] <= y + 1 + EPS) xs.push(a[0]);
+      if (a[1] === b[1]) continue;
+      for (const edge of [y, y + 1]) {
+        if (edge >= Math.min(a[1], b[1]) - EPS && edge <= Math.max(a[1], b[1]) + EPS) {
+          const fraction = Math.max(0, Math.min(1, (edge - a[1]) / (b[1] - a[1])));
+          xs.push(a[0] + fraction * (b[0] - a[0]));
+        }
+      }
+    }
+    return xs.length ? [Math.max(minX, Math.floor(Math.min(...xs) - EPS)),
+      Math.min(maxX, Math.floor(Math.max(...xs) + EPS))] : null;
+  };
   const tiles = new Map<string, TerrainTile>();
-  for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
-    if (!touchesPixel(ring, x, y)) continue;
+  for (let y = minY; y <= maxY; y++) {
+    const extent = convex ? rowExtent(y) : [minX, maxX];
+    if (!extent) continue;
+    for (let x = extent[0]!; x <= extent[1]!; x++) {
+    if (!convex && !touchesPixel(ring, x, y)) continue;
     const tx = Math.floor(x / 256), ty = Math.floor(y / 256), key = `${tx}/${ty}`;
     let tile = tiles.get(key);
     if (!tile) {
@@ -124,6 +148,7 @@ export function planTerrainCoverage(region: readonly LonLat[]): TerrainCoverage 
     }
     tile.pixels.push((y % 256) * 256 + x % 256);
     result.counts.required++;
+    }
   }
   result.tiles = [...tiles.values()];
   result.counts.notAcquired = result.counts.required;

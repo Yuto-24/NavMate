@@ -34,10 +34,11 @@ async function create(page: Page, name: string, releaseTerrain?: () => void) {
   await expect(page.getByLabel("計算済みNAV LOG", { exact: true })).toBeFocused();
   if (releaseTerrain) {
     // Finish automatic SEA persistence before saving the cross-device snapshot.
-    const terrainStatus = page.locator(".nav-log-footer-details > [role=status]");
-    await expect(terrainStatus).toContainText("地形データを取得しています。");
+    const acquire = page.getByRole("button", { name: "地形を再取得", exact: true });
+    await expect(acquire).toBeDisabled();
+    await expect(page.locator(".nav-log-table .sea-loading-icon").first()).toBeVisible();
     releaseTerrain();
-    await expect(terrainStatus).toHaveCount(0, { timeout: 90_000 });
+    await expect(acquire).toBeEnabled({ timeout: 90_000 });
   }
   const projectName = page.getByLabel("プロジェクト", { exact: true });
   await openProjectMenu(page);

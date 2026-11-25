@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { seaIntervalsByRow, seaOnlyRowsByParent } from "../src/seaDisplay";
+import { seaCruiseIntervals, seaIntervalsByRow, seaOnlyRowsByParent } from "../src/seaDisplay";
 import type { SeaInterval } from "../src/sea";
 import type { NavLogDisplayRow } from "../src/types";
 
@@ -42,12 +42,21 @@ test("#315 cruise cautions use positive overlap, automatic SEA and updated plann
   } as import("../src/types").SectionResult);
   const result = [zone("CLIMB", 30, 31), zone("CRUISE", 31, 32), zone("DESCENT", 32, 33)];
   const cautions = (results = result) => seaCruiseCautions(intervals, sections, nodes, results).map(c => c.interval.key);
+  const visible = (results: import("../src/types").SectionResult[] | null = result) =>
+    seaCruiseIntervals(intervals, sections, nodes, results).map(i => i.key);
+  expect(visible()).toEqual(["1"]);
+  expect(visible([zone("CRUISE", 30.5, 32.5)])).toEqual(["0", "1", "2"]);
+  expect(visible([zone("CRUISE", 30.1, 30.2), zone("CRUISE", 32.8, 32.9)])).toEqual(["0", "2"]);
+  expect(visible([zone("CLIMB", 30, 33), zone("DESCENT", 30, 33)])).toEqual([]);
+  expect(visible(null)).toEqual([]);
+  expect(visible([])).toEqual([]);
   expect(cautions()).toEqual(["1"]);
   expect(cautions([zone("CRUISE", 30.5, 32.5)])).toEqual(["0", "1", "2"]);
   expect(cautions([zone("CRUISE", 31, 32, 2000)])).toEqual([]);
   expect(cautions([zone("CRUISE", 31, 32, 2500)])).toEqual([]);
   expect(cautions([zone("CLIMB", 30, 33), zone("DESCENT", 30, 33)])).toEqual([]);
   intervals[1]!.automatic_ft = null;
+  expect(visible()).toEqual(["1"]); // Unknown is shown only for a cruise-overlapping interval.
   expect(cautions()).toEqual([]);
   intervals[1]!.automatic_ft = 2000;
   expect(seaCruiseCautions(intervals, sections, nodes, null)).toEqual([]);

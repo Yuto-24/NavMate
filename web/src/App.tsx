@@ -52,7 +52,8 @@ import { Header } from "./components/Header";
 import { InformationDialog } from "./components/InformationDialog";
 import { ImportCandidateDialog } from "./components/ImportCandidateDialog";
 import { ImportPlanPanel } from "./components/ImportPlanPanel";
-import { acquireSea, type SeaUpdate } from "./sea";
+import { acquireSea, seaNeedsEvaluation } from "./sea";
+import { SeaEvaluationCache } from "./seaCache";
 import { NavLogTable } from "./components/NavLogTable";
 import { PasteDialog } from "./components/PasteDialog";
 import { RouteWorkspace } from "./components/RouteWorkspace";
@@ -138,14 +139,21 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const [form, setForm] = useState<PlanningForm>(() => initialPlanningForm());
   const [altitudeInputs, setAltitudeInputs] = useState<Record<string, string>>({});
   const [seaBusy, setSeaBusy] = useState(false);
+  const [seaPending, setSeaPending] = useState<ReadonlySet<string>>(new Set());
   const [seaMessage, setSeaMessage] = useState("");
   const seaControllerRef = useRef<AbortController | null>(null);
-  useEffect(() => () => {
+  const seaCacheRef = useRef(new SeaEvaluationCache(true));
+  const seaAttemptedRef = useRef("");
+  const seaGeometryRef = useRef<string | undefined>(undefined);
+  const cancelSeaAcquisition = () => {
     seaControllerRef.current?.abort();
     seaControllerRef.current = null;
     setSeaMessage("");
     setSeaBusy(false);
-  }, [state?.project?.id, state?.sea?.geometry_key]);
+    setSeaPending(new Set());
+    seaAttemptedRef.current = "";
+  };
+  useEffect(() => () => cancelSeaAcquisition(), [state?.project?.id, state?.sea?.geometry_key]);
   const [navLogDrafts, setNavLogDrafts] = useState<NavLogEditDrafts>({});
   const [navLogEditErrors, setNavLogEditErrors] = useState<NavLogEditErrors>({});
   const [navLogEditVersion, setNavLogEditVersion] = useState(0);
@@ -328,6 +336,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     }
     const previousProjectName = canonicalProjectRef.current?.name;
     canonicalProjectRef.current = next.project;
+    seaGeometryRef.current = next.sea?.geometry_key;
     projectIdRef.current = nextProjectId;
     destinationPatternBasisRef.current = nextPatternBasis;
     if (projectChanged || initialState) {
@@ -659,42 +668,80 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     }
   };
 
-  const updateSea = async (patch: SeaUpdate): Promise<void> => {
-    if (!application.updateSea) return;
-    const next = await runTask(() => application.updateSea!(patch), {
-      apply: result => applyState(result, { preserveMapDraft: true, preserveRouteViewport: true }),
-      errorKey: "sea-save",
-    });
-    if (!next) throw new Error("SEAの保存を確認できませんでした。表示値を確認してから再試行してください。");
-  };
-  const acquireSeaForProject = async (): Promise<void> => {
+  const acquireSeaForProject = async (force = true): Promise<void> => {
     if (seaControllerRef.current || !application.seaPlan || !application.updateSea || !state?.project) return;
     const epoch = lifecycle.current;
     const projectId = state.project.id;
+    const geometryKey = state.sea?.geometry_key;
     const controller = new AbortController();
     seaControllerRef.current = controller;
     setSeaBusy(true);
-    setSeaMessage("地形データを取得しています。NAV LOGの他の計算は引き続き利用できます。");
+    setSeaPending(new Set(state.sea?.intervals.filter(item => item.geometry_valid
+      && (force || seaNeedsEvaluation(item.terrain))).map(item => item.key)));
+    setSeaMessage("");
+    const current = () => !controller.signal.aborted && epoch === lifecycle.current
+      && projectIdRef.current === projectId && seaGeometryRef.current === geometryKey;
+    const adopt = (next: WebState) => {
+      if (!current()) return;
+      // Only terrain belongs to this background result. Preserve simultaneous inputs,
+      // route edits, calculation outcomes and their UI state.
+      if (canonicalProjectRef.current && next.project) canonicalProjectRef.current = {
+        ...canonicalProjectRef.current,
+        metadata: { ...canonicalProjectRef.current.metadata, sea: next.project.metadata.sea },
+      };
+      setState(previous => previous?.project?.id === projectId && previous.sea?.geometry_key === geometryKey
+        && next.project ? { ...previous, sea: next.sea,
+          project: { ...previous.project, metadata: { ...previous.project.metadata, sea: next.project.metadata.sea } },
+          workingRecovery: next.workingRecovery, savedProjects: next.savedProjects, storageWarning: next.storageWarning,
+        } : previous);
+    };
     try {
       const plan = await application.seaPlan();
-      const terrain = await acquireSea(plan, AbortSignal.any([controller.signal, AbortSignal.timeout(60_000)]));
-      if (controller.signal.aborted || epoch !== lifecycle.current || projectIdRef.current !== projectId) return;
-      const next = await application.updateSea({ project_id: projectId, geometry_key: plan.geometry_key, terrain });
-      if (controller.signal.aborted || epoch !== lifecycle.current || projectIdRef.current !== projectId) return;
-      applyState(next, { preserveMapDraft: true, preserveRouteViewport: true });
-      setSeaMessage("");
-    } catch {
+      if (!current() || plan.geometry_key !== geometryKey) return;
+      await acquireSea(plan, AbortSignal.any([controller.signal, AbortSignal.timeout(60_000)]), undefined, {
+        cache: seaCacheRef.current, force,
+        onInterval: async (key, terrain) => {
+          if (!current()) return;
+          const next = await application.updateSea!({ project_id: projectId, geometry_key: plan.geometry_key,
+            terrain: { [key]: terrain } });
+          if (!current()) return;
+          adopt(next);
+          setSeaPending(previous => new Set([...previous].filter(value => value !== key)));
+        },
+      });
+      if (current()) setSeaMessage("");
+    } catch (reason) {
       if (seaControllerRef.current === controller && !controller.signal.aborted
-        && epoch === lifecycle.current && projectIdRef.current === projectId)
+        && epoch === lifecycle.current && projectIdRef.current === projectId) {
+        if (reason instanceof ApplicationError && reason.code === "LOCAL_STORAGE_FAILED") {
+          if (reason.committedState) adopt(reason.committedState);
+          recordOperationError("sea-save", reason.message);
+          setError(reason.message);
+        }
         setSeaMessage("地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。");
+      }
     } finally {
       if (seaControllerRef.current === controller) {
         seaControllerRef.current = null;
         setSeaBusy(false);
+        setSeaPending(new Set());
         if (controller.signal.aborted) setSeaMessage("");
       }
     }
   };
+
+  // A confirmed/restored Project can evaluate terrain before the first NAV LOG.
+  // Busy prevents starting during a foreground transition; it never cancels an
+  // already running evaluation or disables planning/calculation.
+  useEffect(() => {
+    if (busy || !state?.project || !state.sea || !application.seaPlan || !application.updateSea) return;
+    const key = `${state.project.id}/${state.sea.geometry_key}`;
+    if (seaAttemptedRef.current === key) return;
+    seaAttemptedRef.current = key;
+    if (state.sea.intervals.some(item => item.geometry_valid && seaNeedsEvaluation(item.terrain))) {
+      void acquireSeaForProject(false);
+    }
+  }, [application, busy, state?.project?.id, state?.sea?.geometry_key]);
 
   const run = (
     action: () => Promise<WebState>,
@@ -1713,6 +1760,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       },
       { errorKey: "load", isSuccess: next => Boolean(next), apply: next => {
         if (!next) return;
+        cancelSeaAcquisition();
         cancelPendingRecalculation();
         invalidateDestinationPatternRequests();
         draftAutosaveGenerationRef.current += 1;
@@ -2155,12 +2203,11 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           aria-label="計算済みNAV LOG"
         >
           <NavLogTable
-            sea={state.readiness.calculationIsCurrent ? state.sea : null}
+            sea={state.readiness.calculationIsCurrent && calculationInputsAreLocallyCurrent ? state.sea : null}
             seaDisabled={busy || seaBusy}
-            seaBusy={seaBusy}
+            seaPending={seaPending}
             seaMessage={seaMessage}
-            onSeaUpdate={application.updateSea ? updateSea : undefined}
-            onSeaAcquire={application.seaPlan ? acquireSeaForProject : undefined}
+            onSeaAcquire={application.seaPlan && application.updateSea ? () => acquireSeaForProject(true) : undefined}
             radReciprocal={radReciprocal}
             onRadReciprocalChange={setRadReciprocal}
             exportDisabled={busy || !calculationInputsAreLocallyCurrent || !state.readiness.calculationIsCurrent || hasNavLogEditErrors(navLogEditErrors) || ["pending", "saving", "error"].includes(navLogEditStatus.kind)}

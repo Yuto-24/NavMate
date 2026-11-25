@@ -294,14 +294,14 @@ test("#314 project switch clears cancelled SEA progress and an old request canno
   await page.getByLabel("保存済み", { exact: true }).selectOption(savedId);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(acquire).toBeEnabled();
-  await expect(page.getByText(/^地形データを取得しています。NAV LOG/)).toHaveCount(0);
+  await expect(page.locator(".nav-log-table .sea-loading-icon")).toHaveCount(0);
   await acquire.click();
   await expect.poll(() => page.evaluate(() => (window as any).seaTest.releases.length)).toBe(2);
   await page.evaluate(() => (window as any).seaTest.releases[0]());
   await expect.poll(() => page.evaluate(() => (window as any).seaTest.completed)).toBe(1);
   await expect(acquire).toBeDisabled();
-  await expect(page.getByText(/^地形データを取得しています。NAV LOG/)).toBeVisible();
+  await expect(page.locator(".nav-log-table .sea-loading-icon").first()).toBeVisible();
   await page.evaluate(() => { (window as any).seaTest.hold = false; (window as any).seaTest.releases[1](); });
   await expect(acquire).toBeEnabled({ timeout: 90_000 });
-  await expect(page.getByText(/^地形データを取得しています。NAV LOG/)).toHaveCount(0);
+  await expect(page.locator(".nav-log-table .sea-loading-icon")).toHaveCount(0);
 });
