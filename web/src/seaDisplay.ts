@@ -36,11 +36,9 @@ export function seaOnlyRowsByParent(rows: NavLogDisplayRow[], intervals: SeaInte
 }
 
 // Compare positive-length overlap only: touching RCA/EOC is not cruise exposure.
-export function seaCruiseCautions(intervals: SeaInterval[], sections: NavSection[], nodes: RouteNode[],
-  results: SectionResult[] | null): { interval: SeaInterval; altitude: number }[] {
-  if (results === null) return [];
-  return intervals.flatMap(interval => {
-    if (interval.automatic_ft == null || !interval.geometry_valid) return [];
+function cruiseZones(interval: SeaInterval, sections: NavSection[], nodes: RouteNode[],
+  results: SectionResult[] | null): SectionResult[] {
+    if (results === null) return [];
     const section = sections.find(item => item.id === interval.section_id);
     const start = nodes.find(node => node.id === section?.from_node_id);
     if (!section || !start) return [];
@@ -48,11 +46,23 @@ export function seaCruiseCautions(intervals: SeaInterval[], sections: NavSection
     const a = interval.coordinates[0], b = interval.coordinates.at(-1);
     if (!a || !b) return [];
     const left = station(a[0], a[1]), right = station(b[0], b[1]);
-    const altitudes = results.filter(zone => zone.section_id === section.id && zone.phase === "CRUISE"
+    return results.filter(zone => zone.section_id === section.id && zone.phase === "CRUISE"
         && zone.from_latitude_deg != null && zone.from_longitude_deg != null
         && zone.to_latitude_deg != null && zone.to_longitude_deg != null
         && Math.min(right, station(zone.to_longitude_deg!, zone.to_latitude_deg!))
-          - Math.max(left, station(zone.from_longitude_deg!, zone.from_latitude_deg!)) > 1e-6)
+          - Math.max(left, station(zone.from_longitude_deg!, zone.from_latitude_deg!)) > 1e-6);
+}
+
+export function seaCruiseIntervals(intervals: SeaInterval[], sections: NavSection[], nodes: RouteNode[],
+  results: SectionResult[] | null): SeaInterval[] {
+  return intervals.filter(interval => cruiseZones(interval, sections, nodes, results).length > 0);
+}
+
+export function seaCruiseCautions(intervals: SeaInterval[], sections: NavSection[], nodes: RouteNode[],
+  results: SectionResult[] | null): { interval: SeaInterval; altitude: number }[] {
+  return intervals.flatMap(interval => {
+    if (interval.automatic_ft == null || !interval.geometry_valid) return [];
+    const altitudes = cruiseZones(interval, sections, nodes, results)
         .map(zone => zone.planned_altitude_ft_msl.adopted_source === "MANUAL"
           ? zone.planned_altitude_ft_msl.manual_override : zone.planned_altitude_ft_msl.automatic_value)
         .filter((value): value is number => value !== null);

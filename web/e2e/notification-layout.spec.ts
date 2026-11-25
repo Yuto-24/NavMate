@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { artifactSessionKey } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
 import { openProjectMenu } from "./helpers/header";
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 for (const width of [390, 1100, 1440]) {
   test(`ordinary App error does not move viewport or workflow at ${width}px`, async ({page}) => {
     await page.setViewportSize({width, height: 600});
@@ -294,14 +294,103 @@ test("#314 project switch clears cancelled SEA progress and an old request canno
   await page.getByLabel("保存済み", { exact: true }).selectOption(savedId);
   await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
   await expect(acquire).toBeEnabled();
-  await expect(page.getByText(/^地形データを取得しています。NAV LOG/)).toHaveCount(0);
+  await expect(page.locator(".nav-log-table .sea-loading-icon")).toHaveCount(0);
   await acquire.click();
   await expect.poll(() => page.evaluate(() => (window as any).seaTest.releases.length)).toBe(2);
   await page.evaluate(() => (window as any).seaTest.releases[0]());
   await expect.poll(() => page.evaluate(() => (window as any).seaTest.completed)).toBe(1);
   await expect(acquire).toBeDisabled();
-  await expect(page.getByText(/^地形データを取得しています。NAV LOG/)).toBeVisible();
+  await expect(page.locator(".nav-log-table .sea-loading-icon").first()).toBeVisible();
   await page.evaluate(() => { (window as any).seaTest.hold = false; (window as any).seaTest.releases[1](); });
   await expect(acquire).toBeEnabled({ timeout: 90_000 });
-  await expect(page.getByText(/^地形データを取得しています。NAV LOG/)).toHaveCount(0);
+  await expect(page.locator(".nav-log-table .sea-loading-icon")).toHaveCount(0);
 });
+
+async function prepareSeaReview(page: Page, mode: "delay" | "failure") {
+  await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
+  await page.goto(`/e2e/notification-harness/index.html?review-sea=${mode}&fail-link=1`);
+  await enterImportWorkflow(page);
+  await page.locator("#route-file").setInputFiles(resolve("e2e/fixtures/terrain/sea-route.kml"));
+  await confirmImportedDraft(page);
+  if (mode === "delay") {
+    await expect.poll(() => page.evaluate(() => (window as any).seaReview.releases.length)).toBe(1);
+  } else {
+    await expect.poll(() => page.evaluate(() => (window as any).seaReview.failNext)).toBe(false);
+  }
+  await page.getByLabel("気象モード").selectOption("FTD");
+  for (const [label, value] of [["地上風向 ° FROM", "360"], ["地上風速 kt", "15"],
+    ["5,000 ft風向 ° FROM", "270"], ["5,000 ft風速 kt", "30"]]) {
+    await page.getByLabel(label!).fill(value!);
+  }
+  await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+  await expect(page.locator(".nav-log-table")).toBeVisible();
+}
+
+test("#526 delayed SEA response preserves calculation recovery and current planning", async ({ page }) => {
+  await prepareSeaReview(page, "delay");
+  await expect.poll(() => page.evaluate(() => (window as any).seaReview.releases.length)).toBe(1);
+  const before = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working, artifactSessionKey);
+  expect(before.outcome).not.toBeNull();
+  expect(before.last_calculation).not.toBeNull();
+  await page.evaluate(() => (window as any).seaReview.releases[0]());
+  // Hold the next response so a fresh snapshot cannot hide adoption of the stale one.
+  await expect.poll(() => page.evaluate(() => (window as any).seaReview.releases.length)).toBe(2);
+  const after = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working, artifactSessionKey);
+  expect(after.outcome).toEqual(before.outcome);
+  expect(after.last_calculation).toEqual(before.last_calculation);
+  expect(after.destination_wind).toEqual(before.destination_wind);
+  const { sea: _beforeSea, ...beforeMetadata } = before.project.metadata;
+  const { sea: _afterSea, ...afterMetadata } = after.project.metadata;
+  expect({ ...after.project, metadata: afterMetadata }).toEqual({ ...before.project, metadata: beforeMetadata });
+  // Resume ordinary Local ordering before checking its persistence tokens.
+  // The synthetic Legacy delivery order above does not model Local token ordering.
+  await page.evaluate(() => { (window as any).seaReview.hold = false; (window as any).seaReview.releases[1](); });
+  await expect(page.getByRole("button", { name: "地形を再取得", exact: true })).toBeEnabled({ timeout: 90_000 });
+  const settled = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working, artifactSessionKey);
+  await page.reload();
+  await expect(page.locator(".nav-log-table")).toBeVisible({ timeout: 90_000 });
+  const restored = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working, artifactSessionKey);
+  expect(restored.outcome).toEqual(settled.outcome);
+  expect(restored.project.metadata.sea).toEqual(settled.project.metadata.sea);
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
+});
+
+for (const recovery of ["reacquire", "save", "unrelated-error"] as const) {
+  test(`#526 successful ${recovery} clears only the SEA save failure`, async ({ page }) => {
+    await prepareSeaReview(page, "failure");
+    const acquire = page.getByRole("button", { name: "地形を再取得", exact: true });
+    await expect(acquire).toBeEnabled({ timeout: 90_000 });
+    await page.evaluate(() => { (window as any).seaReview.failNext = true; });
+    await acquire.click();
+    await expect(page.locator(".app-notification")).toContainText("Test: SEA save failed");
+    await expect(acquire).toBeEnabled();
+    await page.getByRole("button", { name: /^その他/ }).click();
+    await expect(page.locator("#operation-messages")).toContainText("Test: SEA save failed");
+    await page.getByRole("button", { name: /^その他/ }).click();
+    if (recovery === "save") {
+      await page.getByRole("button", { name: "保存", exact: true }).click();
+      await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
+    } else {
+      await page.evaluate(() => { (window as any).seaReview.hold = true; });
+      await acquire.click();
+      await expect.poll(() => page.evaluate(() => (window as any).seaReview.releases.length)).toBe(1);
+      if (recovery === "unrelated-error") {
+        await page.getByRole("button", { name: /^その他/ }).click();
+        await page.locator(".map-source-details summary").click();
+        await page.locator(".map-source-details").getByRole("link", { name: "OpenStreetMap contributors", exact: true }).click();
+        await expect(page.locator(".app-notification")).toContainText("Test: source link failed");
+        await page.getByRole("button", { name: /^その他/ }).click();
+      }
+      const unrelated = recovery === "unrelated-error"
+        ? await page.locator(".app-notification").innerText() : null;
+      await page.evaluate(() => { (window as any).seaReview.hold = false; (window as any).seaReview.releases[0](); });
+      await expect(acquire).toBeEnabled({ timeout: 90_000 });
+      if (unrelated) await expect(page.locator(".app-notification")).toHaveText(unrelated);
+      else await expect(page.locator(".app-notification").filter({ hasText: "Test: SEA save failed" })).toHaveCount(0);
+    }
+    await page.getByRole("button", { name: /^その他/ }).click();
+    await expect(page.locator("#operation-messages")).not.toContainText("Test: SEA save failed");
+    if (recovery === "unrelated-error") await expect(page.locator("#operation-messages")).toContainText("Test: source link failed");
+  });
+}

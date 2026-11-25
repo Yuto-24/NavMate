@@ -1,0 +1,282 @@
+{
+  "baseline": "227ecfcb",
+  "distanceNm": 137.88959407560236,
+  "node": "v24.18.1",
+  "platform": "linux",
+  "results": [
+    {
+      "profile": "chromium",
+      "version": "before",
+      "measurements": [
+        {
+          "scenario": "cold",
+          "elapsedMs": 49824.300000071526,
+          "tileRequests": 870,
+          "evaluatedPixels": 52075802,
+          "regionHits": 0,
+          "retainedBytes": 0,
+          "observedHeapBytes": 106347813,
+          "complete": true
+        },
+        {
+          "scenario": "move-cp",
+          "elapsedMs": 50559.09999990463,
+          "tileRequests": 870,
+          "evaluatedPixels": 52075797,
+          "regionHits": 0,
+          "retainedBytes": 0,
+          "observedHeapBytes": 114102201,
+          "complete": true
+        },
+        {
+          "scenario": "delete-cp",
+          "elapsedMs": 49048.89999997616,
+          "tileRequests": 870,
+          "evaluatedPixels": 51325761,
+          "regionHits": 0,
+          "retainedBytes": 0,
+          "observedHeapBytes": 108904613,
+          "complete": true
+        }
+      ]
+    },
+    {
+      "profile": "chromium",
+      "version": "after",
+      "measurements": [
+        {
+          "scenario": "cold",
+          "elapsedMs": 2771,
+          "tileRequests": 865,
+          "evaluatedPixels": 44808279,
+          "regionHits": 1,
+          "retainedBytes": 565433,
+          "observedHeapBytes": 159001575,
+          "complete": true
+        },
+        {
+          "scenario": "move-cp",
+          "elapsedMs": 73.90000009536743,
+          "tileRequests": 14,
+          "evaluatedPixels": 321040,
+          "regionHits": 147,
+          "retainedBytes": 571668,
+          "observedHeapBytes": 73676611,
+          "complete": true
+        },
+        {
+          "scenario": "delete-cp",
+          "elapsedMs": 59.89999997615814,
+          "tileRequests": 14,
+          "evaluatedPixels": 319106,
+          "regionHits": 147,
+          "retainedBytes": 575395,
+          "observedHeapBytes": 72150231,
+          "complete": true
+        }
+      ]
+    },
+    {
+      "profile": "ipad-webkit",
+      "version": "before",
+      "measurements": [
+        {
+          "scenario": "cold",
+          "elapsedMs": 79431,
+          "tileRequests": 870,
+          "evaluatedPixels": 52075802,
+          "regionHits": 0,
+          "retainedBytes": 0,
+          "observedHeapBytes": null,
+          "complete": true
+        },
+        {
+          "scenario": "move-cp",
+          "elapsedMs": 76992,
+          "tileRequests": 870,
+          "evaluatedPixels": 52075797,
+          "regionHits": 0,
+          "retainedBytes": 0,
+          "observedHeapBytes": null,
+          "complete": true
+        },
+        {
+          "scenario": "delete-cp",
+          "elapsedMs": 74034,
+          "tileRequests": 870,
+          "evaluatedPixels": 51325761,
+          "regionHits": 0,
+          "retainedBytes": 0,
+          "observedHeapBytes": null,
+          "complete": true
+        }
+      ]
+    },
+    {
+      "profile": "ipad-webkit",
+      "version": "after",
+      "measurements": [
+        {
+          "scenario": "cold",
+          "elapsedMs": 3325,
+          "tileRequests": 865,
+          "evaluatedPixels": 44808279,
+          "regionHits": 1,
+          "retainedBytes": 565433,
+          "observedHeapBytes": null,
+          "complete": true
+        },
+        {
+          "scenario": "move-cp",
+          "elapsedMs": 111,
+          "tileRequests": 14,
+          "evaluatedPixels": 321040,
+          "regionHits": 147,
+          "retainedBytes": 571668,
+          "observedHeapBytes": null,
+          "complete": true
+        },
+        {
+          "scenario": "delete-cp",
+          "elapsedMs": 96,
+          "tileRequests": 14,
+          "evaluatedPixels": 319106,
+          "regionHits": 147,
+          "retainedBytes": 575395,
+          "observedHeapBytes": null,
+          "complete": true
+        }
+      ]
+    },
+    {
+      "profile": "iphone-webkit",
+      "version": "before",
+      "measurements": [
+        {
+          "scenario": "cold",
+          "elapsedMs": 106521,
+          "tileRequests": 870,
+          "evaluatedPixels": 52075802,
+          "regionHits": 0,
+          "retainedBytes": 0,
+          "observedHeapBytes": null,
+          "complete": true
+        },
+        {
+          "scenario": "move-cp",
+          "elapsedMs": 106711,
+          "tileRequests": 870,
+          "evaluatedPixels": 52075797,
+          "regionHits": 0,
+          "retainedBytes": 0,
+          "observedHeapBytes": null,
+          "complete": true
+        },
+        {
+          "scenario": "delete-cp",
+          "elapsedMs": 104486,
+          "tileRequests": 870,
+          "evaluatedPixels": 51325761,
+          "regionHits": 0,
+          "retainedBytes": 0,
+          "observedHeapBytes": null,
+          "complete": true
+        }
+      ]
+    },
+    {
+      "profile": "iphone-webkit",
+      "version": "after",
+      "measurements": [
+        {
+          "scenario": "cold",
+          "elapsedMs": 3456,
+          "tileRequests": 865,
+          "evaluatedPixels": 44808279,
+          "regionHits": 1,
+          "retainedBytes": 565433,
+          "observedHeapBytes": null,
+          "complete": true
+        },
+        {
+          "scenario": "move-cp",
+          "elapsedMs": 120,
+          "tileRequests": 14,
+          "evaluatedPixels": 321040,
+          "regionHits": 147,
+          "retainedBytes": 571668,
+          "observedHeapBytes": null,
+          "complete": true
+        },
+        {
+          "scenario": "delete-cp",
+          "elapsedMs": 96,
+          "tileRequests": 14,
+          "evaluatedPixels": 319106,
+          "regionHits": 147,
+          "retainedBytes": 575395,
+          "observedHeapBytes": null,
+          "complete": true
+        }
+      ]
+    }
+  ],
+  "candidate_source_sha256": {
+    "src/autonavlog/application/sea.py": "0e745a2b39ad2cc393bf0b1807d1dc9b4036ee556279fa8847abe28f2ced7403",
+    "web/src/sea.ts": "f23578446a638a6ddba4ff3b0ab2eb028531025cd98d93830ce8ab561851ed2e",
+    "web/src/seaCache.ts": "2e21b929db8f405fa85edc9e995b6c633232f8e49602499e1f80c5ebdd5a92a4",
+    "web/src/terrain.ts": "216b1b7d8b10b739ae8acc910c10659a31f9923ec4e523da665e7f3e72fb274c",
+    "web/src/terrainTransport.ts": "94d975048fd92a6d052b5d9b48dd3a1cab47f773002374021b75db6e1b765c1f",
+    "scripts/benchmark_sea.py": "321ae4382301f5d9290a9204c804c7e5c34964c9f7d647cad18168448eb0e05e",
+    "web/scripts/benchmark-sea.mjs": "e0cf5859418b86ac895ef77f365b6ada6e1ef9b9d7070caddf05f2c02c39ddd1"
+  },
+  "baseline_commit": "227ecfcba2b5acf590e01108ed04ba7cf1ad6d3a",
+  "measured_date_jst": "2026-11-26",
+  "playwright": "1.62.1",
+  "cpu_affinity": "8-11",
+  "measurement_scope": "Synthetic provider: excludes network, PNG decoding, Python plan creation, Project persistence and UI rendering; one observation per case; sampled heap is not a proven peak.",
+  "tuning_trials": {
+    "scope": "Single Chromium observations with identical route and DEM; only decoded tile limit changed. Separate from final per-profile comparisons.",
+    "measurements": [
+      {
+        "decoded_tile_limit": 16,
+        "cold": {
+          "scenario": "cold",
+          "elapsedMs": 2838.6999999284744,
+          "tileRequests": 1060,
+          "evaluatedPixels": 44808279,
+          "regionHits": 1,
+          "retainedBytes": 565433,
+          "observedHeapBytes": 141332563,
+          "complete": true
+        }
+      },
+      {
+        "decoded_tile_limit": 32,
+        "cold": {
+          "scenario": "cold",
+          "elapsedMs": 2818.899999976158,
+          "tileRequests": 865,
+          "evaluatedPixels": 44808279,
+          "regionHits": 1,
+          "retainedBytes": 565433,
+          "observedHeapBytes": 159147367,
+          "complete": true
+        }
+      },
+      {
+        "decoded_tile_limit": 64,
+        "cold": {
+          "scenario": "cold",
+          "elapsedMs": 2784.0999999046326,
+          "tileRequests": 857,
+          "evaluatedPixels": 44808279,
+          "regionHits": 1,
+          "retainedBytes": 565433,
+          "observedHeapBytes": 197167629,
+          "complete": true
+        }
+      }
+    ]
+  }
+}

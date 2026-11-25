@@ -170,3 +170,139 @@ test("#496 missing strips do not hide a later maximum; failures and cancellation
   });
   expect(result[interval.key]!.evaluated).toBe(false);
 });
+
+test("#526 convex scan bands match independent polygon-square separating axes", () => {
+  const polygons = [
+    [[0, 0], [5, 0], [0, 5]], [[.1, .2], [7.1, 3.2], [6.1, 5.2], [-.9, 2.2]],
+    [[0, 0], [0, 5], [-5, 5], [-5, 0]], [[.2, .2], [.2001, .2], [.2001, 5], [.2, 5]],
+    [[0, 0], [4, 0], [3, 3], [0, 4]],
+  ];
+  for (const vertices of polygons) for (const shift of [0, .25, -.25]) {
+    const polygon = vertices.map(([a, b]) => [a! + shift, b! + shift]);
+    const axes = [[1, 0], [0, 1], ...polygon.map((p, i) => {
+      const q = polygon[(i + 1) % polygon.length]!;
+      return [p[1]! - q[1]!, q[0]! - p[0]!];
+    })];
+    const expected: string[] = [];
+    for (let yy = -7; yy <= 8; yy++) for (let xx = -7; xx <= 8; xx++) {
+      const square = [[xx, yy], [xx + 1, yy], [xx + 1, yy + 1], [xx, yy + 1]];
+      const touches = axes.every(([a, b]) => {
+        const one = polygon.map(p => p[0]! * a! + p[1]! * b!);
+        const two = square.map(p => p[0]! * a! + p[1]! * b!);
+        return Math.min(...one) <= Math.max(...two) + 1e-7 && Math.min(...two) <= Math.max(...one) + 1e-7;
+      });
+      if (touches) expected.push(`${xx}/${yy}`);
+    }
+    const plan = planTerrainCoverage(polygon.map(([a, b]) => coordinate(x + a!, y + b!)));
+    const actual = plan.tiles.flatMap(t => t.pixels.map(p => `${t.x * 256 + p % 256 - x}/${t.y * 256 + Math.floor(p / 256) - y}`));
+    expect(actual.sort()).toEqual(expected.sort());
+  }
+});
+
+test("#526 CP boundaries reuse common regions, exclude outside peaks and match a cold evaluation", async () => {
+  const { acquireSea } = await import("../src/sea");
+  const { SeaEvaluationCache } = await import("../src/seaCache");
+  const strip = (left: number, right: number) => [[left, .2], [right, .2], [right, 2.8], [left, 2.8]]
+    .map(([a, b]) => coordinate(x + a!, y + b!));
+  const interval = (key: string, regions: LonLat[][]) => ({ key, geometry_valid: true, regions } as import("../src/sea").SeaInterval);
+  const plan = (intervals: import("../src/sea").SeaInterval[]) => ({ geometry_key: "fixture", intervals });
+  const metrics = () => ({ tileRequests: 0, regionEvaluations: 0, regionHits: 0, evaluatedPixels: 0 });
+  const cache = new SeaEvaluationCache();
+  const elevations = Array(65536).fill(1); elevations[5] = 900;
+  const source = { tile: async (): Promise<TileInput> => ({ status: "available", elevations, provenance }) };
+  const signal = new AbortController().signal;
+  const full = plan([interval("all", [strip(.2, 3), strip(3, 6), strip(6, 9.8)])]);
+  const first = metrics();
+  expect((await acquireSea(full, signal, source, { cache, metrics: first })).all!.maximum_m).toBe(900);
+  expect(first.regionEvaluations).toBe(3);
+  for (const boundary of [4.1, 4.6]) {
+    const split = plan([interval("before", [strip(.2, 3), strip(3, boundary)]),
+      interval("after", [strip(boundary, 6), strip(6, 9.8)])]);
+    const edited = metrics();
+    const warm = await acquireSea(split, signal, source, { cache, metrics: edited });
+    const cold = await acquireSea(split, signal, source);
+    expect(warm).toEqual(cold);
+    expect(warm.before!.maximum_m).toBe(1);
+    expect(warm.after!.maximum_m).toBe(900);
+    expect(edited.regionEvaluations).toBe(2);
+    expect(edited.regionHits).toBe(2);
+    expect(edited.evaluatedPixels).toBeLessThan(first.evaluatedPixels);
+  }
+  const removed = metrics();
+  await acquireSea(full, signal, source, { cache, metrics: removed });
+  expect(removed).toEqual({ tileRequests: 0, regionEvaluations: 0, regionHits: 3, evaluatedPixels: 0 });
+});
+
+test("#526 completed intervals publish independently; shared sectors evaluate once and manual refresh is cold", async () => {
+  const { acquireSea } = await import("../src/sea");
+  const { SeaEvaluationCache } = await import("../src/seaCache");
+  const cache = new SeaEvaluationCache();
+  const later = region.map(([lon, lat]) => [lon + 360 / 16384 * 3, lat] as LonLat);
+  const plan = { geometry_key: "fixture", intervals: [
+    { key: "a", geometry_valid: true, regions: [region] },
+    { key: "b", geometry_valid: true, regions: [region, later] },
+  ] as import("../src/sea").SeaInterval[] };
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let waiting!: () => void;
+  const started = new Promise<void>(resolve => { waiting = resolve; });
+  const published: string[] = [];
+  const metrics = { tileRequests: 0, regionEvaluations: 0, regionHits: 0, evaluatedPixels: 0 };
+  const running = acquireSea(plan, new AbortController().signal, { tile: async tx => {
+    if (tx > 14174) { waiting(); await held; }
+    return available();
+  } }, { cache, metrics, onInterval: async key => { published.push(key); } });
+  await started;
+  expect(published).toEqual(["a"]);
+  release();
+  const result = await running;
+  expect(published).toEqual(["a", "b"]);
+  expect(metrics.regionEvaluations).toBe(2);
+  expect(metrics.regionHits).toBe(1);
+  const saved = { ...plan, intervals: plan.intervals.map(i => ({ ...i, terrain: result[i.key]! })) };
+  let calls = 0;
+  const source = { tile: async () => { calls++; return available(); } };
+  expect(await acquireSea(saved, new AbortController().signal, source, { cache })).toEqual({});
+  expect(calls).toBe(0);
+  await acquireSea(saved, new AbortController().signal, source, { cache, force: true });
+  expect(calls).toBeGreaterThan(0);
+});
+
+test("#526 finite transport retries preserve evaluated tiles and never retry DEM missing values", async () => {
+  const { acquireSea, seaNeedsEvaluation } = await import("../src/sea");
+  const { SeaEvaluationCache } = await import("../src/seaCache");
+  const cache = new SeaEvaluationCache();
+  const plan = { geometry_key: "fixture", intervals: [
+    { key: "a", geometry_valid: true, regions: [region, region] },
+  ] as import("../src/sea").SeaInterval[] };
+  const requests = new Map<string, number>();
+  let fail = true;
+  const source = { tile: async (tx: number, ty: number): Promise<TileInput> => {
+    const key = `${tx}/${ty}`;
+    requests.set(key, (requests.get(key) ?? 0) + 1);
+    if (tx === 14173) return { status: "missing", reason: "404" };
+    if (ty === 6668 && fail) throw new Error("timeout");
+    return available();
+  } };
+  const first = (await acquireSea(plan, new AbortController().signal, source, { cache })).a!;
+  expect(first).toMatchObject({ valid: 2, missing: 4, not_acquired: 2, complete: false });
+  expect([...requests.values()].sort()).toEqual([1, 1, 1, 3]);
+  expect(seaNeedsEvaluation(first)).toBe(true);
+  requests.clear(); fail = false;
+  const second = (await acquireSea(plan, new AbortController().signal, source, { cache })).a!;
+  expect(second).toMatchObject({ valid: 4, missing: 4, not_acquired: 0, evaluated: true });
+  expect([...requests.values()]).toEqual([1]);
+  expect(seaNeedsEvaluation(second)).toBe(false);
+});
+
+test("#526 region cache has finite byte and entry budgets and eviction only loses reuse", async () => {
+  const { SeaEvaluationCache } = await import("../src/seaCache");
+  const cache = new SeaEvaluationCache(false, 1500);
+  const summary = { complete: true, evaluated: true, maximum_m: 10, required: 1, valid: 1,
+    missing: 0, not_acquired: 0, invalid: 0, provenance: [] };
+  for (let i = 0; i < 100; i++) cache.set(String(i), { summary });
+  expect(cache.retainedBytes).toBeLessThanOrEqual(1500);
+  expect(cache.size).toBeLessThan(100);
+  expect(cache.get("0")).toBeUndefined();
+  expect(cache.get("99")?.summary).toEqual(summary);
+});

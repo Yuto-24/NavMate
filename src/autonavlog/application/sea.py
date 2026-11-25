@@ -16,7 +16,8 @@ from autonavlog.nav.geodesy import METERS_PER_NM
 from .checkpoints import project_check_points
 from .fingerprints import make_fingerprint
 
-POLICY = "sea-3nm-forward-cap-v1"
+LEGACY_POLICY = "sea-3nm-forward-cap-v1"
+POLICY = "sea-3nm-strips-turns-v2"
 RADIUS_M = 3 * METERS_PER_NM
 
 
@@ -52,14 +53,44 @@ class SeaUpdate(SeaModel):
     kml: dict[str, Any] | None = None
 
 
-def _intervals(project: Project) -> list[dict[str, Any]]:
+def _turns(project: Project) -> dict[str, dict[str, Any]]:
+    """One shared outer sector at each connected physical turn."""
+    nodes = {str(node.id): node for node in project.route_nodes}
+    sections = project.ordered_sections()
+    turns = {}
+    for incoming, outgoing in zip(sections, sections[1:], strict=False):
+        if incoming.to_node_id != outgoing.from_node_id:
+            continue
+        a, b, c = (nodes[str(key)] for key in (
+            incoming.from_node_id, incoming.to_node_id, outgoing.to_node_id
+        ))
+        before = _supported_inverse([[a.longitude_deg, a.latitude_deg],
+                                     [b.longitude_deg, b.latitude_deg]], maximum_nm=math.inf)
+        after = _supported_inverse([[b.longitude_deg, b.latitude_deg],
+                                    [c.longitude_deg, c.latitude_deg]], maximum_nm=math.inf)
+        if before is None or after is None:
+            continue
+        angle = (after["azi1"] - before["azi2"] + 180) % 360 - 180
+        if abs(angle) < 1e-8:
+            continue
+        turns[str(b.id)] = {
+            "center": [b.longitude_deg, b.latitude_deg],
+            "bearing": before["azi2"] + (-90 if angle > 0 else 90),
+            "angle": angle,
+        }
+    return turns
+
+
+def _intervals(project: Project, *, legacy: bool = False) -> list[dict[str, Any]]:
     nodes = {str(node.id): node for node in project.route_nodes}
     names = {str(ref.id): ref.name for ref in project.visual_references}
     projection = project_check_points(project)
     invalid_sections = {str(issue.section_id) for issue in projection.issues}
+    turns = {} if legacy else _turns(project)
     intervals = []
     for section in project.ordered_sections():
         start, end = nodes[str(section.from_node_id)], nodes[str(section.to_node_id)]
+        leg = [[start.longitude_deg, start.latitude_deg], [end.longitude_deg, end.latitude_deg]]
         boundaries = [(str(start.id), start.name, start.latitude_deg, start.longitude_deg)]
         boundaries += [
             (
@@ -74,14 +105,15 @@ def _intervals(project: Project) -> list[dict[str, Any]]:
         boundaries.append((str(end.id), end.name, end.latitude_deg, end.longitude_deg))
         for a, b in zip(boundaries, boundaries[1:], strict=False):
             coordinates = [[a[3], a[2]], [b[3], b[2]]]
+            sectors = [turns[key] for key in (a[0], b[0]) if key in turns]
+            fields: dict[str, Any] = {
+                "section_id": str(section.id), "from_id": a[0], "to_id": b[0],
+                "coordinates": coordinates,
+            }
+            if not legacy:
+                fields.update(leg=leg, turns=sectors)
             key = make_fingerprint(
-                kind=POLICY,
-                fields={
-                    "section_id": str(section.id),
-                    "from_id": a[0],
-                    "to_id": b[0],
-                    "coordinates": coordinates,
-                },
+                kind=LEGACY_POLICY if legacy else POLICY, fields=fields,
             )
             intervals.append(
                 {
@@ -92,13 +124,17 @@ def _intervals(project: Project) -> list[dict[str, Any]]:
                     "from_name": a[1],
                     "to_name": b[1],
                     "coordinates": coordinates,
+                    "leg_coordinates": leg,
+                    "turns": sectors,
                     "geometry_valid": str(section.id) not in invalid_sections,
                 }
             )
     return intervals
 
 
-def _supported_inverse(coordinates: list[list[float]]) -> dict[str, float] | None:
+def _supported_inverse(
+    coordinates: list[list[float]], *, maximum_nm: float = 250,
+) -> dict[str, float] | None:
     """Share the acquisition range with adoption of posted and saved evidence."""
     (lon1, lat1), (lon2, lat2) = coordinates
     if not all(math.isfinite(v) for point in coordinates for v in point):
@@ -106,25 +142,35 @@ def _supported_inverse(coordinates: list[list[float]]) -> dict[str, float] | Non
     if max(abs(lat1), abs(lat2)) > 50 or abs(lon1 - lon2) >= 180:
         return None
     inverse = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2)
-    return inverse if 0 < inverse["s12"] <= 250 * METERS_PER_NM else None
+    return inverse if 0 < inverse["s12"] <= maximum_nm * METERS_PER_NM else None
 
 
-def _regions(coordinates: list[list[float]]) -> list[list[list[float]]]:
-    """Short WGS84 strips plus a circumscribed forward end cap.
+def _regions(
+    coordinates: list[list[float]], leg: list[list[float]] | None = None,
+) -> list[list[list[float]]]:
+    """WGS84 strips anchored to the physical leg, clipped at exact CP planes.
 
     1 NM strips bound Mercator chord error in the supported Japanese latitudes;
-    2 m outward padding and 5 degree circumscribed cap segments are conservative.
-    The start boundary is never shifted backwards. Closed DEM footprints add
+    2 m outward padding is conservative. Neither endpoint is extended.
+    CP edits change only the strips intersected by their boundaries. DEM footprints add
     their own raster-scale conservatism. KML uses exact geodesic distance below.
     """
-    inverse = _supported_inverse(coordinates)
-    if inverse is None:
+    leg = leg or coordinates
+    inverse = _supported_inverse(leg, maximum_nm=math.inf)
+    if inverse is None or _supported_inverse(coordinates) is None:
         return []
-    (lon1, lat1), _ = coordinates
+    (lon1, lat1), _ = leg
     length = inverse["s12"]
     line = Geodesic.WGS84.Line(lat1, lon1, inverse["azi1"])
-    count = math.ceil(length / METERS_PER_NM)
-    stations = [line.Position(length * i / count) for i in range(count + 1)]
+    left, right = [Geodesic.WGS84.Inverse(lat1, lon1, lat, lon)["s12"]
+                   for lon, lat in coordinates]
+    right = min(right, length)
+    # Coalesce an interior grid cut within geodesic round-trip noise of an
+    # endpoint. Keep the actual CP/end station; never snap it to the grid.
+    cuts = [left] + [i * METERS_PER_NM
+                     for i in range(1, math.ceil(length / METERS_PER_NM))
+                     if left + 1e-6 < i * METERS_PER_NM < right - 1e-6] + [right]
+    stations = [line.Position(distance) for distance in cuts]
 
     def offset(station: dict[str, float], angle: float, distance: float) -> list[float]:
         p = Geodesic.WGS84.Direct(
@@ -133,17 +179,40 @@ def _regions(coordinates: list[list[float]]) -> list[list[list[float]]]:
         return [p["lon2"], p["lat2"]]
 
     width = RADIUS_M + 2
-    regions = [
+    return [
         [offset(a, -90, width), offset(b, -90, width), offset(b, 90, width), offset(a, 90, width)]
         for a, b in zip(stations, stations[1:], strict=False)
     ]
-    cap_radius = width / math.cos(math.radians(2.5))
-    regions.append([offset(stations[-1], angle, cap_radius) for angle in range(-90, 91, 5)])
-    return regions
+
+
+def _sector_region(turn: dict[str, Any]) -> list[list[float]]:
+    lon, lat = turn["center"]
+    count = math.ceil(abs(turn["angle"]) / 5)
+    radius = (RADIUS_M + 2) / math.cos(math.radians(abs(turn["angle"]) / count / 2))
+    arc = [Geodesic.WGS84.Direct(lat, lon, turn["bearing"] + turn["angle"] * i / count,
+                                radius) for i in range(count + 1)]
+    return [[lon, lat]] + [[point["lon2"], point["lat2"]] for point in arc]
+
+
+def _item_regions(item: dict[str, Any]) -> list[list[list[float]]]:
+    if not item["geometry_valid"]:
+        return []
+    strips = _regions(item["coordinates"], item["leg_coordinates"])
+    return strips + [_sector_region(turn) for turn in item["turns"]] if strips else []
+
+
+def _sector_contains(turn: dict[str, Any], point: list[float]) -> bool:
+    lon, lat = turn["center"]
+    inverse = Geodesic.WGS84.Inverse(lat, lon, point[1], point[0])
+    direction = 1 if turn["angle"] > 0 else -1
+    angle = ((inverse["azi1"] - turn["bearing"]) * direction) % 360
+    return bool(inverse["s12"] <= RADIUS_M + 1e-5 and (
+        inverse["s12"] <= 1e-5 or angle <= abs(turn["angle"]) + 1e-8 or angle >= 360 - 1e-8
+    ))
 
 
 def contains_point(coordinates: list[list[float]], point: list[float]) -> bool:
-    """Closed 3 NM geodesic corridor; exclude points behind the start plane."""
+    """Closed 3 NM geodesic strip, bounded by both endpoint normal planes."""
     (lon1, lat1), (lon2, lat2) = coordinates
     lon, lat = point
     if not all(math.isfinite(v) for v in (lon1, lat1, lon2, lat2, lon, lat)):
@@ -155,6 +224,11 @@ def contains_point(coordinates: list[list[float]], point: list[float]) -> bool:
     if initial["s12"] > inverse["s12"] + RADIUS_M + 1e-5:
         return False
     if math.cos(math.radians(initial["azi1"] - inverse["azi1"])) < -1e-10:
+        return False
+    terminal = Geodesic.WGS84.Inverse(lat2, lon2, lat, lon)
+    if terminal["s12"] > 1e-5 and math.cos(
+        math.radians(terminal["azi1"] - inverse["azi2"])
+    ) > 1e-10:
         return False
     line = Geodesic.WGS84.Line(lat1, lon1, inverse["azi1"])
 
@@ -209,18 +283,33 @@ def automatic_sea(record: SeaRecord) -> int | None:
 
 def _records(project: Project) -> dict[str, SeaRecord]:
     raw = project.metadata.get("sea", {})
-    if not isinstance(raw, dict) or raw.get("policy") != POLICY:
+    if not isinstance(raw, dict) or raw.get("policy") not in (POLICY, LEGACY_POLICY):
         return {}
     records = {}
     stored = raw.get("records")
     if not isinstance(stored, dict):
         return {}
+    legacy_keys = legacy_interval_keys(project) if raw.get("policy") == LEGACY_POLICY else None
     for key, value in stored.items():
         try:
-            records[key] = SeaRecord.model_validate(value)
+            record = SeaRecord.model_validate(value)
+            if legacy_keys is not None:
+                if key not in legacy_keys:
+                    continue
+                # Preserve old hand-written inputs, never adopt the old area evaluation.
+                key = legacy_keys[key]
+                record = SeaRecord(manual_ft=record.manual_ft)
+            records[key] = record
         except (ValidationError, TypeError):
             pass  # Damaged optional SEA data must not stop flight calculations.
     return records
+
+
+def legacy_interval_keys(project: Project) -> dict[str, str]:
+    """Translate input-only v1 JSON manual values without trusting old terrain."""
+    return {old["key"]: new["key"] for old, new in zip(
+        _intervals(project, legacy=True), _intervals(project), strict=True
+    )}
 
 
 def sea_plan(project: Project, *, regions: bool = False) -> dict[str, Any]:
@@ -241,7 +330,7 @@ def sea_plan(project: Project, *, regions: bool = False) -> dict[str, Any]:
             }
         )
         if regions:
-            item["regions"] = _regions(item["coordinates"]) if item["geometry_valid"] else []
+            item["regions"] = _item_regions(item)
     raw = project.metadata.get("sea")
     kml = raw.get("kml") if isinstance(raw, dict) else None
     provenance = kml.get("provenance") if isinstance(kml, dict) else None
@@ -277,10 +366,12 @@ def apply_sea(project: Project, update: SeaUpdate) -> None:
     if set(update.terrain or {}) - current.keys() or set(update.manual or {}) - current.keys():
         raise ValueError("unknown-sea-interval")
     previous_keys = set(records)
+    previous = project.metadata.get("sea", {})
+    if isinstance(previous, dict) and previous.get("policy") == LEGACY_POLICY:
+        previous_keys.clear()
     records = {key: records.get(key, SeaRecord()) for key in current}
     for key, terrain in (update.terrain or {}).items():
         records[key].terrain = terrain
-    previous = project.metadata.get("sea", {})
     kml = (
         update.kml
         if update.kml is not None
@@ -318,7 +409,7 @@ def apply_sea(project: Project, update: SeaUpdate) -> None:
     for key, record in records.items():
         if update.kml is None and key in previous_keys:
             continue
-        vertices = [point for region in _regions(current[key]["coordinates"]) for point in region]
+        vertices = [point for region in _item_regions(current[key]) for point in region]
         if not vertices or not candidates:
             record.kml_maximum_m = None
             continue
@@ -332,7 +423,8 @@ def apply_sea(project: Project, update: SeaUpdate) -> None:
                 for elevation, coordinate in candidates
                 if west <= coordinate[0] <= east
                 and south <= coordinate[1] <= north
-                and contains_point(current[key]["coordinates"], coordinate)
+                and (contains_point(current[key]["coordinates"], coordinate)
+                     or any(_sector_contains(turn, coordinate) for turn in current[key]["turns"]))
             ),
             None,
         )
@@ -341,11 +433,16 @@ def apply_sea(project: Project, update: SeaUpdate) -> None:
         "kml": kml,
         "records": {key: value.model_dump(mode="json") for key, value in records.items()},
     }
+    # Keep historical diagnostics intact across the one-way evaluation-policy migration.
+    if isinstance(previous, dict):
+        legacy = previous if previous.get("policy") == LEGACY_POLICY else previous.get("legacy")
+        if legacy is not None:
+            project.metadata["sea"]["legacy"] = legacy
 
 
 def prune_sea(project: Project) -> None:
     raw = project.metadata.get("sea")
-    if not isinstance(raw, dict):
+    if not isinstance(raw, dict) or raw.get("policy") != POLICY:
         return
     keys = {item["key"] for item in _intervals(project)}
     raw["records"] = {

@@ -1116,13 +1116,15 @@ def test_cut_restore_updates_only_derived_seconds_without_calculation(
 
 
 def test_sea_manual_saved_recovery_recalculation_and_weather_independence(local):
+    from autonavlog.application.sea import POLICY
+
     state = calculate(local)
     before = state["outcome"]
     plan = json.loads(local.dispatch("seaPlan"))
     assert all(item["regions"] for item in plan["intervals"])
     keys = [item["key"] for item in plan["intervals"]]
     local.session.project.metadata["sea"] = {
-        "policy": "sea-3nm-forward-cap-v1", "records": {keys[0]: {"manual_ft": 3500}},
+        "policy": POLICY, "records": {keys[0]: {"manual_ft": 3500}},
     }
     state = json.loads(local.dispatch("updateSea", {
         "project_id": state["project"]["id"], "geometry_key": plan["geometry_key"],

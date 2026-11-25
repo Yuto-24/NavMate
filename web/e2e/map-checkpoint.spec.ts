@@ -91,6 +91,7 @@ for (const [geometry, selector] of [
 }
 
 test("PCA notice uses converted feet while operational limits, geometry and acquisition feedback remain distinct", async ({ page }, info) => {
+  await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   let release!: () => void;

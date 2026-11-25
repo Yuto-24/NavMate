@@ -4,6 +4,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { resolve } from "node:path";
 import { backend, signInSyncAccount, waitForSyncAccount } from "./helpers/sync-auth";
 async function start(page: Page, subject: string) {
+  await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
   await page.goto("/e2e/auth-harness/index.html?sync");
   await signInSyncAccount(page, subject);
   // Preserve the exact-account check across a reload after successful sign-in.
@@ -14,7 +15,7 @@ async function start(page: Page, subject: string) {
 }
 
 async function state(page: Page) { return page.evaluate(() => (window as any).authTest.contexts.at(-1).sync.getState()); }
-async function create(page: Page, name: string, releaseTerrain?: () => void) {
+async function create(page: Page, name: string) {
   await enterImportWorkflow(page);
   await page.locator('#route-file').setInputFiles(resolve("../tests/fixtures/issue_43_golden.kml"));
   await confirmImportedDraft(page);
@@ -32,13 +33,15 @@ async function create(page: Page, name: string, releaseTerrain?: () => void) {
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
   await expect(page.getByLabel("計算済みNAV LOG", { exact: true })).toBeFocused();
-  if (releaseTerrain) {
-    // Finish automatic SEA persistence before saving the cross-device snapshot.
-    const terrainStatus = page.locator(".nav-log-footer-details > [role=status]");
-    await expect(terrainStatus).toContainText("地形データを取得しています。");
-    releaseTerrain();
-    await expect(terrainStatus).toHaveCount(0, { timeout: 90_000 });
-  }
+  // Each interval is saved separately; wait for all fixture terrain records,
+  // including cache hits, before capturing the cross-device Saved checkpoint.
+  await expect.poll(() => page.evaluate(async () => {
+    const view = await (window as any).authTest.contexts.at(-1).refreshProjects();
+    return view.sea?.intervals.length > 0 && view.sea.intervals.every((interval: any) =>
+      interval.terrain.evaluated && interval.terrain.required > 0
+      && interval.terrain.not_acquired === 0 && interval.terrain.invalid === 0);
+  }), { timeout: 90_000 }).toBe(true);
+  await expect(page.getByRole("button", { name: "地形を再取得", exact: true })).toBeEnabled();
   const projectName = page.getByLabel("プロジェクト", { exact: true });
   await openProjectMenu(page);
   await projectName.click();
@@ -67,22 +70,11 @@ async function blockLocalDeletion(page: Page, accountId: string) {
 }
 test("real SDK: fresh device Last Calculation, offline edit, blocking conflict both, delete Undo and account separation", async ({ browser, page, context }) => {
   await backend(context);
-  // Live terrain writes must not add another conflict to this explicit conflict scenario.
-  const terrain = "**/xyz/dem_png/**";
-  let releaseTerrain!: () => void;
-  const terrainGate = new Promise<void>(resolve => { releaseTerrain = resolve; });
-  await context.route(terrain, async route => {
-    await terrainGate;
-    await route.fulfill({ status: 404, body: "fixture missing" });
-  });
   const subject = `sync-${crypto.randomUUID()}`;
-  try {
-    await start(page, subject); await create(page, "Sync route", releaseTerrain);
-  } finally { releaseTerrain(); }
+  await start(page, subject); await create(page, "Sync route");
   const cutValues = await page.locator(".nav-leg-heading-row .nav-log-cut-cell").allTextContents();
   expect(cutValues.some(value => /^\d+$/.test(value))).toBe(true);
   const other = await browser.newContext({ viewport: page.viewportSize()! }); await backend(other); const ipad = await other.newPage();
-  await other.route(terrain, route => route.fulfill({ status: 404, body: "fixture missing" }));
   try {
     await start(ipad, subject); await open(ipad, "Sync route");
     // #465: another device restores straight-hold seconds through the real SDK.
