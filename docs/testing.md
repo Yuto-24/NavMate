@@ -21,12 +21,14 @@ PR headと一致することを確認し、第1親（実際に検証したbase�
 | `src/autonavlog/` 内の `.py` | pytest、runtime、web、local-browser、account-sync、static-tooling-install |
 | `services/taf-proxy/worker.mjs` | taf-proxy、web、local-browser |
 | `services/msm-trigger/worker.ts` / `entrypoint.ts` | msm-trigger |
-| テスト、CI、依存関係、ビルド設定、Rules、データ、その他のパス | 全 suite |
+| `services/msm-trigger/` または `services/taf-proxy/` 直下の専用テスト（`*.test.mjs`） | そのサービスのジョブ |
+| その他のテスト、共有 fixture、CI、依存関係、ビルド設定、Rules、データ、未分類のパス | 全 suite |
+
+専用テストの限定選択は、ファイル名が半角英数字かアンダースコアで始まり、残りが半角英数字・アンダースコア・ピリオド・ハイフンの場合に適用します。テストの削除や検証項目の縮小を含む PR では、同じ振る舞いをどのテストで保証するかレビューで確認します。
 
 Web は画面と共有状態の依存が広いため、保存・NAV LOG・認証・同期の全マトリクスを維持します。
 Python はブラウザの計算エンジンと配信ツールにも組み込まれるため、golden / regression を
-含む pytest 全体と、それらの利用側の検証を維持します。独立したサービスの実装だけを
-限定選択します。現行保証のassertionと必要なbrowser profileを維持し、担当suiteは下表で定めます。
+含む pytest 全体と、それらの利用側の検証を維持します。現行保証のassertionと必要なbrowser profileを維持し、担当suiteは下表で定めます。
 pytestの分配とブラウザの分割方法は後述します。
 
 `docs/` のMarkdown・JSON・テキスト・画像などの通常ファイルはsource検証のみとします。
