@@ -96,13 +96,16 @@ async function serveForecast(context: BrowserContext) {
 }
 test.beforeEach(async ({ context }) => { await blockApi(context); await serveForecast(context); });
 
-test("#355 startup reload recovers after asset failure and preserves saved Project, result and same-tab edits", async ({ page, context }) => {
+test("#355 startup reload recovers after asset failure and preserves saved Project, result and committed inputs", async ({ page, context }) => {
   test.setTimeout(240_000);
   await start(page);
   await confirm(page, "FTD");
   await calculate(page);
   await save(page, "Startup recovery");
-  await page.locator(".nav-log-table").getByLabel(/手動TAS$/).first().fill("999");
+  const tas = page.locator(".nav-log-table").getByLabel(/手動TAS$/).first();
+  const committedTas = await tas.inputValue();
+  await tas.fill("999");
+  await expect(tas).toHaveAttribute("aria-invalid", "true");
   const before = await working(page);
   const saved = await records(page);
   const session = await page.evaluate(key => sessionStorage.getItem(key), sessionKey);
@@ -135,7 +138,7 @@ test("#355 startup reload recovers after asset failure and preserves saved Proje
   await expect(page.locator(".nav-log-table")).toBeVisible();
   expect(await page.evaluate(() => performance.timeOrigin)).not.toBe(retryDocument);
   expect(await page.evaluate(() => (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming).type)).toBe("reload");
-  await expect(page.locator(".nav-log-table").getByLabel(/手動TAS$/).first()).toHaveValue("999");
+  await expect(tas).toHaveValue(committedTas);
   expect((await working(page)).outcome).toEqual(before.outcome);
   expect((await working(page)).project.id).toBe(before.project.id);
   expect(await records(page)).toEqual(saved);
