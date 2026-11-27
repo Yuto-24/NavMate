@@ -51,8 +51,8 @@ export class LocalApplication implements AutoNavLogApplication {
     try {
       const result = await (this.client ??= this.createClient()).request<T>(operation, input, progress => {
         if (this.active) this.startup.update(progress);
-      }, progress && (phase => {
-        if (this.active) progress({ message: calculationPhaseMessages[phase] });
+      }, progress && ((phase, percent) => {
+        if (this.active) progress({ percent, message: calculationPhaseMessages[phase] });
       }));
       this.assertActive();
       return result;
@@ -203,6 +203,7 @@ export class LocalApplication implements AutoNavLogApplication {
         throw error;
       }
       if (operation === "importRoute") return this.present(state);
+      progress?.({ percent: 90, message: "計算結果を反映しています。" });
       try { return await this.persist(state); }
       catch (error) {
         if ((operation === "confirmRoute" || operation === "calculate" || operation === "updateSea") && error instanceof ApplicationError) {
@@ -237,10 +238,8 @@ export class LocalApplication implements AutoNavLogApplication {
   replaceCheckPoints(checkPoints: CheckPointInput[]) { return this.execute("replaceCheckPoints", { check_points: checkPoints }); }
   acknowledge(key: string, checked: boolean) { return this.execute("acknowledge", { key, checked }); }
   async calculate(onProgress?: ProgressListener, options?: CalculationOptions) {
-    onProgress?.({ message: "計算を開始しています。" });
-    const state = await this.execute("calculate", options && { rounding_mode: options.roundingMode }, onProgress);
-    onProgress?.({ message: "計算が完了しました。" });
-    return state;
+    onProgress?.({ percent: 20, message: "計算を開始しています。" });
+    return this.execute("calculate", options && { rounding_mode: options.roundingMode }, onProgress);
   }
   exportProject() { return this.serial(() => this.request<string>("exportProject")); }
   importProject(text: string) {

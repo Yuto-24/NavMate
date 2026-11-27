@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "id": "saving",
+      "text": "入力内容を保存しています。",
+      "reason": "計算モーダルの見出しから対象は明らかで、短い表示でも保存待ちと分かる。",
+      "response_quote": "### `saving`\n- **現行案**: `飛行計画の入力を保存しています。`\n\n#### 候補と理由\n1. **`入力内容を保存しています。`**（推奨候補）\n   - **理由**: 「飛行計画の入力」よりも自然で読みやすく、入力した内容が確実に保存されている安心感を与えられます。モーダル周辺に「NAV LOG」「飛行計画」の文脈がある前提なら十分に伝わります。\n",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "    setCalculationProgress({ percent: 0, message: \"入力内容を保存しています。\" });",
+        "end": "    setCalculationProgress({ percent: 0, message: \"入力内容を保存しています。\" });",
+        "expected": "    setCalculationProgress({ percent: 0, message: \"入力内容を保存しています。\" });"
+      }
+    },
+    {
+      "id": "result",
+      "text": "計算結果を反映しています。",
+      "reason": "端末保存と画面への反映を含む工程を簡潔に示す。",
+      "response_quote": "### `result`\n- **現行案**: `計算結果を反映しています。`\n\n#### 候補と理由\n1. **`計算結果を画面に反映しています。`**（推奨候補）\n   - **理由**: 「画面に」を補うことで、利用者にとって「もうすぐ結果が見える」という最終工程のイメージが具体化されます。\n",
+      "source": {
+        "path": "web/src/localApplication.ts",
+        "start": "      progress?.({ percent: 90, message: \"計算結果を反映しています。\" });",
+        "end": "      progress?.({ percent: 90, message: \"計算結果を反映しています。\" });",
+        "expected": "      progress?.({ percent: 90, message: \"計算結果を反映しています。\" });"
+      }
+    }
+  ]
+}

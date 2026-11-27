@@ -1,3 +1,4 @@
+import { observeCalculationProgress } from "./helpers/calculationProgress";
 import { expectPlanningLayout } from "./helpers/planningLayout";
 import { openProjectMenu } from "./helpers/header";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
@@ -72,6 +73,12 @@ test.beforeEach(async ({ page, context }) => {
     window.Worker = class extends Original {
       calculationIds = new Set<string>();
       postMessage(message: any, transfer?: any) {
+        const root = window as any;
+        if (root.holdInputSave && message?.argumentList?.[0]?.value === "updateProject") {
+          root.resumeInputSave = () => super.postMessage(message, transfer);
+          root.holdInputSave = false;
+          return;
+        }
         if (message?.type === "APPLY" && message.argumentList?.[0]?.value === "calculate")
           this.calculationIds.add(message.id);
         super.postMessage(message, transfer);
@@ -111,17 +118,31 @@ test("portable real MSM: cold, warm after reload, Python reference and saved NAV
   const overlay = page.getByRole("status", { name: "NAV LOGを計算中" });
   // Hold the final RPC reply so React can render the calculation phase even on a fast Worker.
   await page.evaluate(() => { (window as any).holdCalculationReply = true; });
+  await page.evaluate(() => { (window as any).holdInputSave = true; });
+  const assetGate = Promise.withResolvers<void>();
+  await context.route("**/weather/msm/*.npz", async route => {
+    await assetGate.promise;
+    await route.fallback();
+  }, { times: 1 });
+  const bar = overlay.getByRole("progressbar");
   const calculation = calculate(page);
   try {
+    await page.waitForFunction(() => Boolean((window as any).resumeInputSave));
+    await expect(overlay).toContainText("入力内容を保存しています。");
+    await expect(bar).toHaveAttribute("value", "0");
+    await page.evaluate(() => (window as any).resumeInputSave());
     await expect(overlay).toContainText("気象データを準備しています。");
-    await expect(overlay.getByRole("progressbar")).not.toHaveAttribute("value");
-    await expect(overlay).not.toContainText("%");
+    await expect(bar).toHaveAttribute("value", "35");
     gate.resolve();
+    await expect(bar).toHaveAttribute("value", "50");
+    await expect(overlay).toContainText("気象データを準備しています。");
+    assetGate.resolve();
     await page.waitForFunction(() => Boolean((window as any).releaseCalculationReply));
     await expect(overlay).toContainText("経路と条件をもとに計算しています。");
-    await expect(overlay.getByRole("progressbar")).not.toHaveAttribute("value");
+    await expect(bar).toHaveAttribute("value", "70");
   } finally {
     gate.resolve();
+    assetGate.resolve();
     await page.evaluate(() => {
       const root = window as any;
       root.holdCalculationReply = false;
@@ -137,7 +158,11 @@ test("portable real MSM: cold, warm after reload, Python reference and saved NAV
   const before = (await record(page)).lastCalculation;
   await page.reload();
   await expect(page.locator(".nav-log-table")).toBeVisible();
+  const readWarmProgress = await observeCalculationProgress(page);
   await calculate(page);
+  const warmProgress = await readWarmProgress();
+  expect(warmProgress).toContain(70);
+  expect(warmProgress).toEqual([...warmProgress].sort((a, b) => a - b));
   expect(downloads.filter(url => url.endsWith(".npz"))).toHaveLength(1);
   expect(downloads.filter(url => url.endsWith("catalog.json"))).toHaveLength(2);
   await page.evaluate(async () => { for (const key of await caches.keys())
@@ -378,7 +403,12 @@ test("portable GSM fallback: complete Local NAV LOG matches Legacy, persists mod
   context.on("request", r => { if (/\/weather\/(msm|gsm)\//.test(r.url())) downloads.push(r.url()); });
   await policyFeed(context, "msm", policyFixture("msm-outside-hgt"));
   await policyFeed(context, "gsm", policyFixture("gsm"));
-  await setup(page); await calculate(page);
+  await setup(page);
+  const readProgress = await observeCalculationProgress(page);
+  await calculate(page);
+  const progress = await readProgress();
+  expect(progress).toContain(70);
+  expect(progress).toEqual([...progress].sort((a, b) => a - b));
   const fallback = await calculationState(page);
   expect(fallback.outcome.selected_forecast_model).toBe("GSM");
   expect(fallback.outcome.selected_forecast_run_id).toBe("20260915060000");

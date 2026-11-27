@@ -1655,12 +1655,16 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     cancelPendingRecalculation();
     invalidateDestinationPatternRequests();
     scrollToCalculatedNavLogRef.current = null;
-    setCalculationProgress({ message: "計算を開始しています。" });
+    setCalculationProgress({ percent: 0, message: "入力内容を保存しています。" });
     const calculated = await run(async () => {
       const saved = await flushDraftAutosave(true);
       if (!saved) throw new Error(DRAFT_AUTOSAVE_FAILURE);
+      setCalculationProgress({ percent: 1, message: "計算を開始しています。" });
       const next = await application.calculate(
-        setCalculationProgress,
+        progress => setCalculationProgress(previous => ({
+          message: progress.message,
+          percent: Math.max(previous.percent ?? 0, Math.min(progress.percent ?? 0, 99)),
+        })),
         roundingMode === undefined ? undefined : { roundingMode },
       );
       scrollToCalculatedNavLogRef.current = next.outcome;
@@ -1669,7 +1673,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       syncCalculationInputs: true,
       operation: "calculate",
     });
-    if (calculated?.outcome) {
+    if (calculated?.outcome && calculated.readiness.calculationIsCurrent) {
+      setCalculationProgress({ percent: 100, message: "計算が完了しました。" });
       if (requestedPattern !== null
         && calculated.project?.id === requestedProjectId
         && calculated.project?.metadata.ui_state?.arrival_plan?.selected_pattern_altitude_ft_msl === requestedPattern) {
