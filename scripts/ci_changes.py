@@ -91,6 +91,10 @@ JOBS = frozenset(
     }
 )
 WEB_JOBS = frozenset({"web", "local-browser", "account-sync"})
+# The dedicated spec runs in web's application suite. The rendered Fuel Plan
+# and its PNG export are exercised by local-browser.
+DISPLAY_PATHS = frozenset({"web/src/fuelPlanDisplay.ts", "web/e2e/fuel-plan-display.spec.ts"})
+DISPLAY_JOBS = frozenset({"web", "local-browser"})
 PYTHON_JOBS = WEB_JOBS | {"pytest", "runtime", "static-tooling-install"}
 
 
@@ -103,6 +107,8 @@ def affected_jobs(change: Change) -> frozenset[str]:
     path = change.path
     if path in {"VERSION", "CHANGELOG.md"} and change.new_mode == "100644":
         return frozenset({"release-build"})
+    if path in DISPLAY_PATHS:
+        return DISPLAY_JOBS
     if path.startswith("web/src/") and path.endswith((".ts", ".tsx", ".css")):
         # UI and application state share auth, persistence and sync consumers.
         return WEB_JOBS
@@ -137,7 +143,10 @@ def ci_scope(root: Path, event_name: str, event: dict) -> tuple[frozenset[str], 
     if not jobs:
         return jobs, f"Documentation-only change ({len(changes)} files); source checks only."
     selected = ", ".join(sorted(jobs))
-    return jobs, f"Changed {len(changes)} files; selected complete suites: {selected}."
+    reason = f"Changed {len(changes)} files; selected complete suites: {selected}."
+    if "account-sync" not in jobs and any(change.path in DISPLAY_PATHS for change in changes):
+        reason += " Fuel Plan display changes are covered by web and local-browser; no changed input requires account-sync."
+    return jobs, reason
 
 
 def main(root: Path | None = None) -> None:
