@@ -79,6 +79,14 @@ test.beforeEach(async ({ page, context }) => {
       constructor(url: string | URL, options?: WorkerOptions) {
         super(url, options);
         this.addEventListener("message", event => {
+          const root = window as any;
+          if (root.holdCalculationReply && this.calculationIds.has(event.data.id)) {
+            event.stopImmediatePropagation();
+            root.releaseCalculationReply = () => {
+              this.dispatchEvent(new MessageEvent("message", { data: event.data }));
+            };
+            return;
+          }
           if (typeof event.data.value === "string") {
             try { const parsed = JSON.parse(event.data.value);
               if (parsed.workingRecovery || parsed.error) (window as any).weatherStates.push(parsed);
@@ -94,7 +102,35 @@ test.beforeEach(async ({ page, context }) => {
 test("portable real MSM: cold, warm after reload, Python reference and saved NAV LOG after eviction", async ({ page, context }) => {
   const downloads: string[] = [];
   context.on("request", r => { if (r.url().includes("/weather/msm/")) downloads.push(r.url()); });
-  await setup(page); await calculate(page);
+  await setup(page);
+  const gate = Promise.withResolvers<void>();
+  await context.route("**/weather/msm/catalog.json", async route => {
+    await gate.promise;
+    await route.fallback();
+  }, { times: 1 });
+  const overlay = page.getByRole("status", { name: "NAV LOGを計算中" });
+  // Hold the final RPC reply so React can render the calculation phase even on a fast Worker.
+  await page.evaluate(() => { (window as any).holdCalculationReply = true; });
+  const calculation = calculate(page);
+  try {
+    await expect(overlay).toContainText("気象データを準備しています。");
+    await expect(overlay.getByRole("progressbar")).not.toHaveAttribute("value");
+    await expect(overlay).not.toContainText("%");
+    gate.resolve();
+    await page.waitForFunction(() => Boolean((window as any).releaseCalculationReply));
+    await expect(overlay).toContainText("経路と条件をもとに計算しています。");
+    await expect(overlay.getByRole("progressbar")).not.toHaveAttribute("value");
+  } finally {
+    gate.resolve();
+    await page.evaluate(() => {
+      const root = window as any;
+      root.holdCalculationReply = false;
+      root.releaseCalculationReply?.();
+      delete root.releaseCalculationReply;
+    });
+    await calculation;
+  }
+  await expect(overlay).toHaveCount(0);
   compare(calculationCoreGolden(await calculationState(page)), calculationCoreGolden(reference()));
   expect((await calculationState(page)).outcome.selected_forecast_run_id).toBe("20260915210000");
   expect(downloads.filter(url => url.endsWith(".npz"))).toHaveLength(1);
@@ -118,6 +154,7 @@ test("portable real MSM: cold, warm after reload, Python reference and saved NAV
   await expect.poll(async () => (await calculationState(page))?.error?.code)
     .toBe("WEATHER_DISCOVERY_FAILED");
   await expect(page.getByRole("alert")).toContainText(backupMessages.not_configured);
+  await expect(overlay).toHaveCount(0);
   await expect(page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ })).toBeEnabled();
   await expect(page.locator(".nav-log-table")).toHaveText(navlog, { useInnerText: true });
   expect((await record(page)).lastCalculation).toEqual(saved);

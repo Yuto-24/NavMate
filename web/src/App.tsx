@@ -12,7 +12,7 @@ import { useCallback, useSyncExternalStore, useEffect, useLayoutEffect, useMemo,
 import { AlertCircle, CheckCircle2, Download, ExternalLink, X } from "lucide-react";
 import { ApplicationError } from "./application";
 import { WorkChangeQueue } from "./workChangeQueue";
-import type { AutoNavLogApplication, UpdateProjectInput } from "./application";
+import type { AutoNavLogApplication, CalculationProgress, UpdateProjectInput } from "./application";
 import { readSession, writeSession, clearSession, RECOVERY_FAILED, emptyCheckPointDraft, projectDraft, restoreProjectDraft } from "./applicationSession";
 import { hasProjectInputChanges } from "./projectLoad";
 import type { ApplicationSession, PendingKmz, NodeNameDraft, VorColumn } from "./applicationSession";
@@ -168,8 +168,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   }>({ kind: "idle", message: "" });
   const [busy, setBusy] = useState(false);
   const [activeOperation, setActiveOperation] = useState<ActiveOperation>(null);
-  const [calculationProgress, setCalculationProgress] = useState({
-    percent: 0,
+  const [calculationProgress, setCalculationProgress] = useState<CalculationProgress>({
     message: "計算を開始しています。",
   });
   const [error, setError, errorRevision] = useNotificationState();
@@ -1651,7 +1650,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     cancelPendingRecalculation();
     invalidateDestinationPatternRequests();
     scrollToCalculatedNavLogRef.current = null;
-    setCalculationProgress({ percent: 0, message: "計算を開始しています。" });
+    setCalculationProgress({ message: "計算を開始しています。" });
     const calculated = await run(async () => {
       const saved = await flushDraftAutosave(true);
       if (!saved) throw new Error(DRAFT_AUTOSAVE_FAILURE);

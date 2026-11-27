@@ -9,6 +9,11 @@ import { LocalClient } from "./localClient";
 import { StartupProgressStore } from "./startupProgress";
 import type { LocalProjectRepository, LocalProjectRecord, LocalProjectRepositoryFactory } from "./localProjectRepository";
 
+const calculationPhaseMessages = {
+  weather: "気象データを準備しています。",
+  calculation: "経路と条件をもとに計算しています。",
+};
+
 export class LocalApplication implements AutoNavLogApplication {
   readonly startup = new StartupProgressStore();
   readonly checkpointLoads = true;
@@ -41,12 +46,14 @@ export class LocalApplication implements AutoNavLogApplication {
     this.pendingBackup = undefined;
   }
   private assertActive() { if (!this.active) throw accountBoundaryClosed(); }
-  private async request<T>(operation: string, input?: unknown): Promise<T> {
+  private async request<T>(operation: string, input?: unknown, progress?: ProgressListener): Promise<T> {
     this.assertActive();
     try {
       const result = await (this.client ??= this.createClient()).request<T>(operation, input, progress => {
         if (this.active) this.startup.update(progress);
-      });
+      }, progress && (phase => {
+        if (this.active) progress({ message: calculationPhaseMessages[phase] });
+      }));
       this.assertActive();
       return result;
     }
@@ -143,7 +150,7 @@ export class LocalApplication implements AutoNavLogApplication {
       this.assertResolved();
       let state: WebState;
       try {
-        try { state = await this.request<WebState>(operation, input); }
+        try { state = await this.request<WebState>(operation, input, progress); }
         catch (error) {
           if (!["calculate", "updateAndRecalculate"].includes(operation) || !permitsForecastBackup(error)) throw error;
           if (generation !== this.generation) throw new ApplicationError(backupMessages.stale_result, "FORECAST_BACKUP_STALE");
@@ -230,10 +237,9 @@ export class LocalApplication implements AutoNavLogApplication {
   replaceCheckPoints(checkPoints: CheckPointInput[]) { return this.execute("replaceCheckPoints", { check_points: checkPoints }); }
   acknowledge(key: string, checked: boolean) { return this.execute("acknowledge", { key, checked }); }
   async calculate(onProgress?: ProgressListener, options?: CalculationOptions) {
-    // Report only known milestones; finer progress is deferred to #159.
-    onProgress?.({ percent: 0, message: "計算を開始しています。" });
+    onProgress?.({ message: "計算を開始しています。" });
     const state = await this.execute("calculate", options && { rounding_mode: options.roundingMode }, onProgress);
-    onProgress?.({ percent: 100, message: "計算が完了しました。" });
+    onProgress?.({ message: "計算が完了しました。" });
     return state;
   }
   exportProject() { return this.serial(() => this.request<string>("exportProject")); }

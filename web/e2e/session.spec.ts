@@ -291,8 +291,14 @@ test("calculation interrupted by reload is not resent and late result cannot rep
   await page.getByLabel("TGL", { exact: true }).fill("2");
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".calculation-progress-backdrop")).toBeVisible();
-  if (!isLocal()) await expect.poll(() => calculations).toBe(1);
-  else await page.waitForFunction(() => (window as any).heldCalculation);
+  const overlay = page.getByRole("status", { name: "NAV LOGを計算中" });
+  if (!isLocal()) {
+    await expect.poll(() => calculations).toBe(1);
+    await expect(overlay.getByRole("progressbar", { name: "NAV LOGを計算中 1%" })).toHaveAttribute("value", "1");
+  } else {
+    await page.waitForFunction(() => (window as any).heldCalculation);
+    await expect(overlay.getByRole("progressbar")).not.toHaveAttribute("value");
+  }
   const interrupted = await snapshot(page);
   expect(interrupted.working.outcome.summary).toEqual(previous.working.outcome.summary);
   await page.reload();
