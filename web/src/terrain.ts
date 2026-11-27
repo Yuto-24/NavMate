@@ -83,7 +83,7 @@ function touchesPixel(ring: readonly XY[], x: number, y: number): boolean {
 /** Simple open ring, straight edges in Web Mercator. Caller constructs the evaluation area.
  * No holes or antimeridian wrapping. Invalid/budget-exceeding areas never become complete.
  */
-export function planTerrainCoverage(region: readonly LonLat[]): TerrainCoverage {
+function* coverageRows(region: readonly LonLat[]): Generator<void, TerrainCoverage> {
   const result: TerrainCoverage = { status: "invalid-input", zoom: DEM_ZOOM,
     region: region.map(p => [...p]), tiles: [],
     counts: { required: 0, valid: 0, missing: 0, notAcquired: 0, invalid: 0 } };
@@ -139,21 +139,47 @@ export function planTerrainCoverage(region: readonly LonLat[]): TerrainCoverage 
     const extent = convex ? rowExtent(y) : [minX, maxX];
     if (!extent) continue;
     for (let x = extent[0]!; x <= extent[1]!; x++) {
-    if (!convex && !touchesPixel(ring, x, y)) continue;
-    const tx = Math.floor(x / 256), ty = Math.floor(y / 256), key = `${tx}/${ty}`;
-    let tile = tiles.get(key);
-    if (!tile) {
-      tile = { x: tx, y: ty, pixels: [], input: { status: "not-acquired", reason: "not-requested" } };
-      tiles.set(key, tile);
+      // Concave rings require an edge test per pixel, even for empty rows.
+      if (!convex && (x - minX) % 32 === 0) yield;
+      if (!convex && !touchesPixel(ring, x, y)) continue;
+      const tx = Math.floor(x / 256), ty = Math.floor(y / 256), key = `${tx}/${ty}`;
+      let tile = tiles.get(key);
+      if (!tile) {
+        tile = { x: tx, y: ty, pixels: [], input: { status: "not-acquired", reason: "not-requested" } };
+        tiles.set(key, tile);
+      }
+      tile.pixels.push((y % 256) * 256 + x % 256);
+      result.counts.required++;
     }
-    tile.pixels.push((y % 256) * 256 + x % 256);
-    result.counts.required++;
-    }
+    yield;
   }
   result.tiles = [...tiles.values()];
   result.counts.notAcquired = result.counts.required;
   result.status = "incomplete";
   return result;
+}
+
+export function planTerrainCoverage(region: readonly LonLat[]): TerrainCoverage {
+  const rows = coverageRows(region);
+  let step = rows.next();
+  while (!step.done) step = rows.next();
+  return step.value;
+}
+
+/** Use the same pixel footprints while giving the browser time to paint and handle input. */
+export async function planSeaTerrainCoverage(region: readonly LonLat[], signal: AbortSignal) {
+  const rows = coverageRows(region);
+  let sliceStart = performance.now();
+  let step = rows.next();
+  while (!step.done) {
+    if (performance.now() - sliceStart >= 5) {
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      if (signal.aborted) return null;
+      sliceStart = performance.now();
+    }
+    step = rows.next();
+  }
+  return step.value;
 }
 
 /** Signed 24-bit centimetres; the reserved midpoint is missing, never sea level. */

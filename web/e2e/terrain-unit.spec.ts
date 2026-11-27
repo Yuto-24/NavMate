@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { acquireTerrainCoverage, decodeDemRgba, planTerrainCoverage, type LonLat, type TileInput } from "../src/terrain";
+import { acquireTerrainCoverage, decodeDemRgba, planSeaTerrainCoverage, planTerrainCoverage, type LonLat, type TileInput } from "../src/terrain";
 import { GsiDemSource } from "../src/terrainTransport";
 
 // Independent inverse XYZ fixture: a polygon crossing x/y tile boundaries in Miyazaki.
@@ -31,6 +31,14 @@ test("closed footprints include tiny polygons and exact tile/pixel edges", () =>
   const exact = [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]].map(p => coordinate(p[0]!, p[1]!));
   expect(planTerrainCoverage(exact).counts.required).toBe(9);
   expect(planTerrainCoverage([...region].reverse()).counts).toEqual(plan.counts);
+});
+
+test("#548 raster planning yields to cancellation inside a single large region", async () => {
+  const polygon = [[0, 0], [1200, 0], [1200, 1200], [0, 1200]].map(([dx, dy]) => coordinate(x + dx!, y + dy!));
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), 0);
+  expect(await planSeaTerrainCoverage(polygon, controller.signal)).toBeNull();
+  expect(await planSeaTerrainCoverage(region, new AbortController().signal)).toEqual(planTerrainCoverage(region));
 });
 
 test("concave region excludes a pixel inside its bounding box but outside its polygon", () => {

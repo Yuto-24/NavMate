@@ -1,3 +1,6 @@
+import { fileURLToPath } from "node:url";
+import { openProjectMenu } from "./helpers/header";
+import { artifactSessionKey } from "./helpers/localArtifact";
 import { clickMapCoordinate } from "./helpers/mapCoordinate";
 import { test, expect } from "@playwright/test";
 import { confirmImportedDraft } from "./helpers/importWorkflow";
@@ -355,4 +358,74 @@ test('ETD dial drag from blank space preserves focus and commits hour and minute
   await input.click();
   await page.getByLabel('DATE', { exact: true }).click();
   await expect(dialog).toBeHidden();
+});
+
+test("#548 saved Project accepts map drags and planning edits throughout automatic SEA evaluation", async ({ page }) => {
+  page.on("dialog", dialog => dialog.accept());
+  const dem = fileURLToPath(new URL("./fixtures/terrain/dem-signed.png", import.meta.url));
+  const kml = fileURLToPath(new URL("./fixtures/terrain/sea-route.kml", import.meta.url));
+  let opening = false;
+  let requests = 0;
+  let held = 0;
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/xyz/dem_png/**", async route => {
+    if (!opening) { held++; await pending; }
+    else requests++;
+    await route.fulfill({ path: dem, contentType: "image/png" });
+  });
+
+  await page.goto("/");
+  await page.locator("#route-file").setInputFiles(kml);
+  await confirmImportedDraft(page);
+  await openProjectMenu(page);
+  await page.getByLabel("プロジェクト", { exact: true }).fill("SEA restore");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
+  const projectId = () => page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.id as string, artifactSessionKey);
+  const savedId = await projectId();
+  await page.getByRole("button", { name: "新規", exact: true }).click();
+  await page.locator("#route-file").setInputFiles({ name: "other.kml", mimeType: "application/xml", buffer: Buffer.from(route) });
+  await confirmImportedDraft(page);
+  await expect.poll(() => held).toBeGreaterThanOrEqual(2);
+  expect(await projectId()).not.toBe(savedId);
+  await openProjectMenu(page);
+  await page.getByLabel("保存済み", { exact: true }).selectOption({ label: "SEA restore" });
+  opening = true;
+  await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
+  await expect.poll(projectId).toBe(savedId);
+  release();
+
+  const map = page.locator(".leaflet-container").first();
+  const pane = map.locator(".leaflet-map-pane");
+  const drag = async (offset: number) => {
+    await map.scrollIntoViewIfNeeded();
+    const box = (await map.boundingBox())!;
+    const x = box.x + box.width * 0.4, y = box.y + box.height * 0.4;
+    const before = await pane.getAttribute("style");
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + offset, y, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(() => pane.getAttribute("style")).not.toBe(before);
+  };
+  await drag(40);
+  await map.locator(".leaflet-control-zoom-in").click();
+  await page.getByLabel("気象モード").selectOption("FTD");
+  const wind = page.getByLabel("地上風速 kt");
+  await wind.fill("15");
+  await wind.blur();
+  const evaluated = () => page.evaluate(key => {
+    const project = JSON.parse(sessionStorage.getItem(key)!).working.project;
+    const records = Object.values(project.metadata.sea?.records ?? {}) as { terrain: { evaluated: boolean } }[];
+    return records.length === project.sections.length && records.every(item => item.terrain.evaluated);
+  }, artifactSessionKey);
+  await expect.poll(async () => {
+    await drag(-40);
+    await drag(40);
+    return evaluated();
+  }, { timeout: 90_000 }).toBe(true);
+  expect(requests).toBeGreaterThan(0);
+  await expect(wind).toHaveValue("15");
+  expect(await projectId()).toBe(savedId);
 });

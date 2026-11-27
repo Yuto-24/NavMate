@@ -1,4 +1,4 @@
-import { planTerrainCoverage, type LonLat, type TerrainProvenance, type TileInput } from "./terrain";
+import { planSeaTerrainCoverage, type LonLat, type TerrainProvenance, type TileInput } from "./terrain";
 import { GsiDemSource } from "./terrainTransport";
 import type { TerrainKmlInput } from "./terrainKml";
 import { SeaEvaluationCache, seaRegionKey } from "./seaCache";
@@ -123,12 +123,18 @@ export async function acquireSea(
     // Yield between raster plans, including warm aggregation, for input and cancellation.
     await new Promise<void>(resolve => setTimeout(resolve, 0));
     if (signal.aborted) return emptyTerrain(false);
-    const coverage = planTerrainCoverage(region);
+    const coverage = await planSeaTerrainCoverage(region, signal);
     if (options.metrics) options.metrics.regionEvaluations++;
-    if (coverage.status === "invalid-input") return emptyTerrain(false);
+    if (!coverage || coverage.status === "invalid-input") return emptyTerrain(false);
     const retained = { ...cached?.parts };
     const parts: SeaTerrain[] = [];
+    let sliceStart = performance.now();
     for (const tile of coverage.tiles) {
+      // Cached tiles can resolve entirely in microtasks, including their pixel scans.
+      if (performance.now() - sliceStart >= 5) {
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        sliceStart = performance.now();
+      }
       const tileKey = `${tile.x}/${tile.y}`;
       if (retained[tileKey]) { parts.push(retained[tileKey]!); continue; }
       let input: TileInput = { status: "not-acquired", reason: "cancelled" };
