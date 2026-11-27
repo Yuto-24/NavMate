@@ -109,11 +109,17 @@ def affected_jobs(change: Change) -> frozenset[str]:
     if path.startswith("src/autonavlog/") and path.endswith(".py"):
         # The installed backend is also bundled into the browser and feed tooling.
         return PYTHON_JOBS
+    # Both package test commands collect service-local test files at this depth.
+    worker_test = re.fullmatch(
+        r"services/(msm-trigger|taf-proxy)/[A-Za-z0-9_][A-Za-z0-9_.-]*\.test\.mjs", path
+    )
+    if worker_test:
+        return frozenset({worker_test.group(1)})
     if path == "services/taf-proxy/worker.mjs":
         return frozenset({"taf-proxy", "web", "local-browser"})
     if path in {"services/msm-trigger/worker.ts", "services/msm-trigger/entrypoint.ts"}:
         return frozenset({"msm-trigger"})
-    # Tests, CI, data, other build inputs, dependencies and unknown paths are cross-cutting.
+    # Other tests, CI, data, other build inputs, dependencies and unknown paths are cross-cutting.
     return JOBS
 
 
