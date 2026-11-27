@@ -1,10 +1,10 @@
 {
   "items": [
     {
-      "id": "omaru-map-source",
+      "id": "omaru-map-name",
       "text": "小丸",
       "reason": "本人指定により出典の補足を外し、ツールチップに地点名だけを表示する。",
-      "response_quote": "`omaru-map-source`\n- **表示場所**: 経路作成地図の小丸マーカーのツールチップ\n- **目的**: 参照座標の出典と未検証であることを短く伝える\n- **制約**: 正式な公示点や第三者検証済みと誤解させない。精度は断定しない。\n\n#### 案A（標準・簡潔）：現行案ベース\n- **文言案**: `参照座標：利用者指定（未検証）`\n- **選定理由**: \n  - ツールチップという極小のUI領域で瞬時に意味を把握できます。「参照座標」と明記することで、公的なウェイポイント等ではなく単なるリファレンスであることを明確にできます。\n- **懸念点**: \n  - 地図上で他の公認FIX等と混在している場合、初見のユーザーが「なぜここだけ未検証なのか」を疑問に思う可能性があります（ただしツールチップの役割としては十分です）。",
+      "response_quote": "1. **`omaru-map-name`**: 制約に忠実かつ他マーカーとの親和性から、**現行の `小丸` のまま**が最も安全です。",
       "source": {
         "path": "web/src/components/MapRouteBuilder.tsx",
         "start": "<Tooltip>{routePoint ? \"小丸\" : airport ? `${airport.icao} ${airport.name}` : `${reference!.name} ${reference!.name_ja}`}</Tooltip>",
@@ -15,8 +15,8 @@
     {
       "id": "rjfm-reference-sources",
       "text": "UMK・小丸は利用者指定の参照座標です（未検証）。",
-      "reason": "案Bを短い文に分け、推定誤差がOVER FIELDだけにかかるようにしてKML優先の条件を残した。",
-      "response_quote": "`rjfm-reference-sources`",
+      "reason": "座標の出典、OVER FIELDに限る推定誤差、KML優先を順に説明する現行文を保持する。",
+      "response_quote": "2. **`rjfm-reference-sources`**: 制約欄のUI領域に縦方向の余裕があれば **候補A（箇条書き型）** が最も誤認が少なく推奨されます。1行〜文章形式の枠であれば **候補B（自然文・整理型）** を推奨します。",
       "source": {
         "path": "src/autonavlog/application/rjfm_departure_service.py",
         "start": "\"UMK・小丸は利用者指定の参照座標です（未検証）。\"",
