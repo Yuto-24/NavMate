@@ -28,6 +28,7 @@ test("fixed upstream, no credentials forwarded, CORS and bounded cache reuse", a
   });
   const first = await h.run();
   assert.equal(first.status, 200);
+  assert.equal(first.headers.get("Content-Type"), "application/json");
   assert.equal(first.headers.get("Access-Control-Allow-Origin"), origin);
   assert.equal(first.headers.get("Access-Control-Allow-Credentials"), null);
   assert.equal(first.headers.get("Vary"), "Origin");
