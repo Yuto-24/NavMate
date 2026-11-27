@@ -145,7 +145,10 @@ def ci_scope(root: Path, event_name: str, event: dict) -> tuple[frozenset[str], 
     selected = ", ".join(sorted(jobs))
     reason = f"Changed {len(changes)} files; selected complete suites: {selected}."
     if "account-sync" not in jobs and any(change.path in DISPLAY_PATHS for change in changes):
-        reason += " Fuel Plan display changes are covered by web and local-browser; no changed input requires account-sync."
+        reason += (
+            " Fuel Plan display changes are covered by web and local-browser; "
+            "no changed input requires account-sync."
+        )
     return jobs, reason
 
 
