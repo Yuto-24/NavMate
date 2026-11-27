@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "id": "sea-app-2",
+      "text": "地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。",
+      "reason": "現行文言を維持する。描画後の自動評価でも、現在の経路への反映に失敗した場合の再取得操作は同じ。経路に誤りがあると受け取られる懸念を確認した。今回の変更で失敗原因を経路に特定する根拠はなく、通知も原因を断定していない。",
+      "response_quote": "### `id: sea-app-2`（NAV LOGの区間別SEAの失敗通知）\n\n保存済みプロジェクトを開いた直後の自動処理で失敗するケースを想定すると、利用者は「まだ何も操作していないのに失敗した」「画面のどこに影響があるのか」「経路に問題があるのか」と迷いやすくなります。その点を踏まえた候補です。\n\n#### 候補1（現行文言）\n> 地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。\n\n- **理由**: 反映に失敗した事実と次に押すべきボタンが明確で、経路を見直してから再取得する流れを促せる。\n- **懸念**:\n  - プロジェクトを開いた直後に表示されると、「現在の経路を確認し」が原因の指摘に見え、経路設定に誤りがあると誤解しやすい。\n  - 「地形データ」だけでは、地図表示ではなくNAV LOGの区間別SEAへの反映失敗だと伝わりにくい場合がある。",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "      if (seaControllerRef.current === controller && !controller.signal.aborted",
+        "end": "        setSeaMessage(\"地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。\");",
+        "expected": "      if (seaControllerRef.current === controller && !controller.signal.aborted\n        && epoch === lifecycle.current && projectIdRef.current === projectId) {\n        if (reason instanceof ApplicationError && reason.code === \"LOCAL_STORAGE_FAILED\") {\n          if (reason.committedState) adopt(reason.committedState);\n          recordOperationError(\"sea-save\", reason.message);\n          setError(reason.message);\n        }\n        setSeaMessage(\"地形データを反映できませんでした。現在の経路を確認し、「地形を再取得」を押してください。\");"
+      }
+    }
+  ]
+}
