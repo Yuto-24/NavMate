@@ -211,10 +211,10 @@ test("browser process restart loads named checkpoint and retains Last Calculatio
     await expect(page.locator(".nav-log-table")).toBeVisible();
     expect((await working(page)).last_calculation).toEqual(calculated);
     await expect(page.getByLabel("FUEL gal", { exact: true })).toHaveValue("90");
-    // Invalid ephemeral edits win over the durable validated draft on same-tab reload.
+    // Same-tab reload restores the last confirmed value.
     await page.getByLabel("FUEL gal", { exact: true }).fill("");
     await page.reload();
-    await expect(page.getByLabel("FUEL gal", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("FUEL gal", { exact: true })).toHaveValue("90");
     expect((await working(page)).project.id).toBe(saved.id);
     expect((await records(page))[0].draft.total_usable_fuel_gal).toBe(90);
     expect(requests).toEqual([]);

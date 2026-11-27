@@ -136,8 +136,8 @@ test("#351 stale recovery permits recalculation with historical blockers and an 
   await expect(recalculate).toBeDisabled();
   await expect(page.getByText("100～25,000 ftの範囲で100 ft単位の整数を入力してください。")).toBeVisible();
   await page.reload();
-  await expect(pattern).toHaveValue("123");
-  await expect(recalculate).toBeDisabled();
+  await expect(pattern).toHaveValue(String(before.working.project.metadata.ui_state.arrival_plan.selected_pattern_altitude_ft_msl));
+  await expect(recalculate).toBeEnabled();
   expect((await snapshot(page)).working.last_calculation).toEqual(before.working.last_calculation);
 
   // Reload suppresses automatic calculation; a valid restored edit can be applied manually.
@@ -162,7 +162,7 @@ test("#351 stale recovery permits recalculation with historical blockers and an 
   expect((await snapshot(page)).working.last_calculation).toEqual(after.working.last_calculation);
 });
 
-test("reload preserves raw invalid planning values, import and route selection", async ({ page }) => {
+test("#540 reload restores committed planning values, import and route selection", async ({ page }) => {
   await imported(page);
   const importedDraft = (await snapshot(page)).mapRouteDraft;
   await page.reload();
@@ -170,31 +170,61 @@ test("reload preserves raw invalid planning values, import and route selection",
   expect((await snapshot(page)).mapRouteDraft).toEqual(importedDraft);
   expect((await snapshot(page)).working.project).toBeNull();
   await confirmImportedDraft(page);
-  await page.getByLabel("気象モード").selectOption("FTD");
-  await page.getByLabel("TGL", { exact: true }).fill("99");
-  await page.getByLabel("地上風向 ° FROM").fill("1.5");
-  await page.reload();
-  await expect(page.getByLabel("TGL", { exact: true })).toHaveValue("99");
-  await expect(page.getByLabel("地上風向 ° FROM")).toHaveValue("1.5");
-  expect((await snapshot(page)).working.project).not.toBeNull();
-  await page.getByLabel("TGL", { exact: true }).fill("1");
-  await page.getByLabel("地上風向 ° FROM").fill("360");
-  await expect(page.getByLabel("RJFM出発Legの計画高度", { exact: true })).toBeVisible();
   const before = await snapshot(page);
-  await page.getByLabel("RJFM出発Legの計画高度", { exact: true }).fill("123");
+  const tgl = page.getByLabel("TGL", { exact: true });
+  await page.evaluate(key => {
+    const original = Storage.prototype.setItem;
+    Object.assign(window, { sessionWrites: 0 });
+    Storage.prototype.setItem = function(k, value) {
+      if (k === key) (window as any).sessionWrites++;
+      return original.call(this, k, value);
+    };
+  }, key);
+  await tgl.fill("99");
+  await expect(tgl).toHaveValue("99");
+  expect(await page.evaluate(() => (window as any).sessionWrites)).toBe(0);
   await page.reload();
-  await expect(page.getByLabel("RJFM出発Legの計画高度", { exact: true })).toHaveValue("123");
+  await expect(tgl).toHaveValue(String(before.working.project.tgl_count));
+  const altitude = page.getByLabel("RJFM出発Legの計画高度", { exact: true });
+  const confirmedAltitude = await altitude.inputValue();
+  await altitude.fill("123");
+  await page.reload();
+  await expect(altitude).toHaveValue(confirmedAltitude);
   expect((await snapshot(page)).working.project.id).toBe(before.working.project.id);
 });
 
-test("reload retains last-good and NAV LOG draft without auto calculation", async ({ page }) => {
+test("#540 JSON export stops if a required draft write fails", async ({ page }) => {
+  test.skip(!isLocal(), "IndexedDB write failure");
+  await calculated(page);
+  const downloads: string[] = [];
+  page.on("download", file => downloads.push(file.suggestedFilename()));
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(...args) {
+      if (this.name === "projects") throw new DOMException("unavailable", "InvalidStateError");
+      return put.apply(this, args);
+    };
+  });
+  const tgl = page.getByLabel("TGL", { exact: true });
+  await tgl.fill("2");
+  const exportButton = page.getByRole("button", { name: "プロジェクトJSONをダウンロード" });
+  await exportButton.click();
+  await expect(page.getByRole("alert").filter({ hasText: "プロジェクトを自動保存できませんでした" }).first()).toBeVisible();
+  await expect(exportButton).toBeEnabled();
+  expect(downloads).toEqual([]);
+  await expect(tgl).toHaveValue("2");
+  expect((await snapshot(page)).working.project.tgl_count).not.toBe(2);
+});
+
+test("reload retains last-good and committed NAV LOG inputs without auto calculation", async ({ page }) => {
   await calculated(page);
   const before = await snapshot(page);
   const tas = page.locator(".nav-log-table").getByLabel(/手動TAS$/).first();
+  const committedTas = await tas.inputValue();
   await tas.fill("999");
   await page.reload();
   await expect(page.locator(".nav-log-table")).toBeVisible();
-  await expect(page.locator(".nav-log-table").getByLabel(/手動TAS$/).first()).toHaveValue("999");
+  await expect(page.locator(".nav-log-table").getByLabel(/手動TAS$/).first()).toHaveValue(committedTas);
   expect((await snapshot(page)).working.outcome).toEqual(before.working.outcome);
   await page.waitForTimeout(1000); // exceeds both existing auto-recalculation debounces
   expect((await snapshot(page)).working.outcome).toEqual(before.working.outcome);
@@ -218,6 +248,7 @@ test("new discards recovery; new tabs including opener clones never inherit work
   expect((await snapshot(popup)).form.tglCount).toBe("0");
   expect((await snapshot(popup)).working.project).toBeNull();
   await popup.close();
+  await expect.poll(async () => (await snapshot(second)).working.project.tgl_count).toBe(7);
   await second.reload();
   await expect(second.getByLabel("TGL", { exact: true })).toHaveValue("7");
   await page.reload();
@@ -337,14 +368,15 @@ test("restored Check Point and VOR input remains editable; workflow positions ar
   await page.getByRole("button", { name: "チェックポイントを追加", exact: true }).click();
     await clickMapCoordinate(page, 32.0, 130.9);
   await page.locator(".checkpoint-form").getByLabel("名称", { exact: true }).fill("未確定地点");
-  await expect.poll(async () => (await snapshot(page)).checkPointDraft.name).toBe("未確定地点");
+  await expect.poll(async () => (await snapshot(page)).checkPointDraft.latitude).not.toBe("");
+  expect((await snapshot(page)).checkPointDraft.name).toBe("");
   const pendingCheckPoint = (await snapshot(page)).checkPointDraft;
   await page.reload();
   await expect(page.locator(".nav-log-table")).toBeVisible();
   await expect(page.getByLabel("VOR基準局", { exact: true })).toHaveValue(vor);
   await expect(page.locator(".checkpoint-form")).toHaveCount(0);
   await page.getByRole("button", { name: "チェックポイントの編集を続ける" }).click();
-  await expect(page.locator(".checkpoint-form").getByLabel("名称", { exact: true })).toHaveValue("未確定地点");
+  await expect(page.locator(".checkpoint-form").getByLabel("名称", { exact: true })).toHaveValue("");
   expect((await snapshot(page)).checkPointDraft).toEqual(pendingCheckPoint);
   await expect(page.locator(".checkpoint-form").getByLabel("緯度", { exact: true })).toHaveCount(0);
   for (const width of [1100, 1440]) {
@@ -393,7 +425,7 @@ test("late autosave after restore cannot canonicalize newer invalid input", asyn
   await page.waitForTimeout(700);
   await expect(page.getByLabel("TGL", { exact: true })).toHaveValue("99");
   await page.reload();
-  await expect(page.getByLabel("TGL", { exact: true })).toHaveValue("99");
+  await expect(page.getByLabel("TGL", { exact: true })).toHaveValue("2");
   await page.getByLabel("TGL", { exact: true }).fill("3");
   await expect.poll(async () => (await snapshot(page)).working.project.tgl_count).toBe(3);
 });
@@ -416,7 +448,7 @@ test("new reports storage refusal before disposing the working runtime", async (
   await expect.poll(async () => (await snapshot(page)).working.project.tgl_count).toBe(4);
 });
 
-test("pasted KML draft resumes without reading a changed clipboard", async ({ page }) => {
+test("unsubmitted pasted KML stays in the current screen", async ({ page }) => {
   await open(page);
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", {
     configurable: true, value: { readText: async () => { throw new Error("denied"); } },
@@ -425,11 +457,7 @@ test("pasted KML draft resumes without reading a changed clipboard", async ({ pa
   await page.getByRole("dialog").getByRole("textbox").fill("<kml>入力途中");
   await page.reload();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", {
-    configurable: true, value: { readText: async () => "別のクリップボード内容" },
-  }));
-  await page.getByRole("button", { name: "貼り付けたKMLの編集を続ける" }).click();
-  await expect(page.getByRole("dialog").getByRole("textbox")).toHaveValue("<kml>入力途中");
+  await expect(page.getByRole("button", { name: "貼り付けたKMLの編集を続ける" })).toHaveCount(0);
 });
 
 for (const width of [1100, 1440]) {

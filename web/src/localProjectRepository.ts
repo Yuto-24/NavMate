@@ -58,6 +58,8 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
     protected readonly context?: LocalAccountContext,
   ) {}
 
+  private summaries = new Map<string, { token: string; project: SavedProject | null }>();
+
   private database(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       const scope = this.context?.storage_id ?? this.context?.account_id;
@@ -78,7 +80,7 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
     });
   }
 
-  protected async transaction<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore, rows: unknown[]) => T): Promise<T> {
+  protected async transaction<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore, rows: unknown[]) => T, id?: string): Promise<T> {
     this.context?.assertActive();
     const db = await this.database();
     try {
@@ -100,9 +102,9 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
         };
         tx.onerror = () => { /* abort reports the transaction failure, never request success */ };
         const store = tx.objectStore("projects");
-        const read = store.getAll();
+        const read = id === undefined ? store.getAll() : store.get(id);
         read.onsuccess = () => {
-          try { this.context?.assertActive(); value = action(store, read.result); }
+          try { this.context?.assertActive(); value = action(store, id === undefined ? read.result : read.result === undefined ? [] : [read.result]); }
           catch (cause) {
             error = cause;
             try { tx.abort(); } catch { reject(cause); } // another context may already have closed this transaction
@@ -148,28 +150,53 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
     }), true);
   }
 
-  async list() {
-    const rows = await this.safe(() => this.transaction("readonly", (_store, rows) => rows));
-    const projects: SavedProject[] = [], failed: string[] = [];
+  protected rememberRecord(record: LocalProjectRecord) {
+    const project: SavedProject = { id: record.id, kind: record.checkpoint ? "SAVED" : "LATEST",
+      name: record.checkpoint?.name ?? "Latest", status: record.draft.status,
+      revision: record.draft.revision, updatedAt: record.updatedAt };
+    const summary = { token: record.token, project };
+    this.summaries.set(record.id, summary);
+    return summary;
+  }
+
+  protected async listRows(rows: LocalProjectRecord[], decode: (row: LocalProjectRecord) => Promise<LocalProjectRecord>) {
+    const projects: SavedProject[] = [], unavailable: string[] = [];
     const tokens: Record<string, string> = {};
-    for (const raw of rows) {
-      if ((raw as { claimedAccount?: string }).claimedAccount) continue;
-      const id = String((raw as { id?: unknown })?.id ?? "unknown");
-      try {
-        const record = await this.validate(raw);
-        this.context?.assertActive();
-        tokens[record.id] = record.token;
-        projects.push({ id: record.id, kind: record.checkpoint ? "SAVED" : "LATEST",
-          name: record.checkpoint?.name ?? "Latest", status: record.draft.status,
-          revision: record.draft.revision, updatedAt: record.updatedAt });
-      } catch { this.context?.assertActive(); failed.push(id); }
+    const summaries = new Map<string, { token: string; project: SavedProject | null }>();
+    for (const row of rows) {
+      let summary = this.summaries.get(row.id);
+      if (!summary || summary.token !== row.token) {
+        try {
+          summary = this.rememberRecord(await decode(row));
+        } catch (error) {
+          this.context?.assertActive();
+          unavailable.push(row.id);
+          if (error instanceof ApplicationError && ["VALIDATION_FAILED", "REQUEST_FAILED"].includes(error.code))
+            summaries.set(row.id, { token: row.token, project: null });
+          continue;
+        }
+      }
+      summaries.set(row.id, summary);
+      if (summary.project) {
+        tokens[row.id] = summary.token;
+        projects.push({ ...summary.project });
+      } else unavailable.push(row.id);
     }
     this.context?.assertActive();
+    this.summaries = summaries;
     projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return { projects, unavailable: failed, tokens };
+    return { projects, unavailable, tokens };
+  }
+  async list() {
+    const rows = await this.safe(() => this.transaction("readonly", (_store, rows) =>
+      (rows as (LocalProjectRecord & { claimedAccount?: string })[]).filter(row => !row.claimedAccount)));
+    return this.listRows(rows, this.validate);
+  }
+  protected readRow<T>(id: string) {
+    return this.safe(() => this.transaction("readonly", (_store, rows) => rows[0] as T | undefined, id));
   }
   async read(id: string) {
-    const raw = await this.safe(() => this.transaction("readonly", (_store, rows) => rows.find(row => (row as { id: string }).id === id)));
+    const raw = await this.readRow<LocalProjectRecord>(id);
     if (!raw || (raw as { claimedAccount?: string }).claimedAccount) throw unavailable(id);
     try {
       const record = await this.validate(raw);
@@ -177,11 +204,14 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
       return record;
     } catch { this.context?.assertActive(); throw unavailable(id); }
   }
-  private async latestTokens() {
+  private async latestTokens(except: string) {
     const rows = await this.safe(() => this.transaction("readonly", (_store, rows) => rows));
     const latest = new Map<string, string>();
     for (const row of rows) {
-      if ((row as { claimedAccount?: string }).claimedAccount) continue;
+      const candidate = row as LocalProjectRecord & { claimedAccount?: string };
+      if (candidate.claimedAccount || candidate.id === except || candidate.checkpoint != null) continue;
+      const known = this.summaries.get(candidate.id);
+      if (known && known.token === candidate.token && !known.project) continue;
       try {
         const record = await this.validate(row);
         if (!record.checkpoint) latest.set(record.id, record.token);
@@ -191,7 +221,7 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
   }
   async write(record: LocalProjectRecord, expectedToken: string | null, replaceLatest: boolean) {
     const valid = await this.validate(record);
-    const candidates = replaceLatest ? await this.latestTokens() : undefined;
+    const candidates = replaceLatest ? await this.latestTokens(record.id) : undefined;
     await this.safe(() => this.transaction("readwrite", (store, rows) => {
       if (candidates && rowVersions(rows) !== candidates.snapshot) throw conflict();
       const existing = rows.find(row => (row as LocalProjectRecord).id === valid.id) as LocalProjectRecord | undefined;
@@ -203,10 +233,11 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
         if ((row as { claimedAccount?: string }).claimedAccount) continue;
         if (row.id !== valid.id && candidates?.latest.has(row.id) && candidates.latest.get(row.id) === row.token) store.delete(row.id);
       }
-    }), true);
+    }, replaceLatest ? undefined : valid.id), true);
+    this.rememberRecord(valid);
   }
   async open(record: LocalProjectRecord, expectedToken = record.token) {
-    const candidates = await this.latestTokens();
+    const candidates = await this.latestTokens(record.id);
     await this.safe(() => this.transaction("readwrite", (store, rows) => {
       if (rowVersions(rows) !== candidates.snapshot) throw conflict();
       const current = rows.find(row => (row as LocalProjectRecord).id === record.id) as LocalProjectRecord | undefined;
@@ -225,6 +256,6 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
       if ((current as { claimedAccount?: string })?.claimedAccount) throw conflict();
       if ((current?.token ?? null) !== expectedToken) throw conflict();
       store.delete(id);
-    }));
+    }, id));
   }
 }
