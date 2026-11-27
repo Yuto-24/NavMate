@@ -1,7 +1,7 @@
 import { ApplicationError } from "./application";
 import type { ApplicationErrorDetails } from "./application";
 import { wrap } from "comlink";
-import type { LocalWorker } from "./local.worker";
+import type { LocalCalculationPhase, LocalWorker } from "./local.worker";
 import { startupStages, type StartupProgress } from "./startupProgress";
 
 export class LocalClient {
@@ -33,9 +33,16 @@ export class LocalClient {
     void this.failed.catch(() => undefined);
   }
 
-  async request<T>(path: string, body?: unknown, onStartup?: (progress: StartupProgress) => void): Promise<T> {
+  async request<T>(path: string, body?: unknown, onStartup?: (progress: StartupProgress) => void,
+    onCalculationPhase?: (phase: LocalCalculationPhase) => void): Promise<T> {
     if (this.terminalError) throw this.terminalError;
     this.onStartup = onStartup;
+    // LocalApplication serializes requests. Observe phases only while this request is active.
+    const receivePhase = ({ data }: MessageEvent) => {
+      if (!this.terminalError && data?.type === "calculation-phase"
+        && (data.phase === "weather" || data.phase === "calculation")) onCalculationPhase?.(data.phase);
+    };
+    if (onCalculationPhase) this.worker.addEventListener("message", receivePhase);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const json = await Promise.race([
@@ -59,6 +66,7 @@ export class LocalClient {
       return payload as T;
     } finally {
       clearTimeout(timer);
+      if (onCalculationPhase) this.worker.removeEventListener("message", receivePhase);
     }
   }
 

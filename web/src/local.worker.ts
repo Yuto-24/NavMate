@@ -85,6 +85,8 @@ const weather = {
     "autonavlog.weather.gsm.v1",
   ),
 };
+export type LocalCalculationPhase = "weather" | "calculation";
+
 interface WeatherRequest { model: "MSM" | "GSM"; kind: "catalog" | "prepared"; asset?: PreparedAsset }
 
 function weatherResult<T>(json: string): T {
@@ -139,16 +141,21 @@ const workerApi = {
       pyodide.globals.set("local_path", path);
       pyodide.globals.set("local_dispatch_path", path);
       pyodide.globals.set("local_body_json", JSON.stringify(body ?? {}));
+      const calculating = path === "calculate" || path === "updateAndRecalculate";
+      const reportPhase = (phase: LocalCalculationPhase) => {
+        if (calculating) self.postMessage({ type: "calculation-phase", phase });
+      };
       const airport = pyodide.runPython(`
 import json
 local_application.destination_taf_airport(local_path, json.loads(local_body_json))
 `) as string | undefined;
       if (airport) {
+        if (import.meta.env.VITE_TAF_PROXY_URL) reportPhase("weather");
         const taf = await fetchDestinationTaf(import.meta.env.VITE_TAF_PROXY_URL, airport);
         pyodide.globals.set("local_taf_json", JSON.stringify(taf));
         pyodide.runPython(`local_application.set_destination_taf(json.loads(local_taf_json))`);
       }
-      if (path === "calculate" || path === "updateAndRecalculate") {
+      if (calculating) {
         // Commit the same validated draft before acquisition as the facade does before
         // calculation. The existing Application adapter persists it on failure (#124).
         if (path === "updateAndRecalculate") {
@@ -170,6 +177,7 @@ local_application.dispatch_response("updateProject", json.loads(local_body_json)
         // Replay the same action after each explicitly requested asset. No partial
         // calculation is published, persisted, or counted as another user action.
         for (let attempts = 0; attempts < 128; attempts += 1) {
+          reportPhase("calculation");
           const response = pyodide.runPython(`
 import json
 local_application.dispatch_response(local_dispatch_path, json.loads(local_body_json), error_operation=local_path)
@@ -177,6 +185,7 @@ local_application.dispatch_response(local_dispatch_path, json.loads(local_body_j
           const request = (JSON.parse(response) as { weather_request?: WeatherRequest }).weather_request;
           if (!request) return response;
           try {
+            reportPhase("weather");
             await acquireWeather(pyodide, request);
           } catch (error) {
             if (request.model !== "MSM" || request.kind !== "prepared" || !request.asset

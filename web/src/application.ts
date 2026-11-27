@@ -43,7 +43,7 @@ export class ApplicationError extends Error {
     this.name = "ApplicationError";
   }
 }
-export interface CalculationProgress { percent: number; message: string }
+export interface CalculationProgress { percent?: number; message: string }
 export type ProgressListener = (progress: CalculationProgress) => void;
 export interface CalculationOptions { roundingMode: boolean }
 export interface LoadProjectOptions {

@@ -1,6 +1,6 @@
 interface CalculationProgressOverlayProps {
   title?: string;
-  percent: number;
+  percent?: number;
   message: string;
   onSignOut?: () => void;
 }
@@ -22,9 +22,9 @@ export function CalculationProgressOverlay({
         <p className="calculation-progress-eyebrow">{title}</p>
         <div className="calculation-progress-heading">
           <strong>{message}</strong>
-          <span>{percent}%</span>
+          {percent !== undefined && <span>{percent}%</span>}
         </div>
-        <progress value={percent} max={100} aria-label={`${title} ${percent}%`} />
+        <progress value={percent} max={100} aria-label={percent === undefined ? title : `${title} ${percent}%`} />
         <small>このまま画面を開いてお待ちください。</small>
         {onSignOut && <button type="button" className="secondary-button" onClick={onSignOut}>ログアウト</button>}
       </section>
