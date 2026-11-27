@@ -36,7 +36,7 @@ def _rewrite_payload(root: Path, payload: dict[str, object]) -> None:
 def test_bundled_rjfm_pack_loads_source_backed_values() -> None:
     pack = RjfmReferencePack.from_directory(PACK_ROOT)
 
-    assert pack.revision == "2026-11-24-rjfm-umk-guidance-v7"
+    assert pack.revision == "2026-11-28-rjfm-omaru-guidance-v8"
     assert pack.content_fingerprint == hashlib.sha256(
         (PACK_ROOT / "rjfm-reference.json").read_bytes()
     ).hexdigest()
@@ -76,7 +76,8 @@ def test_bundled_map_digitization_keeps_only_public_operational_values() -> None
     assert pack.points["OVER_FIELD"].position.latitude_deg == pytest.approx(
         32.08521636344042
     )
-    assert pack.points["OMARU"].position.latitude_deg == pytest.approx(32.16255070087476)
+    assert pack.points["OMARU"].position.latitude_deg == pytest.approx(32.162744)
+    assert pack.points["OMARU"].position.longitude_deg == pytest.approx(131.473452)
 
     serialized = pack.data.model_dump(mode="json")
     assert "georeferencing" not in serialized

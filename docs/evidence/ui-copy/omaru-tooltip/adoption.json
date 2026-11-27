@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "id": "omaru-map-name",
+      "text": "小丸",
+      "reason": "本人指定により出典の補足を外し、ツールチップに地点名だけを表示する。",
+      "response_quote": "1. **`omaru-map-name`**: 制約に忠実かつ他マーカーとの親和性から、**現行の `小丸` のまま**が最も安全です。",
+      "source": {
+        "path": "web/src/components/MapRouteBuilder.tsx",
+        "start": "<Tooltip>{routePoint ? \"小丸\" : airport ? `${airport.icao} ${airport.name}` : `${reference!.name} ${reference!.name_ja}`}</Tooltip>",
+        "end": "<Tooltip>{routePoint ? \"小丸\" : airport ? `${airport.icao} ${airport.name}` : `${reference!.name} ${reference!.name_ja}`}</Tooltip>",
+        "expected": "<Tooltip>{routePoint ? \"小丸\" : airport ? `${airport.icao} ${airport.name}` : `${reference!.name} ${reference!.name_ja}`}</Tooltip>"
+      }
+    },
+    {
+      "id": "rjfm-reference-sources",
+      "text": "UMK・小丸は利用者指定の参照座標です（未検証）。",
+      "reason": "座標の出典、OVER FIELDに限る推定誤差、KML優先を順に説明する現行文を保持する。",
+      "response_quote": "2. **`rjfm-reference-sources`**: 制約欄のUI領域に縦方向の余裕があれば **候補A（箇条書き型）** が最も誤認が少なく推奨されます。1行〜文章形式の枠であれば **候補B（自然文・整理型）** を推奨します。",
+      "source": {
+        "path": "src/autonavlog/application/rjfm_departure_service.py",
+        "start": "\"UMK・小丸は利用者指定の参照座標です（未検証）。\"",
+        "end": "\"KML座標がある点はKMLを優先します。\"",
+        "expected": "\"UMK・小丸は利用者指定の参照座標です（未検証）。\"\n            \"OVER FIELDは運用参照図からの推定です\"\n            f\"（未検証・推定誤差{over_field_error:.2f} NM）。\"\n            \"KML座標がある点はKMLを優先します。\""
+      }
+    }
+  ]
+}
