@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
-import { execFileSync } from "node:child_process";
-const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+import { fileURLToPath } from "node:url";
+import { buildHead } from "./scripts/unreleased-notes.mjs";
+const head = buildHead(fileURLToPath(new URL("..", import.meta.url)));
 const scenarios = ["ready", "empty", "unavailable", "production"];
 export default defineConfig({
   testDir: "./e2e", testMatch: "unreleased-notes.spec.ts", workers: 1,

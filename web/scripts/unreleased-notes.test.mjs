@@ -78,9 +78,33 @@ test("commit and PR pagination complete before an empty result can be reported",
   assert.equal((await run()).entries[0].number, 543);
 });
 
+test("PR updates, reopening and new PRs during pagination do not omit included changes", async () => {
+  const rows = Array.from({ length: 101 }, (_, n) => ({ ...pull(n + 1, n === 100 ? merged : later),
+    state: "closed", created_at: n, updated_at: 1000 - n }));
+  const { run } = fixture({ requestHook: path => {
+    if (!path.startsWith("/pulls?")) return;
+    const query = new URL(path, "https://example.invalid").searchParams;
+    const page = Number(query.get("page"));
+    const sorted = rows.filter(row => query.get("state") === "all" || row.state === query.get("state"))
+      .sort((a, b) => (a[query.get("sort") + "_at"] - b[query.get("sort") + "_at"])
+        * (query.get("direction") === "asc" ? 1 : -1));
+    const batch = sorted.slice((page - 1) * 100, page * 100).map(row => ({ ...row }));
+    if (page === 1) {
+      rows[100].updated_at = 2000; // Unread target moves to the front in updated order.
+      rows[0].state = "open"; // State filters would also shift offsets.
+      rows.push({ ...pull(102, later), state: "open", created_at: 101, updated_at: 2001 });
+    }
+    return batch;
+  } });
+  assert.deepEqual((await run()).entries.map(entry => entry.number), [101]);
+});
+
 test("pagination failure, invalid/missing notes and unknown release fail closed", async () => {
   const broken = fixture({ requestHook: path => {
-    if (path.startsWith("/pulls?")) throw new Error("rate limited");
+    if (path.startsWith("/pulls?")) {
+      if (path.endsWith("page=1")) return Array.from({ length: 100 }, (_, n) => pull(n + 1, later));
+      throw new Error("rate limited");
+    }
   } });
   await assert.rejects(broken.run(), /rate limited/);
   await assert.rejects(fixture({ releases: [] }).run(), /No included stable release/);

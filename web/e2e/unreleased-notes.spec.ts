@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { buildHead } from "../scripts/unreleased-notes.mjs";
 import { openInformation } from "./helpers/header";
 import { expectPlanningLayout } from "./helpers/planningLayout";
-const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+const head = buildHead(fileURLToPath(new URL("../..", import.meta.url)));
 
 for (const width of [390, 1100, 1440]) {
   test(`Local Docker information at ${width}px`, async ({ page }, testInfo) => {
@@ -17,6 +18,15 @@ for (const width of [390, 1100, 1440]) {
     await openInformation(page);
     const dialog = page.getByRole("dialog", { name: "お知らせ", exact: true });
     await expect(dialog.getByRole("heading", { name: "更新履歴", exact: true })).toBeVisible();
+    if (scenario !== "production") {
+      const close = dialog.getByRole("button", { name: "お知らせを閉じる", exact: true });
+      const history = dialog.getByRole("tab", { name: "お知らせ", exact: true });
+      await expect(close).toBeFocused();
+      await close.press("Shift+Tab");
+      await expect(history).toBeFocused();
+      await history.press("Tab");
+      await expect(close).toBeFocused();
+    }
     const tab = dialog.getByRole("tab", { name: "未リリース", exact: true });
     if (scenario === "production") {
       await expect(tab).toHaveCount(0);
@@ -40,6 +50,14 @@ for (const width of [390, 1100, 1440]) {
         await expect(panel).not.toContainText("未リリースの変更はありません。");
       }
       await expect(dialog.getByRole("heading", { name: "更新履歴", exact: true })).toHaveCount(0);
+      await tab.press("Tab");
+      await expect(panel.getByRole("link").first()).toBeFocused();
+      const last = panel.getByRole("link").last();
+      await last.press("Tab");
+      const close = dialog.getByRole("button", { name: "お知らせを閉じる", exact: true });
+      await expect(close).toBeFocused();
+      await close.press("Shift+Tab");
+      await expect(last).toBeFocused();
       await page.screenshot({ path: testInfo.outputPath("information.png") });
       await tab.press("ArrowLeft");
       await expect(dialog.getByRole("tab", { name: "お知らせ", exact: true })).toBeFocused();

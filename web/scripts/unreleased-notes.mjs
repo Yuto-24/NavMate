@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const repository = "Yuto-24/NavMate";
 const api = `https://api.github.com/repos/${repository}`;
@@ -79,7 +80,9 @@ export async function collectUnreleased({ head, version, request = githubSnapsho
     comparison = await request(`/compare/${baseline.commit}...${head}?per_page=100&page=${page}`);
   }
   const entries = [];
-  if (commits.size) for (const pr of await pages(request, "/pulls?state=closed&sort=updated&direction=desc")) {
+  // Creation order and all states keep offsets stable when existing PRs are updated/reopened.
+  // New PRs append after the existing rows; pin inclusion separately to the build's commits.
+  if (commits.size) for (const pr of await pages(request, "/pulls?state=all&sort=created&direction=asc")) {
     if (!pr.merged_at || !commits.has(pr.merge_commit_sha)) continue;
     if (!Number.isSafeInteger(pr.number) || pr.number <= 0 || typeof pr.title !== "string") {
       throw new Error("Invalid pull request");
@@ -93,8 +96,14 @@ export async function collectUnreleased({ head, version, request = githubSnapsho
   return { status: "ready", head, baseline, entries };
 }
 
+export function buildHead(root) {
+  // Trust only the explicitly selected build checkout, including CI container ownership.
+  return execFileSync("git", ["-c", `safe.directory=${resolve(root)}`, "rev-parse", "HEAD"],
+    { cwd: root, encoding: "utf8" }).trim();
+}
+
 export async function localUnreleased(root, request) {
-  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+  const head = buildHead(root);
   try {
     return await collectUnreleased({ head, version: readFileSync(`${root}/VERSION`, "utf8").trim(), request });
   } catch (error) {
