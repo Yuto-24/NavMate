@@ -91,6 +91,10 @@ JOBS = frozenset(
     }
 )
 WEB_JOBS = frozenset({"web", "local-browser", "account-sync"})
+# The dedicated spec runs in web's application suite. The rendered Fuel Plan
+# and its PNG export are exercised by local-browser.
+DISPLAY_PATHS = frozenset({"web/src/fuelPlanDisplay.ts", "web/e2e/fuel-plan-display.spec.ts"})
+DISPLAY_JOBS = frozenset({"web", "local-browser"})
 PYTHON_JOBS = WEB_JOBS | {"pytest", "runtime", "static-tooling-install"}
 
 
@@ -103,6 +107,8 @@ def classify(change: Change) -> tuple[frozenset[str], str]:
     path = change.path
     if path in {"VERSION", "CHANGELOG.md"} and change.new_mode == "100644":
         return frozenset({"release-build"}), "Release metadata"
+    if path in DISPLAY_PATHS:
+        return DISPLAY_JOBS, "Fuel Plan display only"
     if path.startswith("web/src/") and path.endswith((".ts", ".tsx", ".css")):
         # UI and application state share auth, persistence and sync consumers.
         return WEB_JOBS, "Web source"
