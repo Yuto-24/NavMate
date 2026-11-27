@@ -2976,7 +2976,9 @@ class AutoNavLogWebApplication:
             ordered[-2].role = RouteNodeRole.VISUAL_REPORTING_POINT
             if project.sections:
                 project.sections[-1].phase = FlightPhase.VISUAL_ARRIVAL
-            if len(project.sections) >= 2:
+            if len(project.sections) >= 2 and not (
+                len(project.sections) == 2 and project.sections[0].phase == FlightPhase.CLIMB
+            ):
                 project.sections[-2].phase = FlightPhase.DESCENT
 
             snapshot = current.reference_data_snapshot

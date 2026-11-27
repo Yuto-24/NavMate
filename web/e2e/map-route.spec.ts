@@ -7,6 +7,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { deferPlanningRender, installPlanningRenderDelay } from "./helpers/planningRender";
+import { artifactSessionKey } from "./helpers/localArtifact";
 
 test.beforeEach(async ({ page }) => {
   page.on("console", message => { if (message.type() === "error") console.log(message.text()); });
@@ -229,6 +230,84 @@ for (const width of [1100, 1440]) {
     await page.screenshot({ path: info.outputPath("map-route.png"), fullPage: true });
   });
 }
+
+test("MAP to Planning and NAV LOG #523 two legs, CP, save/reload and Google Earth output", async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "" }));
+  await start(page);
+  await selectAirport(page, "RJFO");
+  await clickMapCoordinate(page, 33.029605, 130.444088);
+  await selectAirport(page, "RJFS");
+  await expect(strip(page).locator("li")).toHaveCount(3);
+  await page.getByRole("button", { name: "経路を確定", exact: true }).click();
+  await page.getByLabel("気象モード").selectOption("FTD");
+  await page.locator('input[aria-label$="出発Legの計画高度"]').first().fill("6500");
+  await page.getByRole("radio", { name: "1000 fpm", exact: true }).check();
+  await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+  const table = page.locator(".nav-log-table");
+  await expect(table).toBeVisible();
+  const savedState = () => page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working, artifactSessionKey);
+  const baseline = await savedState();
+  expect(baseline.project.sections.map((section: any) => section.phase)).toEqual(["CLIMB", "VISUAL_ARRIVAL"]);
+  expect(baseline.outcome.sections.map((section: any) => section.phase)).toEqual(["CLIMB", "CRUISE", "DESCENT", "VISUAL_ARRIVAL"]);
+  await expect(table).toContainText("RCA");
+  await expect(table).toContainText("EOC");
+
+  await page.getByRole("button", { name: "チェックポイントを追加", exact: true }).click();
+  await clickMapCoordinate(page, 33.28, 131.1);
+  const cp = page.locator(".checkpoint-form");
+  await cp.getByLabel("名称", { exact: true }).fill("TWO LEG CP");
+  await cp.getByRole("button", { name: "追加", exact: true }).click();
+  await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+  await expect(table).toContainText("TWO LEG CP");
+  await expect(page.getByRole("button", { name: "地形を再取得", exact: true })).toBeEnabled();
+  const calculated = await savedState();
+  expect(calculated.project.route_nodes).toHaveLength(3);
+  expect(calculated.project.sections).toHaveLength(2);
+  expect(calculated.outcome.check_point_projections).toHaveLength(1);
+  expect(calculated.outcome.fuel_plan.bof_gal).toBeCloseTo(baseline.outcome.fuel_plan.bof_gal, 8);
+  expect(calculated.outcome.sections.at(-1).cumulative_ete_seconds.automatic_value)
+    .toBeCloseTo(baseline.outcome.sections.at(-1).cumulative_ete_seconds.automatic_value, 6);
+  // Both CP intervals overlap cruise; VISUAL ARRIVAL has no SEA display.
+  // RCA/EOC do not add SEA intervals.
+  await expect(table.locator('.nav-log-sea-cell[data-display-text="未確定"]')).toHaveCount(2);
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "プロジェクトを保存しました" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("NavMateを起動しています", { exact: true })).toHaveCount(0, { timeout: 120_000 });
+  await expect(table).toBeVisible();
+  const restored = await savedState();
+  expect(restored.outcome).toEqual(calculated.outcome);
+  expect(restored.project.sections).toEqual(calculated.project.sections);
+  expect(restored.project.visual_references).toEqual(calculated.project.visual_references);
+
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Google Earth", exact: true }).click();
+  const download = await pending;
+  const text = readFileSync((await download.path())!, "utf8");
+  const kml = await page.evaluate(text => {
+    const doc = new DOMParser().parseFromString(text, "application/xml");
+    return {
+      errors: doc.querySelectorAll("parsererror").length,
+      paths: Array.from(doc.querySelectorAll("Placemark")).filter(p => p.querySelector("LineString"))
+        .map(p => ({ phase: p.querySelector('Data[name="phase"] value')!.textContent,
+          points: p.querySelector("coordinates")!.textContent!.trim().split(/\s+/).map(p => p.split(",").map(Number)) })),
+      markers: Array.from(doc.querySelectorAll('Data[name="kind"] value')).map(p => p.textContent),
+    };
+  }, text);
+  expect(kml.errors).toBe(0);
+  expect([...new Set(kml.paths.map(path => path.phase))]).toEqual(["CLIMB", "CRUISE", "DESCENT", "VISUAL_ARRIVAL"]);
+  expect(kml.markers).toEqual(expect.arrayContaining(["RCA", "EOC", "CHECK_POINT"]));
+  for (let index = 1; index < kml.paths.length; index++) {
+    expect(kml.paths[index]!.points[0]).toEqual(kml.paths[index - 1]!.points.at(-1));
+  }
+  const descent = kml.paths.find(path => path.phase === "DESCENT")!;
+  expect(descent.points[0]![2]).toBeCloseTo(6500 * 0.3048, 6);
+  const arrival = restored.last_calculation.outcome.sections.find((zone: any) => zone.phase === "DESCENT")
+    .performance_metadata.target_altitude_ft_msl;
+  expect(descent.points.at(-1)![2]).toBeCloseTo(arrival * 0.3048, 6);
+});
 
 test("repeated airport occurrence removal, clear and new-work cancellation", async ({ page }) => {
   await start(page);
