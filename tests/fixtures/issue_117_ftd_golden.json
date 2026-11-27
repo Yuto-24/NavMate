@@ -2418,6 +2418,6 @@
   "readiness": [],
   "status": "READY_FOR_COPY",
   "converged": true,
-  "policy": "nav2-v15-eoc-altitude-continuity",
+  "policy": "nav2-v16-two-leg-climb-descent",
   "performance": "Reissue A; LOEP checked through Revision A1 (Section 5 pages 5-30 through 5-34 remain Reissue A)"
 }

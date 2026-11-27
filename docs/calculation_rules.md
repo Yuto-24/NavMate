@@ -61,6 +61,12 @@ ATOなどの空欄は埋めません。四捨五入とRAD反方位の選択を�
 
 Flight Phaseは`CLIMB`、`CRUISE`、`DESCENT`、`VISUAL_ARRIVAL`を扱います。
 
+初期PhaseがCLIMBとVISUAL ARRIVALの `FROM → VREP → TO`（3地点・2 Physical Leg）経路では、
+第1 Legを上昇と降下の共通基準とし、その内部のRCA・EOCでCLIMB・CRUISE・DESCENTの実効区間に分割します。
+手動Phase編集や変針点の追加は不要です。VREPで到着計画高度に到達し、第2 LegをVISUAL ARRIVALとして計算します。
+選択降下率・level-off後60秒・実効CRUISE CASと既存の成立性検証を適用し、不成立ならBlockerにします。
+直行2地点経路とRJFM専用往復ポリシーは従来どおりです。
+
 - CLIMBの代表気象高度は、出発空港標高と巡航高度の中間です。
 - CRUISEは巡航高度です。
 - DESCENTは巡航高度とVREP高度の中間です。

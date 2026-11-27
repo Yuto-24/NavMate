@@ -1,6 +1,9 @@
 """Map creation feeds the existing Project and Calculation contracts without KML."""
 
+import base64
+import io
 import json
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -151,6 +154,81 @@ def test_direct_airports_and_repeated_airport_occurrences(local):
     assert len(nodes) == 5
     assert nodes[1]["name"] == nodes[3]["name"] == "RJFO"
     assert nodes[1]["id"] != nodes[3]["id"]
+
+
+@pytest.mark.parametrize("entry", ["map", "edit", "kml", "kmz"])
+def test_two_leg_route_calculation_and_recovery_without_phase_edits(local, entry):
+    points = [
+        point("FROM", airport="RJFO"),
+        point("VREP", 33.029605, 130.444088),
+        point("TO", airport="RJFS"),
+    ]
+    if entry in {"kml", "kmz"}:
+        kml = (
+            '<kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><LineString>'
+            '<coordinates>131.737,33.479,0 130.444088,33.029605,0 '
+            '130.302,33.15,0</coordinates></LineString></Placemark></kml>'
+        )
+        if entry == "kmz":
+            content = io.BytesIO()
+            with zipfile.ZipFile(content, "w", zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("doc.kml", kml)
+            request = {"filename": "two-leg.kmz",
+                       "content_base64": base64.b64encode(content.getvalue()).decode()}
+        else:
+            request = {"filename": "two-leg.kml", "kml_text": kml}
+        imported = json.loads(local.dispatch("importRoute", request))
+        candidate = imported["import"]["candidates"][0]
+        points = [point(f"P{index}", lat, lon)
+                  for index, (lat, lon) in enumerate(candidate["routeCoordinates"])]
+        points[0]["airport_id"] = candidate["departureAirportId"]
+        points[-1]["airport_id"] = candidate["destinationAirportId"]
+    if entry == "edit":
+        original = json.loads(local.dispatch("confirmRoute", payload([
+            points[0], point("TURN", 33.4, 131.1), *points[1:],
+        ])))
+        request = edit_payload(original["project"])
+        request["map_points"].pop(1)
+    else:
+        request = payload(points)
+    state = json.loads(local.dispatch("confirmRoute", request))
+    project = state["project"]
+    assert [section["phase"] for section in project["sections"]] == [
+        "CLIMB", "VISUAL_ARRIVAL",
+    ]
+    local.dispatch("updateProject", {
+        **{key: INPUT["confirm"][key] for key in (
+            "flight_date", "departure_time_jst", "weather_mode", "ftd_weather",
+            "default_variation_deg_east",
+        )},
+        "total_usable_fuel_gal": 90,
+        "selected_pattern_altitude_ft_msl": 1000,
+        "visual_reporting_point_node_id": project["route_nodes"][1]["id"],
+        "sections": [dict(section_id=section["id"], phase=section["phase"],
+                          planned_altitude_ft_msl=6500 if index == 0 else 2500)
+                     for index, section in enumerate(project["sections"])],
+    })
+    calculated = json.loads(local.dispatch("calculate"))
+    assert calculated["readiness"]["calculationIsCurrent"]
+    assert [zone["phase"] for zone in calculated["outcome"]["sections"]] == [
+        "CLIMB", "CRUISE", "DESCENT", "VISUAL_ARRIVAL",
+    ]
+    assert calculated["verticalProfile"] is not None
+    assert len(calculated["project"]["route_nodes"]) == 3
+    assert len(calculated["project"]["sections"]) == 2
+    assert len(calculated["sea"]["intervals"]) == 2
+    assert [row["row_type"] for row in calculated["outcome"]["display_rows"]].count(
+        "PHYSICAL_LEG_SUMMARY",
+    ) == 2
+    restored = json.loads(local.dispatch("bootstrap", calculated["workingRecovery"]))
+    assert restored["project"] == calculated["project"]
+    assert restored["outcome"] == calculated["outcome"]
+    assert restored["verticalProfile"] == calculated["verticalProfile"]
+    assert restored["readiness"]["calculationIsCurrent"]
+    recalculated = json.loads(local.dispatch("calculate"))
+    assert recalculated["outcome"]["summary"] == calculated["outcome"]["summary"]
+    assert recalculated["outcome"]["fuel_plan"] == calculated["outcome"]["fuel_plan"]
+    assert recalculated["verticalProfile"] == calculated["verticalProfile"]
 
 
 @pytest.mark.parametrize(

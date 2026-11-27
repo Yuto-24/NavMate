@@ -198,6 +198,15 @@ def test_ole_radial_split_zones_and_display_arithmetic(course, display_mc, round
     app = LocalApplication(ROOT / "data")
     try:
         app.dispatch("confirmRoute", ole_request(course))
+        # The arbitrary VREP is far from RJFO: its distance-based arrival
+        # altitude exceeds this fixture's 3,000 ft cruise. Use an explicit
+        # arrival altitude to keep testing radial arithmetic across all zones.
+        app.dispatch("updateProject", {
+            **update(app.session.project),
+            "arrival_altitude_mode": "MANUAL_NON_STANDARD_ENTRY",
+            "manual_vrep_altitude_ft_msl": 2500,
+            "manual_vrep_reason": "VOR radial arithmetic fixture",
+        })
         project = app.session.project
         vor = AIRPORT_VORS["RJFU"]
         lat, lon = point_along_leg(vor.latitude_deg, vor.longitude_deg, course, 20)
@@ -208,6 +217,7 @@ def test_ole_radial_split_zones_and_display_arithmetic(course, display_mc, round
         ))
         state = json.loads(app.dispatch("calculate", {"rounding_mode": rounding_mode}))
         outcome = state["outcome"]
+        assert not any(issue["severity"] == "BLOCKER" for issue in outcome["issues"])
         first_id = str(project.ordered_sections()[0].id)
         zones = [z for z in outcome["sections"] if z["section_id"] == first_id]
         assert any(z["to_name"] == "RCA" for z in zones)

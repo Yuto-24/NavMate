@@ -92,7 +92,7 @@ from .rjfm_inbound_plan import is_arita_node, rjfm_inbound_plan_matches_project
 
 @dataclass(frozen=True)
 class CalculationPolicies:
-    version: str = "nav2-v15-eoc-altitude-continuity"
+    version: str = "nav2-v16-two-leg-climb-descent"
     # Kept for serialized policy compatibility. NAV2-v5 uses MSL directly.
     pa_500_policy: Pa500Policy = Pa500Policy.CEILING
     max_iterations: int = 5
@@ -1247,14 +1247,9 @@ class CalculationService:
                     arrival_altitude_ft_msl,
                 )
             )
-            descent_index = next(
-                (
-                    position
-                    for position, geometry in enumerate(geometries)
-                    if geometry.section.phase == FlightPhase.DESCENT
-                ),
-                index,
-            )
+            descent_index = cls._descent_basis_index(geometries)
+            if descent_index is None:
+                descent_index = index
             cruise_index = max(0, descent_index - 1)
             upper_altitude = float(
                 geometries[cruise_index].section.planned_altitude_ft_msl
@@ -1346,14 +1341,7 @@ class CalculationService:
         fixed_rca_distance_nm: float | None = None,
     ) -> list[_LegEnvironment]:
         environments: list[_LegEnvironment] = []
-        descent_basis_index = next(
-            (
-                index
-                for index, geometry in enumerate(geometries)
-                if geometry.section.phase == FlightPhase.DESCENT
-            ),
-            None,
-        )
+        descent_basis_index = self._descent_basis_index(geometries)
         offsets = self._route_leg_offsets(geometries)
         for index, geometry in enumerate(geometries):
             section = geometry.section
@@ -1962,14 +1950,7 @@ class CalculationService:
         _cruise_cas_seed_kt: float | None = None,
         _cas_resolution_attempt: int = 0,
     ) -> _DescentPlan | None:
-        descent_index = next(
-            (
-                index
-                for index, environment in enumerate(environments)
-                if environment.geometry.section.phase == FlightPhase.DESCENT
-            ),
-            None,
-        )
+        descent_index = self._descent_basis_index(geometries)
         if descent_index is None:
             return None
         descent_environment = environments[descent_index]
@@ -2427,9 +2408,7 @@ class CalculationService:
             for index, geometry in enumerate(geometries)
         )
         climb_required = any(geometry.section.phase == FlightPhase.CLIMB for geometry in geometries)
-        descent_required = any(
-            geometry.section.phase == FlightPhase.DESCENT for geometry in geometries
-        )
+        descent_required = self._descent_basis_index(geometries) is not None
         visual_source_id = (
             geometries[-1].section.id
             if geometries and geometries[-1].section.phase == FlightPhase.VISUAL_ARRIVAL
@@ -3682,6 +3661,22 @@ class CalculationService:
     def _numeric(result: WeatherResult, key: str) -> float | None:
         value = result.values.get(key)
         return float(value) if isinstance(value, (int, float)) else None
+
+    @staticmethod
+    def _descent_basis_index(geometries: list[_Geometry]) -> int | None:
+        for index, geometry in enumerate(geometries):
+            if geometry.section.phase == FlightPhase.DESCENT:
+                return index
+        # FROM -> VREP -> TO has one en-route physical Leg. Keep its CLIMB
+        # input while sharing it as the descent basis; RCA/EOC split the actual
+        # calculation zones without adding a turn or changing saved inputs.
+        if (
+            len(geometries) == 2
+            and geometries[0].section.phase == FlightPhase.CLIMB
+            and geometries[1].section.phase == FlightPhase.VISUAL_ARRIVAL
+        ):
+            return 0
+        return None
 
     @staticmethod
     def _descent_target_altitude(
