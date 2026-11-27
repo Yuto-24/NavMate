@@ -6,7 +6,7 @@ import { divIcon } from "leaflet";
 import type { AirportOption } from "../types";
 import { canConfirmMapDraft, type MapRoutePoint } from "../mapRouteDraft";
 
-const omaruMarkerHint = `運用参照図より推定（未検証・誤差${rjfmReference.points.OMARU.estimated_error_nm}NM）`;
+const omaruMarkerHint = "利用者指定の参照座標（未検証）";
 
 function candidateIcon(kind: "airport" | "vrep", selected: boolean) {
   return divIcon({

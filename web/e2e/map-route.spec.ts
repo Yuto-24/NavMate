@@ -379,7 +379,7 @@ for (const width of [1100, 1440]) {
       await expect(page.locator('.route-map')).not.toHaveClass(/leaflet-zoom-anim/);
     }
     await marker.hover();
-    await expect(page.getByRole('tooltip')).toContainText('運用参照図より推定（未検証・誤差0.35NM）');
+    await expect(page.getByRole('tooltip')).toContainText('利用者指定の参照座標（未検証）');
     await marker.click();
     await expect(strip(page).locator('li')).toHaveCount(2);
     await expect(strip(page).locator('li').nth(1)).toContainText('小丸');

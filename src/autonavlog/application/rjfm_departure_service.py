@@ -501,11 +501,13 @@ def _source_effective_dates(pack: RjfmReferencePack) -> dict[str, str]:
 
 
 def _limitations(pack: RjfmReferencePack) -> list[str]:
-    point_error = max(float(point.estimated_error_nm) for point in pack.points.values())
+    over_field_error = pack.points["OVER_FIELD"].estimated_error_nm
     return [
         (
-            "UMK・OVER FIELD・OMARUはレビュー済み運用参照図からの未検証デジタイズです"
-            f"（推定誤差 最大{point_error:.2f} NM）。KML座標がある点はKMLを優先します。"
+            "UMK・小丸は利用者指定の参照座標です（未検証）。"
+            "OVER FIELDは運用参照図からの推定です"
+            f"（未検証・推定誤差{over_field_error:.2f} NM）。"
+            "KML座標がある点はKMLを優先します。"
         ),
         (
             "PCA判定の656–2700 ft MSL（上下端を含む）は利用者承認の運用値で、"

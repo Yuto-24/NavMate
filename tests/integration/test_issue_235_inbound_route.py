@@ -176,6 +176,9 @@ def test_outbound_omaru_input_matches_explicit_umk_and_restores(mode, monkeypatc
                         "kml_text": (ROOT / "tests/fixtures" / fixture).read_text().replace(
                             "131.42429852046251,31.985137767624444",
                             "131.431643,31.982164",
+                        ).replace(
+                            "131.47036916946163,32.16255070087476",
+                            "131.473452,32.162744",
                         ),
                     },
                 )
@@ -195,8 +198,8 @@ def test_outbound_omaru_input_matches_explicit_umk_and_restores(mode, monkeypatc
                     ),
                     {
                         "name": "小丸",
-                        "latitude_deg": 32.16255070087476,
-                        "longitude_deg": 131.47036916946163,
+                        "latitude_deg": 32.162744,
+                        "longitude_deg": 131.473452,
                     },
                     {
                         "name": "米ノ津",
