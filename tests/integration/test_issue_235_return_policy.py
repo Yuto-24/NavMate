@@ -27,7 +27,7 @@ def test_return_completion_geometry_descent_and_restore(
     umk = (
         (31.985237767624444, 131.42439852046251)
         if explicit_umk
-        else (31.985137767624444, 131.42429852046251)
+        else (31.982164, 131.431643)
     )
     arita = (
         (ARITA_COORDINATE[0] + 0.0001, ARITA_COORDINATE[1] + 0.0001)

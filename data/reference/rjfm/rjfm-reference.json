@@ -118,6 +118,20 @@
       "notes": "This source supplies planning-policy values that are not asserted to be AIP or training-document facts, including the 656–2,700 ft inclusive operational PCA test, 20° bank, coordinate trigger radius, and numeric solver tolerances."
     },
     {
+      "id": "user-supplied-umk-coordinate-2026-11-24",
+      "title": "UMK planning reference coordinate update",
+      "publisher": "NavMate user",
+      "distribution": "USER_DECISION",
+      "url": null,
+      "effective_date": "2026-11-24",
+      "retrieved_date": "2026-11-24",
+      "sha256": null,
+      "pages_or_sections": [
+        "UMK reference coordinate"
+      ],
+      "notes": "User-supplied latitude and longitude for NavMate planning. Not independently verified against an official publication."
+    },
+    {
       "id": "user-approved-rjfm-rwy-turn-policy-2026-08-17",
       "title": "RJFM北行き例外のRWY別延長旋回方向に関する利用者決定",
       "publisher": "AutoNavLog user",
@@ -202,15 +216,15 @@
       "id": "UMK",
       "name": "UMK・GC",
       "position": {
-        "latitude_deg": 31.985137767624444,
-        "longitude_deg": 131.42429852046251
+        "latitude_deg": 31.982164,
+        "longitude_deg": 131.431643
       },
       "estimated_error_nm": 0.35,
       "validation_status": "UNVERIFIED_MAP_DIGITIZATION",
       "source_ids": [
-        "cac-rjfm-training-reference"
+        "user-supplied-umk-coordinate-2026-11-24"
       ],
-      "notes": "Reviewed operational-map coordinate. Use a matching KML coordinate in preference to this master value when available."
+      "notes": "User-supplied planning reference; not independently verified. Use a matching KML coordinate in preference to this master value when available."
     },
     "OVER_FIELD": {
       "id": "OVER_FIELD",
