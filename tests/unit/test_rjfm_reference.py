@@ -36,7 +36,7 @@ def _rewrite_payload(root: Path, payload: dict[str, object]) -> None:
 def test_bundled_rjfm_pack_loads_source_backed_values() -> None:
     pack = RjfmReferencePack.from_directory(PACK_ROOT)
 
-    assert pack.revision == "2026-09-16-rjfm-umk-guidance-v6"
+    assert pack.revision == "2026-11-24-rjfm-umk-guidance-v7"
     assert pack.content_fingerprint == hashlib.sha256(
         (PACK_ROOT / "rjfm-reference.json").read_bytes()
     ).hexdigest()
@@ -70,7 +70,9 @@ def test_bundled_map_digitization_keeps_only_public_operational_values() -> None
         for point in pack.points.values()
     )
     assert all(point.estimated_error_nm == 0.35 for point in pack.points.values())
-    assert pack.points["UMK"].position.latitude_deg == pytest.approx(31.985137767624444)
+    assert pack.points["UMK"].position.latitude_deg == 31.982164
+    assert pack.points["UMK"].position.longitude_deg == 131.431643
+    assert pack.points["UMK"].source_ids == ["user-supplied-umk-coordinate-2026-11-24"]
     assert pack.points["OVER_FIELD"].position.latitude_deg == pytest.approx(
         32.08521636344042
     )

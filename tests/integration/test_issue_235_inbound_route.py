@@ -75,6 +75,7 @@ def test_missing_inbound_umk_reaches_navlog_and_survives_restore_and_recalculati
         ]
         assert nodes[-2]["role"] == "VISUAL_REPORTING_POINT"
         assert nodes[2]["role"] == "ROUTE_POINT"
+        assert (nodes[2]["latitude_deg"], nodes[2]["longitude_deg"]) == (31.982164, 131.431643)
         assert nodes[-2]["latitude_deg"] == 31.94977931375614
         assert (
             project["metadata"]["ui_state"]["arrival_plan"]["visual_reporting_point_node_id"]
@@ -172,7 +173,10 @@ def test_outbound_omaru_input_matches_explicit_umk_and_restores(mode, monkeypatc
                     "importRoute",
                     {
                         "filename": fixture,
-                        "kml_text": (ROOT / "tests/fixtures" / fixture).read_text(),
+                        "kml_text": (ROOT / "tests/fixtures" / fixture).read_text().replace(
+                            "131.42429852046251,31.985137767624444",
+                            "131.431643,31.982164",
+                        ),
                     },
                 )
             else:
@@ -182,8 +186,8 @@ def test_outbound_omaru_input_matches_explicit_umk_and_restores(mode, monkeypatc
                         [
                             {
                                 "name": "UMK",
-                                "latitude_deg": 31.985137767624444,
-                                "longitude_deg": 131.42429852046251,
+                                "latitude_deg": 31.982164,
+                                "longitude_deg": 131.431643,
                             }
                         ]
                         if explicit
@@ -249,8 +253,8 @@ def test_outbound_omaru_input_matches_explicit_umk_and_restores(mode, monkeypatc
             assert (parent.from_name, parent.to_name) == ("RJFM", "OMARU")
             zones = outcome.sections[:2]
             assert zones[0].to_name == "UMK/RCA"
-            assert zones[0].to_latitude_deg == 31.985137767624444
-            assert zones[0].to_longitude_deg == 131.42429852046251
+            assert zones[0].to_latitude_deg == 31.982164
+            assert zones[0].to_longitude_deg == 131.431643
             assert zones[0].zone_ete_seconds.adopted() == pytest.approx(
                 zones[0].performance_metadata["planned_duration_seconds"]
             )
