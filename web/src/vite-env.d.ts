@@ -3,6 +3,7 @@
 declare module "*.css";
 
 declare const __LOCAL_MANIFEST_SHA256__: string;
+declare const __MAP_AIRPORTS__: import("./components/MapRouteBuilder").MapAirport[];
 declare const __PYODIDE_VERSION__: string;
 
 interface LocalUnreleasedNotes {

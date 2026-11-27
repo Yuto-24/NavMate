@@ -1,5 +1,6 @@
 """Build the ordinary Python wheel and bundled data for the static Pyodide application."""
 
+import csv
 import hashlib
 import json
 import os
@@ -56,7 +57,14 @@ msm_wheel = root / "vendor/jma_gpv_weather-0.6.0-py3-none-any.whl"
 shutil.copyfile(msm_wheel, target / msm_wheel.name)
 assets = [application_wheel, msm_wheel.name, "data.zip"]
 pyodide_version = json.loads((root / "web/package.json").read_text())["dependencies"]["pyodide"]
+with (root / "data/reference/default/airports.csv").open(encoding="utf-8", newline="") as source:
+    map_airports = [
+        {"id": row["id"], "icao": row["icao"], "name": row["name"],
+         "latitudeDeg": float(row["latitude_deg"]), "longitudeDeg": float(row["longitude_deg"])}
+        for row in csv.DictReader(source)
+    ]
 manifest = {
+    "mapAirports": map_airports,
     "version": (root / "VERSION").read_text().strip(),
     "pyodideVersion": pyodide_version,
     "wheels": assets[:2],

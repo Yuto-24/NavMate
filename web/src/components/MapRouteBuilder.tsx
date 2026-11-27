@@ -19,18 +19,19 @@ const candidateIcons = {
   airport: { unselected: candidateIcon("airport", false), selected: candidateIcon("airport", true) },
   vrep: { unselected: candidateIcon("vrep", false), selected: candidateIcon("vrep", true) },
 };
+export type MapAirport = Pick<AirportOption, "id" | "icao" | "name" | "latitudeDeg" | "longitudeDeg">;
 export interface MapRouteBuilderProps {
   importFitCoordinates?: [number, number][] | null;
   points: MapRoutePoint[];
-  airports: AirportOption[];
+  airports: MapAirport[];
   busy: boolean;
-  onAirport: (airport: AirportOption) => void;
+  onAirport: (airport: MapAirport) => void;
   onReference: (reference: ReferencePointSnapshot) => void;
   onPoint: (latitude: number, longitude: number) => void;
   onNamedPoint: (name: string, latitude: number, longitude: number) => void;
   onRemove: (id: string) => void;
   onClear: () => void;
-  onConfirm: () => void;
+  onConfirm?: () => void;
 }
 export function MapDraftLayers({ points, airports, busy, onAirport, onReference, onPoint, onNamedPoint }: MapRouteBuilderProps) {
   const [zoom, setZoom] = useState<number | null>(null);
@@ -45,7 +46,7 @@ export function MapDraftLayers({ points, airports, busy, onAirport, onReference,
   const omaruSelected = points.some(point => point.latitude_deg === omaru.latitude_deg && point.longitude_deg === omaru.longitude_deg);
   const selectedIds = new Set(points.flatMap(point => point.airport_id ? [`airport:${point.airport_id}`]
     : point.reference_snapshot ? [point.reference_snapshot.reference_id] : []));
-  type Candidate = { id: string; latitude: number; longitude: number; airport?: AirportOption; reference?: ReferencePointSnapshot; routePoint?: boolean };
+  type Candidate = { id: string; latitude: number; longitude: number; airport?: MapAirport; reference?: ReferencePointSnapshot; routePoint?: boolean };
   const candidates = useMemo<Candidate[]>(() => [
     { id: "RJFM:OMARU", latitude: omaru.latitude_deg, longitude: omaru.longitude_deg, routePoint: true },
     ...airports.map(airport => ({ id: `airport:${airport.id}`, latitude: airport.latitudeDeg, longitude: airport.longitudeDeg, airport })),
@@ -100,9 +101,12 @@ export function MapDraftLayers({ points, airports, busy, onAirport, onReference,
   </>;
 }
 export function RouteStrip({ points, busy, onRemove, onClear, onConfirm, children }: MapRouteBuilderProps & { children?: ReactNode }) {
+  const instruction = points.length
+    ? "飛行順に地点を追加し、最後の空港で経路を確定してください。"
+    : "地図をクリックし、経路を作成してください";
   return <div className="map-route-controls">
     <h2 className="draft-card-title" aria-label="経路作成">経路</h2>
-    <p>{points.length ? "飛行順に地点を追加し、最後の空港で経路を確定してください。" : "地図をクリックし、経路を作成してください"}</p>
+    <p>{onConfirm ? instruction : "地図で出発空港から順に地点を選んでください。準備が終わると、到着空港で経路を確定できます。"}</p>
     <ol className="route-strip" aria-label="経路リスト">
       {points.map((point, index) => <li key={point.id}>
         <span>{index + 1}. {point.name}{index === 0 ? " (FROM)" : ""}</span>
@@ -114,7 +118,7 @@ export function RouteStrip({ points, busy, onRemove, onClear, onConfirm, childre
     {children}
     <div className="map-route-actions">
       <button className="secondary-button" disabled={busy || points.length === 0} onClick={onClear}>経路をクリア</button>
-      <button className="primary-button" disabled={busy || !canConfirmMapDraft(points)} onClick={onConfirm}>経路を確定</button>
+      <button className="primary-button" disabled={busy || !onConfirm || !canConfirmMapDraft(points)} onClick={onConfirm}>経路を確定</button>
     </div>
   </div>;
 }

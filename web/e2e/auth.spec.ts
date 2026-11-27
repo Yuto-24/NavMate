@@ -455,6 +455,29 @@ test("blocked Google popup reports an actionable error without resetting anonymo
 
 // Exercise the real main.tsx/StrictMode handover and App, with only the external
 // account preparation replaced. No Firebase account or production data is used.
+test("#530 account revocation clears early input while calculation data is pending", async ({ page, context }) => {
+  const service = await backend(context);
+  await start(page);
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await context.route("**/local/data.zip", async route => { await pending; await route.continue(); });
+  try {
+    await page.evaluate(() => (window as any).authTest.signIn("A"));
+    await expect.poll(async () => (await authState(page)).account?.displayName).toBe("A");
+    const airport = page.locator('.airport-draft-marker[title^="空港 RJFM "]');
+    const cluster = page.locator('.candidate-cluster:has([data-candidates~="airport:RJFM"])');
+    while (!await airport.count()) await cluster.click();
+    await airport.click();
+    await expect(page.locator(".route-strip li")).toHaveCount(1);
+    service.failure = "TOKEN_EXPIRED";
+    await page.evaluate(() => (window as any).authTest.refresh());
+    await expect.poll(async () => (await authState(page)).account).toBeNull();
+    await expect(page.locator(".route-strip li")).toHaveCount(0);
+  } finally { release(); }
+  await enterImportWorkflow(page);
+  await expect(page.locator(".route-strip li")).toHaveCount(0);
+});
+
 async function startupHandover(page: Page) {
   await page.addInitScript(observeStartupProgress);
   await page.route("**/src/createApplication.ts*", route => route.fulfill({ contentType: "application/javascript", body: `
@@ -504,14 +527,14 @@ test("#422 main handover, retry and StrictMode startup keep one bar; new work re
   expect(values.at(-1)).toBe(100);
   expect(values.every((value, index) => index === 0 || value >= values[index - 1])).toBe(true);
   const frames = await page.evaluate(() => (window as any).startupProgressFrames as { percent: number; workspace: boolean }[]);
-  expect(frames.some(frame => frame.percent === 100 && !frame.workspace)).toBe(true);
+  expect(frames.some(frame => frame.percent === 100 && frame.workspace)).toBe(true);
 
   await page.evaluate(() => { (window as any).startupHarness.pause(); (window as any).startupProgressValues.length = 0; });
   await openProjectMenu(page);
   await page.getByRole("button", { name: "新規", exact: true }).click();
   try {
     await expect(page.getByRole("progressbar")).toHaveAttribute("value", "5");
-    await expect(page.locator(".map-frame")).toHaveCount(0);
+    await expect(page.locator(".map-frame")).toBeVisible();
   } finally { await page.evaluate(() => (window as any).startupHarness.release()); }
   await enterImportWorkflow(page);
   const restarted = await page.evaluate(() => (window as any).startupProgressValues as number[]);
