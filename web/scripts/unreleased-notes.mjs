@@ -6,8 +6,12 @@ const api = `https://api.github.com/repos/${repository}`;
 const stableTag = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const sha = /^[a-f0-9]{40}$/;
 
+function visibleBody(body) {
+  return (body ?? "").replace(/<!--[\s\S]*?(?:-->|$)/g, "").replace(/\r\n/g, "\n");
+}
+
 export function pendingNotes(body) {
-  const visible = (body ?? "").replace(/<!--[\s\S]*?-->/g, "").replace(/\r\n/g, "\n");
+  const visible = visibleBody(body);
   const section = visible.match(/^## Pending release notes[ \t]*\n([\s\S]*?)(?=^ {0,3}#{1,2}(?:[ \t]|$)|$(?![\s\S]))/m)?.[1].trim();
   if (!section) throw new Error("Missing pending release notes");
   return /^None[.!]?$/i.test(section) ? null : section;
@@ -81,7 +85,7 @@ export async function collectUnreleased({ head, version, request = githubSnapsho
       throw new Error("Invalid pull request");
     }
     // Release-preparation PRs have finalized CHANGELOG notes, not pending notes.
-    if (/^Release:[ \t]*required[ \t]*$/m.test(pr.body ?? "")) continue;
+    if (/^[ \t]*Release: required[ \t]*$/m.test(visibleBody(pr.body))) continue;
     const notes = pendingNotes(pr.body);
     if (notes) entries.push({ number: pr.number, title: pr.title, notes });
   }

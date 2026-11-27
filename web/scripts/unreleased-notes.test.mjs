@@ -31,10 +31,16 @@ function fixture({ releases = [release("v2.6.0")], commits = [merged], prs = [pu
 test("only merged PRs included in the running build contribute pending notes", async () => {
   const { run } = fixture({ prs: [pull(543), pull(544, later), pull(12, otherLine),
     { ...pull(545), merged_at: null }, pull(546, merged, "None"),
-    { ...pull(547), body: "Release: required" }] });
+    { ...pull(547), body: "  Release: required  \r\n" }] });
   assert.deepEqual(await run(), { status: "ready", head,
     baseline: { version: "2.6.0", commit: base },
     entries: [{ number: 543, title: "Change 543", notes: "- A pending change" }] });
+});
+
+test("commented release markers do not hide an ordinary PR", async () => {
+  const { run } = fixture({ prs: [{ ...pull(543),
+    body: "<!--\nRelease: required\n-->\n" + pull(543).body }] });
+  assert.equal((await run()).entries.length, 1);
 });
 
 test("latest included stable release on the version line excludes ahead main, drafts and prereleases", async () => {
