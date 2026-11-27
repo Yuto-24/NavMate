@@ -10,7 +10,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
-    "test:release-notes": "node --test scripts/generate-release-notes.test.mjs",
+    "test:release-notes": "node --test scripts/generate-release-notes.test.mjs scripts/unreleased-notes.test.mjs",
     "test:e2e": "npm run test:local --",
     "dev:local": "VITE_CALCULATION_MODE=local vite --host 127.0.0.1 --port 5174",
     "build:local": "npm run generate:release-notes && VITE_CALCULATION_MODE=local tsc -b && VITE_CALCULATION_MODE=local vite build --outDir dist-local",
@@ -39,6 +39,7 @@
     "test:static-artifact": "node --test scripts/static-artifact.test.mjs",
     "test:static": "playwright test --config playwright.static.config.ts",
     "test:sync-component": "playwright test --config playwright.sync-component.config.ts",
+    "test:unreleased": "playwright test --config playwright.unreleased.config.ts",
     "test:notification": "playwright test --config playwright.notification.config.ts",
     "test:legacy": "playwright test --config playwright.legacy.config.ts"
   },

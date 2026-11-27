@@ -371,6 +371,7 @@ jobs:
           npm --prefix web run test:auth
           npm --prefix web run test:sync-component
           npm --prefix web run test:notification
+          npm --prefix web run test:unreleased
       - name: Verify Local persistence and session/calculation regression without FastAPI
         if: matrix.suite != 'auth'
         env:
@@ -425,6 +426,7 @@ jobs:
             /tmp/autonavlog-auth-tests
             /tmp/autonavlog-sync-component-browser
             /tmp/navmate-416-443-test-results
+            /tmp/navmate-543-browser
             /tmp/autonavlog-focused-ux-browser
             /tmp/autonavlog-clipboard-playwright
 

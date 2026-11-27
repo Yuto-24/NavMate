@@ -1,6 +1,6 @@
 import { devSharedMode } from "../executionMode";
 import { X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { KnownIssue, ReleaseBlock, ReleaseNote } from "../releaseNotes";
 import { useModalFocusTrap } from "../useModalFocusTrap";
 
@@ -26,6 +26,8 @@ interface InformationDialogProps {
 }
 
 export function InformationDialog({ open, releases, knownIssues, onClose, onOpened }: InformationDialogProps) {
+  const unreleased = __LOCAL_UNRELEASED__;
+  const [activeTab, setActiveTab] = useState("history");
   const dialogRef = useModalFocusTrap<HTMLElement>(open);
   useEffect(() => {
     if (!open) return;
@@ -50,6 +52,32 @@ export function InformationDialog({ open, releases, knownIssues, onClose, onOpen
         <div><h2 id="information-dialog-title">お知らせ</h2><p>NavMateのお知らせ</p></div>
         <button className="icon-button" type="button" onClick={onClose} aria-label="お知らせを閉じる" data-modal-autofocus><X aria-hidden="true" size={20} /></button>
       </div>
+      {unreleased && <div role="tablist" className="information-tabs">
+        {([ ["history", "お知らせ"], ["unreleased", "未リリース"] ] as const).map(([id, label]) => <button
+          key={id} id={`information-tab-${id}`} type="button" className="secondary-button" role="tab" aria-selected={activeTab === id}
+          aria-controls={`information-panel-${id}`} tabIndex={activeTab === id ? 0 : -1}
+          onClick={() => setActiveTab(id)} onKeyDown={(event) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            const next = event.key === "Home" ? "history" : event.key === "End" ? "unreleased"
+              : activeTab === "history" ? "unreleased" : "history";
+            setActiveTab(next);
+            document.getElementById(`information-tab-${next}`)?.focus();
+          }}>{label}</button>)}
+      </div>}
+      {unreleased && activeTab === "unreleased" && <div role="tabpanel" id="information-panel-unreleased" aria-labelledby="information-tab-unreleased">
+        <dl className="information-build">
+          {unreleased.baseline && <><dt>基準リリース</dt><dd><a href={`https://github.com/Yuto-24/NavMate/releases/tag/v${unreleased.baseline.version}`} target="_blank" rel="noopener noreferrer">v{unreleased.baseline.version}</a></dd></>}
+          <dt>稼働中コミット</dt><dd><a href={`https://github.com/Yuto-24/NavMate/commit/${unreleased.head}`} target="_blank" rel="noopener noreferrer"><code>{unreleased.head}</code></a></dd>
+        </dl>
+        {unreleased.status === "unavailable" ? <p role="status">未リリースの変更を取得できませんでした。次回ビルド時に再取得します。</p>
+          : unreleased.entries.length === 0 ? <p>未リリースの変更はありません。</p>
+          : unreleased.entries.map(entry => <article key={entry.number} className="information-release">
+            <h3><a href={`https://github.com/Yuto-24/NavMate/pull/${entry.number}`} target="_blank" rel="noopener noreferrer">#{entry.number} {entry.title}</a></h3>
+            <p className="information-pending-notes"><InlineText text={entry.notes} /></p>
+          </article>)}
+      </div>}
+      {(!unreleased || activeTab === "history") && <div {...(unreleased ? { role: "tabpanel", id: "information-panel-history", "aria-labelledby": "information-tab-history" } : {})}>
       {devSharedMode && <section aria-labelledby="shared-storage-heading">
         <h3 id="shared-storage-heading">保存と同期</h3>
         <p>ログインすると、個人プロジェクトが同期されます。未ログイン時は開発用の共通プロジェクトを利用します。</p>
@@ -78,6 +106,7 @@ export function InformationDialog({ open, releases, knownIssues, onClose, onOpen
           {release.sections.map((section) => <section key={section.title}><h4>{section.title}</h4><ReleaseBlocks blocks={section.blocks} /></section>)}
         </article>)}
       </div>
+      </div>}
     </section>
   </div>;
 }

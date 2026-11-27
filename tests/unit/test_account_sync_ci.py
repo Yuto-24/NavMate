@@ -166,10 +166,10 @@ def test_local_shards_keep_auxiliary_tests_once_and_auth_separate():
         "      - name: Verify auth, browser components and notification recovery\n"
     )[1].split("      - name:")[0]
     assert "if: matrix.suite == 'auth'" in auth_step
-    for suite in ["auth", "sync-component", "notification"]:
+    for suite in ["auth", "sync-component", "notification", "unreleased"]:
         assert f"npm --prefix web run test:{suite}\n" in auth_step
         assert block.count(f"npm --prefix web run test:{suite}\n") == 1
-    for output in ["autonavlog-sync-component-browser", "navmate-416-443-test-results"]:
+    for output in ["autonavlog-sync-component-browser", "navmate-416-443-test-results", "navmate-543-browser"]:
         assert f"/tmp/{output}" in block
     server_step = block.split(
         "      - name: Verify Local persistence and session/calculation "
