@@ -98,35 +98,35 @@ DISPLAY_JOBS = frozenset({"web", "local-browser"})
 PYTHON_JOBS = WEB_JOBS | {"pytest", "runtime", "static-tooling-install"}
 
 
-def affected_jobs(change: Change) -> frozenset[str]:
+def classify(change: Change) -> tuple[frozenset[str], str]:
     if is_documentation(change):
-        return frozenset()
+        return frozenset(), "Documentation"
     # New file types, symlinks, submodules and permission changes are not classified.
     if {change.old_mode, change.new_mode} - {"000000", "100644"}:
-        return JOBS
+        return JOBS, "Unclassified file mode"
     path = change.path
     if path in {"VERSION", "CHANGELOG.md"} and change.new_mode == "100644":
-        return frozenset({"release-build"})
+        return frozenset({"release-build"}), "Release metadata"
     if path in DISPLAY_PATHS:
-        return DISPLAY_JOBS
+        return DISPLAY_JOBS, "Fuel Plan display only"
     if path.startswith("web/src/") and path.endswith((".ts", ".tsx", ".css")):
         # UI and application state share auth, persistence and sync consumers.
-        return WEB_JOBS
+        return WEB_JOBS, "Web source"
     if path.startswith("src/autonavlog/") and path.endswith(".py"):
         # The installed backend is also bundled into the browser and feed tooling.
-        return PYTHON_JOBS
+        return PYTHON_JOBS, "Python source"
     # Both package test commands collect service-local test files at this depth.
     worker_test = re.fullmatch(
         r"services/(msm-trigger|taf-proxy)/[A-Za-z0-9_][A-Za-z0-9_.-]*\.test\.mjs", path
     )
     if worker_test:
-        return frozenset({worker_test.group(1)})
+        return frozenset({worker_test.group(1)}), f"{worker_test.group(1)} dedicated tests"
     if path == "services/taf-proxy/worker.mjs":
-        return frozenset({"taf-proxy", "web", "local-browser"})
+        return frozenset({"taf-proxy", "web", "local-browser"}), "taf-proxy Worker source"
     if path in {"services/msm-trigger/worker.ts", "services/msm-trigger/entrypoint.ts"}:
-        return frozenset({"msm-trigger"})
+        return frozenset({"msm-trigger"}), "msm-trigger Worker source"
     # Other tests, CI, data, other build inputs, dependencies and unknown paths are cross-cutting.
-    return JOBS
+    return JOBS, "Shared or unclassified input"
 
 
 def ci_scope(root: Path, event_name: str, event: dict) -> tuple[frozenset[str], str]:
@@ -139,17 +139,13 @@ def ci_scope(root: Path, event_name: str, event: dict) -> tuple[frozenset[str], 
         return JOBS, "Changed files could not be determined; running full CI."
     if not changes:
         return JOBS, "No changed files were found; running full CI."
-    jobs = frozenset().union(*(affected_jobs(change) for change in changes))
-    if not jobs:
-        return jobs, f"Documentation-only change ({len(changes)} files); source checks only."
-    selected = ", ".join(sorted(jobs))
-    reason = f"Changed {len(changes)} files; selected complete suites: {selected}."
-    if "account-sync" not in jobs and any(change.path in DISPLAY_PATHS for change in changes):
-        reason += (
-            " Fuel Plan display changes are covered by web and local-browser; "
-            "no changed input requires account-sync."
-        )
-    return jobs, reason
+    rules = {classify(change) for change in changes}
+    jobs = frozenset().union(*(suites for suites, _ in rules))
+    reasons = []
+    for suites, label in sorted(rules, key=lambda rule: rule[1]):
+        selected = ", ".join(sorted(suites)) or "source checks only"
+        reasons.append(f"- {label} → {'full CI' if suites == JOBS else selected}")
+    return jobs, "\n".join(reasons)
 
 
 def main(root: Path | None = None) -> None:
@@ -170,7 +166,11 @@ def main(root: Path | None = None) -> None:
             stream.write(output)
     if summary_path := os.environ.get("GITHUB_STEP_SUMMARY"):
         with Path(summary_path).open("a", encoding="utf-8") as stream:
-            stream.write(f"## CI scope\n\n{reason}\n\n| Suite | Required |\n| --- | --- |\n")
+            stream.write(
+                f"## CI scope\n\n{reason}\n\n"
+                "Always required: release-sources and ci-required.\n\n"
+                "| Suite | Required |\n| --- | --- |\n"
+            )
             for job in sorted(JOBS):
                 stream.write(f"| {job} | {'yes' if job in jobs else 'no (skipped)'} |\n")
 

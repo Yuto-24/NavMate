@@ -175,11 +175,11 @@ def test_empty_diff_runs_full_ci(repo):
 @pytest.mark.parametrize(
     "changes,selected,reason",
     [
-        ({"docs/guide.md": "Updated docs"}, set(), "Documentation-only change (1 files)"),
+        ({"docs/guide.md": "Updated docs"}, set(), "Documentation → source checks only"),
         (
             {FUEL_DISPLAY: "source", FUEL_SPEC: "test"},
             {"web", "local-browser"},
-            "no changed input requires account-sync",
+            "Fuel Plan display only → local-browser, web",
         ),
     ],
 )
@@ -208,9 +208,11 @@ def test_github_outputs_and_summary(repo, monkeypatch, changes, selected, reason
     assert check_results(needs) == []
     for job in selected:
         assert check_results({**needs, job: {"result": "skipped"}})
+    assert "Always required: release-sources and ci-required" in summary_path.read_text()
 
     event_path.write_text("invalid JSON")
     ci_changes.main(root)
+    assert "Event payload could not be read" in summary_path.read_text()
     assert all(
         line.endswith("=true")
         for line in output_path.read_text().splitlines()[-len(ci_changes.JOBS) :]
@@ -310,7 +312,7 @@ def test_deleted_and_moved_inputs_retain_both_scopes(repo):
 )
 def test_non_regular_source_falls_back_to_full(mode, path):
     assert (
-        ci_changes.affected_jobs(ci_changes.Change(path, "100644", mode))
+        ci_changes.classify(ci_changes.Change(path, "100644", mode))[0]
         == ci_changes.JOBS
     )
 
@@ -321,3 +323,24 @@ def test_deleted_release_source_runs_full_ci(repo, path):
     base = commit(root, {path: "release input\n"})
     head = commit(root, {path: None})
     assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == ci_changes.JOBS
+
+
+@pytest.mark.parametrize(
+    "paths,reasons",
+    [
+        (["services/msm-trigger/worker.test.mjs"], ["msm-trigger dedicated tests → msm-trigger"]),
+        (
+            ["services/taf-proxy/worker.mjs", "services/taf-proxy/runtime.test.mjs"],
+            [
+                "taf-proxy Worker source → local-browser, taf-proxy, web",
+                "taf-proxy dedicated tests → taf-proxy",
+            ],
+        ),
+        (["unrecognized"], ["Shared or unclassified input → full CI"]),
+    ],
+)
+def test_scope_explains_matching_rules(repo, paths, reasons):
+    root, base = repo
+    head = commit(root, dict.fromkeys(paths, "changed\n"))
+    _, summary = ci_changes.ci_scope(root, "pull_request", pr(base, head))
+    assert set(summary.splitlines()) == {f"- {reason}" for reason in reasons}
