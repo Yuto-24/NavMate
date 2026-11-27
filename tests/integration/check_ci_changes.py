@@ -221,7 +221,10 @@ def test_github_outputs_and_summary(repo, monkeypatch):
         (["services/msm-trigger/worker.ts"], {"msm-trigger"}),
         (["services/msm-trigger/new-case.test.mjs"], {"msm-trigger"}),
         (["services/taf-proxy/new-case.test.mjs"], {"taf-proxy"}),
-        (["services/msm-trigger/worker.ts", "services/msm-trigger/worker.test.mjs"], {"msm-trigger"}),
+        (
+            ["services/msm-trigger/worker.ts", "services/msm-trigger/worker.test.mjs"],
+            {"msm-trigger"},
+        ),
         (
             ["services/taf-proxy/worker.mjs", "services/taf-proxy/runtime.test.mjs"],
             {"taf-proxy", "web", "local-browser"},
@@ -230,7 +233,10 @@ def test_github_outputs_and_summary(repo, monkeypatch):
             ["services/msm-trigger/ops.test.mjs", "services/taf-proxy/crowd.test.mjs"],
             {"msm-trigger", "taf-proxy"},
         ),
-        (["services/msm-trigger/fixtures.mjs", "services/msm-trigger/worker.test.mjs"], ci_changes.JOBS),
+        (
+            ["services/msm-trigger/fixtures.mjs", "services/msm-trigger/worker.test.mjs"],
+            ci_changes.JOBS,
+        ),
         (["services/taf-proxy/nested/new.test.mjs"], ci_changes.JOBS),
         (["services/taf-proxy/.hidden.test.mjs"], ci_changes.JOBS),
         (
