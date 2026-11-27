@@ -1,6 +1,6 @@
 const ENDPOINT = "https://aviationweather.gov/api/data/taf";
 const MAX_BYTES = 64 * 1024;
-const TTL_SECONDS = 300;
+const TTL_SECONDS = 5 * 60;
 
 // Slots are per isolate, not a global concurrency/quota accounting system.
 export function createTafProxy({ fetchUpstream = fetch, cache = () => caches.default, timeoutMs = 5000, now = Date.now } = {}) {
