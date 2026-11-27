@@ -753,10 +753,15 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     if (busy || !state?.project || !state.sea || !application.seaPlan || !application.updateSea) return;
     const key = `${state.project.id}/${state.sea.geometry_key}`;
     if (seaAttemptedRef.current === key) return;
-    seaAttemptedRef.current = key;
-    if (state.sea.intervals.some(item => item.geometry_valid && seaNeedsEvaluation(item.terrain))) {
-      void acquireSeaForProject(false);
-    }
+    if (!state.sea.intervals.some(item => item.geometry_valid && seaNeedsEvaluation(item.terrain))) return;
+    // Give the restored map and planning controls a paint before requesting the terrain plan.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        seaAttemptedRef.current = key;
+        void acquireSeaForProject(false);
+      });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [application, busy, state?.project?.id, state?.sea?.geometry_key]);
 
   const run = (
