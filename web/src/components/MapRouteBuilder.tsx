@@ -6,7 +6,6 @@ import { divIcon } from "leaflet";
 import type { AirportOption } from "../types";
 import { canConfirmMapDraft, type MapRoutePoint } from "../mapRouteDraft";
 
-const omaruMarkerHint = "利用者指定の参照座標（未検証）";
 
 function candidateIcon(kind: "airport" | "vrep", selected: boolean) {
   return divIcon({
@@ -80,7 +79,7 @@ export function MapDraftLayers({ points, airports, busy, onAirport, onReference,
         else if (points.length > 0 && routePoint) onNamedPoint("小丸", candidate.latitude, candidate.longitude);
         else if (points.length > 0 && reference) onReference(reference);
       } }}>
-      <Tooltip>{routePoint ? <>小丸<br />{omaruMarkerHint}</> : airport ? `${airport.icao} ${airport.name}` : `${reference!.name} ${reference!.name_ja}`}</Tooltip>
+      <Tooltip>{routePoint ? "小丸" : airport ? `${airport.icao} ${airport.name}` : `${reference!.name} ${reference!.name_ja}`}</Tooltip>
     </Marker>;
   };
   return <>

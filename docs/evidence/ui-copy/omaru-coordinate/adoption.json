@@ -2,14 +2,14 @@
   "items": [
     {
       "id": "omaru-map-source",
-      "text": "利用者指定の参照座標（未検証）",
-      "reason": "案Aの要素を短い一文にまとめ、個人ごとのカスタム点と受け取られない表現にした。",
+      "text": "小丸",
+      "reason": "本人指定により出典の補足を外し、ツールチップに地点名だけを表示する。",
       "response_quote": "`omaru-map-source`\n- **表示場所**: 経路作成地図の小丸マーカーのツールチップ\n- **目的**: 参照座標の出典と未検証であることを短く伝える\n- **制約**: 正式な公示点や第三者検証済みと誤解させない。精度は断定しない。\n\n#### 案A（標準・簡潔）：現行案ベース\n- **文言案**: `参照座標：利用者指定（未検証）`\n- **選定理由**: \n  - ツールチップという極小のUI領域で瞬時に意味を把握できます。「参照座標」と明記することで、公的なウェイポイント等ではなく単なるリファレンスであることを明確にできます。\n- **懸念点**: \n  - 地図上で他の公認FIX等と混在している場合、初見のユーザーが「なぜここだけ未検証なのか」を疑問に思う可能性があります（ただしツールチップの役割としては十分です）。",
       "source": {
         "path": "web/src/components/MapRouteBuilder.tsx",
-        "start": "const omaruMarkerHint = \"利用者指定の参照座標（未検証）\";",
-        "end": "const omaruMarkerHint = \"利用者指定の参照座標（未検証）\";",
-        "expected": "const omaruMarkerHint = \"利用者指定の参照座標（未検証）\";"
+        "start": "<Tooltip>{routePoint ? \"小丸\" : airport ? `${airport.icao} ${airport.name}` : `${reference!.name} ${reference!.name_ja}`}</Tooltip>",
+        "end": "<Tooltip>{routePoint ? \"小丸\" : airport ? `${airport.icao} ${airport.name}` : `${reference!.name} ${reference!.name_ja}`}</Tooltip>",
+        "expected": "<Tooltip>{routePoint ? \"小丸\" : airport ? `${airport.icao} ${airport.name}` : `${reference!.name} ${reference!.name_ja}`}</Tooltip>"
       }
     },
     {

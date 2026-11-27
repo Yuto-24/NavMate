@@ -366,7 +366,7 @@ test("direct airport route survives failed local persistence and can be saved", 
 });
 
 for (const width of [1100, 1440]) {
-  test(`Issue 235: click OMARU with correct provenance and restore the draft at ${width}px`, async ({ page }) => {
+  test(`Issue 235: click the OMARU marker and restore the draft at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1100 });
     await start(page);
     await expect(page.locator('.map-route-controls .field-hint')).toHaveCount(0);
@@ -379,7 +379,7 @@ for (const width of [1100, 1440]) {
       await expect(page.locator('.route-map')).not.toHaveClass(/leaflet-zoom-anim/);
     }
     await marker.hover();
-    await expect(page.getByRole('tooltip')).toContainText('利用者指定の参照座標（未検証）');
+    await expect(page.getByRole('tooltip')).toHaveText('小丸');
     await marker.click();
     await expect(strip(page).locator('li')).toHaveCount(2);
     await expect(strip(page).locator('li').nth(1)).toContainText('小丸');
