@@ -9,6 +9,7 @@ if (args.some(arg => !["--allow-dirty", "--local-runtime"].includes(arg))) throw
 const allowDirty = args.includes("--allow-dirty");
 const localRuntime = args.includes("--local-runtime");
 const env = { ...loadEnv("production", ".", ""), ...process.env, VITE_CALCULATION_MODE: "local" };
+env.NAVMATE_LOCAL_DOCKER = localRuntime ? "1" : "0";
 // Empty values override Vite's .env files as well as inherited shell configuration.
 const accountKeys = ["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID",
   "VITE_FIREBASE_APP_ID", "VITE_LEGACY_MIGRATION_URL"];

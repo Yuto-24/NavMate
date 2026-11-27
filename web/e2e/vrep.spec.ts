@@ -23,6 +23,8 @@ async function expectConcentricVrep(page: Page) {
 for (const width of [1100, 1440]) {
   test(`VREP mixed clusters, repeated selections, arbitrary point and saved snapshots at ${width}px`, async ({ page }, info) => {
     test.setTimeout(180_000);
+    // Keep background SEA saves independent of external terrain response timing.
+    await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
     await page.setViewportSize({ width, height: 1100 });
     await page.addInitScript(() => {
       if (!localStorage.getItem("autonavlog.map-viewport.v1.anonymous.last")) {
@@ -145,6 +147,8 @@ for (const width of [1100, 1440]) {
     }, { savedId, legacy: legacyHitotsuba });
     await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(savedId);
+    // A background SEA update can make the current Draft require explicit discard.
+    page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
     await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
     await expect(page.locator(".candidate-cluster, .vrep-draft-marker")).toHaveCount(0);

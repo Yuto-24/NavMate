@@ -477,6 +477,8 @@ test("Pyodide core: saved Run, UMK, OMARU, inbound, overrides and Check Point", 
 
 for (const width of [1100, 1440]) {
   test(`#350 dedicated ARITA descent needs no altitude input, ${width}px`, async ({ page }) => {
+    // This case verifies the fixed descent, not live terrain acquisition latency.
+    await page.route("**/xyz/dem_png/**", route => route.fulfill({ status: 404, body: "fixture missing" }));
     const explicit = width === 1440;
     const coordinates = [
       "131.7371201529664,33.47949406702627,0",

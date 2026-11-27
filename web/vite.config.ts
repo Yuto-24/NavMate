@@ -2,8 +2,10 @@ import { defineConfig, loadEnv } from "vite";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import react from "@vitejs/plugin-react";
+// @ts-expect-error Build-only JavaScript module, never part of the browser bundle.
+import { localUnreleased } from "./scripts/unreleased-notes.mjs";
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
   const local = loadEnv(mode, ".").VITE_CALCULATION_MODE === "local";
   const manifest = local ? readFileSync("public-local/local/manifest.json") : undefined;
   if (manifest) {
@@ -16,6 +18,8 @@ export default defineConfig(({ mode }) => {
   }
   return {
     define: {
+      __LOCAL_UNRELEASED__: JSON.stringify(process.env.NAVMATE_LOCAL_DOCKER === "1"
+        ? await localUnreleased("..") : null),
       __LOCAL_MANIFEST_SHA256__: JSON.stringify(manifest ? createHash("sha256").update(manifest).digest("hex") : ""),
       __PYODIDE_VERSION__: JSON.stringify(manifest ? JSON.parse(manifest.toString()).pyodideVersion : ""),
     },
