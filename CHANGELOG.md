@@ -2,6 +2,34 @@
 
 NavMate のRelease履歴です。公開日時はGitHub Releaseを正本とします。
 
+## 2.7.0
+
+### 利用者向け
+
+#### 改善
+- 計算用データの準備中でも、地図で新規経路の地点を追加できます。「経路を確定」を押した後、準備が残っている場合だけ進捗を表示します。
+- NAV LOG の計算中は、入力の保存、気象データの準備、結果の反映が進むごとにゲージを更新します。
+- 経路確定後に地形の評価を始め、参考 SEA は評価が終わった区間から表示します。チェックポイントを編集しても、変更の影響がない範囲は再評価しません。保存済みプロジェクトを開いた後も、評価中に地図や計画を操作できます。
+- SEA の評価範囲を見直しました。区間の境界は経路に直角とし、変針の外側を含めます。SEA と注意表示は巡航にかかる区間だけが対象です。
+- プロジェクトの保存・計算・JSON 出力で、変更していない他のプロジェクトの再検証を省きます。
+- プロジェクト用 JSON は経路の確定前に取り込めます。NAV LOG 末尾の出力から保存した JSON は、既存のプロジェクトを上書きせず、新規プロジェクトとして取り込めます。JSON と PNG の保存名にプロジェクト名と出力時刻（JST）が入ります。
+
+#### 修正
+- 出発空港 → VREP → 到着空港の2レグ経路で、第1レグ内の上昇・巡航・降下と RCA・EOC を自動計算できるようにしました。
+- 小丸の参照座標と、小丸経由の往路・帰路で自動補完する UMK の座標を更新しました。手入力や KML で指定した座標は維持します。
+- 地図の凡例とツールチップから「中心除外 9 km」の表示を削除しました。データの内容は変わりません。
+
+### 開発者向け
+
+- [#560](https://github.com/Yuto-24/NavMate/pull/560)・[#565](https://github.com/Yuto-24/NavMate/pull/565)：新規経路の先行入力と、確定操作後の準備表示
+- [#539](https://github.com/Yuto-24/NavMate/pull/539)・[#559](https://github.com/Yuto-24/NavMate/pull/559)：端末内計算の進捗表示
+- [#531](https://github.com/Yuto-24/NavMate/pull/531)・[#549](https://github.com/Yuto-24/NavMate/pull/549)・[#557](https://github.com/Yuto-24/NavMate/pull/557)：地形評価の再利用と保存時の再検証削減
+- [#512](https://github.com/Yuto-24/NavMate/pull/512)・[#519](https://github.com/Yuto-24/NavMate/pull/519)：Project JSON の交換と出力操作
+- [#532](https://github.com/Yuto-24/NavMate/pull/532)・[#533](https://github.com/Yuto-24/NavMate/pull/533)・[#538](https://github.com/Yuto-24/NavMate/pull/538)：経路の参照座標と2レグの自動計算
+- [#546](https://github.com/Yuto-24/NavMate/pull/546)：開発用 Local Docker のお知らせに、稼働中のビルドに含まれる未リリース変更を表示
+- [#547](https://github.com/Yuto-24/NavMate/pull/547)・[#554](https://github.com/Yuto-24/NavMate/pull/554)・[#555](https://github.com/Yuto-24/NavMate/pull/555)・[#561](https://github.com/Yuto-24/NavMate/pull/561)・[#562](https://github.com/Yuto-24/NavMate/pull/562)：PR の変更に応じた CI 選択、Actions Summary の理由表示、詳細な Local E2E の main 検証
+- [#513](https://github.com/Yuto-24/NavMate/pull/513)・[#515](https://github.com/Yuto-24/NavMate/pull/515)・[#517](https://github.com/Yuto-24/NavMate/pull/517)・[#518](https://github.com/Yuto-24/NavMate/pull/518)・[#563](https://github.com/Yuto-24/NavMate/pull/563)：公開前の履歴・互換性確認、手動移行経路、Firestore の移行証跡とアクセス分離の検証
+
 ## 2.6.0
 
 ### 利用者向け
