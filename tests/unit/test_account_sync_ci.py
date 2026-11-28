@@ -156,11 +156,14 @@ def test_invalid_sync_shard_never_runs_tests(command_runner, shard):
 def test_local_shards_keep_auxiliary_tests_once_and_auth_separate():
     source = (ROOT / ".github/workflows/test.yml").read_text()
     block = source.split("  local-browser-tests:\n")[1].split("  local-browser:\n")[0]
-    assert "suite: [local, acceptance, focused-ux, clipboard, auth]" in block
+    assert '["local","acceptance","focused-ux","clipboard","auth"]' in block
     assert "skip_local_auth: ${{ steps.changes.outputs.skip_local_auth }}" in source
     assert "shard: [1]" in block
+    assert '["smoke","auth"]' in block
+    assert "--grep '#534 PR smoke:'" in block
+    assert "github.event_name == 'pull_request' && '[]'" in block
     for shard in [2, 3, 4]:
-        assert f"- {{suite: local, shard: {shard}}}" in block
+        assert f'{{"suite":"local","shard":{shard}}}' in block
     assert "npm --prefix web run test:local -- --workers=2 --shard=${{ matrix.shard }}/4" in block
     assert block.count("if: matrix.suite == 'local' && matrix.shard == 1") == 2
     auth_step = block.split(

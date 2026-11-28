@@ -201,7 +201,7 @@ def test_github_outputs_and_summary(repo, monkeypatch, changes, selected, reason
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", os.fspath(summary_path))
     ci_changes.main(root)
     assert set(output_path.read_text().splitlines()) == {
-        f"skip_local_auth={str(reason.startswith('Local browser auth')).lower()}"
+        f"skip_local_auth={str('local-browser' in selected).lower()}"
     } | {
         f"run_{job.replace('-', '_')}={str(job in selected).lower()}" for job in ci_changes.JOBS
     }
@@ -348,8 +348,15 @@ def test_deleted_release_source_runs_full_ci(repo, path):
 def test_scope_explains_matching_rules(repo, paths, reasons):
     root, base = repo
     head = commit(root, dict.fromkeys(paths, "changed\n"))
-    _, summary, _ = ci_changes.ci_scope(root, "pull_request", pr(base, head))
-    assert set(summary.splitlines()) == {f"- {reason}" for reason in reasons}
+    _, summary, skip_auth = ci_changes.ci_scope(root, "pull_request", pr(base, head))
+    expected = {f"- {reason}" for reason in reasons}
+    if "services/taf-proxy/worker.mjs" in paths:
+        assert skip_auth
+        expected.add(
+            "- Local browser auth suite skipped: "
+            "selected inputs do not affect authentication or sync."
+        )
+    assert set(summary.splitlines()) == expected
 
 
 @pytest.mark.parametrize(

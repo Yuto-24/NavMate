@@ -96,6 +96,21 @@ async function serveForecast(context: BrowserContext) {
 }
 test.beforeEach(async ({ context }) => { await blockApi(context); await serveForecast(context); });
 
+test("#534 PR smoke: create, calculate, save and restore a Local project", async ({ page, context }) => {
+  await context.route("https://cyberjapandata.gsi.go.jp/xyz/dem*/**", route => route.fulfill({ status: 404 }));
+  await start(page);
+  await confirm(page, "FTD");
+  await calculate(page);
+  await save(page, "PR smoke");
+  const id = (await working(page)).project.id;
+  await page.reload();
+  await expect(page.locator(".nav-log-table")).toBeVisible();
+  await expect.poll(async () => (await working(page)).project?.id).toBe(id);
+  const saved = (await records(page)).find(record => record.id === id);
+  expect(saved?.checkpoint?.name).toBe("PR smoke");
+  expect(saved?.lastCalculation).toBeTruthy();
+});
+
 test("#355 startup reload recovers after asset failure and preserves saved Project, result and committed inputs", async ({ page, context }) => {
   test.setTimeout(240_000);
   await start(page);

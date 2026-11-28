@@ -18,8 +18,8 @@ PR headと一致することを確認し、第1親（実際に検証したbase�
 | `AGENTS.md`、通常ファイルとして残る `README.md`、`docs/` の文書・証跡のみ | source 検証のみ |
 | 通常ファイルとして残る `VERSION` / `CHANGELOG.md` | release-build |
 | 燃料計画表の表示値生成（`web/src/fuelPlanDisplay.ts`）と専用テスト（`web/e2e/fuel-plan-display.spec.ts`）の片方または両方 | web、local-browser |
-| 地図背景・NAV LOG の SEA 表示とその専用テスト | web、local-browser。Local の対象がこの表示差分だけなら auth 行を省略 |
-| 担当が特定できる地図・SEA・認証・保存・同期の専用 Web テスト | テストを実行する suite。web が分割・収集も確認するテストは web を併用 |
+| 地図背景・NAV LOG の SEA 表示とその専用テスト | web、local-browser。短いE2Eのみで認証ジョブは不要 |
+| 担当が特定できる地図・SEA・認証・保存・同期の専用 Web テスト | 担当 suite を選択。Local の詳細ケースは main・手動実行で検証 |
 | 上記以外の `web/src/` 内の `.ts` / `.tsx` / `.css` | web、local-browser、account-sync |
 | `src/autonavlog/` 内の `.py` | pytest、runtime、web、local-browser、account-sync、static-tooling-install |
 | `services/taf-proxy/worker.mjs` | taf-proxy、web、local-browser |
@@ -30,7 +30,7 @@ PR headと一致することを確認し、第1親（実際に検証したbase�
 Worker 専用テストの限定選択は、ファイル名が半角英数字かアンダースコアで始まり、残りが半角英数字・アンダースコア・ピリオド・ハイフンの場合に適用します。テストの削除や検証項目の縮小を含む PR では、同じ振る舞いをどのテストで保証するかレビューで確認します。
 
 燃料計画表では、専用テストが表示値と元データの保持を、ブラウザテストが表と PNG 出力を検証します。
-SEA 計算と地形取得は端末間で保存結果を照合する検査にも影響します。その他の Web ソースは画面と共有状態の依存が広いため、保存・NAV LOG・認証・同期の全マトリクスを維持します。
+SEA 計算と地形取得は端末間で保存結果を照合する検査にも影響します。その他の Web ソースは画面と共有状態の依存が広いため、認証・同期に影響しないと分類できない変更では、認証・同期を省きません。
 Python はブラウザの計算エンジンと配信ツールにも組み込まれるため、golden / regression を
 含む pytest 全体と、それらの利用側の検証を維持します。現行保証のassertionと必要なbrowser profileを維持し、担当suiteは下表で定めます。
 pytestの分配とブラウザの分割方法は後述します。
@@ -109,12 +109,12 @@ python -m pytest --noconftest tests/integration/check_release_merge.py \
 | TGL、MC丸め、燃料/時間合計、GSI tile構造 | `test:application` | 対象PR・main。forms / display-rounding / fuel-plan-displayと、`web.spec.ts`から抽出したGSI 3件を実行。ブラウザ・サーバー不要 |
 | 認証初期化待ち・reload・別account拒否、同期dialogのrefresh失敗・draft guard | `test:sync-component`、24実行 | 対象PR・mainのLocal auth runner。既存HTML harnessと実DOM/dialogを使い、Chromium・iPad WebKit・iPhone WebKitを保持。Firestore / Pythonは不要 |
 | 代表的な同期、競合、削除、アカウント切替 | `test:sync`、30実行 | 対象PR・mainの既存6 runners。実SDK、Firestore emulator、Local保存・計算の結合を保持。移管24件との合計は従来の54実行 |
-| Clipboard activation / fallback / pending / 確定後制限 | Clipboard suite、20実行 | 対象PR・main。ChromiumとWebKitを保持。Localでも選択していた同一Chromium 4件はClipboard側だけに集約 |
-| 通知の期限、独立した失敗保持、retry、focus / scroll | `test:notification`、18件 | 対象PR・mainのLocal auth runner。390 / 1100 / 1440pxと既存入力を保持。account / sync harnessはcomponent、App harnessは実Local Application / Pyodideを使うためLocal assetsが必要 |
-| Local FTD / 固定MSM、保存・reload、Worker障害、重要な操作導線 | `test:local`、66件と既存acceptance / focused UX / auth等 | 対象PR・main。数値比較、実Worker、IndexedDB、既存ブラウザ・端末profileを保持。Unitの同じ入力と重複扱いにしない |
-| manifest不一致の拒否とreload復旧 | `test:static`の既存caseをLocal shard 1でも選択 | 対象PR・mainではfixture buildの実Workerと保存値復元。配布時は同じcaseを実候補artifactに対して実行 |
-| 気象取得失敗の通知とNAV LOG / Last Calculation保持 | `local-weather.spec.ts`の既存cold/warm/evictionフローへ統合 | 対象PR・mainでは固定catalog / NPZと503を使う。外部MSMを取得せず、実Worker・ブラウザcache・保存結果を検証 |
-| migration / rescue / 予備API、残存FastAPI runtime | Python・migration / forecast-backup Browser・runtime suite | 対象PR・main。移行本人識別、owner隔離、旧データ、専用BackupJobs、起動・非root・Python 3.12を保持。旧画面の停止や救済期間終了を推測しない |
+| Clipboard activation / fallback / pending / 確定後制限 | Clipboard suite、20実行 | main・手動実行。ChromiumとWebKitを保持。Localでも選択していた同一Chromium 4件はClipboard側だけに集約 |
+| 通知の期限、独立した失敗保持、retry、focus / scroll | `test:notification`、18件 | main・手動実行のLocal auth runner。390 / 1100 / 1440pxと既存入力を保持。account / sync harnessはcomponent、App harnessは実Local Application / Pyodideを使うためLocal assetsが必要 |
+| Local FTD / 固定MSM、保存・reload、Worker障害、重要な操作導線 | `test:local`と既存acceptance / focused UX等 | main・手動実行。数値比較、実Worker、IndexedDB、既存ブラウザ・端末profileを保持。Unitの同じ入力と重複扱いにしない |
+| manifest不一致の拒否とreload復旧 | `test:static`の既存caseをLocal shard 1でも選択 | main・手動実行ではfixture buildの実Workerと保存値復元。配布時は同じcaseを実候補artifactに対して実行 |
+| 気象取得失敗の通知とNAV LOG / Last Calculation保持 | `local-weather.spec.ts`の既存cold/warm/evictionフローへ統合 | main・手動実行では固定catalog / NPZと503を使う。外部MSMを取得せず、実Worker・ブラウザcache・保存結果を検証 |
+| migration / rescue / 予備API、残存FastAPI runtime | Python・migration / forecast-backup Browser・runtime suite | 移行・Rulesとruntimeは対象PR・main。forecast-backup Browserはmain・手動実行。移行本人識別、owner隔離、旧データ、専用BackupJobs、起動・非root・Python 3.12を保持。旧画面の停止や救済期間終了を推測しない |
 | Static / Local Updaterの配布候補と運用 | 既存tooling / artifact tests、公開前後・Updater検査 | 配布時。fresh rebuild、実feed・設定・Rules、候補Static E2Eを保持。source CI再利用は[#460](https://github.com/Yuto-24/NavMate/issues/460)の担当 |
 
 ### 廃止・移管したアサーション
@@ -567,9 +567,15 @@ GitHub側ではsetup-pythonのrestoreとpost saveを含めて測る。上記ロ�
 採用目的は約100 MBの外部wheel再取得への依存を減らすことである。
 
 
-### Independent CI shards
+### PR の短いE2Eと main の詳細E2E
 
-`local-browser-tests` runs the existing Local regression selection on four runners using
+PRでLocalブラウザ検証が選択された場合は、Chromium 1台で起動、経路確定、NAV LOG計算、
+Project保存、再読み込み後の復元までを確認します。認証・同期に関係する変更、または関連を
+否定できない変更では、既存の認証・同期検査も必須です。詳細E2EをPR後に移すため、
+詳細ケースでしか見つからない不具合は、mainへのマージ後に検知します。
+公開用の検証と `ci-required` の必須登録は変更しません。
+
+On main pushes and manual runs, `local-browser-tests` runs the existing Local regression selection on four runners using
 Playwright's file-level `--shard=N/4`. Tests within a file remain ordered, and each runner
 keeps `--workers=2`. New selected tests are assigned by Playwright, without a file allowlist.
 Terrain, static storage notice, manifest mismatch/reload and forecast-backup tests run once, on Local shard 1.
