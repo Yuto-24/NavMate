@@ -10,6 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 import ci_changes  # noqa: E402
+from check_ci_results import check_results  # noqa: E402
 
 
 def git(root, *args):
@@ -45,6 +46,10 @@ def repo(tmp_path):
         },
     )
     return tmp_path, base
+
+
+FUEL_DISPLAY = "web/src/fuelPlanDisplay.ts"
+FUEL_SPEC = "web/e2e/fuel-plan-display.spec.ts"
 
 
 def pr(base, head):
@@ -102,6 +107,7 @@ def test_pr_uses_merge_base_and_all_commits_on_the_pr(repo):
     "changes",
     [
         {"docs/guide.md": "Updated docs\n"},
+        {FUEL_DISPLAY: "source", FUEL_SPEC: "test"},
         {"VERSION": "1.0.0\n"},
         {"CHANGELOG.md": "Release notes\n"},
         {"VERSION": "1.0.0\n", "CHANGELOG.md": "Release notes\n"},
@@ -166,9 +172,20 @@ def test_empty_diff_runs_full_ci(repo):
     assert ci_changes.ci_scope(root, "pull_request", pr(base, base))[0] == ci_changes.JOBS
 
 
-def test_github_outputs_and_summary(repo, monkeypatch):
+@pytest.mark.parametrize(
+    "changes,selected,reason",
+    [
+        ({"docs/guide.md": "Updated docs"}, set(), "Documentation → source checks only"),
+        (
+            {FUEL_DISPLAY: "source", FUEL_SPEC: "test"},
+            {"web", "local-browser"},
+            "Fuel Plan display only → local-browser, web",
+        ),
+    ],
+)
+def test_github_outputs_and_summary(repo, monkeypatch, changes, selected, reason):
     root, base = repo
-    head = commit(root, {"docs/guide.md": "Updated docs\n"})
+    head = commit(root, changes)
     event_path = root / "event.json"
     output_path = root / "output.txt"
     summary_path = root / "summary.md"
@@ -179,12 +196,23 @@ def test_github_outputs_and_summary(repo, monkeypatch):
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", os.fspath(summary_path))
     ci_changes.main(root)
     assert set(output_path.read_text().splitlines()) == {
-        f"run_{job.replace('-', '_')}=false" for job in ci_changes.JOBS
+        f"run_{job.replace('-', '_')}={str(job in selected).lower()}" for job in ci_changes.JOBS
     }
-    assert "Documentation-only change (1 files)" in summary_path.read_text()
+    assert reason in summary_path.read_text()
+
+    outputs = dict(line.split("=") for line in output_path.read_text().splitlines())
+    needs = {
+        job: {"result": "success" if job in selected else "skipped"} for job in ci_changes.JOBS
+    }
+    needs["release-sources"] = {"result": "success", "outputs": outputs}
+    assert check_results(needs) == []
+    for job in selected:
+        assert check_results({**needs, job: {"result": "skipped"}})
+    assert "Always required: release-sources and ci-required" in summary_path.read_text()
 
     event_path.write_text("invalid JSON")
     ci_changes.main(root)
+    assert "Event payload could not be read" in summary_path.read_text()
     assert all(
         line.endswith("=true")
         for line in output_path.read_text().splitlines()[-len(ci_changes.JOBS) :]
@@ -212,6 +240,14 @@ def test_github_outputs_and_summary(repo, monkeypatch):
         (["CHANGELOG.md", ".github/workflows/test.yml"], ci_changes.JOBS),
         (["VERSION", "web/package-lock.json"], ci_changes.JOBS),
         (["web/src/components/NavLogTable.tsx"], ci_changes.WEB_JOBS),
+        ([FUEL_DISPLAY], {"web", "local-browser"}),
+        ([FUEL_SPEC], {"web", "local-browser"}),
+        ([FUEL_DISPLAY, FUEL_SPEC], {"web", "local-browser"}),
+        ([FUEL_DISPLAY, FUEL_SPEC, "web/src/localProjectRepository.ts"], ci_changes.WEB_JOBS),
+        ([FUEL_DISPLAY, "web/src/auth.ts"], ci_changes.WEB_JOBS),
+        ([FUEL_SPEC, "web/src/accountSync.ts"], ci_changes.WEB_JOBS),
+        ([FUEL_DISPLAY, "web/vite.config.ts"], ci_changes.JOBS),
+        ([FUEL_SPEC, "web/e2e/other-display.spec.ts"], ci_changes.JOBS),
         (["web/src/styles.css"], ci_changes.WEB_JOBS),
         (["web/src/accountSync.ts", "web/src/auth.ts"], ci_changes.WEB_JOBS),
         (["web/src/localProjectRepository.ts"], ci_changes.WEB_JOBS),
@@ -276,7 +312,7 @@ def test_deleted_and_moved_inputs_retain_both_scopes(repo):
 )
 def test_non_regular_source_falls_back_to_full(mode, path):
     assert (
-        ci_changes.affected_jobs(ci_changes.Change(path, "100644", mode))
+        ci_changes.classify(ci_changes.Change(path, "100644", mode))[0]
         == ci_changes.JOBS
     )
 
@@ -287,3 +323,24 @@ def test_deleted_release_source_runs_full_ci(repo, path):
     base = commit(root, {path: "release input\n"})
     head = commit(root, {path: None})
     assert ci_changes.ci_scope(root, "pull_request", pr(base, head))[0] == ci_changes.JOBS
+
+
+@pytest.mark.parametrize(
+    "paths,reasons",
+    [
+        (["services/msm-trigger/worker.test.mjs"], ["msm-trigger dedicated tests → msm-trigger"]),
+        (
+            ["services/taf-proxy/worker.mjs", "services/taf-proxy/runtime.test.mjs"],
+            [
+                "taf-proxy Worker source → local-browser, taf-proxy, web",
+                "taf-proxy dedicated tests → taf-proxy",
+            ],
+        ),
+        (["unrecognized"], ["Shared or unclassified input → full CI"]),
+    ],
+)
+def test_scope_explains_matching_rules(repo, paths, reasons):
+    root, base = repo
+    head = commit(root, dict.fromkeys(paths, "changed\n"))
+    _, summary = ci_changes.ci_scope(root, "pull_request", pr(base, head))
+    assert set(summary.splitlines()) == {f"- {reason}" for reason in reasons}

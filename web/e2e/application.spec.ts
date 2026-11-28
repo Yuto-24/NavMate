@@ -183,7 +183,7 @@ test("Local uses common operations, real progress milestones, and durable reposi
   await app.replaceCheckPoints([]);
   await app.acknowledge("key", true);
   expect(await app.calculate(value => progress.push(value))).toBe(state);
-  expect(progress).toEqual([{ message: "計算を開始しています。" }, { message: "計算が完了しました。" }]);
+  expect(progress).toEqual([{ percent: 20, message: "計算を開始しています。" }, { percent: 90, message: "計算結果を反映しています。" }]);
   expect(operations).toEqual(["bootstrap", "updateProject", "updateAndRecalculate", "renameRouteNode", "replaceCheckPoints", "acknowledge", "calculate"]);
   await expect(app.saveProject("name")).rejects.toMatchObject({ code: "PROJECT_REQUIRED" });
   await expect(app.loadProject("id")).rejects.toMatchObject({ code: "LOCAL_PROJECT_UNAVAILABLE" });
@@ -200,7 +200,7 @@ test("Local failure never invokes Legacy or emits successful progress", async ()
   const app = new LocalApplication(browserPlatform.persistence.createProjectRepository, () => ({ request: async () => { throw domainError; }, dispose() {} }));
   const progress: CalculationProgress[] = [];
   await expect(app.calculate(value => progress.push(value))).rejects.toBe(domainError);
-  expect(progress).toEqual([{ message: "計算を開始しています。" }]);
+  expect(progress).toEqual([{ percent: 20, message: "計算を開始しています。" }]);
   const unavailable = new LocalApplication(browserPlatform.persistence.createProjectRepository, () => { throw new Error("Worker internals"); });
   await expect(unavailable.bootstrap()).rejects.toMatchObject({ code: "APPLICATION_UNAVAILABLE" });
   expect(calls).toEqual([]);

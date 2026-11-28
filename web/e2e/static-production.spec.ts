@@ -40,7 +40,8 @@ test("production artifact rejects a different build manifest and recovers on rel
   await page.locator('#route-file').setInputFiles("../tests/fixtures/issue_43_golden.kml");
   await confirmImportedDraft(page);
   await page.getByLabel("FUEL gal", { exact: true }).fill("76");
-  await expect.poll(() => page.evaluate(key => sessionStorage.getItem(key), artifactSessionKey)).toContain("76");
+  await expect.poll(() => page.evaluate(key =>
+    JSON.parse(sessionStorage.getItem(key) ?? "null")?.working.project?.total_usable_fuel_gal, artifactSessionKey)).toBe(76);
   await context.route("**/local/manifest.json", async route => {
     const response = await route.fetch();
     const manifest = await response.json();

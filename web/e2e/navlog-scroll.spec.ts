@@ -65,6 +65,10 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
       this.addEventListener("error", () => { (window as any).localWorkerFailed = true; }, { once: true });
       if (message?.type === "APPLY" && message.argumentList?.[0]?.value === "calculate") {
         (window as any).navLogScrollsAtCalculationStart = (window as any).navLogScrolls;
+        if ((window as any).holdCalculation) {
+          (window as any).resumeCalculation = () => (originalPostMessage as any).call(this, message, ...args);
+          return;
+        }
       }
       return (originalPostMessage as any).call(this, message, ...args);
     };
@@ -147,6 +151,26 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await expect(toast).toHaveCount(0);
   await page.clock.runFor(5_000);
   await expect.poll(tableValues).toEqual(firstTable);
+  // Change the displayed date after the calculation inputs have been saved.
+  const previousScrolls = await page.evaluate(() => {
+    (window as any).holdCalculation = true;
+    return (window as any).navLogScrolls;
+  });
+  await page.getByRole("button", { name: "NAV LOGを再計算", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Boolean((window as any).resumeCalculation))).toBe(true);
+  await page.getByLabel("DATE", { exact: true }).fill("2026-09-12");
+  await page.evaluate(() => {
+    (window as any).holdCalculation = false;
+    (window as any).resumeCalculation();
+  });
+  await expect(page.getByRole("status", { name: "NAV LOGを計算中" })).toHaveCount(0);
+  await expect(toast).toHaveCount(0);
+  await page.clock.runFor(500);
+  expect(await page.evaluate(() => (window as any).navLogScrolls)).toBe(previousScrolls);
+  await page.getByLabel("DATE", { exact: true }).fill("2026-09-11");
+  await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
+  await expect(toast).toBeVisible();
+  await toast.getByRole("button", { name: "メッセージを閉じる" }).click();
   await page.clock.resume();
 
   // Exercise Issue #276 against the real Local result in the hosted browser job.

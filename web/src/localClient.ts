@@ -34,13 +34,13 @@ export class LocalClient {
   }
 
   async request<T>(path: string, body?: unknown, onStartup?: (progress: StartupProgress) => void,
-    onCalculationPhase?: (phase: LocalCalculationPhase) => void): Promise<T> {
+    onCalculationPhase?: (phase: LocalCalculationPhase, percent: number) => void): Promise<T> {
     if (this.terminalError) throw this.terminalError;
     this.onStartup = onStartup;
     // LocalApplication serializes requests. Observe phases only while this request is active.
     const receivePhase = ({ data }: MessageEvent) => {
       if (!this.terminalError && data?.type === "calculation-phase"
-        && (data.phase === "weather" || data.phase === "calculation")) onCalculationPhase?.(data.phase);
+        && (data.phase === "weather" || data.phase === "calculation")) onCalculationPhase?.(data.phase, data.percent);
     };
     if (onCalculationPhase) this.worker.addEventListener("message", receivePhase);
     let timer: ReturnType<typeof setTimeout> | undefined;

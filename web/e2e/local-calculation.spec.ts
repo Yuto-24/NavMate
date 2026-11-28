@@ -1,3 +1,4 @@
+import { observeCalculationProgress } from "./helpers/calculationProgress";
 import { openProjectMenu } from "./helpers/header";
 import { test } from "./helpers/localArtifact";
 import { enterImportWorkflow, confirmImportedDraft } from "./helpers/importWorkflow";
@@ -82,8 +83,14 @@ for (const width of [390, 1100, 1440]) {
       await input.fill(altitude!);
       await input.blur();
     }
+    const readProgress = await observeCalculationProgress(page);
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
     await expect(page.locator(".nav-log-table")).toBeVisible();
+    const progress = await readProgress();
+    expect(progress[0]).toBe(0);
+    expect(progress).toContain(35);
+    expect(progress).toContain(90);
+    expect(progress).toEqual([...progress].sort((a, b) => a - b));
     await expect(page.getByRole("radio", { name: "四捨五入", exact: true })).toBeChecked();
     await expect(page.getByRole("checkbox", { name: "RAD反方位" })).toBeChecked();
     // Keep the existing unrounded Golden as a regression oracle, explicitly selecting it.
@@ -282,9 +289,13 @@ for (const width of [390, 1100, 1440]) {
       await expect(normal).toBeEnabled();
     }
     const previousTable = await page.locator(".nav-log-table").innerText();
+    const readFailedProgress = await observeCalculationProgress(page);
     await page.evaluate(() => { (window as any).failLocalCalculation = true; });
     await mode.click();
     await expect(page.getByRole("alert").filter({ hasText: "入力内容を確認してください。" })).toBeVisible();
+    const failedProgress = await readFailedProgress();
+    expect(failedProgress[0]).toBe(0);
+    expect(Math.max(...failedProgress)).toBeLessThan(90);
     expect(await page.locator(".nav-log-table").innerText()).toBe(previousTable);
     await expect(mode).not.toBeChecked();
     await expect(normal).toBeChecked();
