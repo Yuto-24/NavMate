@@ -18,6 +18,8 @@ PR headと一致することを確認し、第1親（実際に検証したbase�
 | `AGENTS.md`、通常ファイルとして残る `README.md`、`docs/` の文書・証跡のみ | source 検証のみ |
 | 通常ファイルとして残る `VERSION` / `CHANGELOG.md` | release-build |
 | 燃料計画表の表示値生成（`web/src/fuelPlanDisplay.ts`）と専用テスト（`web/e2e/fuel-plan-display.spec.ts`）の片方または両方 | web、local-browser |
+| 地図背景・NAV LOG の SEA 表示とその専用テスト | web、local-browser。Local の対象がこの表示差分だけなら auth 行を省略 |
+| 担当が特定できる地図・SEA・認証・保存・同期の専用 Web テスト | テストを実行する suite。web が分割・収集も確認するテストは web を併用 |
 | 上記以外の `web/src/` 内の `.ts` / `.tsx` / `.css` | web、local-browser、account-sync |
 | `src/autonavlog/` 内の `.py` | pytest、runtime、web、local-browser、account-sync、static-tooling-install |
 | `services/taf-proxy/worker.mjs` | taf-proxy、web、local-browser |
@@ -28,7 +30,7 @@ PR headと一致することを確認し、第1親（実際に検証したbase�
 Worker 専用テストの限定選択は、ファイル名が半角英数字かアンダースコアで始まり、残りが半角英数字・アンダースコア・ピリオド・ハイフンの場合に適用します。テストの削除や検証項目の縮小を含む PR では、同じ振る舞いをどのテストで保証するかレビューで確認します。
 
 燃料計画表では、専用テストが表示値と元データの保持を、ブラウザテストが表と PNG 出力を検証します。
-その他の Web ソースは画面と共有状態の依存が広いため、保存・NAV LOG・認証・同期の全マトリクスを維持します。
+SEA 計算と地形取得は端末間で保存結果を照合する検査にも影響します。その他の Web ソースは画面と共有状態の依存が広いため、保存・NAV LOG・認証・同期の全マトリクスを維持します。
 Python はブラウザの計算エンジンと配信ツールにも組み込まれるため、golden / regression を
 含む pytest 全体と、それらの利用側の検証を維持します。現行保証のassertionと必要なbrowser profileを維持し、担当suiteは下表で定めます。
 pytestの分配とブラウザの分割方法は後述します。
