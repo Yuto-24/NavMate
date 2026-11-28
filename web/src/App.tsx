@@ -1653,6 +1653,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     const requestedProjectId = state?.project?.id;
     calculationInFlight.current = true;
     cancelPendingRecalculation();
+    const generation = calculationInputGenerationRef.current;
     invalidateDestinationPatternRequests();
     scrollToCalculatedNavLogRef.current = null;
     setCalculationProgress({ percent: 0, message: "入力内容を保存しています。" });
@@ -1667,13 +1668,16 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         })),
         roundingMode === undefined ? undefined : { roundingMode },
       );
-      scrollToCalculatedNavLogRef.current = next.outcome;
+      if (generation === calculationInputGenerationRef.current && next.readiness.calculationIsCurrent) {
+        scrollToCalculatedNavLogRef.current = next.outcome;
+      }
       return next;
     }, undefined, {
       syncCalculationInputs: true,
       operation: "calculate",
     });
-    if (calculated?.outcome && calculated.readiness.calculationIsCurrent) {
+    if (calculated?.outcome && calculated.readiness.calculationIsCurrent
+      && generation === calculationInputGenerationRef.current) {
       setCalculationProgress({ percent: 100, message: "計算が完了しました。" });
       if (requestedPattern !== null
         && calculated.project?.id === requestedProjectId
