@@ -524,22 +524,21 @@ test("#422 main handover, retry and StrictMode startup keep one bar; new work re
   await page.evaluate(() => (window as any).startupHarness.show());
   await enterImportWorkflow(page);
   const values = await page.evaluate(() => (window as any).startupProgressValues as number[]);
-  expect(values.at(-1)).toBe(100);
+  expect(values).toContain(32);
   expect(values.every((value, index) => index === 0 || value >= values[index - 1])).toBe(true);
   const frames = await page.evaluate(() => (window as any).startupProgressFrames as { percent: number; workspace: boolean }[]);
-  expect(frames.some(frame => frame.percent === 100 && frame.workspace)).toBe(true);
+  expect(frames.some(frame => frame.workspace)).toBe(false);
 
   await page.evaluate(() => { (window as any).startupHarness.pause(); (window as any).startupProgressValues.length = 0; });
   await openProjectMenu(page);
   await page.getByRole("button", { name: "新規", exact: true }).click();
   try {
-    await expect(page.getByRole("progressbar")).toHaveAttribute("value", "5");
+    await expect(page.getByRole("progressbar")).toHaveCount(0);
     await expect(page.locator(".map-frame")).toBeVisible();
   } finally { await page.evaluate(() => (window as any).startupHarness.release()); }
   await enterImportWorkflow(page);
   const restarted = await page.evaluate(() => (window as any).startupProgressValues as number[]);
-  expect(restarted[0]).toBe(5);
-  expect(restarted.at(-1)).toBe(100);
+  expect(restarted).toEqual([]);
 });
 
 test("#422 handover preserves sign out while pending and after failure", async ({ page }) => {

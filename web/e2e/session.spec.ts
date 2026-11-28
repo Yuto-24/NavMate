@@ -57,18 +57,29 @@ async function calculated(page: Page) {
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
 }
-test("#530 #422 route input during suspended assets survives validated readiness", async ({ page, context }) => {
+test("#564 #530 #422 deferred route confirmation during suspended assets", async ({ page, context }) => {
   test.skip(!isLocal(), "Local startup progress");
   await context.addInitScript(observeStartupProgress);
+  await context.addInitScript(() => {
+    (window as any).confirmRequests = 0;
+    const original = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, ...options: any[]) {
+      if (message.type === "APPLY" && message.argumentList?.[0]?.value === "confirmRoute") {
+        (window as any).confirmRequests++;
+      }
+      return original.call(this, message, ...options);
+    };
+  });
   await open(page); // An empty same-tab session must still allow early input on reload.
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
   await context.route("**/local/data.zip", async route => { await pending; await route.continue(); });
+  const assetsRequested = context.waitForEvent("request", { predicate: req => req.url().endsWith("/local/data.zip"), timeout: 120_000 });
   await page.reload({ waitUntil: "domcontentloaded" });
   const bar = page.getByRole("progressbar", { name: "準備の進み具合" });
   try {
-    await expect(page.getByRole("status")).toHaveText("計算用プログラムとデータを読み込んでいます", { timeout: 120_000 });
-    await expect(bar).toHaveCount(1);
+    await assetsRequested;
+    await expect(bar).toHaveCount(0);
     const originalViewport = page.viewportSize()!;
     for (const width of [390, 1100, 1280]) {
       await page.setViewportSize({ width, height: 850 });
@@ -76,25 +87,49 @@ test("#530 #422 route input during suspended assets survives validated readiness
     }
     await page.setViewportSize(originalViewport);
     await selectAirport(page, "RJFM");
+    const confirm = page.getByRole("button", { name: "経路を確定", exact: true });
+    await expect(confirm).toBeDisabled();
+    await clickMapCoordinate(page, 31.95, 131.5);
+    await page.getByRole("button", { name: "2番目のWP1を削除" }).click();
+    await expect(page.locator(".route-strip li")).toHaveCount(1);
     await clickMapCoordinate(page, 31.95, 131.5);
     await selectAirport(page, "RJFM");
     await expect(page.locator(".route-strip li")).toHaveCount(3);
-    await expect(page.getByRole("button", { name: "経路を確定" })).toBeDisabled();
+    await expect(bar).toHaveCount(0);
+    await expect(confirm).toBeEnabled();
+    await confirm.evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
+    await expect(confirm).toBeDisabled();
+    await expect(bar).toBeVisible();
+    await expect(page.getByRole("status")).toHaveText("計算用プログラムとデータを読み込んでいます");
     await expect(page.locator(".nav-log-table")).toHaveCount(0);
     const barBox = await bar.boundingBox(), stageBox = await page.getByRole("status").boundingBox();
     expect(stageBox!.y).toBeGreaterThanOrEqual(barBox!.y + barBox!.height);
   } finally { release(); }
   await enterImportWorkflow(page);
   await expect(bar).toHaveCount(0);
-  await expect(page.locator(".route-strip li")).toContainText(["RJFM", "WP1", "RJFM"]);
-  await expect(page.getByRole("button", { name: "経路を確定" })).toBeEnabled();
+  await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
+  const project = (await snapshot(page)).working.project;
+  expect(project.route_nodes.map((node: { name: string }) => node.name)).toEqual(["RJFM", "WP1", "RJFM"]);
+  expect(await page.evaluate(() => (window as any).confirmRequests)).toBe(1);
   const values = await page.evaluate(() => (window as unknown as { startupProgressValues: number[] }).startupProgressValues);
   expect(values.length).toBeGreaterThan(3);
-  expect(values[0]).toBeLessThanOrEqual(5);
   expect(values.at(-1)).toBe(100);
   expect(values.every((value, index) => value >= 0 && value <= 100 && (index === 0 || value >= values[index - 1]))).toBe(true);
   const frames = await page.evaluate(() => (window as any).startupProgressFrames as { percent: number; workspace: boolean }[]);
   expect(frames.some(frame => frame.percent === 100 && frame.workspace)).toBe(true);
+});
+
+test("#564 #530 ready route confirms without showing startup progress", async ({ page, context }) => {
+  test.skip(!isLocal(), "Local startup progress");
+  await context.addInitScript(observeStartupProgress);
+  await open(page);
+  await selectAirport(page, "RJFM");
+  await clickMapCoordinate(page, 31.95, 131.5);
+  await selectAirport(page, "RJFM");
+  await page.evaluate(() => { (window as any).startupProgressValues.length = 0; });
+  await page.getByRole("button", { name: "経路を確定", exact: true }).click();
+  await expect(page.getByLabel("DATE", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).startupProgressValues)).toEqual([]);
 });
 
 test("#530 restoring a calculated session and starting another route keep both tabs independent", async ({ page, context }) => {
@@ -133,21 +168,36 @@ test("#355 startup reload replaces a failed Worker", async ({ page, context }) =
       constructor(url: string | URL, options?: WorkerOptions) {
         super(url, options);
         sessionStorage.setItem("issue355-worker-failed", "1");
-        setTimeout(() => this.dispatchEvent(new ErrorEvent("error", { message: "private Worker stack and token" })), 0);
+        (window as any).failStartup = () => this.dispatchEvent(new ErrorEvent("error", { message: "private Worker stack and token" }));
       }
     };
   });
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const requested = context.waitForEvent("request", { predicate: req => req.url().endsWith("/local/data.zip"), timeout: 120_000 });
+  await context.route("**/local/data.zip", async route => { await pending; await route.continue(); }, { times: 1 });
   await page.goto("/");
-  await expect(page.getByRole("alert").locator("code")).toHaveText("APPLICATION_UNAVAILABLE");
-  await expect(page.getByRole("progressbar", { name: "準備の進み具合" })).toHaveCount(0);
-  await expect(page.locator("body")).not.toContainText("private Worker stack and token");
-  await selectAirport(page, "RJFM");
+  const confirm = page.getByRole("button", { name: "経路を確定", exact: true });
+  try {
+    await selectAirport(page, "RJFM");
+    await selectAirport(page, "RJFM");
+    await confirm.click();
+    await expect(page.getByRole("progressbar")).toBeVisible();
+    await requested;
+    await page.evaluate(() => (window as any).failStartup());
+    await expect(page.getByRole("alert").locator("code")).toHaveText("APPLICATION_UNAVAILABLE");
+    await expect(page.getByRole("progressbar")).toHaveCount(0);
+    await expect(confirm).toBeDisabled();
+    await expect(confirm.locator("..").getByRole("button", { name: "起動を再試行" })).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("private Worker stack and token");
+  } finally { release(); }
   const firstDocument = await page.evaluate(() => performance.timeOrigin);
   await page.getByRole("button", { name: "起動を再試行", exact: true }).click();
   await enterImportWorkflow(page);
   await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
   expect(await page.evaluate(() => performance.timeOrigin)).not.toBe(firstDocument);
-  await expect(page.locator(".route-strip li")).toContainText(["RJFM"]);
+  await expect(page.locator(".route-strip li")).toContainText(["RJFM", "RJFM"]);
+  await expect(confirm).toBeEnabled();
 });
 
 test("#351 stale recovery permits recalculation with historical blockers and an unapplied pattern altitude", async ({ page }) => {

@@ -5,8 +5,8 @@ import { MapBackground } from "./MapBackground";
 import { MapDraftLayers, RouteStrip, type MapRouteBuilderProps } from "./MapRouteBuilder";
 import { MapViewport } from "./MapViewport";
 
-export function StartupRoute({ builder, storage, scope, children }: {
-  builder: MapRouteBuilderProps; storage: KeyValueStorage; scope: string; children: ReactNode;
+export function StartupRoute({ builder, storage, scope, children, confirmDisabled, retry }: {
+  builder: MapRouteBuilderProps; storage: KeyValueStorage; scope: string; children: ReactNode; confirmDisabled: boolean; retry: ReactNode;
 }) {
   return <div className="app-shell">
     <div className="app-workspace is-route-building">
@@ -22,7 +22,7 @@ export function StartupRoute({ builder, storage, scope, children }: {
         <div className="planning-pane">
           <div className="planning-pane-scroll">
             {children}
-            <RouteStrip {...builder} />
+            <RouteStrip {...builder} confirmDisabled={confirmDisabled} retry={retry} />
           </div>
         </div>
       </section>

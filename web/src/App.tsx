@@ -134,6 +134,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const [kmzOpen, setKmzOpen] = useState(false);
   const [state, setState] = useState<WebState | null>(null);
   const [mapRouteDraft, setMapRouteDraft] = useState<MapRoutePoint[]>([]);
+  const pendingStartupRoute = useRef<MapRoutePoint[] | null>(null);
   const [editingRouteProjectId, updateEditingRouteProjectId] = useState<string | null>(null);
   const editingRouteProjectIdRef = useRef<string | null>(null);
   const setEditingRouteProjectId = (id: string | null) => {
@@ -528,9 +529,16 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       }
       if (failed) { recordOperationError("recovery", RECOVERY_FAILED); setError(RECOVERY_FAILED); }
       setSessionReady(true);
+      const points = pendingStartupRoute.current;
+      if (points) {
+        pendingStartupRoute.current = null;
+        void confirmMapPoints(next.airports, points);
+      }
     };
     void bootstrap().catch((reason: unknown) => {
       if (!active) return;
+      pendingStartupRoute.current = null;
+      setBusy(false);
       setError(localMode || !(reason instanceof ApplicationError)
         ? "処理を実行できませんでした。画面を再読み込みしてください。"
         : reason.message);
@@ -980,8 +988,12 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     const pendingDraft = pendingCandidate ? importCandidateToMapDraft(pendingCandidate, state.airports) : null;
     const points = pendingImportDraft ? (pendingDraft?.status === "ready" ? pendingDraft.points : []) : mapRouteDraft;
     if (!canConfirmMapDraft(points)) return;
-    const defaults = initialPlanningForm(state.airports);
-    const from = state.airports.find(airport => airport.id === points[0]?.airport_id);
+    await confirmMapPoints(state.airports, points);
+  };
+
+  const confirmMapPoints = async (airports: WebState["airports"], points: MapRoutePoint[]) => {
+    const defaults = initialPlanningForm(airports);
+    const from = airports.find(airport => airport.id === points[0]?.airport_id);
     const confirmed = await run(() => application.confirmRoute({
       departure_origin: departureOriginForAirport(form, from?.id ?? ""),
       edit_project_id: editingRouteProjectId ?? undefined,
@@ -1977,41 +1989,40 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     }]),
     onRemove: (id: string) => setMapRouteDraft(current => current.filter(point => point.id !== id)),
     onClear: () => { if (confirmDiscardMapDraft()) { setMapRouteDraft([]); setPendingImportDraft(false); } },
-    onConfirm: state ? () => void handleConfirmMapRoute() : undefined,
+    onConfirm: () => {
+      if (state) void handleConfirmMapRoute();
+      else if (!error && !pendingStartupRoute.current && canConfirmMapDraft(mapRouteDraft)) {
+        pendingStartupRoute.current = mapRouteDraft;
+        setBusy(true);
+      }
+    },
   } : undefined;
 
   if (!state) {
-    const progress = (
-      <StartupScreen source={application.startup} showProgress={localMode && !error}>
-        {localMode && restoringRoute && <a href={window.location.href} target="_blank" rel="noopener">作業を残して別タブで新規経路を作成</a>}
-        {error && (
-          <>
-            <p role="alert">{error}<br /><code>{bootstrapErrorCode}</code></p>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => {
-                if (localMode) {
-                  window.location.reload();
-                  return;
-                }
-                setError(null);
-                setBootstrapErrorCode(null);
-                setBootstrapAttempt((attempt) => attempt + 1);
-              }}
-            >
-              起動を再試行
-            </button>
-          </>
-        )}
-      </StartupScreen>
-    );
+    const retry = error && <button className="secondary-button" type="button" onClick={() => {
+      if (localMode) {
+        window.location.reload();
+        return;
+      }
+      setError(null);
+      setBootstrapErrorCode(null);
+      setBootstrapAttempt(attempt => attempt + 1);
+    }}>起動を再試行</button>;
+    const failure = error && <p role="alert">{error}<br /><code>{bootstrapErrorCode}</code></p>;
     if (localMode && !restoringRoute && mapBuilder) return (
-      <StartupRoute builder={mapBuilder} storage={platform.persistence.values} scope={viewportScope}>
-        {progress}
+      <StartupRoute builder={mapBuilder} storage={platform.persistence.values} scope={viewportScope}
+        confirmDisabled={Boolean(error)} retry={retry}>
+        {failure}
+        {busy && !error && <StartupScreen source={application.startup} />}
       </StartupRoute>
     );
-    return progress;
+    return (
+      <StartupScreen source={application.startup} showProgress={localMode && !error}>
+        {localMode && restoringRoute && <a href={window.location.href} target="_blank" rel="noopener">作業を残して別タブで新規経路を作成</a>}
+        {failure}
+        {retry}
+      </StartupScreen>
+    );
   }
 
   const selectedDestinationAirport = state.airports.find(
