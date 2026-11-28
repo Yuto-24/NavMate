@@ -6,14 +6,42 @@ import contextlib
 import json
 import re
 from pathlib import Path
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from scripts.static_ops import app_release as app
 
 MAX_DOCUMENT = 900 * 1024
 MAX_RESPONSE = 12 * 1024 * 1024
+ISOLATION_PROJECTS = ("navmate-prod", "navmate-6b281")
+ISOLATION_DOCUMENT = "_navmate_acceptance/migration_evidence_isolation_v1"
+ISOLATION_ERROR_LIMIT = 8192
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def is_read_denial(error):
+    if error.code != 403:
+        return False
+    try:
+        raw = error.read(ISOLATION_ERROR_LIMIT + 1)
+        if len(raw) > ISOLATION_ERROR_LIMIT:
+            return False
+        payload = json.loads(raw)
+        info = payload.get("error") if isinstance(payload, dict) else None
+    except (ValueError, OSError):
+        return False
+    if not isinstance(info, dict) or info.get("status") != "PERMISSION_DENIED":
+        return False
+    message = info.get("message")
+    return message == "Missing or insufficient permissions." or (
+        isinstance(message, str)
+        and message.startswith("Permission 'datastore.entities.get' denied ")
+    )
 
 
 def canonical(value):
@@ -100,22 +128,43 @@ class Firestore:
                 info, scopes=["https://www.googleapis.com/auth/datastore"])
             self.base = "https://firestore.googleapis.com/v1/" + self.root
 
-    def request(self, path, body=None, *, method="POST", missing=False):
-        headers = {"Content-Type": "application/json"}
-        if self.credentials is not None:
-            from google.auth.transport.requests import Request as AuthRequest
+    def authorization(self):
+        if self.credentials is None:
+            return "Bearer owner"
 
-            # Refresh before expiration even after a long build; scopes belong only to evidence SA.
-            if not self.credentials.valid:
-                auth = AuthRequest()
-                try:
-                    self.credentials.refresh(lambda **kw: auth(**{**kw, "timeout": 30}))
-                finally:
-                    auth.session.close()
-            app.require(self.credentials.valid, "Evidence authentication unavailable")
-            headers["Authorization"] = "Bearer " + self.credentials.token
-        else:
-            headers["Authorization"] = "Bearer owner"
+        from google.auth.transport.requests import Request as AuthRequest
+
+        # Refresh before expiration even after a long build; scopes belong only to evidence SA.
+        if not self.credentials.valid:
+            auth = AuthRequest()
+            try:
+                self.credentials.refresh(lambda **kw: auth(**{**kw, "timeout": 30}))
+            finally:
+                auth.session.close()
+        app.require(self.credentials.valid, "Evidence authentication unavailable")
+        return "Bearer " + self.credentials.token
+
+    def verify_isolation(self):
+        """Read only the known synthetic marker; never consume a successful response."""
+        app.require(self.credentials is not None, "Evidence service account required")
+        opener = build_opener(NoRedirect())
+        for project in ISOLATION_PROJECTS:
+            url = (f"https://firestore.googleapis.com/v1/projects/{project}"
+                   "/databases/(default)/documents/" + ISOLATION_DOCUMENT
+                   + "?mask.fieldPaths=synthetic_only")
+            request = Request(url, method="GET", headers={"Authorization": self.authorization()})
+            try:
+                with opener.open(request, timeout=30):
+                    raise app.Blocked(f"Evidence isolation failed for {project}: read was allowed")
+            except HTTPError as error:
+                with error:
+                    message = f"Evidence isolation inconclusive for {project} (HTTP {error.code})"
+                    app.require(is_read_denial(error), message)
+            except (URLError, OSError):
+                raise app.Blocked(f"Evidence isolation unavailable for {project}") from None
+
+    def request(self, path, body=None, *, method="POST", missing=False):
+        headers = {"Content-Type": "application/json", "Authorization": self.authorization()}
         request = Request(self.base + path, method=method, headers=headers,
                           data=canonical(body).encode() if body is not None else None)
         try:

@@ -71,7 +71,7 @@ secretは既存の保護された設定範囲を維持し、jobには`static-pro
 設定作業の承認後、`STATIC_MIGRATION_EVIDENCE_ENABLED=false`のまま、
 [static-app-release](https://github.com/Yuto-24/NavMate/actions/workflows/static-app-release.yml)の
 **Run workflow**で`main`、`acceptance-migration`を本人が選びます。
-この操作は合成証跡・サンプル・planを保存して読み戻すだけで、公開も天気停止も行いません。
+この操作は合成証跡・サンプル・planを保存して読み戻し、本番・開発へのアクセス拒否を確認します。公開や天気停止は行いません。
 署名と成功した本来の証跡Runを持たないため、公開承認には使用できません。
 
 - 本人の既存GoogleアカウントでSummaryのFirebase Consoleリンクを開きます。
@@ -82,8 +82,11 @@ secretは既存の保護された設定範囲を維持し、jobには`static-pro
   各要素を標準画面で展開します。JSON原本も残るため型と順序を確認できます。
 - 未許可のGoogleアカウントと未認証クライアントからの読書きを拒否することを確認します。
   未許可アカウントの利用は本人が同意して管理するテスト用アカウントで行います。
-- 新SAの短期認証で、本番・開発DBの既知の合成文書へのGETが拒否されることを確認します。
-  文書を列挙・作成・変更せず、成功時は直ちに停止してIAMを見直します。
+- 証跡DBで読み戻しが通った同じサービスアカウントで、本番と開発の既定DBを確認します。
+  事前に管理者が両方に専用の合成文書 `_navmate_acceptance/migration_evidence_isolation_v1` を用意します。
+  既存文書は上書きせず、合成文書のフィールドは `synthetic_only: true` だけにします。
+  受入ジョブはこのフィールドだけを指定して読み取りを試みます。文書の列挙・作成・変更は行いません。
+  読み取りが通った場合は本文を読まずに停止します。404や認証エラーも合格にしません。
 - GitHub repositoryの可視性とは無関係に、アクセスがFirebase IAMで決まることを確認します。
   公開リポジトリの可視性はこの受入のために変更しません。
 
