@@ -24,9 +24,14 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+async function expectReadyDraft(page: Page) {
+  // The startup map also shows the draft heading and is replaced after bootstrap.
+  const workspace = page.locator(".route-workspace").filter({ has: page.locator("#route-map-frame") });
+  await expect(workspace.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible({ timeout: 120_000 });
+}
 async function start(page: Page) {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible({ timeout: 90_000 });
+  await expectReadyDraft(page);
 }
 const strip = (page: Page) => page.getByRole("list", { name: "経路リスト" });
 async function pick(page: Page, latitude: number, longitude: number) {
@@ -180,7 +185,7 @@ for (const width of [1100, 1440]) {
     const savedView = await page.evaluate(id => localStorage.getItem(`autonavlog.map-viewport.v1.anonymous.project.${id}`), projectId);
     page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "新規", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible({ timeout: 90_000 });
+    await expectReadyDraft(page);
     expect(await page.evaluate(() => localStorage.getItem("autonavlog.map-viewport.v1.anonymous.last"))).toBe(savedView);
     await selectAirport(page, "RJFM");
     await zoomMapTo(page, (await mapZoom(page)) + 1);
@@ -214,13 +219,13 @@ for (const width of [1100, 1440]) {
     expect(await page.evaluate(() => localStorage.getItem("autonavlog.map-viewport.v1.anonymous.last"))).toBe(fitted);
     page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "新規", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
+    await expectReadyDraft(page);
     await page.evaluate(id => {
       localStorage.removeItem(`autonavlog.map-viewport.v1.anonymous.project.${id}`);
       localStorage.setItem("autonavlog.map-viewport.v1.anonymous.last", JSON.stringify({ latitude: 35.68, longitude: 139.76, zoom: 12 }));
     }, projectId);
     await page.reload();
-    await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible({ timeout: 120_000 });
+    await expectReadyDraft(page);
     await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(projectId);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
@@ -443,7 +448,7 @@ for (const manualVor of [false, true]) {
     const projectId = await page.getByLabel("保存済み", { exact: true }).inputValue();
     page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "新規", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
+    await expectReadyDraft(page);
     await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(projectId);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
@@ -464,7 +469,7 @@ test("MAP to Planning and NAV LOG: new map departures default to VOR except RJFM
       .toBeChecked({ checked: from !== "RJFM" });
     page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "新規", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
+    await expectReadyDraft(page);
   }
 });
 
@@ -542,7 +547,7 @@ for (const width of [390, 1100, 1440]) {
     const projectId = await page.getByLabel("保存済み", { exact: true }).inputValue();
     page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "新規", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
+    await expectReadyDraft(page);
     await openProjectMenu(page);
     await page.getByLabel("保存済み", { exact: true }).selectOption(projectId);
     await page.getByRole("button", { name: "保存済みプロジェクトを開く", exact: true }).click();
