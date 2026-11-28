@@ -388,10 +388,15 @@ test("restored Check Point and VOR input remains editable; workflow positions ar
   }
 });
 
-test("late autosave after restore cannot canonicalize newer invalid input", async ({ page }) => {
-  await confirmed(page);
+test("#540 late autosave after restore updates weather status and preserves newer invalid input", async ({ page }) => {
+  await imported(page);
+  await confirmImportedDraft(page);
   await page.reload();
   await expect(page.getByLabel("TGL", { exact: true })).toBeVisible();
+  const pattern = page.getByLabel("今回採用する場周経路高度", { exact: true });
+  const vrep = page.getByLabel(/のVREP通過高度$/);
+  const initialVrep = Number(await vrep.inputValue());
+  const initialPattern = Number(await pattern.inputValue());
   let release!: () => void;
   let held = false;
   if (isLocal()) {
@@ -416,16 +421,19 @@ test("late autosave after restore cannot canonicalize newer invalid input", asyn
       await route.fulfill({ response });
     });
   }
-  await page.getByLabel("TGL", { exact: true }).fill("2");
+  await pattern.fill(String(initialPattern + 200));
+  await page.getByLabel("気象モード").selectOption("FTD");
   if (isLocal()) await page.waitForFunction(() => Boolean((window as any).releaseAutosave));
   else await expect.poll(() => held).toBe(true);
   await page.getByLabel("TGL", { exact: true }).fill("99");
   if (isLocal()) await page.evaluate(() => (window as any).releaseAutosave());
   else release();
-  await page.waitForTimeout(700);
+  await expect(page.locator("#readiness-details .provenance-list dd").first()).toHaveText("FTD固定気象");
+  await expect(vrep).toHaveValue(String(initialVrep + 200));
   await expect(page.getByLabel("TGL", { exact: true })).toHaveValue("99");
   await page.reload();
-  await expect(page.getByLabel("TGL", { exact: true })).toHaveValue("2");
+  await expect(page.getByLabel("TGL", { exact: true })).toHaveValue("0");
+  await expect(page.getByLabel("気象モード")).toHaveValue("FTD");
   await page.getByLabel("TGL", { exact: true }).fill("3");
   await expect.poll(async () => (await snapshot(page)).working.project.tgl_count).toBe(3);
 });

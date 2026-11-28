@@ -14,7 +14,7 @@ import { ApplicationError } from "./application";
 import { WorkChangeQueue } from "./workChangeQueue";
 import type { AutoNavLogApplication, CalculationProgress, UpdateProjectInput } from "./application";
 import { readSession, writeSession, clearSession, RECOVERY_FAILED, emptyCheckPointDraft, projectDraft, restoreProjectDraft } from "./applicationSession";
-import { hasProjectInputChanges } from "./projectLoad";
+import { hasProjectInputChanges, sameProjectContent } from "./projectLoad";
 import type { ApplicationSession, PendingKmz, NodeNameDraft, VorColumn } from "./applicationSession";
 import { routeImportInput } from "./fileInput";
 import { PlatformError, type PlatformCapabilities, type FileContentSource } from "./platform";
@@ -73,7 +73,7 @@ interface DraftSaveRequest {
   projectId: string;
   payload: UpdateProjectInput;
   useCanonicalFallback: boolean;
-  syncDerivedArrival: boolean;
+  arrivalInputToSync?: string;
   waiters: DraftSaveWaiter[];
 }
 
@@ -138,6 +138,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const confirmDiscardMapDraft = () => (mapRouteDraft.length === 0 && !pendingImportDraft) || window.confirm("作成中の変更を破棄しますか？");
   const [form, setForm] = useState<PlanningForm>(() => initialPlanningForm());
   const [altitudeInputs, setAltitudeInputs] = useState<Record<string, string>>({});
+  const altitudeInputsRef = useRef(altitudeInputs);
+  altitudeInputsRef.current = altitudeInputs;
   const [seaBusy, setSeaBusy] = useState(false);
   const [seaPending, setSeaPending] = useState<ReadonlySet<string>>(new Set());
   const [seaMessage, setSeaMessage] = useState("");
@@ -1322,16 +1324,28 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           ) {
             applyState(next, {
               syncCalculationInputs: false,
-              syncDerivedArrival: request.syncDerivedArrival,
+              syncDerivedArrival: request.arrivalInputToSync !== undefined,
             });
             setDraftAutosaveVersion(0);
             recordOperationError("autosave", null);
             setError((current) => current === DRAFT_AUTOSAVE_FAILURE ? null : current);
           } else if (request.projectId === projectIdRef.current) {
-            // A newer edit is still visible, but reload must recover this completed write.
-            setState(current => current?.project?.id === request.projectId ? { ...current,
-              workingRecovery: next.workingRecovery, savedProjects: next.savedProjects,
-              storageWarning: next.storageWarning } : current);
+            // Publish committed status while retaining section and arrival edits made during the write.
+            const derived = request.arrivalInputToSync === undefined ? undefined
+              : next.project?.sections.find(section => section.phase === "VISUAL_ARRIVAL");
+            const syncAltitude = derived && altitudeInputsRef.current[derived.id]?.trim() === request.arrivalInputToSync;
+            if (syncAltitude) setAltitudeInputs(current => ({ ...current, [derived.id]: String(derived.planned_altitude_ft_msl) }));
+            setState(current => {
+              if (current?.project?.id !== request.projectId || !next.project) return current;
+              const arrival = current.project.metadata.ui_state?.arrival_plan;
+              const previousArrival = current.workingRecovery?.project?.metadata.ui_state?.arrival_plan;
+              const metadata = arrival && !sameProjectContent(arrival, previousArrival)
+                ? { ...next.project.metadata, ui_state: { ...next.project.metadata.ui_state, arrival_plan: arrival } }
+                : next.project.metadata;
+              const sections = syncAltitude ? current.project.sections.map(section => section.id === derived.id
+                ? { ...section, planned_altitude_ft_msl: derived.planned_altitude_ft_msl } : section) : current.project.sections;
+              return { ...next, project: { ...next.project, metadata, sections } };
+            });
           }
         } catch {
           if (
@@ -1404,7 +1418,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         queued.generation = generation;
         queued.payload = payload;
         queued.useCanonicalFallback = useCanonicalFallback;
-        queued.syncDerivedArrival = syncDerivedArrival;
+        queued.arrivalInputToSync = syncDerivedArrival ? visualArrivalInput : undefined;
         queued.waiters.push(resolve);
       } else {
         draftAutosaveQueuedRef.current = {
@@ -1412,7 +1426,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           projectId,
           payload,
           useCanonicalFallback,
-          syncDerivedArrival,
+          arrivalInputToSync: syncDerivedArrival ? visualArrivalInput : undefined,
           waiters: [resolve],
         };
       }

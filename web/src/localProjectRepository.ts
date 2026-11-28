@@ -171,7 +171,7 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
         } catch (error) {
           this.context?.assertActive();
           unavailable.push(row.id);
-          if (error instanceof ApplicationError && ["VALIDATION_FAILED", "REQUEST_FAILED"].includes(error.code))
+          if (error instanceof ApplicationError && error.code === "VALIDATION_FAILED")
             summaries.set(row.id, { token: row.token, project: null });
           continue;
         }
@@ -211,7 +211,10 @@ export class IndexedDbProjectRepository implements LocalProjectRepository {
       const candidate = row as LocalProjectRecord & { claimedAccount?: string };
       if (candidate.claimedAccount || candidate.id === except || candidate.checkpoint != null) continue;
       const known = this.summaries.get(candidate.id);
-      if (known && known.token === candidate.token && !known.project) continue;
+      if (known && known.token === candidate.token) {
+        if (known.project?.kind === "LATEST") latest.set(candidate.id, candidate.token);
+        continue;
+      }
       try {
         const record = await this.validate(row);
         if (!record.checkpoint) latest.set(record.id, record.token);
