@@ -177,13 +177,16 @@ def ci_scope(root: Path, event_name: str, event: dict) -> tuple[frozenset[str], 
     rules = {rule for _, rule in classified}
     local_inputs = {path for path, (suites, _) in classified if "local-browser" in suites}
     jobs = frozenset().union(*(suites for suites, _ in rules))
-    skip_local_auth = jobs != JOBS and bool(local_inputs) and local_inputs <= MAP_DISPLAY_PATHS
+    auth_tests = {"web/e2e/auth.spec.ts", "web/e2e/sync-component.spec.ts"}
+    skip_local_auth = (
+        bool(local_inputs) and "account-sync" not in jobs and local_inputs.isdisjoint(auth_tests)
+    )
     reasons = []
     for suites, label in sorted(rules, key=lambda rule: rule[1]):
         selected = ", ".join(sorted(suites)) or "source checks only"
         reasons.append(f"- {label} → {'full CI' if suites == JOBS else selected}")
     if skip_local_auth:
-        reasons.append("- Local browser auth suite skipped for map/SEA display changes.")
+        reasons.append("- Local browser auth suite skipped: selected inputs do not affect authentication or sync.")
     return jobs, "\n".join(reasons), skip_local_auth
 
 
