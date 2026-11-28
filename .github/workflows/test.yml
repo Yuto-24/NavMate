@@ -388,7 +388,7 @@ jobs:
           trap 'kill "$local_server_pid"' EXIT
           curl --fail --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:4174/ > /dev/null
           if [ "${{ matrix.suite }}" = smoke ]; then
-            npm --prefix web exec -- playwright test --config web/playwright.local.config.ts --grep '#534 PR smoke:'
+            npm --prefix web run test:local:full -- --grep '#534 PR smoke:'
             exit 0
           fi
           # The expanded Local suite still runs on main and manual runs.
