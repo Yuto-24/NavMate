@@ -31,7 +31,7 @@ export interface MapRouteBuilderProps {
   onNamedPoint: (name: string, latitude: number, longitude: number) => void;
   onRemove: (id: string) => void;
   onClear: () => void;
-  onConfirm?: () => void;
+  onConfirm: () => void;
 }
 export function MapDraftLayers({ points, airports, busy, onAirport, onReference, onPoint, onNamedPoint }: MapRouteBuilderProps) {
   const [zoom, setZoom] = useState<number | null>(null);
@@ -100,13 +100,13 @@ export function MapDraftLayers({ points, airports, busy, onAirport, onReference,
     {[...selected.values()].map(renderPoint)}
   </>;
 }
-export function RouteStrip({ points, busy, onRemove, onClear, onConfirm, children }: MapRouteBuilderProps & { children?: ReactNode }) {
+export function RouteStrip({ points, busy, onRemove, onClear, onConfirm, children, confirmDisabled, retry }: MapRouteBuilderProps & { children?: ReactNode; confirmDisabled?: boolean; retry?: ReactNode }) {
   const instruction = points.length
     ? "飛行順に地点を追加し、最後の空港で経路を確定してください。"
     : "地図をクリックし、経路を作成してください";
   return <div className="map-route-controls">
     <h2 className="draft-card-title" aria-label="経路作成">経路</h2>
-    <p>{onConfirm ? instruction : "地図で出発空港から順に地点を選んでください。準備が終わると、到着空港で経路を確定できます。"}</p>
+    <p>{instruction}</p>
     <ol className="route-strip" aria-label="経路リスト">
       {points.map((point, index) => <li key={point.id}>
         <span>{index + 1}. {point.name}{index === 0 ? " (FROM)" : ""}</span>
@@ -118,7 +118,8 @@ export function RouteStrip({ points, busy, onRemove, onClear, onConfirm, childre
     {children}
     <div className="map-route-actions">
       <button className="secondary-button" disabled={busy || points.length === 0} onClick={onClear}>経路をクリア</button>
-      <button className="primary-button" disabled={busy || !onConfirm || !canConfirmMapDraft(points)} onClick={onConfirm}>経路を確定</button>
+      <button className="primary-button" disabled={busy || confirmDisabled || !canConfirmMapDraft(points)} onClick={onConfirm}>経路を確定</button>
+      {retry}
     </div>
   </div>;
 }

@@ -4,7 +4,7 @@ import { expect, type Page } from "@playwright/test";
 export async function enterImportWorkflow(page: Page) {
   await expect(page.getByRole("heading", { name: "経路作成", exact: true })
     .or(page.getByLabel("DATE", { exact: true }))).toBeVisible({ timeout: 120_000 });
-  await expect(page.locator(".loading-screen")).toHaveCount(0, { timeout: 120_000 });
+  await expect(page.locator(".app-header")).toBeVisible({ timeout: 120_000 });
 }
 
 export async function expectImportedDraft(page: Page, candidate = "line:0") {
