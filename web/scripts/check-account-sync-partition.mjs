@@ -57,7 +57,9 @@ export function check() {
   const notifications = collect('notification');
   const localBlock = workflow.split('  local-browser-tests:\n')[1]?.split('\n  local-browser:\n')[0];
   verifyMatrix(localBlock, [
-    'suite: [local, acceptance, focused-ux, clipboard, auth]', 'shard: [1]', 'include:',
+    'suite: [local, acceptance, focused-ux, clipboard, auth]',
+    `exclude: \${{ fromJSON(needs.release-sources.result == 'success' && needs.release-sources.outputs.skip_local_auth == 'true' && '[{"suite":"auth"}]' || '[]') }}`,
+    'shard: [1]', 'include:',
     '- {suite: local, shard: 2}', '- {suite: local, shard: 3}', '- {suite: local, shard: 4}',
   ]);
   const local = shard => identities(JSON.parse(execFileSync('npm', [

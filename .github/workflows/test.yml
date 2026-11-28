@@ -55,6 +55,7 @@ jobs:
       run_runtime: ${{ steps.changes.outputs.run_runtime }}
       run_web: ${{ steps.changes.outputs.run_web }}
       run_taf_proxy: ${{ steps.changes.outputs.run_taf_proxy }}
+      skip_local_auth: ${{ steps.changes.outputs.skip_local_auth }}
       run_local_browser: ${{ steps.changes.outputs.run_local_browser }}
       run_account_sync: ${{ steps.changes.outputs.run_account_sync }}
       run_static_tooling_install: ${{ steps.changes.outputs.run_static_tooling_install }}
@@ -334,6 +335,7 @@ jobs:
       fail-fast: false
       matrix:
         suite: [local, acceptance, focused-ux, clipboard, auth]
+        exclude: ${{ fromJSON(needs.release-sources.result == 'success' && needs.release-sources.outputs.skip_local_auth == 'true' && '[{"suite":"auth"}]' || '[]') }}
         shard: [1]
         include:
           - {suite: local, shard: 2}

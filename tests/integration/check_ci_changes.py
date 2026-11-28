@@ -177,6 +177,11 @@ def test_empty_diff_runs_full_ci(repo):
     [
         ({"docs/guide.md": "Updated docs"}, set(), "Documentation → source checks only"),
         (
+            {"web/src/seaDisplay.ts": "source", "web/e2e/sea-display.spec.ts": "test"},
+            {"web", "local-browser"},
+            "Local browser auth suite skipped",
+        ),
+        (
             {FUEL_DISPLAY: "source", FUEL_SPEC: "test"},
             {"web", "local-browser"},
             "Fuel Plan display only → local-browser, web",
@@ -196,6 +201,8 @@ def test_github_outputs_and_summary(repo, monkeypatch, changes, selected, reason
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", os.fspath(summary_path))
     ci_changes.main(root)
     assert set(output_path.read_text().splitlines()) == {
+        f"skip_local_auth={str(reason.startswith('Local browser auth')).lower()}"
+    } | {
         f"run_{job.replace('-', '_')}={str(job in selected).lower()}" for job in ci_changes.JOBS
     }
     assert reason in summary_path.read_text()
@@ -213,10 +220,9 @@ def test_github_outputs_and_summary(repo, monkeypatch, changes, selected, reason
     event_path.write_text("invalid JSON")
     ci_changes.main(root)
     assert "Event payload could not be read" in summary_path.read_text()
-    assert all(
-        line.endswith("=true")
-        for line in output_path.read_text().splitlines()[-len(ci_changes.JOBS) :]
-    )
+    latest = dict(line.split("=") for line in output_path.read_text().splitlines())
+    assert latest.pop("skip_local_auth") == "false"
+    assert set(latest.values()) == {"true"}
 
 
 @pytest.mark.parametrize(
@@ -282,7 +288,7 @@ def test_github_outputs_and_summary(repo, monkeypatch, changes, selected, reason
         (["web/src/App.tsx", "docs/guide.md"], ci_changes.WEB_JOBS),
         (["web/src/App.tsx", "new-tool.py"], ci_changes.JOBS),
         (["web/src/new.wasm"], ci_changes.JOBS),
-        (["web/e2e/sync.spec.ts"], ci_changes.JOBS),
+        (["web/e2e/sync.spec.ts", "web/e2e/storage-upgrade.spec.ts"], {"web", "account-sync"}),
         (["web/package-lock.json"], ci_changes.JOBS),
         (["services/msm-trigger/package.json"], ci_changes.JOBS),
         (["firestore.rules"], ci_changes.JOBS),
@@ -342,5 +348,38 @@ def test_deleted_release_source_runs_full_ci(repo, path):
 def test_scope_explains_matching_rules(repo, paths, reasons):
     root, base = repo
     head = commit(root, dict.fromkeys(paths, "changed\n"))
-    _, summary = ci_changes.ci_scope(root, "pull_request", pr(base, head))
+    _, summary, _ = ci_changes.ci_scope(root, "pull_request", pr(base, head))
     assert set(summary.splitlines()) == {f"- {reason}" for reason in reasons}
+
+
+@pytest.mark.parametrize(
+    "paths,expected,skip_auth",
+    [
+        (["web/src/components/MapBackground.tsx", "web/e2e/map-background.spec.ts",
+          "web/src/seaDisplay.ts", "web/e2e/sea-display.spec.ts"], {"web", "local-browser"}, True),
+        (["web/src/terrain.ts", "web/src/sea.ts", "web/e2e/route-planning.spec.ts",
+          "web/e2e/terrain-unit.spec.ts"], ci_changes.WEB_JOBS, False),
+        (["web/e2e/persistence.spec.ts", "web/e2e/sync.spec.ts"],
+         ci_changes.WEB_JOBS, False),
+        (["web/src/seaDisplay.ts", "web/e2e/auth.spec.ts"], {"web", "local-browser"}, False),
+        (["web/src/seaDisplay.ts", "web/e2e/helpers/mapCandidates.ts"], ci_changes.JOBS, False),
+    ],
+)
+def test_map_display_and_cross_feature_changes(repo, paths, expected, skip_auth):
+    root, base = repo
+    head = commit(root, dict.fromkeys(paths, "changed"))
+    jobs, summary, skipped = ci_changes.ci_scope(root, "pull_request", pr(base, head))
+    assert jobs == expected
+    assert skipped is skip_auth
+    assert ("auth suite skipped" in summary) is skip_auth
+
+
+def test_executable_map_source_keeps_auth_in_full_ci(repo):
+    root, base = repo
+    source = "web/src/seaDisplay.ts"
+    commit(root, {source: "source"})
+    (root / source).chmod(0o755)
+    head = commit(root, {})
+    jobs, _, skip_auth = ci_changes.ci_scope(root, "pull_request", pr(base, head))
+    assert jobs == ci_changes.JOBS
+    assert not skip_auth

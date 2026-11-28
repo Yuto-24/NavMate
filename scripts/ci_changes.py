@@ -95,6 +95,24 @@ WEB_JOBS = frozenset({"web", "local-browser", "account-sync"})
 # and its PNG export are exercised by local-browser.
 DISPLAY_PATHS = frozenset({"web/src/fuelPlanDisplay.ts", "web/e2e/fuel-plan-display.spec.ts"})
 DISPLAY_JOBS = frozenset({"web", "local-browser"})
+# Presentation and its dedicated browser specs do not participate in Project saves.
+MAP_DISPLAY_PATHS = frozenset({
+    "web/src/components/MapBackground.tsx",
+    "web/src/components/SeaCell.tsx",
+    "web/src/seaDisplay.ts",
+    "web/e2e/map-background.spec.ts",
+    "web/e2e/sea-display.spec.ts",
+})
+APPLICATION_SPECS = frozenset({
+    "auth-unit", "map-route-unit", "persistence-unit", "sync-payload-unit", "sync-unit",
+    "terrain-unit",
+})
+LOCAL_SPECS = frozenset({
+    "auth", "map-checkpoint", "route-planning", "terrain-browser",
+})
+ACCOUNT_SPECS = frozenset({
+    "dev-shared", "dev-shared-firestore",
+})
 PYTHON_JOBS = WEB_JOBS | {"pytest", "runtime", "static-tooling-install"}
 
 
@@ -107,6 +125,22 @@ def classify(change: Change) -> tuple[frozenset[str], str]:
     path = change.path
     if path in {"VERSION", "CHANGELOG.md"} and change.new_mode == "100644":
         return frozenset({"release-build"}), "Release metadata"
+    if path in MAP_DISPLAY_PATHS:
+        return DISPLAY_JOBS, "Map or SEA display"
+    spec = re.fullmatch(r"web/e2e/([a-z-]+)\.spec\.ts", path)
+    if spec:
+        name = spec.group(1)
+        if name in APPLICATION_SPECS:
+            return frozenset({"web"}), "Application tests"
+        # web also collects the Local shards, sync components and emulator contracts.
+        if name in {"map-route", "persistence", "sea", "sync-component"}:
+            return DISPLAY_JOBS, "Local browser tests and Web collection"
+        if name in {"firestore-sync", "storage-upgrade", "sync"}:
+            return frozenset({"web", "account-sync"}), "Account tests and Web collection"
+        if name in LOCAL_SPECS:
+            return frozenset({"local-browser"}), "Local browser tests"
+        if name in ACCOUNT_SPECS:
+            return frozenset({"account-sync"}), "Account and storage tests"
     if path in DISPLAY_PATHS:
         return DISPLAY_JOBS, "Fuel Plan display only"
     if path.startswith("web/src/") and path.endswith((".ts", ".tsx", ".css")):
@@ -129,23 +163,28 @@ def classify(change: Change) -> tuple[frozenset[str], str]:
     return JOBS, "Shared or unclassified input"
 
 
-def ci_scope(root: Path, event_name: str, event: dict) -> tuple[frozenset[str], str]:
+def ci_scope(root: Path, event_name: str, event: dict) -> tuple[frozenset[str], str, bool]:
     # Every supported branch push (including docs-only main merges) and manual run is full.
     if event_name != "pull_request":
-        return JOBS, "Non-PR event; running full CI."
+        return JOBS, "Non-PR event; running full CI.", False
     try:
         changes = changed_files(root, event_name, event)
     except (KeyError, TypeError, ValueError, OSError, subprocess.CalledProcessError):
-        return JOBS, "Changed files could not be determined; running full CI."
+        return JOBS, "Changed files could not be determined; running full CI.", False
     if not changes:
-        return JOBS, "No changed files were found; running full CI."
-    rules = {classify(change) for change in changes}
+        return JOBS, "No changed files were found; running full CI.", False
+    classified = [(change.path, classify(change)) for change in changes]
+    rules = {rule for _, rule in classified}
+    local_inputs = {path for path, (suites, _) in classified if "local-browser" in suites}
     jobs = frozenset().union(*(suites for suites, _ in rules))
+    skip_local_auth = jobs != JOBS and bool(local_inputs) and local_inputs <= MAP_DISPLAY_PATHS
     reasons = []
     for suites, label in sorted(rules, key=lambda rule: rule[1]):
         selected = ", ".join(sorted(suites)) or "source checks only"
         reasons.append(f"- {label} → {'full CI' if suites == JOBS else selected}")
-    return jobs, "\n".join(reasons)
+    if skip_local_auth:
+        reasons.append("- Local browser auth suite skipped for map/SEA display changes.")
+    return jobs, "\n".join(reasons), skip_local_auth
 
 
 def main(root: Path | None = None) -> None:
@@ -154,11 +193,15 @@ def main(root: Path | None = None) -> None:
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
     except (KeyError, ValueError, OSError):
         jobs, reason = JOBS, "Event payload could not be read; running full CI."
+        skip_local_auth = False
     else:
-        jobs, reason = ci_scope(root, os.environ.get("GITHUB_EVENT_NAME", ""), event)
+        jobs, reason, skip_local_auth = ci_scope(
+            root, os.environ.get("GITHUB_EVENT_NAME", ""), event
+        )
     output = "".join(
         f"run_{job.replace('-', '_')}={str(job in jobs).lower()}\n" for job in sorted(JOBS)
     )
+    output += f"skip_local_auth={str(skip_local_auth).lower()}\n"
     print(reason)
     print(output, end="")
     if output_path := os.environ.get("GITHUB_OUTPUT"):
