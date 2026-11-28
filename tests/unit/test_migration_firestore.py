@@ -7,7 +7,9 @@ import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from io import BytesIO
 from types import SimpleNamespace
+from urllib.error import HTTPError, URLError
 from uuid import uuid4
 
 import pytest
@@ -20,6 +22,80 @@ from scripts.static_ops import migration_review as review
 
 KEY = b"k" * 32
 CANARY = "PRIVATE_CANARY_config_sample_exception_514"
+
+
+def isolation_transport(monkeypatch, callback):
+    database = fs.Firestore.__new__(fs.Firestore)
+    database.credentials = object()
+    monkeypatch.setattr(database, "authorization", lambda: "Bearer synthetic-test")
+
+    def opener(handler):
+        assert isinstance(handler, fs.NoRedirect)
+        result = handler.redirect_request(None, None, 302, None, None, "https://example.invalid")
+        assert result is None
+        return SimpleNamespace(open=callback)
+
+    monkeypatch.setattr(fs, "build_opener", opener)
+    return database
+
+
+@pytest.mark.parametrize("message", [
+    "Missing or insufficient permissions.",
+    "Permission 'datastore.entities.get' denied on the requested resource.",
+])
+def test_evidence_isolation_checks_both_exact_fixtures(monkeypatch, message):
+    seen = []
+
+    def respond(request, *, timeout):
+        seen.append(request.full_url)
+        assert request.get_method() == "GET"
+        assert request.get_header("Authorization") == "Bearer synthetic-test"
+        assert request.data is None and timeout == 30
+        body = fs.canonical({"error": {"status": "PERMISSION_DENIED", "message": message}})
+        raise HTTPError(request.full_url, 403, "", {}, BytesIO(body.encode()))
+
+    isolation_transport(monkeypatch, respond).verify_isolation()
+    assert seen == [
+        f"https://firestore.googleapis.com/v1/projects/{project}/databases/(default)/"
+        "documents/_navmate_acceptance/migration_evidence_isolation_v1?mask.fieldPaths=synthetic_only"
+        for project in ("navmate-prod", "navmate-6b281")
+    ]
+
+
+@pytest.mark.parametrize(("code", "payload"), [
+    (302, {}),
+    (401, {"error": {"status": "UNAUTHENTICATED"}}),
+    (404, {"error": {"status": "NOT_FOUND"}}),
+    (403, {"error": {"status": "PERMISSION_DENIED", "message": "API is disabled."}}),
+    (403, {"error": {"status": "PERMISSION_DENIED", "message": "x" * 8192}}),
+    (403, ["malformed"]),
+])
+def test_evidence_isolation_rejects_inconclusive_http_response(monkeypatch, code, payload):
+    def respond(request, *, timeout):
+        raise HTTPError(request.full_url, code, "", {}, BytesIO(fs.canonical(payload).encode()))
+
+    with pytest.raises(app.Blocked, match=rf"inconclusive for navmate-prod \(HTTP {code}\)"):
+        isolation_transport(monkeypatch, respond).verify_isolation()
+
+
+def test_evidence_isolation_does_not_read_success_body(monkeypatch):
+    @contextlib.contextmanager
+    def respond(request, *, timeout):
+        def unreadable():
+            pytest.fail("Unexpected successful response body must not be read")
+
+        yield SimpleNamespace(read=unreadable)
+
+    with pytest.raises(app.Blocked, match="read was allowed"):
+        isolation_transport(monkeypatch, respond).verify_isolation()
+
+
+def test_evidence_isolation_sanitizes_transport_error(monkeypatch):
+    def respond(request, *, timeout):
+        raise URLError("sensitive remote detail")
+
+    with pytest.raises(app.Blocked, match="^Evidence isolation unavailable for navmate-prod$"):
+        isolation_transport(monkeypatch, respond).verify_isolation()
 
 
 class Memory(fs.Firestore):

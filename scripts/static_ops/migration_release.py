@@ -386,7 +386,9 @@ def main():
             return 0
         if operation == "acceptance-migration":
             migration_review.approved_actor(reader, env)
-            for reference in synthetic_acceptance(reviews):
+            references = synthetic_acceptance(reviews)
+            reviews.db.verify_isolation()
+            for reference in references:
                 report(reference)
             return 0
         if operation == "revoke-migration":
