@@ -353,7 +353,8 @@ def test_scope_explains_matching_rules(repo, paths, reasons):
     if "services/taf-proxy/worker.mjs" in paths:
         assert skip_auth
         expected.add(
-            "- Local browser auth suite skipped: selected inputs do not affect authentication or sync."
+            "- Local browser auth suite skipped: "
+            "selected inputs do not affect authentication or sync."
         )
     assert set(summary.splitlines()) == expected
 

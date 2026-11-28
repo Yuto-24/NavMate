@@ -187,7 +187,8 @@ def ci_scope(root: Path, event_name: str, event: dict) -> tuple[frozenset[str], 
         reasons.append(f"- {label} → {'full CI' if suites == JOBS else selected}")
     if skip_local_auth:
         reasons.append(
-            "- Local browser auth suite skipped: selected inputs do not affect authentication or sync."
+            "- Local browser auth suite skipped: "
+            "selected inputs do not affect authentication or sync."
         )
     return jobs, "\n".join(reasons), skip_local_auth
 
