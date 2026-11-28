@@ -297,7 +297,7 @@ test("calculation interrupted by reload is not resent and late result cannot rep
     await expect(overlay.getByRole("progressbar", { name: "NAV LOGを計算中 1%" })).toHaveAttribute("value", "1");
   } else {
     await page.waitForFunction(() => (window as any).heldCalculation);
-    await expect(overlay.getByRole("progressbar")).not.toHaveAttribute("value");
+    await expect(overlay.getByRole("progressbar")).toHaveAttribute("value", "20");
   }
   const interrupted = await snapshot(page);
   expect(interrupted.working.outcome.summary).toEqual(previous.working.outcome.summary);

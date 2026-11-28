@@ -142,8 +142,9 @@ const workerApi = {
       pyodide.globals.set("local_dispatch_path", path);
       pyodide.globals.set("local_body_json", JSON.stringify(body ?? {}));
       const calculating = path === "calculate" || path === "updateAndRecalculate";
+      let percent = 20; // Input save has completed.
       const reportPhase = (phase: LocalCalculationPhase) => {
-        if (calculating) self.postMessage({ type: "calculation-phase", phase });
+        if (calculating) self.postMessage({ type: "calculation-phase", phase, percent });
       };
       const airport = pyodide.runPython(`
 import json
@@ -172,6 +173,7 @@ local_application.dispatch_response("updateProject", json.loads(local_body_json)
         ) as string;
         if (JSON.parse(validated).error) return validated;
         pyodide.runPython("local_application.begin_weather()");
+        percent = 35;
       }
       try {
         // Replay the same action after each explicitly requested asset. No partial
@@ -187,6 +189,8 @@ local_application.dispatch_response(local_dispatch_path, json.loads(local_body_j
           try {
             reportPhase("weather");
             await acquireWeather(pyodide, request);
+            // Replays can request another catalog after a prepared asset.
+            percent = Math.max(percent, request.kind === "catalog" ? 50 : 70);
           } catch (error) {
             if (request.model !== "MSM" || request.kind !== "prepared" || !request.asset
               || !(error instanceof WeatherError)) throw error;
