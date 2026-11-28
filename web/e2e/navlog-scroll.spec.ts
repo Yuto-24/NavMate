@@ -203,12 +203,12 @@ test("first Local NAV LOG calculation and recalculation scroll to the result", a
   await worker.evaluate(() => { setTimeout(() => { throw new Error("Test Local Worker failure"); }, 0); });
   await page.waitForFunction(() => (window as any).localWorkerFailed);
   await page.getByRole("button", { name: "NAV LOGを再計算", exact: true }).click();
-  const failure = page.getByRole("alert").filter({ hasText: "自動保存できませんでした" });
+  const failure = page.getByRole("alert").filter({ hasText: "処理を実行できませんでした。画面を再読み込みしてください。" });
   await expect(failure).toBeVisible();
   await page.clock.fastForward(6_000);
   await expect(failure).toHaveCount(0);
   await page.getByRole("button", { name: /^その他/ }).click();
-  await expect(page.locator("#operation-messages")).toContainText("自動保存できませんでした");
+  await expect(page.locator("#operation-messages")).toContainText("処理を実行できませんでした。画面を再読み込みしてください。");
   await page.getByRole("button", { name: /^その他/ }).click();
   await expect(toast).toHaveCount(0);
   await expect.poll(tableValues).toEqual(firstTable);

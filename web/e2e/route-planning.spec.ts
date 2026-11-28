@@ -227,7 +227,8 @@ test("resumed unsaved CP accepts a direct new map pick without an activation but
   await clickMapCoordinate(page,32.6,131.54);
   await page.locator(".checkpoint-form").getByRole("textbox",{name:/^名称/}).fill("Resume CP");
   const draft=()=>page.evaluate(()=>JSON.parse(sessionStorage.getItem("autonavlog.working-session.v1")!).checkPointDraft);
-  await expect.poll(async()=>(await draft()).name).toBe("Resume CP");
+  await expect.poll(async()=>(await draft()).latitude).not.toBe("");
+  expect((await draft()).name).toBe("");
   const before=await draft();
   await page.reload();
   await page.getByRole("button",{name:"チェックポイントの編集を続ける",exact:true}).click({timeout:90_000});
@@ -237,6 +238,7 @@ test("resumed unsaved CP accepts a direct new map pick without an activation but
   await expect(page.locator(".checkpoint-form").getByRole("textbox",{name:/^名称/})).toBeFocused();
   await expect.poll(async()=>Number((await draft()).latitude)).toBeCloseTo(32.9,2);
   expect((await draft()).linkedSectionId).toBe(before.linkedSectionId);
+  await page.locator(".checkpoint-form").getByRole("textbox",{name:/^名称/}).fill("Resume CP");
   await page.locator(".checkpoint-form").getByRole("button",{name:"追加",exact:true}).click();
   await expect(page.getByText("Resume CP",{exact:true})).toBeVisible();
 });

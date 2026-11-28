@@ -1,7 +1,7 @@
 import { ApplicationError } from "./application";
 import { IndexedDbProjectRepository, type LocalProjectRecord, type LocalAccountContext } from "./localProjectRepository";
 import { deletionState, type SyncProject, type SyncMutation, type ConflictChoice } from "./accountSync";
-import type { SavedProject, WorkingRecovery } from "./types";
+import type { WorkingRecovery } from "./types";
 
 interface SyncMetadata {
   baseVersion: string | null;
@@ -71,24 +71,13 @@ export class AccountProjectRepository extends IndexedDbProjectRepository {
     });
   }
   async list() {
-    const projects: SavedProject[] = [], unavailable: string[] = [], tokens: Record<string, string> = {};
     const rows = await this.rows();
-    for (const row of rows) {
-      if (row.sync?.importPending && this.importCollision(row, rows)) continue;
-      if (row.sync && deletionState(row.sync.value) !== "ACTIVE") continue;
-      try {
-        const record = await this.decode(row);
-        tokens[record.id] = record.token;
-        projects.push({ id: record.id, kind: record.checkpoint ? "SAVED" : "LATEST",
-          name: record.checkpoint?.name ?? "Latest", revision: record.draft.revision,
-          status: record.draft.status, updatedAt: record.updatedAt });
-      } catch { this.context?.assertActive(); unavailable.push(row.id); }
-    }
-    projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return { projects, unavailable, tokens };
+    return this.listRows(rows.filter(row =>
+      !(row.sync?.importPending && this.importCollision(row, rows)) &&
+      (!row.sync || deletionState(row.sync.value) === "ACTIVE")), row => this.decode(row));
   }
   async read(id: string, remember = true) {
-    const row = (await this.rows()).find(row => row.id === id);
+    const row = await this.readRow<Row>(id);
     if (!row || (row.sync && deletionState(row.sync.value) !== "ACTIVE")) throw unavailable();
     const record = await this.decode(row);
     if (remember) this.loaded.set(id, structuredClone(row));
@@ -99,9 +88,9 @@ export class AccountProjectRepository extends IndexedDbProjectRepository {
     return loaded?.token === token ? this.decode(loaded) : this.read(id);
   }
   async captureWorking(id: string, token: string) {
-    const current = (await this.rows()).find(row => row.id === id && row.token === token &&
-      (!row.sync || deletionState(row.sync.value) === "ACTIVE"));
-    const row = current ?? this.loaded.get(id);
+    const current = await this.readRow<Row>(id);
+    const row = current?.token === token && (!current.sync || deletionState(current.sync.value) === "ACTIVE")
+      ? current : this.loaded.get(id);
     if (!row || row.token !== token || !row.sync) return undefined;
     return { accountId: this.context!.account_id, token, checkpoint: row.checkpoint,
       baseVersion: row.sync.baseVersion, baseRevision: row.sync.baseRevision };
@@ -109,7 +98,7 @@ export class AccountProjectRepository extends IndexedDbProjectRepository {
   async restoreWorking(recovery: WorkingRecovery) {
     const { project, durableToken, repositoryRecovery } = recovery;
     if (!project || !durableToken) return;
-    const current = (await this.rows()).find(row => row.id === project.id);
+    const current = await this.readRow<Row>(project.id);
     if (current?.token === durableToken && current.sync && deletionState(current.sync.value) === "ACTIVE" &&
       (!repositoryRecovery || current.sync.baseVersion === (repositoryRecovery as { baseVersion?: unknown }).baseVersion)) {
       this.loaded.set(project.id, current); return;
@@ -138,7 +127,7 @@ export class AccountProjectRepository extends IndexedDbProjectRepository {
   }
   async write(record: LocalProjectRecord, expectedToken: string | null, replaceLatest: boolean) {
     const valid = await this.validate(record);
-    await this.change((store, rows) => {
+    const written = await this.change((store, rows) => {
       if (rows.some(row => row.sync?.conflict)) throw conflict();
       const old = rows.find(row => row.id === record.id);
       const loaded = this.loaded.get(record.id);
@@ -150,8 +139,10 @@ export class AccountProjectRepository extends IndexedDbProjectRepository {
       if (old?.sync?.dirty) next.sync!.group = old.sync.group;
       if (replaceLatest) this.discardLatest(store, rows, record.id, next.sync!.group);
       store.put(next);
+      return next;
     });
-    this.loaded.set(record.id, (await this.rows()).find(row => row.id === record.id)!);
+    this.rememberRecord(valid);
+    this.loaded.set(record.id, written);
     this.changed();
   }
   async open(record: LocalProjectRecord, expectedToken = record.token) {
@@ -213,7 +204,7 @@ export class AccountProjectRepository extends IndexedDbProjectRepository {
     });
   }
   async importLatest(record: LocalProjectRecord, name: string | null) {
-    const snapshot = (await this.rows()).find(row => row.id === record.id);
+    const snapshot = await this.readRow<Row>(record.id);
     if (snapshot && !snapshot.sync?.importPending) return;
     const copy = snapshot ? await this.decode(snapshot) : structuredClone(record);
     if (name !== null) {

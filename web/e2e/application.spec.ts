@@ -540,6 +540,42 @@ for (const selectedMode of [false, true]) {
   });
 }
 
+for (const account of [false, true]) test(`#540 unrelated validation cannot delay edits, SEA, save, calculate or export (account=${account})`, async () => {
+  const factory = new IDBFactory();
+  const project = { id: crypto.randomUUID(), name: "route", revision: 0, status: "DRAFT",
+    metadata: { project_name_auto: true, project_name_generated: "route" } } as any;
+  const other = { ...project, id: crypto.randomUUID(), name: "other", updated_at: "2020-01-01T00:00:00Z" };
+  let holdOther = false;
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const app = new LocalApplication(validate => account
+    ? new AccountProjectRepository(validate, { account_id: "account", assertActive() {}, onClose: () => () => {} },
+      "device", async record => record, () => factory)
+    : new IndexedDbProjectRepository(validate, undefined, () => factory), () => ({
+    async request<T>(operation: string, input?: any) {
+      if (operation === "prepareProjectImport") return other as T;
+      if (operation === "validateRecord") {
+        if (holdOther && input.id === other.id) await held;
+        return input as T;
+      }
+      if (operation === "adoptSavedProject") Object.assign(project, input.working.project);
+      if (operation === "exportProject") return project.name as T;
+      return { ...state, project, workingRecovery: { project } } as T;
+    }, dispose() {},
+  }));
+  try {
+    await app.importProject("other");
+    holdOther = true;
+    await app.updateProject({} as UpdateProjectInput);
+    const updates = Array.from({ length: 24 }, () => app.updateSea({} as Parameters<typeof app.updateSea>[0]));
+    const saved = await app.saveProject("named");
+    expect(saved.savedProjects.map(row => row.name)).toEqual(["named", "other"]);
+    expect((await app.calculate()).project?.name).toBe("named");
+    expect(await app.exportProject()).toBe("named");
+    await Promise.all(updates);
+  } finally { release(); app.dispose(); }
+});
+
 test("#319 imports add independent saved Projects without opening or replacing current work", async () => {
   const { randomUUID } = await import("node:crypto");
   const factory = new IDBFactory();

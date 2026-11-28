@@ -16,7 +16,7 @@ import { ApplicationError } from "./application";
 import { WorkChangeQueue } from "./workChangeQueue";
 import type { AutoNavLogApplication, CalculationProgress, UpdateProjectInput } from "./application";
 import { readSession, writeSession, clearSession, RECOVERY_FAILED, emptyCheckPointDraft, projectDraft, restoreProjectDraft } from "./applicationSession";
-import { hasProjectInputChanges } from "./projectLoad";
+import { hasProjectInputChanges, sameProjectContent } from "./projectLoad";
 import type { ApplicationSession, PendingKmz, NodeNameDraft, VorColumn } from "./applicationSession";
 import { routeImportInput } from "./fileInput";
 import { PlatformError, type PlatformCapabilities, type FileContentSource } from "./platform";
@@ -75,7 +75,7 @@ interface DraftSaveRequest {
   projectId: string;
   payload: UpdateProjectInput;
   useCanonicalFallback: boolean;
-  syncDerivedArrival: boolean;
+  arrivalInputToSync?: string;
   waiters: DraftSaveWaiter[];
 }
 
@@ -147,6 +147,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const confirmDiscardMapDraft = () => (mapRouteDraft.length === 0 && !pendingImportDraft) || window.confirm("作成中の変更を破棄しますか？");
   const [form, setForm] = useState<PlanningForm>(() => initialPlanningForm());
   const [altitudeInputs, setAltitudeInputs] = useState<Record<string, string>>({});
+  const altitudeInputsRef = useRef(altitudeInputs);
+  altitudeInputsRef.current = altitudeInputs;
   const [seaBusy, setSeaBusy] = useState(false);
   const [seaPending, setSeaPending] = useState<ReadonlySet<string>>(new Set());
   const [seaMessage, setSeaMessage] = useState("");
@@ -207,6 +209,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const [knownIssuesUnread, setKnownIssuesUnread] = useState(() => hasUnreadKnownIssues(releaseNotesData as InformationData));
   const [informationUnread, setInformationUnread] = useState(() => hasUnreadInformation(releaseNotesData as InformationData));
   const [pastedKml, setPastedKml] = useState("");
+  const [importedPaste, setImportedPaste] = useState("");
   const [pasteMessage, setPasteMessage] = useState<string | null>(null);
   const pasteInFlight = useRef(false);
   const pasteReturnFocus = useRef<HTMLElement | null>(null);
@@ -263,6 +266,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     sectionOverrides?: NavSection[],
     selectedPatternAltitudeFtMsl?: number,
     invalidFallbackProject?: Project,
+    committedProject?: Project,
   ) => UpdateProjectInput>(() => { throw new Error("プロジェクトがありません。"); });
 
   const altitudeGuidanceBySection = useMemo(
@@ -515,7 +519,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         setCheckPointDraft(restored.checkPointDraft);
         setNodeNameDraft(restored.nodeNameDraft);
         setPastedKml(restored.pastedKml);
-        setProjectName(next.project && restored.projectName === restored.working?.project?.name
+        setImportedPaste(restored.pastedKml);
+        if (next.project) setProjectName(restored.projectName === restored.working?.project?.name
           ? next.project.name : restored.projectName);
         setSelectedProjectId(restored.selectedProjectId);
         setPendingKmz(restored.pendingKmz);
@@ -560,15 +565,26 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       import_result: null, import_filename: null,
     } : sessionReady && state?.workingRecovery;
     if (!working) return;
+    const airports = state?.airports ?? [];
+    const project = working.project;
+    const seed = { ...initialPlanningForm(airports), candidateKey: form.candidateKey,
+      departureAirportId: form.departureAirportId, destinationAirportId: form.destinationAirportId,
+      departureOrigin: form.departureOrigin, departureOriginExplicit: form.departureOriginExplicit,
+      destinationPatternAltitudeFtMsl: String(airports.find(airport => airport.id === form.destinationAirportId)?.patternAltitudeFtMsl ?? ""),
+      routeUseConfirmed: form.routeUseConfirmed, polygonRouteConfirmed: form.polygonRouteConfirmed };
     const snapshot: ApplicationSession = earlyDraft && previous ? { ...previous, mapRouteDraft } : {
-      mapRouteDraft, editingRouteProjectId, legacyRouteInput, pendingImportDraft, selectedImportCandidate, checkPointDraft, nodeNameDraft, vorColumns,
-      version: 1, working, form, altitudeInputs, navLogDrafts,
-      projectDraft: projectDraft(state?.project ?? null), calculationInputsAreLocallyCurrent, pastedKml,
-      projectName, selectedProjectId, pendingKmz, selectedKmzDocument,
+      mapRouteDraft, editingRouteProjectId, legacyRouteInput, pendingImportDraft, selectedImportCandidate, vorColumns,
+      checkPointDraft: { ...checkPointDraft, name: project?.visual_references.find(item => item.id === checkPointDraft.id)?.name ?? "" },
+      nodeNameDraft: { id: null, name: "" },
+      version: 1, working, form: project ? formFromProject(project, seed, airports) : seed,
+      altitudeInputs: Object.fromEntries(project?.sections.map(section => [section.id, String(section.planned_altitude_ft_msl)]) ?? []),
+      navLogDrafts: Object.fromEntries(working.outcome && project ? project.sections.map(section => [section.id, draftFromSection(section)]) : []),
+      projectDraft: projectDraft(project), calculationInputsAreLocallyCurrent: true, pastedKml: importedPaste,
+      projectName: project?.name ?? "", selectedProjectId, pendingKmz, selectedKmzDocument,
     };
     latestSession.current = snapshot;
     // A queued New may suppress storage before this render commits. Keep its
-    // failure recovery aligned with the displayed work even while writes stop.
+    // failure recovery aligned with committed work even while writes stop.
     if (sessionDiscarded.current) return;
     if (!writeSession(snapshot, platform.session.storage)) {
       const message = "作業状態を一時保存できません。再読み込みすると未保存の作業を失う可能性があります。";
@@ -578,8 +594,11 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       recordOperationError("session", null);
       setError(current => current === "作業状態を一時保存できません。再読み込みすると未保存の作業を失う可能性があります。" ? null : current);
     }
-  }, [sessionReady, state, form, mapRouteDraft, editingRouteProjectId, legacyRouteInput, pendingImportDraft, selectedImportCandidate, altitudeInputs, navLogDrafts, checkPointDraft, nodeNameDraft, vorColumns,
-    calculationInputsAreLocallyCurrent, pastedKml, projectName, selectedProjectId, pendingKmz, selectedKmzDocument]);
+  }, [sessionReady, state?.workingRecovery, form.candidateKey, form.routeUseConfirmed, form.polygonRouteConfirmed,
+    form.departureAirportId, form.destinationAirportId, form.departureOrigin, form.departureOriginExplicit,
+    mapRouteDraft, editingRouteProjectId, legacyRouteInput, pendingImportDraft, selectedImportCandidate, vorColumns,
+    checkPointDraft.id, checkPointDraft.latitude, checkPointDraft.longitude, checkPointDraft.linkedSectionId,
+    importedPaste, selectedProjectId, pendingKmz, selectedKmzDocument]);
 
   useEffect(() => {
     if (!state || state.project) return;
@@ -923,6 +942,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             if (epoch !== lifecycle.current) return;
             // A failed read has no current clipboard content to offer for import.
             setPastedKml("");
+            setImportedPaste("");
             const message = reason instanceof PlatformError ? reason.message : "クリップボードを読み取れませんでした。";
             showManualPaste(`${message}下の欄にKMLを貼り付けてください。`);
             return;
@@ -944,6 +964,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           return;
         }
         if (epoch !== lifecycle.current) return;
+        setImportedPaste(text);
         stageImportedRoute(next);
         setPasteOpen(false);
         return true;
@@ -1141,35 +1162,36 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     sectionOverrides?: NavSection[],
     selectedPatternAltitudeFtMsl?: number,
     invalidFallbackProject?: Project,
+    committedProject?: Project,
   ): UpdateProjectInput => {
-    const payloadSections = sectionOverrides ?? state?.project?.sections ?? [];
     if (!state?.project) throw new Error("プロジェクトがありません。");
-    const fallbackProject = invalidFallbackProject?.id === state.project.id
-      ? invalidFallbackProject
-      : undefined;
+    const project = committedProject ?? state.project;
+    const inputs = committedProject ? formFromProject(project, form, state.airports) : form;
+    const payloadSections = sectionOverrides ?? project.sections;
+    const fallbackProject = invalidFallbackProject?.id === project.id ? invalidFallbackProject : undefined;
     const canonicalSections = new Map(
-      (fallbackProject ?? state.project).sections.map((section) => [section.id, section]),
+      (fallbackProject ?? project).sections.map((section) => [section.id, section]),
     );
-    const fuelGal = usableFuelGal(form) ?? fallbackProject?.total_usable_fuel_gal ?? null;
+    const fuelGal = usableFuelGal(inputs) ?? fallbackProject?.total_usable_fuel_gal ?? null;
     if (fuelGal === null) {
       throw new Error("FUELは0より大きく200 gal以下で入力してください。");
     }
-    const tglCount = touchAndGoCount(form) ?? fallbackProject?.tgl_count ?? null;
+    const tglCount = touchAndGoCount(inputs) ?? fallbackProject?.tgl_count ?? null;
     if (tglCount === null) {
       throw new Error("TGLは0～20の整数で入力してください。");
     }
-    const flightDate = validFlightDate(form.flightDate)
-      ? form.flightDate
+    const flightDate = validFlightDate(inputs.flightDate)
+      ? inputs.flightDate
       : fallbackProject?.flight_date;
     if (!flightDate) throw new Error("DATEを入力してください。");
-    const departureTimeJst = validDepartureTimeJst(form.departureTimeJst)
-      ? form.departureTimeJst
+    const departureTimeJst = validDepartureTimeJst(inputs.departureTimeJst)
+      ? inputs.departureTimeJst
       : fallbackProject?.planned_departure_time_jst.slice(11, 16);
     if (!departureTimeJst) throw new Error("ETD JSTを入力してください。");
     const destinationElevation = state.airports.find(
-      (airport) => airport.id === state.project?.destination_airport_id,
+      (airport) => airport.id === project.destination_airport_id,
     )?.elevationFtMsl ?? null;
-    const localPatternAltitude = patternAltitudeFtMsl(form.destinationPatternAltitudeFtMsl);
+    const localPatternAltitude = patternAltitudeFtMsl(inputs.destinationPatternAltitudeFtMsl);
     const localPatternIsValid = localPatternAltitude !== null
       && (destinationElevation === null || localPatternAltitude > destinationElevation);
     const resolvedPatternAltitude = selectedPatternAltitudeFtMsl
@@ -1190,7 +1212,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
                 guidance.fixedAltitudeFtMsl
                   ?? canonicalSection.planned_altitude_ft_msl,
               )
-            : sectionOverrides
+            : sectionOverrides || committedProject
             ? String(section.planned_altitude_ft_msl)
             : altitudeInputs[section.id] ?? String(section.planned_altitude_ft_msl)
         ).trim();
@@ -1217,7 +1239,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         return [section.id, altitude] as const;
       }),
     );
-    const localArrival = state.project.metadata.ui_state?.arrival_plan ?? null;
+    const localArrival = project.metadata.ui_state?.arrival_plan ?? null;
     const invalidVrepAltitude = payloadSections.some(
       (section) => section.phase === "VISUAL_ARRIVAL"
         && invalidAltitudeSectionIds.has(section.id),
@@ -1225,8 +1247,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     const arrival = invalidVrepAltitude && fallbackProject
       ? fallbackProject.metadata.ui_state?.arrival_plan ?? null
       : localArrival;
-    let weatherMode = form.weatherMode;
-    let ftdWeather = ftdWeatherSettings(form);
+    let weatherMode = inputs.weatherMode;
+    let ftdWeather = ftdWeatherSettings(inputs);
     if (weatherMode === "FTD" && ftdWeather === null && fallbackProject) {
       weatherMode = fallbackProject.weather_mode;
       ftdWeather = fallbackProject.ftd_weather;
@@ -1236,20 +1258,20 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         "FTD固定気象は、地上と5,000 ftの風向・風速を範囲内で入力してください。",
       );
     }
-    const orderedNodes = [...state.project.route_nodes].sort((a, b) => a.sequence - b.sequence);
+    const orderedNodes = [...project.route_nodes].sort((a, b) => a.sequence - b.sequence);
     const fallbackVrep = orderedNodes.length >= 3 ? orderedNodes.at(-2)?.id ?? null : null;
     return {
       flight_date: flightDate,
       departure_time_jst: departureTimeJst,
       total_usable_fuel_gal: fuelGal,
-      default_variation_deg_east: form.variationDegEast,
+      default_variation_deg_east: inputs.variationDegEast,
       weather_mode: weatherMode,
       ftd_weather: weatherMode === "FTD" ? ftdWeather : null,
-      run_up_included: form.runUpIncluded,
-      nose_fairing_enabled: form.noseFairingEnabled,
-      departure_origin: form.departureOrigin,
-      air_conditioning_enabled: form.airConditioningEnabled,
-      descent_rate_fpm: form.descentRateFpm,
+      run_up_included: inputs.runUpIncluded,
+      nose_fairing_enabled: inputs.noseFairingEnabled,
+      departure_origin: inputs.departureOrigin,
+      air_conditioning_enabled: inputs.airConditioningEnabled,
+      descent_rate_fpm: inputs.descentRateFpm,
       tgl_count: tglCount,
       sections: payloadSections.map((section) => {
         const guidance = altitudeGuidanceBySection.get(section.id);
@@ -1319,11 +1341,28 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           ) {
             applyState(next, {
               syncCalculationInputs: false,
-              syncDerivedArrival: request.syncDerivedArrival,
+              syncDerivedArrival: request.arrivalInputToSync !== undefined,
             });
             setDraftAutosaveVersion(0);
             recordOperationError("autosave", null);
             setError((current) => current === DRAFT_AUTOSAVE_FAILURE ? null : current);
+          } else if (request.projectId === projectIdRef.current) {
+            // Publish committed status while retaining section and arrival edits made during the write.
+            const derived = request.arrivalInputToSync === undefined ? undefined
+              : next.project?.sections.find(section => section.phase === "VISUAL_ARRIVAL");
+            const syncAltitude = derived && altitudeInputsRef.current[derived.id]?.trim() === request.arrivalInputToSync;
+            if (syncAltitude) setAltitudeInputs(current => ({ ...current, [derived.id]: String(derived.planned_altitude_ft_msl) }));
+            setState(current => {
+              if (current?.project?.id !== request.projectId || !next.project) return current;
+              const arrival = current.project.metadata.ui_state?.arrival_plan;
+              const previousArrival = current.workingRecovery?.project?.metadata.ui_state?.arrival_plan;
+              const metadata = arrival && !sameProjectContent(arrival, previousArrival)
+                ? { ...next.project.metadata, ui_state: { ...next.project.metadata.ui_state, arrival_plan: arrival } }
+                : next.project.metadata;
+              const sections = syncAltitude ? current.project.sections.map(section => section.id === derived.id
+                ? { ...section, planned_altitude_ft_msl: derived.planned_altitude_ft_msl } : section) : current.project.sections;
+              return { ...next, project: { ...next.project, metadata, sections } };
+            });
           }
         } catch {
           if (
@@ -1347,7 +1386,6 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const enqueueDraftAutosave = (
     generation: number,
     useCanonicalFallback: boolean,
-    force = false,
   ): Promise<boolean> => {
     const projectId = projectIdRef.current;
     if (!projectId) return Promise.resolve(true);
@@ -1356,6 +1394,19 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       undefined,
       useCanonicalFallback ? canonicalProjectRef.current ?? undefined : undefined,
     );
+    const pending = draftAutosaveQueuedRef.current ?? draftAutosaveRunningRef.current;
+    if (pending?.projectId === projectId && pending.generation === generation &&
+        JSON.stringify(payload) === JSON.stringify(pending.payload)) {
+      return new Promise(resolve => pending.waiters.push(resolve));
+    }
+    const committed = canonicalProjectRef.current;
+    if (committed && !pending &&
+        JSON.stringify(payload) === JSON.stringify(updatePayloadRef.current(undefined, undefined, committed, committed))) {
+      setDraftAutosaveVersion(0);
+      recordOperationError("autosave", null);
+      setError(current => current === DRAFT_AUTOSAVE_FAILURE ? null : current);
+      return Promise.resolve(true);
+    }
     const visualArrival = state?.project?.sections.find(
       (section) => section.phase === "VISUAL_ARRIVAL",
     );
@@ -1379,21 +1430,12 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       && typeof requestedPatternAltitude === "number"
       && requestedPatternAltitude !== appliedPatternAltitude;
     return new Promise((resolve) => {
-      const running = draftAutosaveRunningRef.current;
-      if (
-        !force
-        && running?.projectId === projectId
-        && running.generation === generation
-      ) {
-        running.waiters.push(resolve);
-        return;
-      }
       const queued = draftAutosaveQueuedRef.current;
       if (queued?.projectId === projectId) {
         queued.generation = generation;
         queued.payload = payload;
         queued.useCanonicalFallback = useCanonicalFallback;
-        queued.syncDerivedArrival = syncDerivedArrival;
+        queued.arrivalInputToSync = syncDerivedArrival ? visualArrivalInput : undefined;
         queued.waiters.push(resolve);
       } else {
         draftAutosaveQueuedRef.current = {
@@ -1401,7 +1443,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           projectId,
           payload,
           useCanonicalFallback,
-          syncDerivedArrival,
+          arrivalInputToSync: syncDerivedArrival ? visualArrivalInput : undefined,
           waiters: [resolve],
         };
       }
@@ -1417,7 +1459,6 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     return enqueueDraftAutosave(
       draftAutosaveGenerationRef.current,
       !strict,
-      strict,
     );
   };
 
@@ -1720,7 +1761,8 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
       const editedSections = project.sections.map(section =>
         errors[section.id] ? section : applyDraftToSection(section, drafts[section.id]),
       );
-      if (Object.keys(drafts).length > 0) {
+      if (project.sections.some(section => drafts[section.id] && !errors[section.id] &&
+          JSON.stringify(drafts[section.id]) !== JSON.stringify(draftFromSection(section)))) {
         const next = await application.updateProject(
           updatePayloadRef.current(editedSections, undefined, project),
         );
@@ -1784,6 +1826,10 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     return updated !== undefined;
   };
 
+  const getLoadInputs = () => ({ form, altitudeInputs, navLogDrafts, checkPointDraft, nodeNameDraft,
+    projectName, projectDraft: projectDraft(state?.project ?? null) });
+  const liveLoadInputs = useRef(getLoadInputs);
+  liveLoadInputs.current = getLoadInputs;
   const handleLoad = async () => {
     if (!selectedProjectId || busy || loadingProjectRef.current) return;
     if (!application.checkpointLoads && !confirmDiscardMapDraft()) return;
@@ -1799,7 +1845,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
             const session = latestSession.current;
             const current = session?.working.project;
             const reference = current?.id === target.id ? target : current;
-            const changes = storedChanges || Boolean(session && reference && hasProjectInputChanges(session, reference, state?.airports ?? []))
+            const changes = storedChanges || Boolean(session && reference && hasProjectInputChanges({ ...session, ...liveLoadInputs.current() }, reference, state?.airports ?? []))
               || Boolean(current && current.id !== target.id && state?.savedProjects.some(project => project.id === current.id && project.kind === "LATEST"))
               || Boolean(session?.mapRouteDraft?.length || session?.pendingImportDraft);
             return !changes || window.confirm("作成中の変更を破棄しますか？");

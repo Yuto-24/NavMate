@@ -306,7 +306,7 @@ for (const width of [390, 1100, 1440]) {
     await worker.evaluate(() => { setTimeout(() => { throw new Error("Test Local Worker failure"); }, 0); });
     await page.waitForFunction(() => (window as any).localWorkerFailed);
     await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "自動保存できませんでした" })).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "処理を実行できませんでした。画面を再読み込みしてください。" })).toBeVisible();
     expect(await page.locator(".nav-log-table").innerText()).toBe(previousTable);
     expect(apiRequests).toEqual([]);
     await page.screenshot({ path: `/tmp/issue117-local-error-${width}.png`, fullPage: true });

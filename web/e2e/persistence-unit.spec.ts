@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
 import { IndexedDbProjectRepository, LOCAL_DATABASE, LOCAL_DATABASE_VERSION } from "../src/localProjectRepository";
 import type { LocalProjectRecord } from "../src/localProjectRepository";
+import { ApplicationError } from "../src/application";
 import type { Project } from "../src/types";
 
 let factory: IDBFactory;
@@ -83,6 +84,22 @@ test("corruption stays isolated and intact, including unavailable Latest", async
   await repository.write(record("new"), null, true);
   await repository.open(good);
   expect((await repository.list()).unavailable).toEqual(["corrupt"]);
+});
+
+test("#540 retries transient validation with the same token and reuses the recovered Latest", async () => {
+  const original = record("original");
+  await repo().write(original, null, true);
+  let attempts = 0;
+  const repository = new IndexedDbProjectRepository(async raw => {
+    if ((raw as LocalProjectRecord).id === original.id && ++attempts === 1)
+      throw new ApplicationError("temporary", "REQUEST_FAILED");
+    return validate(raw);
+  }, undefined, () => factory);
+  expect((await repository.list()).unavailable).toEqual([original.id]);
+  expect((await repository.list()).projects.map(row => row.id)).toEqual([original.id]);
+  await repository.write(record("replacement"), null, true);
+  expect((await repository.list()).projects.map(row => row.id)).toEqual(["replacement"]);
+  expect(attempts).toBe(2);
 });
 
 test("concurrent Latest insertions cannot create multiple retained slots", async () => {

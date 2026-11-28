@@ -10,7 +10,7 @@
 | ファイル選択ダイアログ・ドロップ操作・選択キャンセル | ファイル入力制御 |
 | KML/KMZ 解析、アーカイブ上限、文書選択、経路候補抽出 | 共通 Python 取込処理 |
 | 操作実行、作業状態、下書き確定、計算、エラーの意味付け | [Application 境界](application_contract.md) |
-| 再読み込み限定の作業復元、未確定生入力保持、復旧失敗方針 | [Session ライフサイクル](application_contract.md#frontend-application-session--lifecycle-119) |
+| 再読み込み限定の作業復元、確定済み入力の保持、復旧失敗方針 | [Session ライフサイクル](application_contract.md#frontend-application-session--lifecycle-119) |
 | Project / `Latest` / チェックポイント / 改訂 / 直前正常計算 / 容量退避 | [Local Project 永続化契約](local_persistence.md) |
 | ブラウザ保存領域へのアクセスとリポジトリ生成 | プラットフォーム永続化アクセス |
 | お知らせ既読管理とインメモリ代替 | お知らせ機能 |

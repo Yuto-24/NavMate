@@ -108,7 +108,7 @@ test("remote generation change closes an in-flight old owner write before purgin
   const context = { account_id: "owner-old", assertActive() { if (!active) throw accountBoundaryClosed(); },
     onClose(fn: () => void) { closures.add(fn); return () => { closures.delete(fn); }; } };
   const repo = new IndexedDbProjectRepository(validate, undefined, () => factory, context);
-  const getAll = IDBObjectStore.prototype.getAll;
+  const get = IDBObjectStore.prototype.get;
   try {
     await (provider as any).accept(user);
     provider.subscribe(() => {
@@ -116,8 +116,8 @@ test("remote generation change closes an in-flight old owner write before purgin
     });
     await repo.write(record("old", true), null, false);
     changed = true;
-    IDBObjectStore.prototype.getAll = function (...args: Parameters<typeof getAll>) {
-      const request = getAll.apply(this, args);
+    IDBObjectStore.prototype.get = function (...args: Parameters<typeof get>) {
+      const request = get.apply(this, args);
       change ??= (provider as any).accept(user);
       return request;
     };
@@ -127,7 +127,7 @@ test("remote generation change closes an in-flight old owner write before purgin
     active = true;
     expect((await new IndexedDbProjectRepository(validate, undefined, () => factory, context).list()).projects).toHaveLength(0);
   } finally {
-    IDBObjectStore.prototype.getAll = getAll;
+    IDBObjectStore.prototype.get = get;
     if (previousIdb) Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: previousIdb });
     else delete (globalThis as { indexedDB?: IDBFactory }).indexedDB;
     if (previousSession) Object.defineProperty(globalThis, "sessionStorage", previousSession);
@@ -162,14 +162,14 @@ test("closed account handles reject reads and writes, including an in-flight tra
   const repository = new IndexedDbProjectRepository(validate, undefined, () => factory, { account_id: "A", assertActive, onClose: () => () => {} });
   const original = record("original", true);
   await repository.write(original, null, false);
-  const getAll = IDBObjectStore.prototype.getAll;
-  IDBObjectStore.prototype.getAll = function (...args: Parameters<typeof getAll>) {
-    const request = getAll.apply(this, args);
+  const get = IDBObjectStore.prototype.get;
+  IDBObjectStore.prototype.get = function (...args: Parameters<typeof get>) {
+    const request = get.apply(this, args);
     request.addEventListener("success", () => { active = false; });
     return request;
   };
   try { await expect(repository.write(record("late"), null, false)).rejects.toMatchObject({ code: "ACCOUNT_CONTEXT_CLOSED" }); }
-  finally { IDBObjectStore.prototype.getAll = getAll; }
+  finally { IDBObjectStore.prototype.get = get; }
   await expect(repository.list()).rejects.toMatchObject({ code: "ACCOUNT_CONTEXT_CLOSED" });
   await expect(repository.read(original.id)).rejects.toMatchObject({ code: "ACCOUNT_CONTEXT_CLOSED" });
   await expect(repository.delete(original.id, original.token)).rejects.toMatchObject({ code: "ACCOUNT_CONTEXT_CLOSED" });
@@ -259,7 +259,8 @@ for (const operation of ["list", "read"] as const) test(`closing during async va
     if (hold) await new Promise<void>(resolve => { release = resolve; });
     return validate(row);
   }, undefined, () => factory, context);
-  await repo.write(record("secret", true), null, false);
+  const writer = new IndexedDbProjectRepository(validate, undefined, () => factory, context);
+  await writer.write(record("secret", true), null, false);
   hold = true;
   const pending = operation === "list" ? repo.list() : repo.read("secret");
   await expect.poll(() => Boolean(release)).toBe(true);

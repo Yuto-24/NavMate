@@ -308,9 +308,18 @@ test("download Project inputs and retain workflow order", async ({ page, context
   expect(originalKml.paths.every(path => path.mode === "absolute" && path.extrude === "1")).toBe(true);
   expect(originalKml.names).toEqual(expect.arrayContaining(["CLIMB", "CRUISE", "DESCENT", "RCA", "EOC"]));
   expect(initialKml).not.toContain("再計算前の結果を出力します。");
+  if (isLocal()) await page.evaluate(() => {
+    const original = Worker.prototype.postMessage;
+    Object.assign(window, { exportDraftWrites: 0 });
+    Worker.prototype.postMessage = function(message, ...rest: any[]) {
+      if (message?.argumentList?.[0]?.value === "updateProject") (window as any).exportDraftWrites++;
+      return (original as any).call(this, message, ...rest);
+    };
+  });
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "プロジェクトJSONをダウンロード" }).click();
   const file = await download;
+  if (isLocal()) expect(await page.evaluate(() => (window as any).exportDraftWrites)).toBe(0);
   expect(file.suggestedFilename().startsWith(`${original.project.name}_`)).toBe(true);
   expect(file.suggestedFilename()).toMatch(/_\d{8}-\d{4}\.json$/);
   const text = readFileSync((await file.path())!, "utf8");

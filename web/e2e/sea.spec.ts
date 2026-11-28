@@ -210,6 +210,11 @@ test(`#314 #496 ${partial ? "partial" : "complete"} DEM, automatic values and re
   await page.getByRole("button", { name: "地形を再取得" }).click();
   await expect(first.locator(".sea-loading-icon")).toBeVisible();
   await expect(first).toContainText(display);
+  await openProjectMenu(page);
+  await page.getByLabel("プロジェクト", { exact: true }).fill("SEA pending");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect.poll(() => page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).working.project.name,
+    artifactSessionKey)).toBe("SEA pending");
   await page.getByLabel("地上風速 kt").fill("17");
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(first.locator(".sea-loading-icon")).toBeVisible();
