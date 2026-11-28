@@ -62,7 +62,7 @@ async function start(page: Page) {
   });
   await page.goto("/e2e/dev-shared-harness/index.html");
   await enterImportWorkflow(page);
-  await expect.poll(() => page.evaluate(() => (window as any).devSharedTest.user().anonymous)).toBe(true);
+  await expect.poll(() => page.evaluate(() => (window as any).devSharedTest?.user().anonymous)).toBe(true);
   await expect(page.getByRole("button", { name: /^アカウント(?:（|$)/ })).toBeVisible();
 }
 test.beforeEach(async ({ request, page }) => {

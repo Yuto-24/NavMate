@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "id": "new-route-tab",
+      "text": "作業を残して別タブで新規経路を作成",
+      "reason": "元タブの復元を継続することと、別タブが空の新規経路であることを明示する候補Cを採用。",
+      "response_quote": "## `new-route-tab`\n\n- **現行案**: `新しいタブで経路を作成`（11文字）\n- **現行案の課題（利用者視点）**:\n  - 復元中・準備中の画面で押した際、**元のタブの未保存作業や復元処理が消えないか／中断されないか**が読み取りにくく、クリックをためらう恐れがある。\n  - 「経路を作成」だけだと、復元中の経路を引き継ぐのか、**空の新しい経路**を始めるのかがやや曖昧。\n\n### 候補一覧\n\n| 候補 | 文言案 | 文字数 | 狙い |\n| --- | --- | --- | --- |\n| 候補A | `作業を残したまま別タブで新規経路を作成` | 19文字 | 安心感と簡潔さのバランス |\n| 候補B | `別タブで新しい経路を作成（元の作業は残る）` | 21文字 | 操作内容の先頭提示＋平易な補足 |\n| 候補C | `作業を残して別タブで新規経路を作成` | 17文字 | 制約を満たしつつ文字数を圧縮 |\n| 候補D | `作業を保ったまま新しいタブで新規経路を入力` | 21文字 | 現行の「新しいタブ」表記・目的に忠実 |\n\n---",
+      "source": {
+        "path": "web/src/App.tsx",
+        "start": "        {localMode && restoringRoute && <a href={window.location.href} target=\"_blank\" rel=\"noopener\">作業を残して別タブで新規経路を作成</a>}",
+        "end": "        {localMode && restoringRoute && <a href={window.location.href} target=\"_blank\" rel=\"noopener\">作業を残して別タブで新規経路を作成</a>}",
+        "expected": "        {localMode && restoringRoute && <a href={window.location.href} target=\"_blank\" rel=\"noopener\">作業を残して別タブで新規経路を作成</a>}"
+      }
+    }
+  ]
+}

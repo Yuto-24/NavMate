@@ -306,3 +306,5 @@
   .checkpoint-form.is-adding .checkpoint-form-actions { grid-column:2; grid-row:1; align-self:end; }
   .checkpoint-form.is-adding .checkpoint-form-actions .primary-button { margin:0; }
 }
+
+.planning-pane .loading-screen { min-height:0; height:auto; padding:12px; }

@@ -1,5 +1,7 @@
 import { seaCruiseCautions } from "./seaDisplay";
 import { TransientMessage } from "./components/TransientMessage";
+import { StartupRoute } from "./components/StartupRoute";
+import type { MapAirport } from "./components/MapRouteBuilder";
 import { StartupScreen } from "./components/StartupScreen";
 import { flushSync } from "react-dom";
 import { useNotificationState } from "./useNotificationState";
@@ -108,6 +110,13 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   const [informationState] = useState(() => createInformationState(platform.persistence.values));
   const { hasUnreadInformation, hasUnreadKnownIssues, markInformationSeen } = informationState;
   const [recovery] = useState(() => readSession(platform.session));
+  const previous = recovery.session;
+  const restoringRoute = Boolean(previous && (
+    previous.working.project !== null || previous.working.import_result !== null ||
+    previous.working.last_calculation != null || previous.working.outcome !== null ||
+    previous.mapRouteDraft?.length || previous.editingRouteProjectId || previous.pendingImportDraft ||
+    previous.pastedKml || previous.pendingKmz || previous.legacyRouteInput
+  ));
   const [radReciprocal, setRadReciprocal] = useState(true);
   const [vorColumns, setVorColumns] = useState<VorColumn[]>([{ id: 0, stationIdentifier: null }]);
   const [checkPointDraft, setCheckPointDraft] = useState(emptyCheckPointDraft);
@@ -483,7 +492,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         if (next.project && restored.projectDraft) {
           setState({ ...next, project: restoreProjectDraft(next.project, restored.projectDraft) });
         }
-        setMapRouteDraft(restored.mapRouteDraft ?? []);
+        if (!localMode || restoringRoute) setMapRouteDraft(restored.mapRouteDraft ?? []);
         setEditingRouteProjectId(restored.editingRouteProjectId ?? null);
         setLegacyRouteInput(restored.legacyRouteInput ?? false);
         const pendingImport = restored.pendingImportDraft ?? Boolean(!next.project && next.import.candidates.length && !restored.mapRouteDraft?.length);
@@ -542,11 +551,19 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
   }, [state?.outcome]);
 
   useLayoutEffect(() => {
-    if (!sessionReady || !state?.workingRecovery) return;
-    const snapshot: ApplicationSession = {
+    // Persist early edits in the existing tab/account slot. A startup retry reloads
+    // the document, so it must be able to recover a draft before Python is ready.
+    const earlyDraft = localMode && !state && !restoringRoute &&
+      (mapRouteDraft.length > 0 || latestSession.current !== null);
+    const working = earlyDraft ? {
+      version: 1 as const, project: null, outcome: null, destination_wind: null,
+      import_result: null, import_filename: null,
+    } : sessionReady && state?.workingRecovery;
+    if (!working) return;
+    const snapshot: ApplicationSession = earlyDraft && previous ? { ...previous, mapRouteDraft } : {
       mapRouteDraft, editingRouteProjectId, legacyRouteInput, pendingImportDraft, selectedImportCandidate, checkPointDraft, nodeNameDraft, vorColumns,
-      version: 1, working: state.workingRecovery, form, altitudeInputs, navLogDrafts,
-      projectDraft: projectDraft(state.project), calculationInputsAreLocallyCurrent, pastedKml,
+      version: 1, working, form, altitudeInputs, navLogDrafts,
+      projectDraft: projectDraft(state?.project ?? null), calculationInputsAreLocallyCurrent, pastedKml,
       projectName, selectedProjectId, pendingKmz, selectedKmzDocument,
     };
     latestSession.current = snapshot;
@@ -1885,9 +1902,42 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     );
   };
 
+  const selectedCandidate = candidateFromKey(state?.import.candidates ?? [], form.candidateKey);
+  const viewportScope = application.auth?.getState().account
+    ? localAccountScope(application.auth.getState().account!.account_id) : "anonymous";
+  const buildingRoute = Boolean(editingRouteProjectId) || !state?.project;
+  const pendingImportedDraft = pendingImportDraft && state && selectedCandidate
+    ? importCandidateToMapDraft(selectedCandidate, state.airports) : null;
+  const importPreview = pendingImportedDraft && pendingImportedDraft.status !== "invalid" ? pendingImportedDraft.points : null;
+  const importSelectionOpen = pendingImportDraft && (state?.import.candidates.length ?? 0) > 1 && !form.candidateKey;
+  const mapBuilder = buildingRoute ? {
+    points: importPreview ?? mapRouteDraft, airports: state?.airports ?? __MAP_AIRPORTS__, busy: busy || pendingImportDraft,
+    importFitCoordinates: editingRouteProjectId ? null : importFitCoordinates,
+    onAirport: (airport: MapAirport) => setMapRouteDraft(current => [...current, {
+      id: crypto.randomUUID(), name: airport.icao, airport_id: airport.id,
+      latitude_deg: airport.latitudeDeg, longitude_deg: airport.longitudeDeg,
+    }]),
+    onReference: (reference: ReferencePointSnapshot) => setMapRouteDraft(current => current.length === 0 || current.length >= 500 ? current : [...current, {
+      id: crypto.randomUUID(), name: reference.name, airport_id: null,
+      latitude_deg: reference.latitude_deg, longitude_deg: reference.longitude_deg,
+      reference_snapshot: structuredClone(reference),
+    }]),
+    onNamedPoint: (name: string, latitude: number, longitude: number) => setMapRouteDraft(current => current.length === 0 || current.length >= 500 ? current : [...current, {
+      id: crypto.randomUUID(), name, airport_id: null, latitude_deg: latitude, longitude_deg: longitude,
+    }]),
+    onPoint: (latitude: number, longitude: number) => setMapRouteDraft(current => [...current, {
+      id: crypto.randomUUID(), name: nextWaypointName(current), airport_id: null,
+      latitude_deg: latitude, longitude_deg: longitude,
+    }]),
+    onRemove: (id: string) => setMapRouteDraft(current => current.filter(point => point.id !== id)),
+    onClear: () => { if (confirmDiscardMapDraft()) { setMapRouteDraft([]); setPendingImportDraft(false); } },
+    onConfirm: state ? () => void handleConfirmMapRoute() : undefined,
+  } : undefined;
+
   if (!state) {
-    return (
+    const progress = (
       <StartupScreen source={application.startup} showProgress={localMode && !error}>
+        {localMode && restoringRoute && <a href={window.location.href} target="_blank" rel="noopener">作業を残して別タブで新規経路を作成</a>}
         {error && (
           <>
             <p role="alert">{error}<br /><code>{bootstrapErrorCode}</code></p>
@@ -1910,9 +1960,14 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
         )}
       </StartupScreen>
     );
+    if (localMode && !restoringRoute && mapBuilder) return (
+      <StartupRoute builder={mapBuilder} storage={platform.persistence.values} scope={viewportScope}>
+        {progress}
+      </StartupRoute>
+    );
+    return progress;
   }
 
-  const selectedCandidate = candidateFromKey(state.import.candidates, form.candidateKey);
   const selectedDestinationAirport = state.airports.find(
     (airport) => airport.id === form.destinationAirportId,
   ) ?? null;
@@ -1962,34 +2017,6 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
     ? state.outcome?.rjfm_inbound_guidance ?? null
     : null;
 
-  const buildingRoute = Boolean(editingRouteProjectId) || !state.project;
-  const pendingImportedDraft = pendingImportDraft && selectedCandidate
-    ? importCandidateToMapDraft(selectedCandidate, state.airports) : null;
-  const importPreview = pendingImportedDraft && pendingImportedDraft.status !== "invalid" ? pendingImportedDraft.points : null;
-  const importSelectionOpen = pendingImportDraft && state.import.candidates.length > 1 && !form.candidateKey;
-  const mapBuilder = buildingRoute ? {
-    points: importPreview ?? mapRouteDraft, airports: state.airports, busy: busy || pendingImportDraft,
-    importFitCoordinates: editingRouteProjectId ? null : importFitCoordinates,
-    onAirport: (airport: WebState["airports"][number]) => setMapRouteDraft(current => [...current, {
-      id: crypto.randomUUID(), name: airport.icao, airport_id: airport.id,
-      latitude_deg: airport.latitudeDeg, longitude_deg: airport.longitudeDeg,
-    }]),
-    onReference: (reference: ReferencePointSnapshot) => setMapRouteDraft(current => current.length === 0 || current.length >= 500 ? current : [...current, {
-      id: crypto.randomUUID(), name: reference.name, airport_id: null,
-      latitude_deg: reference.latitude_deg, longitude_deg: reference.longitude_deg,
-      reference_snapshot: structuredClone(reference),
-    }]),
-    onNamedPoint: (name: string, latitude: number, longitude: number) => setMapRouteDraft(current => current.length === 0 || current.length >= 500 ? current : [...current, {
-      id: crypto.randomUUID(), name, airport_id: null, latitude_deg: latitude, longitude_deg: longitude,
-    }]),
-    onPoint: (latitude: number, longitude: number) => setMapRouteDraft(current => [...current, {
-      id: crypto.randomUUID(), name: nextWaypointName(current), airport_id: null,
-      latitude_deg: latitude, longitude_deg: longitude,
-    }]),
-    onRemove: (id: string) => setMapRouteDraft(current => current.filter(point => point.id !== id)),
-    onClear: () => { if (confirmDiscardMapDraft()) { setMapRouteDraft([]); setPendingImportDraft(false); } },
-    onConfirm: () => void handleConfirmMapRoute(),
-  } : undefined;
 
   return (
     <div className="app-shell">
@@ -2160,8 +2187,7 @@ function App({ application, platform, FileInput, onNewWork }: AppProps & { onNew
           mapBuilder={mapBuilder}
           viewportStorage={platform.persistence.values}
           preserveRouteViewport={preserveRouteViewport}
-          viewportScope={application.auth?.getState().account
-            ? localAccountScope(application.auth.getState().account!.account_id) : "anonymous"}
+          viewportScope={viewportScope}
           onOpenExternalUrl={(url) => {
             try {
               platform.openExternalUrl(url);

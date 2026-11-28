@@ -57,31 +57,69 @@ async function calculated(page: Page) {
   await page.getByRole("button", { name: /NAV LOGを(?:作る|再計算)$/ }).click();
   await expect(page.locator(".nav-log-table")).toBeVisible();
 }
-test("#422 one startup bar stays monotonic through assets and validated readiness", async ({ page, context }) => {
+test("#530 #422 route input during suspended assets survives validated readiness", async ({ page, context }) => {
   test.skip(!isLocal(), "Local startup progress");
   await context.addInitScript(observeStartupProgress);
+  await open(page); // An empty same-tab session must still allow early input on reload.
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
   await context.route("**/local/data.zip", async route => { await pending; await route.continue(); });
-  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   const bar = page.getByRole("progressbar", { name: "準備の進み具合" });
   try {
     await expect(page.getByRole("status")).toHaveText("計算用プログラムとデータを読み込んでいます", { timeout: 120_000 });
     await expect(bar).toHaveCount(1);
-    await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button")).toHaveCount(0);
+    const originalViewport = page.viewportSize()!;
+    for (const width of [390, 1100, 1280]) {
+      await page.setViewportSize({ width, height: 850 });
+      await expectPlanningLayout(page, width);
+    }
+    await page.setViewportSize(originalViewport);
+    await selectAirport(page, "RJFM");
+    await clickMapCoordinate(page, 31.95, 131.5);
+    await selectAirport(page, "RJFM");
+    await expect(page.locator(".route-strip li")).toHaveCount(3);
+    await expect(page.getByRole("button", { name: "経路を確定" })).toBeDisabled();
+    await expect(page.locator(".nav-log-table")).toHaveCount(0);
     const barBox = await bar.boundingBox(), stageBox = await page.getByRole("status").boundingBox();
     expect(stageBox!.y).toBeGreaterThanOrEqual(barBox!.y + barBox!.height);
   } finally { release(); }
   await enterImportWorkflow(page);
   await expect(bar).toHaveCount(0);
+  await expect(page.locator(".route-strip li")).toContainText(["RJFM", "WP1", "RJFM"]);
+  await expect(page.getByRole("button", { name: "経路を確定" })).toBeEnabled();
   const values = await page.evaluate(() => (window as unknown as { startupProgressValues: number[] }).startupProgressValues);
   expect(values.length).toBeGreaterThan(3);
   expect(values[0]).toBeLessThanOrEqual(5);
   expect(values.at(-1)).toBe(100);
   expect(values.every((value, index) => value >= 0 && value <= 100 && (index === 0 || value >= values[index - 1]))).toBe(true);
   const frames = await page.evaluate(() => (window as any).startupProgressFrames as { percent: number; workspace: boolean }[]);
-  expect(frames.some(frame => frame.percent === 100 && !frame.workspace)).toBe(true);
+  expect(frames.some(frame => frame.percent === 100 && frame.workspace)).toBe(true);
+});
+
+test("#530 restoring a calculated session and starting another route keep both tabs independent", async ({ page, context }) => {
+  test.skip(!isLocal(), "Local startup recovery");
+  await calculated(page);
+  await page.locator(".nav-log-table").getByLabel(/手動TAS$/).first().fill("999");
+  const previous = await snapshot(page);
+  let resume!: () => void;
+  const paused = new Promise<void>(resolve => { resume = resolve; });
+  await context.route("**/local/data.zip", async route => { await paused; await route.continue(); });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const opened = context.waitForEvent("page");
+  await page.getByRole("link", { name: /別タブで新規経路/ }).click();
+  const fresh = await opened;
+  try {
+    await selectAirport(fresh, "RJFM");
+    await expect(fresh.locator(".route-strip li")).toHaveCount(1);
+    await expect(page.locator(".nav-log-table")).toHaveCount(0);
+    expect((await snapshot(page)).working).toEqual(previous.working);
+  } finally { resume(); }
+  await expect(page.locator(".nav-log-table").getByLabel(/手動TAS$/).first()).toHaveValue("999");
+  await enterImportWorkflow(fresh);
+  expect((await snapshot(page)).working.last_calculation).toEqual(previous.working.last_calculation);
+  await expect(fresh.locator(".route-strip li")).toContainText(["RJFM"]);
+  expect((await snapshot(fresh)).working.project).toBeNull();
 });
 
 test("#355 startup reload replaces a failed Worker", async ({ page, context }) => {
@@ -101,11 +139,13 @@ test("#355 startup reload replaces a failed Worker", async ({ page, context }) =
   await expect(page.getByRole("alert").locator("code")).toHaveText("APPLICATION_UNAVAILABLE");
   await expect(page.getByRole("progressbar", { name: "準備の進み具合" })).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText("private Worker stack and token");
+  await selectAirport(page, "RJFM");
   const firstDocument = await page.evaluate(() => performance.timeOrigin);
   await page.getByRole("button", { name: "起動を再試行", exact: true }).click();
   await enterImportWorkflow(page);
   await expect(page.getByRole("heading", { name: "経路作成", exact: true })).toBeVisible();
   expect(await page.evaluate(() => performance.timeOrigin)).not.toBe(firstDocument);
+  await expect(page.locator(".route-strip li")).toContainText(["RJFM"]);
 });
 
 test("#351 stale recovery permits recalculation with historical blockers and an unapplied pattern altitude", async ({ page }) => {

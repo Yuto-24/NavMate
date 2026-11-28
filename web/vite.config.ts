@@ -8,11 +8,11 @@ import { localUnreleased } from "./scripts/unreleased-notes.mjs";
 export default defineConfig(async ({ mode }) => {
   const local = loadEnv(mode, ".").VITE_CALCULATION_MODE === "local";
   const manifest = local ? readFileSync("public-local/local/manifest.json") : undefined;
-  if (manifest) {
-    const metadata = JSON.parse(manifest.toString());
+  const metadata = manifest && JSON.parse(manifest.toString());
+  if (metadata) {
     const version = readFileSync("../VERSION", "utf8").trim();
     const pyodide = JSON.parse(readFileSync("package.json", "utf8")).dependencies.pyodide;
-    if (metadata.version !== version || metadata.pyodideVersion !== pyodide) {
+    if (metadata.version !== version || metadata.pyodideVersion !== pyodide || !metadata.mapAirports?.length) {
       throw new Error("Local assets are stale; run npm run prepare:local");
     }
   }
@@ -21,7 +21,8 @@ export default defineConfig(async ({ mode }) => {
       __LOCAL_UNRELEASED__: JSON.stringify(process.env.NAVMATE_LOCAL_DOCKER === "1"
         ? await localUnreleased("..") : null),
       __LOCAL_MANIFEST_SHA256__: JSON.stringify(manifest ? createHash("sha256").update(manifest).digest("hex") : ""),
-      __PYODIDE_VERSION__: JSON.stringify(manifest ? JSON.parse(manifest.toString()).pyodideVersion : ""),
+      __MAP_AIRPORTS__: JSON.stringify(metadata?.mapAirports ?? []),
+      __PYODIDE_VERSION__: JSON.stringify(metadata?.pyodideVersion ?? ""),
     },
     plugins: [react()],
     publicDir: local ? "public-local" : "public",
